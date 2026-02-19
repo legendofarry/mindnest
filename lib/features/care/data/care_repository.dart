@@ -6,6 +6,7 @@ import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/care_goal.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
+import 'package:mindnest/features/care/models/counselor_public_rating.dart';
 
 class CareRepository {
   CareRepository({
@@ -633,25 +634,31 @@ class CareRepository {
       throw Exception('Rating must be between 1 and 5.');
     }
 
-    final ratingRef = _firestore.collection('counselor_ratings').doc();
+    final ratingRef = _firestore
+        .collection('counselor_ratings')
+        .doc(appointment.id);
     final appointmentRef = _firestore
         .collection('appointments')
         .doc(appointment.id);
-    final counselorRef = _firestore
-        .collection('counselor_profiles')
-        .doc(appointment.counselorId);
 
     await _firestore.runTransaction((transaction) async {
-      final counselorSnap = await transaction.get(counselorRef);
-      if (!counselorSnap.exists || counselorSnap.data() == null) {
-        throw Exception('Counselor profile not found.');
+      final freshAppointment = await transaction.get(appointmentRef);
+      if (!freshAppointment.exists || freshAppointment.data() == null) {
+        throw Exception('Appointment not found.');
       }
-      final counselorData = counselorSnap.data()!;
-      final oldCount = (counselorData['ratingCount'] as num?)?.toInt() ?? 0;
-      final oldAverage =
-          (counselorData['ratingAverage'] as num?)?.toDouble() ?? 0.0;
-      final newCount = oldCount + 1;
-      final newAverage = ((oldAverage * oldCount) + rating) / newCount;
+      final fresh = AppointmentRecord.fromMap(
+        freshAppointment.id,
+        freshAppointment.data()!,
+      );
+      if (fresh.studentId != currentUser.uid) {
+        throw Exception('This appointment does not belong to you.');
+      }
+      if (fresh.status != AppointmentStatus.completed) {
+        throw Exception('You can only rate completed sessions.');
+      }
+      if (fresh.rated) {
+        throw Exception('This appointment is already rated.');
+      }
 
       transaction.set(ratingRef, {
         'appointmentId': appointment.id,
@@ -661,18 +668,100 @@ class CareRepository {
         'rating': rating,
         'feedback': feedback.trim(),
         'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
       transaction.update(appointmentRef, {
         'rated': true,
-        'ratingValue': rating,
-        'ratingId': ratingRef.id,
+        'privateRatingId': ratingRef.id,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+    });
+  }
 
-      transaction.update(counselorRef, {
-        'ratingCount': newCount,
-        'ratingAverage': newAverage,
+  Stream<List<CounselorPublicRating>> watchCounselorPublicRatings({
+    required String institutionId,
+    required String counselorId,
+  }) {
+    return _firestore
+        .collection('counselor_public_ratings')
+        .where('institutionId', isEqualTo: institutionId)
+        .where('counselorId', isEqualTo: counselorId)
+        .snapshots()
+        .map((snapshot) {
+          final ratings = snapshot.docs
+              .map((doc) => CounselorPublicRating.fromMap(doc.id, doc.data()))
+              .toList(growable: false);
+          ratings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return ratings;
+        });
+  }
+
+  Stream<List<CounselorPublicRating>> watchInstitutionCounselorPublicRatings({
+    required String institutionId,
+  }) {
+    return _firestore
+        .collection('counselor_public_ratings')
+        .where('institutionId', isEqualTo: institutionId)
+        .snapshots()
+        .map((snapshot) {
+          final ratings = snapshot.docs
+              .map((doc) => CounselorPublicRating.fromMap(doc.id, doc.data()))
+              .toList(growable: false);
+          ratings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return ratings;
+        });
+  }
+
+  Future<void> submitCounselorPublicRating({
+    required AppointmentRecord appointment,
+    required int rating,
+    required String feedback,
+  }) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('You must be logged in.');
+    }
+    if (currentUser.uid != appointment.studentId) {
+      throw Exception(
+        'Only the student from this session can submit this review.',
+      );
+    }
+    if (rating < 1 || rating > 5) {
+      throw Exception('Rating must be between 1 and 5.');
+    }
+
+    final appointmentRef = _firestore
+        .collection('appointments')
+        .doc(appointment.id);
+    final publicRatingRef = _firestore
+        .collection('counselor_public_ratings')
+        .doc(appointment.id);
+
+    await _firestore.runTransaction((transaction) async {
+      final appointmentSnap = await transaction.get(appointmentRef);
+      if (!appointmentSnap.exists || appointmentSnap.data() == null) {
+        throw Exception('Appointment not found.');
+      }
+      final freshAppointment = AppointmentRecord.fromMap(
+        appointmentSnap.id,
+        appointmentSnap.data()!,
+      );
+      if (freshAppointment.studentId != currentUser.uid) {
+        throw Exception('This appointment does not belong to you.');
+      }
+      if (freshAppointment.status != AppointmentStatus.completed) {
+        throw Exception('Only completed sessions can be publicly reviewed.');
+      }
+
+      transaction.set(publicRatingRef, {
+        'appointmentId': appointment.id,
+        'institutionId': appointment.institutionId,
+        'counselorId': appointment.counselorId,
+        'studentId': appointment.studentId,
+        'rating': rating,
+        'feedback': feedback.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
     });

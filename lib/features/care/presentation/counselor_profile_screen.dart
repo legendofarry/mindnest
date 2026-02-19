@@ -7,8 +7,10 @@ import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
+import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
+import 'package:mindnest/features/care/models/counselor_public_rating.dart';
 
 enum _SpotPeriod { any, morning, afternoon, evening }
 
@@ -231,6 +233,163 @@ class _CounselorProfileScreenState
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
       );
+    }
+  }
+
+  double _averageRating(List<CounselorPublicRating> ratings) {
+    if (ratings.isEmpty) {
+      return 0;
+    }
+    final total = ratings.fold<int>(
+      0,
+      (runningTotal, entry) => runningTotal + entry.rating,
+    );
+    return total / ratings.length;
+  }
+
+  Future<void> _rateCounselorPublic({
+    required List<AppointmentRecord> eligibleAppointments,
+  }) async {
+    if (eligibleAppointments.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Complete a session with this counselor to leave a public rating.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final commentController = TextEditingController();
+    int selectedRating = 5;
+    AppointmentRecord selectedAppointment = eligibleAppointments.first;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Rate Counselor (Public)'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'This review is visible to students in your institution.',
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedAppointment.id,
+                      decoration: const InputDecoration(
+                        labelText: 'Session',
+                        prefixIcon: Icon(Icons.event_note_rounded),
+                      ),
+                      items: eligibleAppointments
+                          .map(
+                            (appointment) => DropdownMenuItem(
+                              value: appointment.id,
+                              child: Text(_formatDateTime(appointment.startAt)),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        final match = eligibleAppointments.firstWhere(
+                          (appointment) => appointment.id == value,
+                        );
+                        setState(() => selectedAppointment = match);
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      children: List<Widget>.generate(5, (index) {
+                        final value = index + 1;
+                        return IconButton(
+                          onPressed: () =>
+                              setState(() => selectedRating = value),
+                          icon: Icon(
+                            value <= selectedRating
+                                ? Icons.star_rounded
+                                : Icons.star_border_rounded,
+                            color: const Color(0xFFF59E0B),
+                          ),
+                        );
+                      }),
+                    ),
+                    TextField(
+                      controller: commentController,
+                      minLines: 2,
+                      maxLines: 4,
+                      maxLength: 250,
+                      decoration: const InputDecoration(
+                        labelText: 'Public comment (optional)',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text('Submit Review'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      commentController.dispose();
+      return;
+    }
+
+    try {
+      await ref
+          .read(careRepositoryProvider)
+          .submitCounselorPublicRating(
+            appointment: selectedAppointment,
+            rating: selectedRating,
+            feedback: commentController.text.trim(),
+          );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Public counselor rating submitted.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      String message;
+      if (error is FirebaseException) {
+        message = error.message ?? error.code;
+      } else {
+        message = error.toString().replaceFirst('Exception: ', '');
+        if (message.contains('Dart exception thrown from converted Future')) {
+          message = 'Could not submit review right now. Please try again.';
+        }
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      commentController.dispose();
     }
   }
 
@@ -621,6 +780,146 @@ class _CounselorProfileScreenState
                 ),
               ),
               const SizedBox(height: 12),
+              if (institutionId.isNotEmpty)
+                StreamBuilder<List<CounselorPublicRating>>(
+                  stream: ref
+                      .read(careRepositoryProvider)
+                      .watchCounselorPublicRatings(
+                        institutionId: institutionId,
+                        counselorId: effectiveCounselor.id,
+                      ),
+                  builder: (context, publicRatingsSnapshot) {
+                    final publicRatings =
+                        publicRatingsSnapshot.data ?? const [];
+                    final publicAverage = _averageRating(publicRatings);
+                    final canLeavePublicRating =
+                        profile?.role == UserRole.student;
+                    final myRatedAppointments = profile == null
+                        ? <String>{}
+                        : publicRatings
+                              .where((entry) => entry.studentId == profile.id)
+                              .map((entry) => entry.appointmentId)
+                              .toSet();
+
+                    return GlassCard(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Public Counselor Ratings',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              publicRatings.isEmpty
+                                  ? 'No public ratings yet.'
+                                  : 'Average: ${publicAverage.toStringAsFixed(1)} from ${publicRatings.length} ratings.',
+                            ),
+                            if (canLeavePublicRating) ...[
+                              const SizedBox(height: 10),
+                              StreamBuilder<List<AppointmentRecord>>(
+                                stream: ref
+                                    .read(careRepositoryProvider)
+                                    .watchStudentAppointments(
+                                      institutionId: institutionId,
+                                      studentId: profile!.id,
+                                    ),
+                                builder: (context, appointmentSnapshot) {
+                                  final eligible =
+                                      (appointmentSnapshot.data ??
+                                              const <AppointmentRecord>[])
+                                          .where(
+                                            (appointment) =>
+                                                appointment.counselorId ==
+                                                    effectiveCounselor.id &&
+                                                appointment.status ==
+                                                    AppointmentStatus
+                                                        .completed &&
+                                                !myRatedAppointments.contains(
+                                                  appointment.id,
+                                                ),
+                                          )
+                                          .toList(growable: false);
+                                  eligible.sort(
+                                    (a, b) => b.startAt.compareTo(a.startAt),
+                                  );
+                                  return ElevatedButton.icon(
+                                    onPressed: eligible.isEmpty
+                                        ? null
+                                        : () => _rateCounselorPublic(
+                                            eligibleAppointments: eligible,
+                                          ),
+                                    icon: const Icon(Icons.rate_review_rounded),
+                                    label: Text(
+                                      eligible.isEmpty
+                                          ? 'No eligible session to rate publicly'
+                                          : 'Rate Counselor Publicly',
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                            if (publicRatings.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              ...publicRatings.take(5).map((rating) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.star_rounded,
+                                              color: Color(0xFFF59E0B),
+                                              size: 16,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              rating.rating.toString(),
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            const Spacer(),
+                                            Text(
+                                              _formatDateTime(rating.createdAt),
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Color(0xFF64748B),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        if (rating.feedback
+                                            .trim()
+                                            .isNotEmpty) ...[
+                                          const SizedBox(height: 6),
+                                          Text(rating.feedback.trim()),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              if (institutionId.isNotEmpty) const SizedBox(height: 12),
               if (institutionId.isEmpty)
                 const GlassCard(
                   child: Padding(

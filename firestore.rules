@@ -189,12 +189,9 @@ service cloud.firestore {
           (
             resource.data.studentId == request.auth.uid &&
             resource.data.status == 'completed' &&
-            resource.data.rated == false &&
+            resource.data.rated != true &&
             request.resource.data.status == 'completed' &&
-            request.resource.data.rated == true &&
-            request.resource.data.ratingValue is int &&
-            request.resource.data.ratingValue >= 1 &&
-            request.resource.data.ratingValue <= 5
+            request.resource.data.rated == true
           ) ||
           (
             resource.data.counselorId == request.auth.uid &&
@@ -258,9 +255,32 @@ service cloud.firestore {
     }
 
     match /counselor_ratings/{ratingId} {
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.counselorId == request.auth.uid
+      );
+      allow create: if isSignedIn() &&
+        ratingId == request.resource.data.appointmentId &&
+        !exists(/databases/$(database)/documents/counselor_ratings/$(ratingId)) &&
+        request.resource.data.studentId == request.auth.uid &&
+        request.resource.data.rating is int &&
+        request.resource.data.rating >= 1 &&
+        request.resource.data.rating <= 5 &&
+        exists(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)) &&
+        get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.studentId == request.auth.uid &&
+        get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.counselorId == request.resource.data.counselorId &&
+        get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.institutionId == request.resource.data.institutionId &&
+        get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.status == 'completed';
+      allow update, delete: if false;
+    }
+
+    match /counselor_public_ratings/{ratingId} {
       allow read: if isSignedIn() &&
         resource.data.institutionId == currentInstitutionId();
       allow create: if isSignedIn() &&
+        currentUserRole() == 'student' &&
+        ratingId == request.resource.data.appointmentId &&
+        !exists(/databases/$(database)/documents/counselor_public_ratings/$(ratingId)) &&
         request.resource.data.studentId == request.auth.uid &&
         request.resource.data.institutionId == currentInstitutionId() &&
         request.resource.data.rating is int &&
