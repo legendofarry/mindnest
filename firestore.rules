@@ -1,0 +1,219 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAllowedRole(role) {
+      return role in [
+        'individual',
+        'student',
+        'staff',
+        'counselor',
+        'admin',
+        'institutionAdmin',
+        'other'
+      ];
+    }
+    
+
+    function authEmail() {
+      return request.auth.token.email;
+    }
+
+    function currentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function currentUserRole() {
+      return currentUserDoc().role;
+    }
+
+    function currentInstitutionId() {
+      return currentUserDoc().institutionId;
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) &&
+        isAllowedRole(request.resource.data.role) &&
+        request.resource.data.role in ['individual', 'institutionAdmin'];
+      allow update: if isOwner(uid) &&
+        isAllowedRole(request.resource.data.role) &&
+        (
+          request.resource.data.role in ['individual', 'student', 'staff', 'counselor'] ||
+          request.resource.data.role == resource.data.role
+        );
+      allow delete: if false;
+    }
+
+    match /institutions/{institutionId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /institution_members/{membershipId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.role in ['student', 'staff', 'counselor', 'institutionAdmin'];
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /user_invites/{inviteId} {
+      allow create: if isSignedIn() &&
+        currentUserRole() == 'institutionAdmin' &&
+        request.resource.data.institutionId == currentInstitutionId() &&
+        request.resource.data.intendedRole in ['student', 'staff', 'counselor'] &&
+        request.resource.data.status == 'pending';
+      allow read: if isSignedIn() && (
+        (currentUserRole() == 'institutionAdmin' &&
+          resource.data.institutionId == currentInstitutionId()) ||
+        (authEmail() != null && resource.data.invitedEmail == authEmail())
+      );
+      allow update: if isSignedIn() &&
+        authEmail() != null &&
+        resource.data.invitedEmail == authEmail() &&
+        resource.data.status == 'pending' &&
+        request.resource.data.status in ['accepted', 'declined'] &&
+        request.resource.data.invitedEmail == resource.data.invitedEmail &&
+        request.resource.data.intendedRole == resource.data.intendedRole &&
+        request.resource.data.institutionId == resource.data.institutionId;
+      allow delete: if false;
+    }
+
+    match /counselor_invites/{inviteId} {
+      allow create: if isSignedIn() &&
+        currentUserRole() == 'institutionAdmin' &&
+        request.resource.data.institutionId == currentInstitutionId() &&
+        request.resource.data.role == 'counselor';
+      allow read: if isSignedIn() &&
+        currentUserRole() == 'institutionAdmin' &&
+        resource.data.institutionId == currentInstitutionId();
+      allow update, delete: if false;
+    }
+
+    match /onboarding_responses/{responseId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create, update: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /counselor_profiles/{counselorId} {
+      allow read: if isSignedIn() &&
+        resource.data.institutionId == currentInstitutionId();
+      allow create, update: if isSignedIn() &&
+        currentUserRole() == 'counselor' &&
+        counselorId == request.auth.uid &&
+        request.resource.data.institutionId == currentInstitutionId();
+      allow delete: if false;
+    }
+
+    match /counselor_availability/{slotId} {
+      allow read: if isSignedIn() &&
+        resource.data.institutionId == currentInstitutionId();
+      allow create: if isSignedIn() &&
+        currentUserRole() == 'counselor' &&
+        request.resource.data.counselorId == request.auth.uid &&
+        request.resource.data.institutionId == currentInstitutionId() &&
+        request.resource.data.status == 'available';
+      allow update: if isSignedIn() &&
+        request.resource.data.counselorId == resource.data.counselorId &&
+        request.resource.data.institutionId == resource.data.institutionId &&
+        (
+          (
+            currentUserRole() == 'counselor' &&
+            resource.data.counselorId == request.auth.uid
+          ) ||
+          (
+            resource.data.status == 'available' &&
+            request.resource.data.status == 'booked' &&
+            request.resource.data.bookedBy == request.auth.uid &&
+            currentInstitutionId() == resource.data.institutionId
+          ) ||
+          (
+            resource.data.status == 'booked' &&
+            resource.data.bookedBy == request.auth.uid &&
+            request.resource.data.status == 'available'
+          )
+        );
+      allow delete: if isSignedIn() &&
+        currentUserRole() == 'counselor' &&
+        resource.data.counselorId == request.auth.uid &&
+        resource.data.status == 'available';
+    }
+
+    match /appointments/{appointmentId} {
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.counselorId == request.auth.uid ||
+        (
+          currentUserRole() == 'institutionAdmin' &&
+          resource.data.institutionId == currentInstitutionId()
+        )
+      );
+      allow create: if isSignedIn() &&
+        request.resource.data.studentId == request.auth.uid &&
+        request.resource.data.institutionId == currentInstitutionId() &&
+        currentUserRole() in ['student', 'staff', 'individual'] &&
+        request.resource.data.status in ['pending', 'confirmed'] &&
+        request.resource.data.rated == false;
+      allow update: if isSignedIn() &&
+        request.resource.data.institutionId == resource.data.institutionId &&
+        request.resource.data.studentId == resource.data.studentId &&
+        request.resource.data.counselorId == resource.data.counselorId &&
+        request.resource.data.slotId == resource.data.slotId &&
+        (
+          (
+            resource.data.studentId == request.auth.uid &&
+            resource.data.status in ['pending', 'confirmed'] &&
+            request.resource.data.status == 'cancelled'
+          ) ||
+          (
+            resource.data.studentId == request.auth.uid &&
+            resource.data.status == 'completed' &&
+            resource.data.rated == false &&
+            request.resource.data.status == 'completed' &&
+            request.resource.data.rated == true &&
+            request.resource.data.ratingValue is int &&
+            request.resource.data.ratingValue >= 1 &&
+            request.resource.data.ratingValue <= 5
+          ) ||
+          (
+            resource.data.counselorId == request.auth.uid &&
+            request.resource.data.status in ['confirmed', 'completed', 'cancelled']
+          ) ||
+          (
+            currentUserRole() == 'institutionAdmin' &&
+            resource.data.institutionId == currentInstitutionId()
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /counselor_ratings/{ratingId} {
+      allow read: if isSignedIn() &&
+        resource.data.institutionId == currentInstitutionId();
+      allow create: if isSignedIn() &&
+        request.resource.data.studentId == request.auth.uid &&
+        request.resource.data.institutionId == currentInstitutionId() &&
+        request.resource.data.rating is int &&
+        request.resource.data.rating >= 1 &&
+        request.resource.data.rating <= 5 &&
+        exists(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)) &&
+        get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.studentId == request.auth.uid &&
+        get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.counselorId == request.resource.data.counselorId &&
+        get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.institutionId == currentInstitutionId() &&
+        get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.status == 'completed';
+      allow update, delete: if false;
+    }
+  }
+}

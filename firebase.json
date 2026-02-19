@@ -1,0 +1,26 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "mindnest-923fb",
+          "appId": "1:253632223556:android:15dc6e869834b77c56df11",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "mindnest-923fb",
+          "configurations": {
+            "ios": "1:253632223556:ios:1724c954f898a4c856df11",
+            "macos": "1:253632223556:ios:1724c954f898a4c856df11"
+          }
+        }
+      }
+    }
+  }
+}
