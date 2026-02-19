@@ -302,7 +302,112 @@ class InstitutionRepository {
     await batch.commit();
   }
 
-  Future<void> leaveInstitution() async {
+  DateTime? _asUtcDate(dynamic raw) {
+    if (raw is Timestamp) {
+      return raw.toDate().toUtc();
+    }
+    if (raw is DateTime) {
+      return raw.toUtc();
+    }
+    return null;
+  }
+
+  Future<int> _cancelFutureAppointmentsBeforeLeave({
+    required String institutionId,
+    required String userId,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final statusToCancel = <String>{'pending', 'confirmed'};
+
+    final studentAppointmentsFuture = _firestore
+        .collection('appointments')
+        .where('institutionId', isEqualTo: institutionId)
+        .where('studentId', isEqualTo: userId)
+        .get();
+    final counselorAppointmentsFuture = _firestore
+        .collection('appointments')
+        .where('institutionId', isEqualTo: institutionId)
+        .where('counselorId', isEqualTo: userId)
+        .get();
+
+    final snapshots = await Future.wait([
+      studentAppointmentsFuture,
+      counselorAppointmentsFuture,
+    ]);
+
+    final cancellable = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+    for (final snapshot in snapshots) {
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final status = (data['status'] as String?) ?? '';
+        final startAt = _asUtcDate(data['startAt']);
+        if (!statusToCancel.contains(status) || startAt == null) {
+          continue;
+        }
+        if (startAt.isBefore(now)) {
+          continue;
+        }
+        cancellable[doc.id] = doc;
+      }
+    }
+
+    if (cancellable.isEmpty) {
+      return 0;
+    }
+
+    final slotIds = cancellable.values
+        .map((doc) => (doc.data()['slotId'] as String?) ?? '')
+        .where((slotId) => slotId.isNotEmpty)
+        .toSet();
+
+    final slotRefs = slotIds
+        .map(
+          (slotId) =>
+              _firestore.collection('counselor_availability').doc(slotId),
+        )
+        .toList(growable: false);
+    final slotSnaps = await Future.wait(slotRefs.map((ref) => ref.get()));
+    final existingSlotById =
+        <String, DocumentReference<Map<String, dynamic>>>{};
+    for (var i = 0; i < slotSnaps.length; i++) {
+      final snap = slotSnaps[i];
+      if (snap.exists) {
+        existingSlotById[snap.id] = slotRefs[i];
+      }
+    }
+
+    final batch = _firestore.batch();
+    for (final entry in cancellable.values) {
+      final data = entry.data();
+      final actingRole = ((data['counselorId'] as String?) ?? '') == userId
+          ? 'counselor'
+          : 'student';
+      batch.update(entry.reference, {
+        'status': 'cancelled',
+        'cancelledByRole': actingRole,
+        'counselorCancelMessage': actingRole == 'counselor'
+            ? 'Session cancelled because counselor left the institution.'
+            : null,
+        'cancelledAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      final slotId = (data['slotId'] as String?) ?? '';
+      final slotRef = existingSlotById[slotId];
+      if (slotRef != null) {
+        batch.update(slotRef, {
+          'status': 'available',
+          'bookedBy': null,
+          'appointmentId': null,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+    await batch.commit();
+    return cancellable.length;
+  }
+
+  Future<int> leaveInstitution() async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
       throw Exception('You must be logged in.');
@@ -313,8 +418,13 @@ class InstitutionRepository {
     final institutionId = userSnapshot.data()?['institutionId'] as String?;
 
     if (institutionId == null || institutionId.isEmpty) {
-      return;
+      return 0;
     }
+
+    final cancelledCount = await _cancelFutureAppointmentsBeforeLeave(
+      institutionId: institutionId,
+      userId: currentUser.uid,
+    );
 
     final membershipRef = _firestore
         .collection('institution_members')
@@ -329,6 +439,7 @@ class InstitutionRepository {
     });
     batch.delete(membershipRef);
     await batch.commit();
+    return cancelledCount;
   }
 
   String _generateJoinCode() {

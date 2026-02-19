@@ -13,6 +13,102 @@ import 'package:mindnest/features/institutions/data/institution_providers.dart';
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
+  Future<void> _confirmLeaveInstitution(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    bool acknowledged = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              icon: const Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFFDC2626),
+                size: 34,
+              ),
+              title: const Text('Leave Institution?'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'If you continue:',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('- You will be removed from this institution.'),
+                  const Text('- Your role will switch to Individual.'),
+                  const Text(
+                    '- Your future pending/confirmed appointments will be cancelled.',
+                  ),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: acknowledged,
+                    onChanged: (value) {
+                      setState(() => acknowledged = value ?? false);
+                    },
+                    title: const Text(
+                      'I understand and want to continue',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Keep Institution'),
+                ),
+                ElevatedButton(
+                  onPressed: acknowledged
+                      ? () => Navigator.of(dialogContext).pop(true)
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFDC2626),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Yes, Leave'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      final cancelledCount = await ref
+          .read(institutionRepositoryProvider)
+          .leaveInstitution();
+      if (!context.mounted) {
+        return;
+      }
+      final message = cancelledCount > 0
+          ? 'Left institution. Cancelled $cancelledCount future appointment(s).'
+          : 'Left institution.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
   Future<bool> _hasElevatedRisk({
     required FirebaseFirestore firestore,
     required String userId,
@@ -138,6 +234,152 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
+  void _openProfilePanel(
+    BuildContext context,
+    WidgetRef ref,
+    UserProfile profile,
+  ) {
+    final hasInstitution = (profile.institutionId ?? '').isNotEmpty;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Color(0xFFE6FFFA),
+                      child: Icon(
+                        Icons.person_rounded,
+                        color: Color(0xFF0D9488),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            profile.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            profile.email,
+                            style: const TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(
+                    Icons.shield_moon_rounded,
+                    color: Color(0xFF64748B),
+                  ),
+                  title: const Text('Privacy & Data'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    context.go(AppRoute.privacyControls);
+                  },
+                ),
+                if (!hasInstitution)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.add_business_rounded,
+                      color: Color(0xFF64748B),
+                    ),
+                    title: const Text('Join Institution'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      context.go(AppRoute.joinInstitution);
+                    },
+                  ),
+                if (profile.role == UserRole.institutionAdmin)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.admin_panel_settings_rounded,
+                      color: Color(0xFF0D9488),
+                    ),
+                    title: const Text('Admin Dashboard'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      context.go(AppRoute.institutionAdmin);
+                    },
+                  ),
+                if (hasInstitution)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.exit_to_app_rounded,
+                      color: Color(0xFFE11D48),
+                    ),
+                    title: const Text(
+                      'Leave Institution',
+                      style: TextStyle(color: Color(0xFFE11D48)),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      _confirmLeaveInstitution(context, ref);
+                    },
+                  ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(
+                    Icons.logout_rounded,
+                    color: Color(0xFF64748B),
+                  ),
+                  title: const Text('Logout'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    confirmAndLogout(context: context, ref: ref);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _crisisContactTile(String region, String number, String label) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -181,6 +423,7 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(currentUserProfileProvider);
+    final loadedProfile = profileAsync.valueOrNull;
 
     return MindNestShell(
       maxWidth: 760,
@@ -197,8 +440,13 @@ class HomeScreen extends ConsumerWidget {
         centerTitle: false,
         actions: [
           IconButton(
-            onPressed: () => confirmAndLogout(context: context, ref: ref),
-            icon: const Icon(Icons.logout_rounded, color: Color(0xFF64748B)),
+            onPressed: loadedProfile == null
+                ? null
+                : () => _openProfilePanel(context, ref, loadedProfile),
+            icon: const Icon(
+              Icons.account_circle_rounded,
+              color: Color(0xFF64748B),
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -370,65 +618,7 @@ class HomeScreen extends ConsumerWidget {
                 ),
 
                 const SizedBox(height: 32),
-
-                // --- INSTITUTION & PRIVACY ---
-                const Text(
-                  'Management',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFF1F5F9)),
-                  ),
-                  child: Column(
-                    children: [
-                      if (!hasInstitution)
-                        _buildListTile(
-                          'Join Institution',
-                          Icons.add_business_rounded,
-                          () => context.go(AppRoute.joinInstitution),
-                        ),
-                      if (profile.role == UserRole.institutionAdmin)
-                        _buildListTile(
-                          'Admin Dashboard',
-                          Icons.admin_panel_settings_rounded,
-                          () => context.go(AppRoute.institutionAdmin),
-                          color: const Color(0xFF0D9488),
-                        ),
-                      _buildListTile(
-                        'Privacy & Data',
-                        Icons.shield_moon_rounded,
-                        () => context.go(AppRoute.privacyControls),
-                      ),
-                      if (hasInstitution)
-                        _buildListTile(
-                          'Leave Institution',
-                          Icons.exit_to_app_rounded,
-                          () async {
-                            await ref
-                                .read(institutionRepositoryProvider)
-                                .leaveInstitution();
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Left Institution'),
-                                ),
-                              );
-                            }
-                          },
-                          isDestructive: true,
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 8),
                 // --- SOS BUTTON ---
                 Center(
                   child: TextButton.icon(
@@ -521,37 +711,6 @@ class HomeScreen extends ConsumerWidget {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildListTile(
-    String title,
-    IconData icon,
-    VoidCallback onTap, {
-    Color? color,
-    bool isDestructive = false,
-  }) {
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: isDestructive
-            ? const Color(0xFFE11D48)
-            : (color ?? const Color(0xFF64748B)),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: isDestructive
-              ? const Color(0xFFE11D48)
-              : const Color(0xFF1E293B),
-        ),
-      ),
-      trailing: const Icon(
-        Icons.chevron_right_rounded,
-        color: Color(0xFFCBD5E1),
-      ),
-      onTap: onTap,
     );
   }
 }

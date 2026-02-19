@@ -9,6 +9,8 @@ import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 
+enum _CounselorHeaderAction { profile, notifications, logout }
+
 class CounselorDashboardScreen extends ConsumerWidget {
   const CounselorDashboardScreen({super.key});
 
@@ -23,10 +25,46 @@ class CounselorDashboardScreen extends ConsumerWidget {
         elevation: 0,
         title: const Text('Counselor Workspace'),
         actions: [
-          TextButton.icon(
-            onPressed: () => confirmAndLogout(context: context, ref: ref),
-            icon: const Icon(Icons.logout_rounded),
-            label: const Text('Logout'),
+          PopupMenuButton<_CounselorHeaderAction>(
+            tooltip: 'Profile',
+            icon: const Icon(Icons.account_circle_rounded),
+            onSelected: (value) {
+              switch (value) {
+                case _CounselorHeaderAction.profile:
+                  context.go(AppRoute.counselorSettings);
+                case _CounselorHeaderAction.notifications:
+                  context.go(AppRoute.notifications);
+                case _CounselorHeaderAction.logout:
+                  confirmAndLogout(context: context, ref: ref);
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _CounselorHeaderAction.profile,
+                child: ListTile(
+                  leading: Icon(Icons.manage_accounts_rounded),
+                  title: Text('Profile & Settings'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: _CounselorHeaderAction.notifications,
+                child: ListTile(
+                  leading: Icon(Icons.notifications_none_rounded),
+                  title: Text('Notifications'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuDivider(),
+              PopupMenuItem(
+                value: _CounselorHeaderAction.logout,
+                child: ListTile(
+                  leading: Icon(Icons.logout_rounded),
+                  title: Text('Logout'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -131,13 +169,6 @@ class CounselorDashboardScreen extends ConsumerWidget {
                           title: 'Notifications',
                           subtitle: 'Open booking and cancellation updates.',
                           onTap: () => context.go(AppRoute.notifications),
-                        ),
-                        _ActionCardData(
-                          icon: Icons.manage_accounts_rounded,
-                          title: 'Profile & Settings',
-                          subtitle:
-                              'Edit profile, app preferences, and account controls.',
-                          onTap: () => context.go(AppRoute.counselorSettings),
                         ),
                       ];
 
