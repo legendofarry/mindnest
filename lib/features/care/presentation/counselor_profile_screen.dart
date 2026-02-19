@@ -612,6 +612,15 @@ class _CounselorProfileScreenState
                       ),
                     ),
               const SizedBox(height: 12),
+              const GlassCard(
+                child: Padding(
+                  padding: EdgeInsets.all(14),
+                  child: Text(
+                    'Expectation: cancel/reschedule early when possible. Counselors should confirm sessions promptly and share updates if schedules change.',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               if (institutionId.isEmpty)
                 const GlassCard(
                   child: Padding(

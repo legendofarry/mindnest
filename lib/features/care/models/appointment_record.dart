@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum AppointmentStatus { pending, confirmed, completed, cancelled }
+enum AppointmentStatus { pending, confirmed, completed, cancelled, noShow }
 
 class AppointmentRecord {
   const AppointmentRecord({
@@ -18,6 +18,11 @@ class AppointmentRecord {
     this.ratingValue,
     this.counselorCancelMessage,
     this.cancelledByRole,
+    this.attendanceStatus,
+    this.rescheduledToAppointmentId,
+    this.rescheduledFromAppointmentId,
+    this.counselorSessionNote,
+    this.counselorActionItems = const <String>[],
   });
 
   final String id;
@@ -34,6 +39,11 @@ class AppointmentRecord {
   final int? ratingValue;
   final String? counselorCancelMessage;
   final String? cancelledByRole;
+  final String? attendanceStatus;
+  final String? rescheduledToAppointmentId;
+  final String? rescheduledFromAppointmentId;
+  final String? counselorSessionNote;
+  final List<String> counselorActionItems;
 
   factory AppointmentRecord.fromMap(String id, Map<String, dynamic> data) {
     DateTime parseDate(dynamic raw) {
@@ -51,6 +61,15 @@ class AppointmentRecord {
       (value) => value.name == statusRaw,
       orElse: () => AppointmentStatus.pending,
     );
+    final actionItemsRaw = data['counselorActionItems'];
+    final actionItems = <String>[];
+    if (actionItemsRaw is List) {
+      for (final item in actionItemsRaw) {
+        if (item is String && item.trim().isNotEmpty) {
+          actionItems.add(item.trim());
+        }
+      }
+    }
 
     return AppointmentRecord(
       id: id,
@@ -67,6 +86,12 @@ class AppointmentRecord {
       ratingValue: (data['ratingValue'] as num?)?.toInt(),
       counselorCancelMessage: data['counselorCancelMessage'] as String?,
       cancelledByRole: data['cancelledByRole'] as String?,
+      attendanceStatus: data['attendanceStatus'] as String?,
+      rescheduledToAppointmentId: data['rescheduledToAppointmentId'] as String?,
+      rescheduledFromAppointmentId:
+          data['rescheduledFromAppointmentId'] as String?,
+      counselorSessionNote: data['counselorSessionNote'] as String?,
+      counselorActionItems: actionItems,
     );
   }
 }

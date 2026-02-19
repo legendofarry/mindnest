@@ -126,6 +126,19 @@ class CounselorDashboardScreen extends ConsumerWidget {
                           onTap: () =>
                               context.go(AppRoute.counselorAppointments),
                         ),
+                        _ActionCardData(
+                          icon: Icons.notifications_none_rounded,
+                          title: 'Notifications',
+                          subtitle: 'Open booking and cancellation updates.',
+                          onTap: () => context.go(AppRoute.notifications),
+                        ),
+                        _ActionCardData(
+                          icon: Icons.manage_accounts_rounded,
+                          title: 'Profile & Settings',
+                          subtitle:
+                              'Edit profile, app preferences, and account controls.',
+                          onTap: () => context.go(AppRoute.counselorSettings),
+                        ),
                       ];
 
                       if (!isWide) {
@@ -144,16 +157,16 @@ class CounselorDashboardScreen extends ConsumerWidget {
 
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: cards
-                            .map(
-                              (card) => Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.only(right: 10),
-                                  child: _ActionCard(data: card),
-                                ),
+                        children: List<Widget>.generate(cards.length, (index) {
+                          return Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                right: index == cards.length - 1 ? 0 : 10,
                               ),
-                            )
-                            .toList(growable: false),
+                              child: _ActionCard(data: cards[index]),
+                            ),
+                          );
+                        }),
                       );
                     },
                   ),

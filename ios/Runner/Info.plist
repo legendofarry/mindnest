@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MindNest uses the microphone for counselor voice notes.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>MindNest converts counselor speech to text for session documentation.</string>
 </dict>
 </plist>

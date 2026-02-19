@@ -13,11 +13,15 @@ import 'package:mindnest/features/care/presentation/counselor_appointments_scree
 import 'package:mindnest/features/care/presentation/counselor_availability_screen.dart';
 import 'package:mindnest/features/care/presentation/counselor_directory_screen.dart';
 import 'package:mindnest/features/care/presentation/counselor_profile_screen.dart';
+import 'package:mindnest/features/care/presentation/notification_center_screen.dart';
+import 'package:mindnest/features/care/presentation/student_care_plan_screen.dart';
 import 'package:mindnest/features/care/presentation/student_appointments_screen.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_dashboard_screen.dart';
+import 'package:mindnest/features/counselor/presentation/counselor_profile_settings_screen.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_setup_screen.dart';
 import 'package:mindnest/features/home/presentation/home_screen.dart';
+import 'package:mindnest/features/home/presentation/privacy_controls_screen.dart';
 import 'package:mindnest/features/institutions/presentation/institution_admin_screen.dart';
 import 'package:mindnest/features/institutions/presentation/invite_accept_screen.dart';
 import 'package:mindnest/features/institutions/presentation/join_institution_screen.dart';
@@ -42,9 +46,13 @@ class AppRoute {
   static const counselorDashboard = '/counselor-dashboard';
   static const counselorAvailability = '/counselor-availability';
   static const counselorAppointments = '/counselor-appointments';
+  static const counselorSettings = '/counselor-settings';
   static const counselorDirectory = '/counselors';
   static const counselorProfile = '/counselor-profile';
   static const studentAppointments = '/student-appointments';
+  static const notifications = '/notifications';
+  static const carePlan = '/care-plan';
+  static const privacyControls = '/privacy-controls';
   static const home = '/home';
   static const joinInstitution = '/join-institution';
   static const institutionAdmin = '/institution-admin';
@@ -79,11 +87,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.counselorSetup ||
           location == AppRoute.counselorDashboard ||
           location == AppRoute.counselorAvailability ||
-          location == AppRoute.counselorAppointments;
+          location == AppRoute.counselorAppointments ||
+          location == AppRoute.counselorSettings;
       final isStudentCareRoute =
           location == AppRoute.counselorDirectory ||
           location == AppRoute.counselorProfile ||
-          location == AppRoute.studentAppointments;
+          location == AppRoute.studentAppointments ||
+          location == AppRoute.carePlan;
 
       if (authState == null) {
         return isAuthRoute ? null : AppRoute.login;
@@ -272,6 +282,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const CounselorAppointmentsScreen(),
       ),
       GoRoute(
+        path: AppRoute.counselorSettings,
+        builder: (context, state) => const CounselorProfileSettingsScreen(),
+      ),
+      GoRoute(
         path: AppRoute.counselorDirectory,
         builder: (context, state) => const CounselorDirectoryScreen(),
       ),
@@ -285,6 +299,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.studentAppointments,
         builder: (context, state) => const StudentAppointmentsScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.notifications,
+        builder: (context, state) => const NotificationCenterScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.carePlan,
+        builder: (context, state) => const StudentCarePlanScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.privacyControls,
+        builder: (context, state) => const PrivacyControlsScreen(),
       ),
       GoRoute(
         path: AppRoute.home,

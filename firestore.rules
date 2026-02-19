@@ -55,7 +55,7 @@ service cloud.firestore {
           request.resource.data.role in ['individual', 'student', 'staff', 'counselor'] ||
           request.resource.data.role == resource.data.role
         );
-      allow delete: if false;
+      allow delete: if isOwner(uid);
     }
 
     match /institutions/{institutionId} {
@@ -198,13 +198,62 @@ service cloud.firestore {
           ) ||
           (
             resource.data.counselorId == request.auth.uid &&
-            request.resource.data.status in ['confirmed', 'completed', 'cancelled']
+            request.resource.data.status in ['confirmed', 'completed', 'cancelled', 'noShow']
           ) ||
           (
             currentUserRole() == 'institutionAdmin' &&
             resource.data.institutionId == currentInstitutionId()
           )
         );
+      allow delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() &&
+        request.resource.data.institutionId == currentInstitutionId();
+      allow update: if isSignedIn() &&
+        resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /user_notification_settings/{uid} {
+      allow read, create, update: if isOwner(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    match /user_privacy_settings/{uid} {
+      allow read, create, update: if isOwner(uid);
+      allow delete: if isOwner(uid);
+    }
+
+    match /care_goals/{goalId} {
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.counselorId == request.auth.uid ||
+        (
+          currentUserRole() == 'institutionAdmin' &&
+          resource.data.institutionId == currentInstitutionId()
+        )
+      );
+      allow create: if isSignedIn() &&
+        currentUserRole() == 'counselor' &&
+        request.resource.data.counselorId == request.auth.uid &&
+        request.resource.data.institutionId == currentInstitutionId();
+      allow update: if isSignedIn() && (
+        (
+          resource.data.studentId == request.auth.uid &&
+          request.resource.data.studentId == resource.data.studentId &&
+          request.resource.data.counselorId == resource.data.counselorId &&
+          request.resource.data.institutionId == resource.data.institutionId
+        ) ||
+        (
+          resource.data.counselorId == request.auth.uid &&
+          request.resource.data.counselorId == resource.data.counselorId &&
+          request.resource.data.studentId == resource.data.studentId &&
+          request.resource.data.institutionId == resource.data.institutionId
+        )
+      );
       allow delete: if false;
     }
 

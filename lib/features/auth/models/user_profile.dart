@@ -28,6 +28,7 @@ class UserProfile {
     this.onboardingCompletedRoles = const {},
     this.counselorSetupCompleted = false,
     this.counselorSetupData = const {},
+    this.counselorPreferences = const {},
     this.institutionId,
     this.institutionName,
   });
@@ -39,6 +40,7 @@ class UserProfile {
   final Map<String, int> onboardingCompletedRoles;
   final bool counselorSetupCompleted;
   final Map<String, dynamic> counselorSetupData;
+  final Map<String, dynamic> counselorPreferences;
   final String? institutionId;
   final String? institutionName;
 
@@ -50,6 +52,7 @@ class UserProfile {
       'onboardingCompletedRoles': onboardingCompletedRoles,
       'counselorSetupCompleted': counselorSetupCompleted,
       'counselorSetupData': counselorSetupData,
+      'counselorPreferences': counselorPreferences,
       'institutionId': institutionId,
       'institutionName': institutionName,
     };
@@ -83,6 +86,14 @@ class UserProfile {
       }
     }
 
+    final counselorPreferencesRaw = data['counselorPreferences'];
+    final counselorPreferences = <String, dynamic>{};
+    if (counselorPreferencesRaw is Map) {
+      for (final entry in counselorPreferencesRaw.entries) {
+        counselorPreferences[entry.key.toString()] = entry.value;
+      }
+    }
+
     return UserProfile(
       id: id,
       email: (data['email'] as String?) ?? '',
@@ -95,6 +106,7 @@ class UserProfile {
       counselorSetupCompleted:
           (data['counselorSetupCompleted'] as bool?) ?? false,
       counselorSetupData: counselorSetup,
+      counselorPreferences: counselorPreferences,
       institutionId: data['institutionId'] as String?,
       institutionName: data['institutionName'] as String?,
     );
