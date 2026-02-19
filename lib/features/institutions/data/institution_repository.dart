@@ -82,6 +82,8 @@ class InstitutionRepository {
       'institutionId': institutionRef.id,
       'userId': user.uid,
       'role': UserRole.institutionAdmin.name,
+      'userName': trimmedName,
+      'email': user.email ?? normalizedEmail,
       'joinedAt': FieldValue.serverTimestamp(),
       'status': 'active',
     });
@@ -208,6 +210,8 @@ class InstitutionRepository {
       'institutionId': invite.institutionId,
       'userId': currentUser.uid,
       'role': invite.intendedRole.name,
+      'userName': currentUser.displayName ?? invite.invitedName,
+      'email': currentEmail,
       'joinedAt': FieldValue.serverTimestamp(),
       'status': 'active',
       'joinedVia': 'invite',
@@ -281,6 +285,8 @@ class InstitutionRepository {
       'institutionId': institutionDoc.id,
       'userId': currentUser.uid,
       'role': role.name,
+      'userName': currentUser.displayName ?? '',
+      'email': currentUser.email ?? '',
       'joinedAt': FieldValue.serverTimestamp(),
       'status': 'active',
     });

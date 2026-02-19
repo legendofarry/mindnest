@@ -38,6 +38,12 @@ service cloud.firestore {
       return currentUserDoc().institutionId;
     }
 
+    function sharesInstitutionWithUser(targetUid) {
+      return isSignedIn() &&
+        currentInstitutionId() != null &&
+        exists(/databases/$(database)/documents/institution_members/$(currentInstitutionId() + '_' + targetUid));
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create: if isOwner(uid) &&
@@ -109,7 +115,10 @@ service cloud.firestore {
 
     match /counselor_profiles/{counselorId} {
       allow read: if isSignedIn() &&
-        resource.data.institutionId == currentInstitutionId();
+        (
+          sharesInstitutionWithUser(counselorId) ||
+          resource.data.institutionId == currentInstitutionId()
+        );
       allow create, update: if isSignedIn() &&
         currentUserRole() == 'counselor' &&
         counselorId == request.auth.uid &&

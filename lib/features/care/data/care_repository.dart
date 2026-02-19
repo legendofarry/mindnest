@@ -21,11 +21,11 @@ class CareRepository {
     return _firestore
         .collection('counselor_profiles')
         .where('institutionId', isEqualTo: institutionId)
-        .where('isActive', isEqualTo: true)
         .snapshots()
         .map((snapshot) {
           final profiles = snapshot.docs
               .map((doc) => CounselorProfile.fromMap(doc.id, doc.data()))
+              .where((profile) => profile.isActive)
               .toList(growable: false);
           profiles.sort((a, b) => a.displayName.compareTo(b.displayName));
           return profiles;
