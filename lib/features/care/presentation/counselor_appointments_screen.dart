@@ -28,24 +28,82 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
     }
   }
 
+  Future<String?> _promptCancellationReason(BuildContext context) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Cancel Appointment'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Optionally share a short reason with the student.'),
+              const SizedBox(height: 10),
+              TextField(
+                controller: controller,
+                minLines: 3,
+                maxLines: 4,
+                maxLength: 300,
+                decoration: const InputDecoration(
+                  hintText: 'Example: I have an urgent conflict this morning.',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(null),
+              child: const Text('Back'),
+            ),
+            ElevatedButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: const Text('Cancel Session'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    return result;
+  }
+
   Future<void> _updateStatus(
     BuildContext context,
     WidgetRef ref,
     AppointmentRecord appointment,
     AppointmentStatus status,
   ) async {
+    String? cancellationMessage;
+    if (status == AppointmentStatus.cancelled) {
+      final decision = await _promptCancellationReason(context);
+      if (!context.mounted || decision == null) {
+        return;
+      }
+      cancellationMessage = decision;
+    }
+
     try {
       await ref
           .read(careRepositoryProvider)
           .updateAppointmentByCounselor(
             appointment: appointment,
             newStatus: status,
+            counselorCancelMessage: cancellationMessage,
           );
       if (!context.mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Appointment marked as ${status.name}.')),
+        SnackBar(
+          content: Text(
+            status == AppointmentStatus.cancelled
+                ? 'Appointment cancelled and student notified.'
+                : 'Appointment marked as ${status.name}.',
+          ),
+        ),
       );
     } catch (error) {
       if (!context.mounted) {
@@ -156,6 +214,27 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
                                   Text(
                                     'End: ${_formatDate(appointment.endAt)}',
                                   ),
+                                  if (appointment.status ==
+                                          AppointmentStatus.cancelled &&
+                                      (appointment.counselorCancelMessage ?? '')
+                                          .trim()
+                                          .isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF7ED),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        'Message sent: ${appointment.counselorCancelMessage!.trim()}',
+                                        style: const TextStyle(
+                                          color: Color(0xFF9A3412),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                   const SizedBox(height: 10),
                                   Wrap(
                                     spacing: 8,

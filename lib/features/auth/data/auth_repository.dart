@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:mindnest/features/auth/data/auth_session_manager.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 
 class AuthRepository {
@@ -105,8 +107,17 @@ class AuthRepository {
     });
   }
 
-  Future<void> signIn({required String email, required String password}) async {
+  Future<void> signIn({
+    required String email,
+    required String password,
+    bool rememberMe = false,
+  }) async {
     final normalizedEmail = email.trim().toLowerCase();
+    if (kIsWeb) {
+      await _auth.setPersistence(
+        rememberMe ? Persistence.LOCAL : Persistence.SESSION,
+      );
+    }
     final credential = await _auth.signInWithEmailAndPassword(
       email: normalizedEmail,
       password: password,
@@ -118,9 +129,13 @@ class AuthRepository {
     }
 
     await _ensureProfileExists(user);
+    await AuthSessionManager.markLogin(rememberMe: rememberMe);
   }
 
-  Future<void> signOut() => _auth.signOut();
+  Future<void> signOut() async {
+    await _auth.signOut();
+    await AuthSessionManager.clear();
+  }
 
   Future<void> sendPasswordReset(String email) {
     return _auth.sendPasswordResetEmail(email: email.trim().toLowerCase());

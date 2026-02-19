@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/app/mindnest_app.dart';
 import 'package:mindnest/core/firebase/firebase_initializer.dart';
+import 'package:mindnest/features/auth/data/auth_session_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
     await FirebaseInitializer.initialize();
+    await AuthSessionManager.enforceStartupPolicy(FirebaseAuth.instance);
   } catch (error) {
     runApp(
       ProviderScope(

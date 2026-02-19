@@ -242,6 +242,28 @@ class StudentAppointmentsScreen extends ConsumerWidget {
                                   Text(
                                     'End: ${_formatDate(appointment.endAt)}',
                                   ),
+                                  if (appointment.status ==
+                                          AppointmentStatus.cancelled &&
+                                      (appointment.counselorCancelMessage ?? '')
+                                          .trim()
+                                          .isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF7ED),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        'Counselor message: ${appointment.counselorCancelMessage!.trim()}',
+                                        style: const TextStyle(
+                                          color: Color(0xFF9A3412),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                   const SizedBox(height: 12),
                                   Wrap(
                                     spacing: 8,

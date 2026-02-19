@@ -16,6 +16,8 @@ class AppointmentRecord {
     this.counselorName,
     this.rated = false,
     this.ratingValue,
+    this.counselorCancelMessage,
+    this.cancelledByRole,
   });
 
   final String id;
@@ -30,6 +32,8 @@ class AppointmentRecord {
   final String? counselorName;
   final bool rated;
   final int? ratingValue;
+  final String? counselorCancelMessage;
+  final String? cancelledByRole;
 
   factory AppointmentRecord.fromMap(String id, Map<String, dynamic> data) {
     DateTime parseDate(dynamic raw) {
@@ -61,6 +65,8 @@ class AppointmentRecord {
       counselorName: data['counselorName'] as String?,
       rated: (data['rated'] as bool?) ?? false,
       ratingValue: (data['ratingValue'] as num?)?.toInt(),
+      counselorCancelMessage: data['counselorCancelMessage'] as String?,
+      cancelledByRole: data['cancelledByRole'] as String?,
     );
   }
 }

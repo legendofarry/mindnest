@@ -1,3 +1,4 @@
+// features/auth/presentation/login_screen.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +18,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _rememberMe = true;
   bool _isSubmitting = false;
 
   @override
@@ -38,6 +40,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           .signIn(
             email: _emailController.text,
             password: _passwordController.text,
+            rememberMe: _rememberMe,
           );
     } on FirebaseAuthException catch (error) {
       _showMessage(error.message ?? 'Login failed.');
@@ -140,6 +143,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   return null;
                 },
               ),
+            ),
+            const SizedBox(height: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      onChanged: _isSubmitting
+                          ? null
+                          : (value) {
+                              setState(() => _rememberMe = value ?? false);
+                            },
+                    ),
+                    const Text(
+                      'Remember Me',
+                      style: TextStyle(
+                        color: Color(0xFF334155),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(left: 12),
+                  child: Text(
+                    'Keep me signed in for 14 days on this device.',
+                    style: TextStyle(
+                      color: Color(0xFF0E9B90),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             Container(

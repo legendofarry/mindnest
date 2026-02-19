@@ -249,12 +249,18 @@ class CareRepository {
       appointmentId: appointment.id,
       slotId: appointment.slotId,
       newStatus: AppointmentStatus.cancelled,
+      metadata: {
+        'cancelledByRole': 'student',
+        'counselorCancelMessage': null,
+        'cancelledAt': FieldValue.serverTimestamp(),
+      },
     );
   }
 
   Future<void> updateAppointmentByCounselor({
     required AppointmentRecord appointment,
     required AppointmentStatus newStatus,
+    String? counselorCancelMessage,
   }) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -264,10 +270,19 @@ class CareRepository {
       throw Exception('You cannot update this appointment.');
     }
     if (newStatus == AppointmentStatus.cancelled) {
+      final normalizedMessage = counselorCancelMessage?.trim();
       await _updateAppointmentAndReleaseSlot(
         appointmentId: appointment.id,
         slotId: appointment.slotId,
         newStatus: newStatus,
+        metadata: {
+          'cancelledByRole': 'counselor',
+          'counselorCancelMessage':
+              (normalizedMessage == null || normalizedMessage.isEmpty)
+              ? null
+              : normalizedMessage,
+          'cancelledAt': FieldValue.serverTimestamp(),
+        },
       );
       return;
     }
@@ -284,6 +299,7 @@ class CareRepository {
     required String appointmentId,
     required String slotId,
     required AppointmentStatus newStatus,
+    Map<String, dynamic> metadata = const {},
   }) async {
     final appointmentRef = _firestore
         .collection('appointments')
@@ -303,6 +319,7 @@ class CareRepository {
       transaction.update(appointmentRef, {
         'status': newStatus.name,
         'updatedAt': FieldValue.serverTimestamp(),
+        ...metadata,
       });
     });
   }
