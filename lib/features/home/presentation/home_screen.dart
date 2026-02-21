@@ -1,5 +1,6 @@
 // features/home/presentation/home_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -458,6 +459,27 @@ class HomeScreen extends ConsumerWidget {
           }
 
           final hasInstitution = (profile.institutionId ?? '').isNotEmpty;
+          final canAccessLive =
+              hasInstitution &&
+              (profile.role == UserRole.student ||
+                  profile.role == UserRole.staff ||
+                  profile.role == UserRole.counselor);
+          if (kDebugMode) {
+            final blockers = <String>[
+              if (!hasInstitution) 'institutionId is empty',
+              if (!(profile.role == UserRole.student ||
+                  profile.role == UserRole.staff ||
+                  profile.role == UserRole.counselor))
+                'role is ${profile.role.name} (not student/staff/counselor)',
+            ];
+            debugPrint(
+              '[LiveHub][Home] uid=${profile.id} role=${profile.role.name} '
+              'institutionId=${profile.institutionId ?? 'null'} '
+              'institutionName=${profile.institutionName ?? 'null'} '
+              'hasInstitution=$hasInstitution canAccessLive=$canAccessLive '
+              'blockers=${blockers.isEmpty ? 'none' : blockers.join(' | ')}',
+            );
+          }
 
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -613,6 +635,13 @@ class HomeScreen extends ConsumerWidget {
                       hasInstitution
                           ? () => context.go(AppRoute.notifications)
                           : null,
+                    ),
+                    _buildActionCard(
+                      context,
+                      'Live Hub',
+                      Icons.podcasts_rounded,
+                      const Color(0xFF0EA5A0),
+                      canAccessLive ? () => context.go(AppRoute.liveHub) : null,
                     ),
                   ],
                 ),

@@ -170,6 +170,13 @@ class CounselorDashboardScreen extends ConsumerWidget {
                           subtitle: 'Open booking and cancellation updates.',
                           onTap: () => context.go(AppRoute.notifications),
                         ),
+                        _ActionCardData(
+                          icon: Icons.podcasts_rounded,
+                          title: 'Live Hub',
+                          subtitle:
+                              'Create or join institution live audio sessions.',
+                          onTap: () => context.go(AppRoute.liveHub),
+                        ),
                       ];
 
                       if (!isWide) {

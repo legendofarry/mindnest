@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 enum UserRole { individual, student, staff, counselor, institutionAdmin, other }
 
 extension UserRoleX on UserRole {
@@ -94,14 +96,26 @@ class UserProfile {
       }
     }
 
+    final mappedRole = UserRole.values.firstWhere(
+      (role) => role.name == normalizedRole,
+      orElse: () => UserRole.other,
+    );
+    if (kDebugMode &&
+        mappedRole == UserRole.other &&
+        normalizedRole != null &&
+        normalizedRole.isNotEmpty &&
+        normalizedRole != UserRole.other.name) {
+      debugPrint(
+        "[Auth][UserProfile] Unknown role '$normalizedRole' for user $id. "
+        'Falling back to "other".',
+      );
+    }
+
     return UserProfile(
       id: id,
       email: (data['email'] as String?) ?? '',
       name: (data['name'] as String?) ?? '',
-      role: UserRole.values.firstWhere(
-        (role) => role.name == normalizedRole,
-        orElse: () => UserRole.other,
-      ),
+      role: mappedRole,
       onboardingCompletedRoles: completed,
       counselorSetupCompleted:
           (data['counselorSetupCompleted'] as bool?) ?? false,

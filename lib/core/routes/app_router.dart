@@ -27,6 +27,8 @@ import 'package:mindnest/features/institutions/presentation/invite_accept_screen
 import 'package:mindnest/features/institutions/presentation/join_institution_screen.dart';
 import 'package:mindnest/features/institutions/presentation/post_signup_decision_screen.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/features/live/presentation/live_hub_screen.dart';
+import 'package:mindnest/features/live/presentation/live_room_screen.dart';
 import 'package:mindnest/features/onboarding/data/onboarding_providers.dart';
 import 'package:mindnest/features/onboarding/presentation/onboarding_loading_screen.dart';
 import 'package:mindnest/features/onboarding/presentation/onboarding_questionnaire_screen.dart';
@@ -52,6 +54,8 @@ class AppRoute {
   static const studentAppointments = '/student-appointments';
   static const notifications = '/notifications';
   static const carePlan = '/care-plan';
+  static const liveHub = '/live-hub';
+  static const liveRoom = '/live-room';
   static const privacyControls = '/privacy-controls';
   static const home = '/home';
   static const joinInstitution = '/join-institution';
@@ -94,6 +98,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.counselorProfile ||
           location == AppRoute.studentAppointments ||
           location == AppRoute.carePlan;
+      final isLiveRoute =
+          location == AppRoute.liveHub || location == AppRoute.liveRoom;
 
       if (authState == null) {
         return isAuthRoute ? null : AppRoute.login;
@@ -206,6 +212,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return AppRoute.institutionAdmin;
       }
 
+      if (role == UserRole.institutionAdmin && isLiveRoute) {
+        return AppRoute.institutionAdmin;
+      }
+
+      if (role == UserRole.individual && isLiveRoute) {
+        return AppRoute.home;
+      }
+
       if (role == UserRole.institutionAdmin &&
           (isAuthRoute || location == AppRoute.verifyEmail)) {
         return AppRoute.institutionAdmin;
@@ -307,6 +321,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.carePlan,
         builder: (context, state) => const StudentCarePlanScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.liveHub,
+        builder: (context, state) => const LiveHubScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.liveRoom,
+        builder: (context, state) {
+          final sessionId = state.uri.queryParameters['sessionId'] ?? '';
+          return LiveRoomScreen(sessionId: sessionId);
+        },
       ),
       GoRoute(
         path: AppRoute.privacyControls,

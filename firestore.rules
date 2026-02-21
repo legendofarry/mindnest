@@ -44,6 +44,24 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/institution_members/$(currentInstitutionId() + '_' + targetUid));
     }
 
+    function isLiveRole() {
+      return currentUserRole() in ['student', 'staff', 'counselor'];
+    }
+
+    function liveSessionDoc(sessionId) {
+      return get(/databases/$(database)/documents/live_sessions/$(sessionId)).data;
+    }
+
+    function canAccessLiveSession(sessionId) {
+      return isSignedIn() &&
+        currentInstitutionId() != null &&
+        liveSessionDoc(sessionId).institutionId == currentInstitutionId() &&
+        (
+          liveSessionDoc(sessionId).createdBy == request.auth.uid ||
+          currentUserRole() in liveSessionDoc(sessionId).allowedRoles
+        );
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create: if isOwner(uid) &&
@@ -252,6 +270,131 @@ service cloud.firestore {
         )
       );
       allow delete: if false;
+    }
+
+    match /live_sessions/{sessionId} {
+      allow read: if isSignedIn() &&
+        currentInstitutionId() != null &&
+        resource.data.institutionId == currentInstitutionId();
+
+      allow create: if isSignedIn() &&
+        isLiveRole() &&
+        request.resource.data.institutionId == currentInstitutionId() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.hostRole == currentUserRole() &&
+        request.resource.data.status == 'live' &&
+        request.resource.data.maxGuests == 20 &&
+        request.resource.data.allowedRoles is list;
+
+      allow update: if isSignedIn() &&
+        currentInstitutionId() != null &&
+        resource.data.institutionId == currentInstitutionId() &&
+        (
+          (
+            resource.data.createdBy == request.auth.uid &&
+            request.resource.data.createdBy == resource.data.createdBy &&
+            request.resource.data.institutionId == resource.data.institutionId
+          ) ||
+          (
+            exists(/databases/$(database)/documents/live_sessions/$(sessionId)/participants/$(request.auth.uid)) &&
+            request.resource.data.createdBy == resource.data.createdBy &&
+            request.resource.data.institutionId == resource.data.institutionId &&
+            request.resource.data.status == resource.data.status &&
+            request.resource.data.title == resource.data.title &&
+            request.resource.data.description == resource.data.description &&
+            request.resource.data.allowedRoles == resource.data.allowedRoles &&
+            request.resource.data.maxGuests == resource.data.maxGuests &&
+            request.resource.data.likeCount == resource.data.likeCount + 1
+          )
+        );
+
+      allow delete: if false;
+
+      match /participants/{uid} {
+        allow read: if canAccessLiveSession(sessionId);
+
+        allow create: if isSignedIn() &&
+          uid == request.auth.uid &&
+          canAccessLiveSession(sessionId) &&
+          liveSessionDoc(sessionId).status in ['live', 'paused'] &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.role == currentUserRole();
+
+        allow update: if canAccessLiveSession(sessionId) &&
+          (
+            uid == request.auth.uid ||
+            liveSessionDoc(sessionId).createdBy == request.auth.uid
+          );
+
+        allow delete: if canAccessLiveSession(sessionId) &&
+          (
+            uid == request.auth.uid ||
+            liveSessionDoc(sessionId).createdBy == request.auth.uid
+          );
+      }
+
+      match /mic_requests/{uid} {
+        allow read: if canAccessLiveSession(sessionId);
+
+        allow create: if isSignedIn() &&
+          uid == request.auth.uid &&
+          canAccessLiveSession(sessionId) &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.status == 'pending';
+
+        allow update: if canAccessLiveSession(sessionId) &&
+          (
+            uid == request.auth.uid ||
+            liveSessionDoc(sessionId).createdBy == request.auth.uid
+          );
+
+        allow delete: if canAccessLiveSession(sessionId) &&
+          (
+            uid == request.auth.uid ||
+            liveSessionDoc(sessionId).createdBy == request.auth.uid
+          );
+      }
+
+      match /comments/{commentId} {
+        allow read: if canAccessLiveSession(sessionId);
+
+        allow create: if canAccessLiveSession(sessionId) &&
+          exists(/databases/$(database)/documents/live_sessions/$(sessionId)/participants/$(request.auth.uid)) &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.text is string &&
+          request.resource.data.text.size() > 0 &&
+          request.resource.data.text.size() <= 250;
+
+        allow update: if false;
+
+        allow delete: if canAccessLiveSession(sessionId) &&
+          (
+            resource.data.userId == request.auth.uid ||
+            liveSessionDoc(sessionId).createdBy == request.auth.uid
+          );
+      }
+
+      match /reactions/{reactionId} {
+        allow read: if canAccessLiveSession(sessionId);
+        allow create: if canAccessLiveSession(sessionId) &&
+          exists(/databases/$(database)/documents/live_sessions/$(sessionId)/participants/$(request.auth.uid)) &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.emoji is string &&
+          request.resource.data.emoji.size() > 0 &&
+          request.resource.data.emoji.size() <= 8;
+        allow update, delete: if false;
+      }
+
+      match /comment_reports/{reportId} {
+        allow create: if canAccessLiveSession(sessionId) &&
+          exists(/databases/$(database)/documents/live_sessions/$(sessionId)/participants/$(request.auth.uid));
+        allow read: if canAccessLiveSession(sessionId) &&
+          (
+            liveSessionDoc(sessionId).createdBy == request.auth.uid ||
+            currentUserRole() == 'institutionAdmin'
+          );
+        allow update, delete: if false;
+      }
     }
 
     match /counselor_ratings/{ratingId} {
