@@ -3,7 +3,43 @@ const express = require('express');
 const admin = require('firebase-admin');
 const { AccessToken } = require('livekit-server-sdk');
 
-admin.initializeApp();
+function readServiceAccountFromEnv() {
+  const raw =
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
+    process.env.GOOGLE_CREDENTIALS_JSON ||
+    '';
+  if (!raw) {
+    return null;
+  }
+
+  let jsonText = raw.trim();
+  if (!jsonText.startsWith('{')) {
+    jsonText = Buffer.from(jsonText, 'base64').toString('utf8');
+  }
+  const parsed = JSON.parse(jsonText);
+  if (typeof parsed.private_key === 'string') {
+    parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+  }
+  return parsed;
+}
+
+let firebaseCredentialMode = 'default';
+try {
+  const serviceAccount = readServiceAccountFromEnv();
+  if (serviceAccount) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    firebaseCredentialMode = 'service-account-env';
+  } else {
+    admin.initializeApp();
+    firebaseCredentialMode = 'default';
+  }
+} catch (error) {
+  console.error('[firebase-init] failed', error);
+  admin.initializeApp();
+  firebaseCredentialMode = 'default-fallback';
+}
 
 const db = admin.firestore();
 const app = express();
@@ -41,6 +77,7 @@ app.get('/healthz', (_req, res) => {
   res.status(200).json({
     status: 'ok',
     livekitEnvConfigured: hasLiveKitEnv(),
+    firebaseCredentialMode,
   });
 });
 
@@ -157,6 +194,24 @@ app.post('/livekit/token', async (req, res) => {
     });
   } catch (error) {
     console.error('[livekit-token] error', error);
+
+    const message = String(error?.message || '');
+    const code = String(error?.code || '');
+    if (code.startsWith('auth/')) {
+      return res.status(401).json({
+        error: `Invalid auth token: ${code}`,
+      });
+    }
+    if (
+      message.includes('Could not load the default credentials') ||
+      message.includes('Failed to determine project ID')
+    ) {
+      return res.status(500).json({
+        error:
+          'Firebase Admin credentials are missing on backend. Set FIREBASE_SERVICE_ACCOUNT_JSON.',
+      });
+    }
+
     return res.status(500).json({
       error: 'Unable to create audio token.',
     });

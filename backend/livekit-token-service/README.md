@@ -37,6 +37,7 @@ Response:
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
+- `FIREBASE_SERVICE_ACCOUNT_JSON` (required on Render/VPS; JSON string or base64 JSON)
 - `PORT` (optional, default `8080`)
 
 ## Local Run
@@ -54,8 +55,19 @@ gcloud run deploy mindnest-livekit-token \
   --source backend/livekit-token-service \
   --region us-central1 \
   --allow-unauthenticated \
-  --set-env-vars LIVEKIT_URL=wss://...,LIVEKIT_API_KEY=...,LIVEKIT_API_SECRET=...
+  --set-env-vars LIVEKIT_URL=wss://...,LIVEKIT_API_KEY=...,LIVEKIT_API_SECRET=...,FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'
 ```
+
+## Render Notes
+
+In Render service environment settings, set:
+
+- `LIVEKIT_URL`
+- `LIVEKIT_API_KEY`
+- `LIVEKIT_API_SECRET`
+- `FIREBASE_SERVICE_ACCOUNT_JSON`
+
+`FIREBASE_SERVICE_ACCOUNT_JSON` should be a full Firebase service account JSON from Firebase Console -> Project Settings -> Service Accounts.
 
 ## Flutter App Config
 
