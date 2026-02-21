@@ -574,9 +574,14 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                                   reactionSnap.data ??
                                       const <LiveReactionEvent>[],
                                 );
+                                final commentsPanelHeight =
+                                    (MediaQuery.sizeOf(context).height * 0.52)
+                                        .clamp(320.0, 560.0)
+                                        .toDouble();
                                 return Stack(
                                   children: [
                                     Column(
+                                      mainAxisSize: MainAxisSize.min,
                                       crossAxisAlignment:
                                           CrossAxisAlignment.stretch,
                                       children: [
@@ -767,7 +772,8 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                                           ),
                                         ),
                                         const SizedBox(height: 10),
-                                        Expanded(
+                                        SizedBox(
+                                          height: commentsPanelHeight,
                                           child: GlassCard(
                                             child: Padding(
                                               padding: const EdgeInsets.all(12),
