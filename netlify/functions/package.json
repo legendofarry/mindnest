@@ -1,0 +1,9 @@
+{
+  "name": "mindnest-netlify-functions",
+  "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "livekit-server-sdk": "^2.8.0"
+  }
+}

@@ -5,13 +5,19 @@
     git clone https://github.com/flutter/flutter.git --depth 1 -b stable $HOME/flutter
     export PATH="$HOME/flutter/bin:$PATH"
     flutter config --enable-web
+    npm --prefix netlify/functions install
     flutter pub get
-    if [ -z "$LIVEKIT_TOKEN_ENDPOINT" ]; then
-      echo "Missing LIVEKIT_TOKEN_ENDPOINT in Netlify environment variables."
-      exit 1
-    fi
-    flutter build web --release --dart-define=LIVEKIT_TOKEN_ENDPOINT=$LIVEKIT_TOKEN_ENDPOINT
+    TOKEN_ENDPOINT="${LIVEKIT_TOKEN_ENDPOINT:-/livekit/token}"
+    flutter build web --release --dart-define=LIVEKIT_TOKEN_ENDPOINT=$TOKEN_ENDPOINT
   """
+
+[functions]
+  directory = "netlify/functions"
+
+[[redirects]]
+  from = "/livekit/token"
+  to = "/.netlify/functions/livekit-token"
+  status = 200
 
 [[redirects]]
   from = "/*"
