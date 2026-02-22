@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindnest/core/ui/back_to_home_button.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -363,6 +364,7 @@ class _StudentAppointmentsScreenState
         title: const Text('My Counseling Sessions'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: const BackToHomeButton(),
         actions: [
           IconButton(
             tooltip: 'Retry',

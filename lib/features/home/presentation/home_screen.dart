@@ -425,6 +425,9 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(currentUserProfileProvider);
     final loadedProfile = profileAsync.valueOrNull;
+    final canOpenNotifications =
+        loadedProfile != null &&
+        (loadedProfile.institutionId ?? '').isNotEmpty;
 
     return MindNestShell(
       maxWidth: 760,
@@ -440,6 +443,15 @@ class HomeScreen extends ConsumerWidget {
         ),
         centerTitle: false,
         actions: [
+          IconButton(
+            onPressed: canOpenNotifications
+                ? () => context.go(AppRoute.notifications)
+                : null,
+            icon: const Icon(
+              Icons.notifications_none_rounded,
+              color: Color(0xFF64748B),
+            ),
+          ),
           IconButton(
             onPressed: loadedProfile == null
                 ? null
@@ -625,15 +637,6 @@ class HomeScreen extends ConsumerWidget {
                       const Color(0xFF8B5CF6),
                       hasInstitution
                           ? () => context.go(AppRoute.carePlan)
-                          : null,
-                    ),
-                    _buildActionCard(
-                      context,
-                      'Alerts',
-                      Icons.notifications_active_rounded,
-                      const Color(0xFFF59E0B),
-                      hasInstitution
-                          ? () => context.go(AppRoute.notifications)
                           : null,
                     ),
                     _buildActionCard(

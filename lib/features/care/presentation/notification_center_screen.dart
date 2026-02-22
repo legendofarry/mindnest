@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindnest/core/ui/back_to_home_button.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
@@ -35,6 +36,7 @@ class _NotificationCenterScreenState
         title: const Text('Notification Center'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: const BackToHomeButton(),
         actions: [
           IconButton(
             onPressed: () => setState(() => _refreshTick++),

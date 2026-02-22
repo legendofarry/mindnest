@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
+import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/live/data/live_providers.dart';
@@ -78,7 +79,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('You were removed from this live.')),
             );
-            await _leave(pop: true);
+            await _leave(goHome: true);
           } else if (participant.mutedByHost && _micEnabled) {
             await _setMic(false);
             if (mounted) {
@@ -258,7 +259,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     }
   }
 
-  Future<void> _leave({bool pop = false}) async {
+  Future<void> _leave({bool goHome = false}) async {
     if (_leaving) {
       return;
     }
@@ -277,8 +278,8 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
       _audioConnected = false;
       _canPublishWithToken = false;
       _leaving = false;
-      if (pop && mounted) {
-        context.pop();
+      if (mounted && goHome) {
+        context.go(AppRoute.home);
       }
     }
   }
@@ -307,7 +308,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     if (!mounted) {
       return;
     }
-    await _leave(pop: true);
+    await _leave(goHome: true);
   }
 
   void _syncBursts(List<LiveReactionEvent> reactions) {
@@ -528,7 +529,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
         elevation: 0,
         title: const Text('Live Room'),
         leading: IconButton(
-          onPressed: () => _leave(pop: true),
+          onPressed: () => _leave(goHome: true),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
       ),
