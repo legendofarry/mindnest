@@ -1,9 +1,6 @@
-import 'dart:convert';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/live/models/live_comment.dart';
 import 'package:mindnest/features/live/models/live_mic_request.dart';
@@ -56,8 +53,16 @@ class LiveRepository {
     'staff',
     'counselor',
   };
-  static const String _tokenEndpoint = String.fromEnvironment(
-    'LIVEKIT_TOKEN_ENDPOINT',
+  static const String _liveKitUrl = String.fromEnvironment(
+    'LIVEKIT_URL',
+    defaultValue: '',
+  );
+  static const String _liveKitApiKey = String.fromEnvironment(
+    'LIVEKIT_API_KEY',
+    defaultValue: '',
+  );
+  static const String _liveKitApiSecret = String.fromEnvironment(
+    'LIVEKIT_API_SECRET',
     defaultValue: '',
   );
 
@@ -762,62 +767,74 @@ class LiveRepository {
     if (user == null) {
       throw Exception('You must be logged in.');
     }
-    if (_tokenEndpoint.isEmpty) {
+    if (_liveKitUrl.isEmpty ||
+        _liveKitApiKey.isEmpty ||
+        _liveKitApiSecret.isEmpty) {
       throw Exception(
-        'Audio backend is not configured. Missing LIVEKIT_TOKEN_ENDPOINT.',
+        'Audio backend is not configured. Missing LIVEKIT_URL, LIVEKIT_API_KEY, or LIVEKIT_API_SECRET.',
       );
     }
 
-    final idToken = await user.getIdToken();
-    final uri = Uri.parse(_tokenEndpoint);
-    final response = await http.post(
-      uri,
-      headers: <String, String>{
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $idToken',
+    final sessionSnap = await _liveCollection.doc(sessionId).get();
+    if (!sessionSnap.exists || sessionSnap.data() == null) {
+      throw Exception('Live session not found.');
+    }
+    final sessionData = sessionSnap.data()!;
+    final session = LiveSession.fromMap(sessionSnap.id, sessionData);
+
+    final participantSnap = await _liveCollection
+        .doc(sessionId)
+        .collection('participants')
+        .doc(user.uid)
+        .get();
+
+    var canPublishAudio = false;
+    if (session.createdBy == user.uid) {
+      canPublishAudio = session.status == LiveSessionStatus.live;
+    } else if (participantSnap.exists && participantSnap.data() != null) {
+      final participantData = participantSnap.data()!;
+      final canSpeak = (participantData['canSpeak'] as bool?) ?? false;
+      final mutedByHost = (participantData['mutedByHost'] as bool?) ?? false;
+      canPublishAudio =
+          session.status == LiveSessionStatus.live && canSpeak && !mutedByHost;
+    }
+
+    final roomName = (sessionData['roomName'] as String?)?.trim();
+    final resolvedRoomName =
+        (roomName != null && roomName.isNotEmpty)
+        ? roomName
+        : 'mindnest_live_$sessionId';
+
+    final userData = await _currentUserDoc();
+    final displayName =
+        (userData['name'] as String?) ??
+        user.displayName ??
+        user.email ??
+        'MindNest Member';
+
+    final now = DateTime.now().toUtc();
+    final nowEpochSeconds = now.millisecondsSinceEpoch ~/ 1000;
+    final token = JWT(
+      <String, dynamic>{
+        'name': displayName,
+        'nbf': nowEpochSeconds,
+        'video': <String, dynamic>{
+          'roomJoin': true,
+          'room': resolvedRoomName,
+          'canPublish': canPublishAudio,
+          'canSubscribe': true,
+          'canPublishData': true,
+        },
       },
-      body: jsonEncode(<String, dynamic>{'sessionId': sessionId}),
-    );
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      var message =
-          'Unable to connect audio (${response.statusCode}). Please try again.';
-      try {
-        final payload = jsonDecode(response.body);
-        if (payload is Map<String, dynamic>) {
-          final error = payload['error'] as String?;
-          if (error != null && error.trim().isNotEmpty) {
-            message = error.trim();
-          }
-        }
-      } catch (_) {
-        if (kDebugMode) {
-          debugPrint(
-            '[LiveKitToken] Non-JSON error response: ${response.body}',
-          );
-        }
-      }
-      throw Exception(message);
-    }
-
-    final payload = jsonDecode(response.body);
-    if (payload is! Map<String, dynamic>) {
-      throw Exception('Invalid audio credentials response.');
-    }
-
-    final serverUrl = (payload['serverUrl'] as String?)?.trim() ?? '';
-    final roomName = (payload['roomName'] as String?)?.trim() ?? '';
-    final token = (payload['token'] as String?)?.trim() ?? '';
-    final canPublishAudio = (payload['canPublishAudio'] as bool?) ?? false;
-
-    if (serverUrl.isEmpty || roomName.isEmpty || token.isEmpty) {
-      throw Exception('Audio credentials are incomplete.');
-    }
+      issuer: _liveKitApiKey,
+      subject: user.uid,
+      jwtId: '${user.uid}_${now.millisecondsSinceEpoch}',
+    ).sign(SecretKey(_liveKitApiSecret), expiresIn: const Duration(hours: 2));
 
     return LiveKitJoinCredentials(
-      serverUrl: serverUrl,
+      serverUrl: _liveKitUrl,
       token: token,
-      roomName: roomName,
+      roomName: resolvedRoomName,
       canPublishAudio: canPublishAudio,
     );
   }
