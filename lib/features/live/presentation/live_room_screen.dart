@@ -38,6 +38,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
   bool _canPublishWithToken = false;
   bool _refreshingAudioGrant = false;
   bool _micEnabled = false;
+  bool _handledLiveEnded = false;
   String? _joinError;
 
   LiveParticipant? _myParticipant;
@@ -280,6 +281,33 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
         context.pop();
       }
     }
+  }
+
+  Future<void> _handleHostEndedLive() async {
+    if (_handledLiveEnded || _leaving || !mounted) {
+      return;
+    }
+    _handledLiveEnded = true;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Live Ended'),
+        content: const Text('Host has ended this live session.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+    await _leave(pop: true);
   }
 
   void _syncBursts(List<LiveReactionEvent> reactions) {
@@ -536,10 +564,9 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                   );
                 }
                 if (session.status == LiveSessionStatus.ended) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) async {
-                    if (!mounted) return;
-                    await _leave(pop: true);
-                  });
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _handleHostEndedLive(),
+                  );
                 }
                 if (session.status == LiveSessionStatus.paused && _micEnabled) {
                   WidgetsBinding.instance.addPostFrameCallback(
