@@ -1,3 +1,4 @@
+// features/live/presentation/live_hub_screen.dart
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -314,14 +315,15 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
           children: [
             Positioned.fill(child: _LiveHubHomeBlobs(isDark: isDark)),
             SafeArea(
-              child: Center(
+              child: Align(
+                alignment: Alignment.topCenter,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 760),
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(
                       20,
-                      kToolbarHeight + 16,
+                      kToolbarHeight - 20,
                       20,
                       22,
                     ),
@@ -438,27 +440,13 @@ class _CircleHeaderButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Material(
-      color: isDark ? const Color(0xFF131F32) : Colors.white,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Ink(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFD2DCE9),
-            ),
-          ),
-          child: Icon(
-            icon,
-            color: isDark ? const Color(0xFFB7C6DA) : const Color(0xFF4A607C),
-            size: 22,
-          ),
-        ),
+    return IconButton(
+      onPressed: onTap,
+      splashRadius: 20,
+      icon: Icon(
+        icon,
+        color: isDark ? const Color(0xFFB7C6DA) : const Color(0xFF4A607C),
+        size: 20,
       ),
     );
   }
