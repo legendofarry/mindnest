@@ -14,6 +14,7 @@ import 'package:mindnest/features/care/presentation/counselor_availability_scree
 import 'package:mindnest/features/care/presentation/counselor_directory_screen.dart';
 import 'package:mindnest/features/care/presentation/counselor_profile_screen.dart';
 import 'package:mindnest/features/care/presentation/notification_center_screen.dart';
+import 'package:mindnest/features/care/presentation/session_details_screen.dart';
 import 'package:mindnest/features/care/presentation/student_care_plan_screen.dart';
 import 'package:mindnest/features/care/presentation/student_appointments_screen.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
@@ -52,6 +53,7 @@ class AppRoute {
   static const counselorDirectory = '/counselors';
   static const counselorProfile = '/counselor-profile';
   static const studentAppointments = '/student-appointments';
+  static const sessionDetails = '/session-details';
   static const notifications = '/notifications';
   static const carePlan = '/care-plan';
   static const liveHub = '/live-hub';
@@ -97,6 +99,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.counselorDirectory ||
           location == AppRoute.counselorProfile ||
           location == AppRoute.studentAppointments ||
+          location == AppRoute.sessionDetails ||
           location == AppRoute.carePlan;
       final isLiveRoute =
           location == AppRoute.liveHub || location == AppRoute.liveRoom;
@@ -313,6 +316,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.studentAppointments,
         builder: (context, state) => const StudentAppointmentsScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.sessionDetails,
+        builder: (context, state) {
+          final appointmentId =
+              state.uri.queryParameters['appointmentId'] ?? '';
+          return SessionDetailsScreen(appointmentId: appointmentId);
+        },
       ),
       GoRoute(
         path: AppRoute.notifications,

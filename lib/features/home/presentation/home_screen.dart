@@ -1,9 +1,11 @@
 // features/home/presentation/home_screen.dart
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/app/theme_mode_controller.dart';
 import 'package:go_router/go_router.dart';
@@ -13,7 +15,12 @@ import 'package:mindnest/features/ai/presentation/home_ai_assistant_section.dart
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
+import 'package:mindnest/features/care/data/care_providers.dart';
+import 'package:mindnest/features/care/models/appointment_record.dart';
+import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/features/live/data/live_providers.dart';
+import 'package:mindnest/features/live/models/live_session.dart';
 
 // ---------------------------------------------------------------------------
 // Constants & theme helpers
@@ -494,6 +501,7 @@ class HomeScreen extends ConsumerWidget {
     WidgetRef ref,
     UserProfile profile,
   ) {
+    final parentContext = context;
     final hasInstitution = (profile.institutionId ?? '').isNotEmpty;
     showModalBottomSheet<void>(
       context: context,
@@ -641,7 +649,8 @@ class HomeScreen extends ConsumerWidget {
                                     onChanged: (value) {
                                       modalRef
                                           .read(
-                                            themeModeControllerProvider.notifier,
+                                            themeModeControllerProvider
+                                                .notifier,
                                           )
                                           .setMode(
                                             value
@@ -682,7 +691,9 @@ class HomeScreen extends ConsumerWidget {
                                         : 'Join an institution to manage notifications',
                                     onTap: () {
                                       if (!canOpenNotifications) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        ScaffoldMessenger.of(
+                                          parentContext,
+                                        ).showSnackBar(
                                           const SnackBar(
                                             content: Text(
                                               'Join an organization to manage notifications.',
@@ -692,7 +703,7 @@ class HomeScreen extends ConsumerWidget {
                                         return;
                                       }
                                       Navigator.of(sheetContext).pop();
-                                      context.go(AppRoute.notifications);
+                                      parentContext.go(AppRoute.notifications);
                                     },
                                   ),
                                   _sheetTile(
@@ -701,7 +712,9 @@ class HomeScreen extends ConsumerWidget {
                                     label: 'Language',
                                     subtitle: 'Coming soon',
                                     onTap: () {
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        parentContext,
+                                      ).showSnackBar(
                                         const SnackBar(
                                           content: Text(
                                             'Language settings are coming soon.',
@@ -738,7 +751,7 @@ class HomeScreen extends ConsumerWidget {
                                     subtitle: 'Security and privacy controls',
                                     onTap: () {
                                       Navigator.of(sheetContext).pop();
-                                      context.go(AppRoute.privacyControls);
+                                      parentContext.go(AppRoute.privacyControls);
                                     },
                                   ),
                                   if (hasInstitution)
@@ -749,7 +762,7 @@ class HomeScreen extends ConsumerWidget {
                                       subtitle: 'Your care goals and progress',
                                       onTap: () {
                                         Navigator.of(sheetContext).pop();
-                                        context.go(AppRoute.carePlan);
+                                        parentContext.go(AppRoute.carePlan);
                                       },
                                     ),
                                   if (!hasInstitution)
@@ -757,10 +770,11 @@ class HomeScreen extends ConsumerWidget {
                                       context: context,
                                       icon: Icons.add_business_rounded,
                                       label: 'Join Institution',
-                                      subtitle: 'Connect to your school/organization',
+                                      subtitle:
+                                          'Connect to your school/organization',
                                       onTap: () {
                                         Navigator.of(sheetContext).pop();
-                                        context.go(AppRoute.joinInstitution);
+                                        parentContext.go(AppRoute.joinInstitution);
                                       },
                                     ),
                                   if (profile.role == UserRole.institutionAdmin)
@@ -772,7 +786,9 @@ class HomeScreen extends ConsumerWidget {
                                       iconColor: _teal,
                                       onTap: () {
                                         Navigator.of(sheetContext).pop();
-                                        context.go(AppRoute.institutionAdmin);
+                                        parentContext.go(
+                                          AppRoute.institutionAdmin,
+                                        );
                                       },
                                     ),
                                   if (hasInstitution)
@@ -786,7 +802,10 @@ class HomeScreen extends ConsumerWidget {
                                       labelColor: const Color(0xFFE11D48),
                                       onTap: () {
                                         Navigator.of(sheetContext).pop();
-                                        _confirmLeaveInstitution(context, ref);
+                                        _confirmLeaveInstitution(
+                                          parentContext,
+                                          ref,
+                                        );
                                       },
                                     ),
                                   _sheetTile(
@@ -796,7 +815,15 @@ class HomeScreen extends ConsumerWidget {
                                     subtitle: 'Sign out on this device',
                                     onTap: () {
                                       Navigator.of(sheetContext).pop();
-                                      confirmAndLogout(context: context, ref: ref);
+                                      Future<void>.delayed(Duration.zero, () {
+                                        if (!parentContext.mounted) {
+                                          return;
+                                        }
+                                        confirmAndLogout(
+                                          context: parentContext,
+                                          ref: ref,
+                                        );
+                                      });
                                     },
                                   ),
                                 ],
@@ -911,7 +938,7 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 ),
                 Text(
-                  '$region · $label',
+                  '$region - $label',
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFFE11D48),
@@ -1016,10 +1043,14 @@ class HomeScreen extends ConsumerWidget {
         loadedProfile != null && _canAccessLive(loadedProfile);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark
+          ? const Color(0xFF0B1220)
+          : const Color(0xFFF8FAFC),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: isDark ? const Color(0xFF0F1728) : const Color(0xFFF4F7FB),
+        backgroundColor: isDark
+            ? const Color(0xFF0F1728)
+            : const Color(0xFFF4F7FB),
         surfaceTintColor: Colors.transparent,
         shape: Border(
           bottom: BorderSide(
@@ -1052,7 +1083,9 @@ class HomeScreen extends ConsumerWidget {
               'MindNest',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF071937),
+                color: isDark
+                    ? const Color(0xFFE2E8F0)
+                    : const Color(0xFF071937),
                 fontSize: 20,
                 letterSpacing: -0.4,
               ),
@@ -1139,11 +1172,13 @@ class HomeScreen extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _WelcomeHero(
+                            _HeroCarousel(
+                              profile: profile,
                               firstName: firstName,
                               roleLabel: profile.role.label,
                               institutionName: institutionLabel,
                               hasInstitution: hasInstitution,
+                              canAccessLive: canAccessLive,
                               isDark: isDark,
                             ),
                             const SizedBox(height: 24),
@@ -1278,6 +1313,698 @@ class _AnimatedHomeBlobsState extends State<_AnimatedHomeBlobs>
   }
 }
 
+class _HeroCarousel extends ConsumerStatefulWidget {
+  const _HeroCarousel({
+    required this.profile,
+    required this.firstName,
+    required this.roleLabel,
+    required this.institutionName,
+    required this.hasInstitution,
+    required this.canAccessLive,
+    required this.isDark,
+  });
+
+  final UserProfile profile;
+  final String firstName;
+  final String roleLabel;
+  final String institutionName;
+  final bool hasInstitution;
+  final bool canAccessLive;
+  final bool isDark;
+
+  @override
+  ConsumerState<_HeroCarousel> createState() => _HeroCarouselState();
+}
+
+class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
+  static const int _cardCount = 4;
+  static const Duration _autoSlideDelay = Duration(seconds: 7);
+  late final PageController _pageController = PageController(
+    initialPage: 1000 * _cardCount,
+  );
+  Timer? _autoSlideTimer;
+  Timer? _resumeTimer;
+  bool _paused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startAutoSlide();
+  }
+
+  @override
+  void dispose() {
+    _autoSlideTimer?.cancel();
+    _resumeTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _startAutoSlide() {
+    _autoSlideTimer?.cancel();
+    _autoSlideTimer = Timer.periodic(_autoSlideDelay, (_) {
+      if (_paused || !_pageController.hasClients) {
+        return;
+      }
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 520),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  void _pauseTemporarily() {
+    _resumeTimer?.cancel();
+    setState(() => _paused = true);
+  }
+
+  void _resumeLater() {
+    _resumeTimer?.cancel();
+    _resumeTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() => _paused = false);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 230,
+      child: GestureDetector(
+        onHorizontalDragStart: (_) => _pauseTemporarily(),
+        onHorizontalDragCancel: _resumeLater,
+        onHorizontalDragEnd: (_) => _resumeLater(),
+        child: PageView.builder(
+          controller: _pageController,
+          itemBuilder: (context, index) {
+            final cardIndex = index % _cardCount;
+            switch (cardIndex) {
+              case 0:
+                return _WelcomeHero(
+                  firstName: widget.firstName,
+                  roleLabel: widget.roleLabel,
+                  institutionName: widget.institutionName,
+                  hasInstitution: widget.hasInstitution,
+                  isDark: widget.isDark,
+                );
+              case 1:
+                return _HeroCardFrame(
+                  isDark: widget.isDark,
+                  title: 'Sessions',
+                  subtitle: 'Tap any session to open details',
+                  icon: Icons.calendar_month_rounded,
+                  child: _SessionsPreviewCard(
+                    profile: widget.profile,
+                    onUserInteractionStart: _pauseTemporarily,
+                    onUserInteractionEnd: _resumeLater,
+                  ),
+                );
+              case 2:
+                return _HeroCardFrame(
+                  isDark: widget.isDark,
+                  title: 'Open Slots',
+                  subtitle: 'Next counselor availability',
+                  icon: Icons.event_available_rounded,
+                  child: _OpenSlotsPreviewCard(
+                    profile: widget.profile,
+                    onTapCounselor: (counselorId) {
+                      _pauseTemporarily();
+                      context.go(
+                        '${AppRoute.counselorProfile}?counselorId=$counselorId',
+                      );
+                    },
+                  ),
+                );
+              default:
+                return _HeroCardFrame(
+                  isDark: widget.isDark,
+                  title: 'Live Now',
+                  subtitle: 'Tap a live room to join directly',
+                  icon: Icons.podcasts_rounded,
+                  child: _LiveNowPreviewCard(
+                    profile: widget.profile,
+                    canAccessLive: widget.canAccessLive,
+                    onTapLive: (sessionId) {
+                      _pauseTemporarily();
+                      context.go('${AppRoute.liveRoom}?sessionId=$sessionId');
+                    },
+                  ),
+                );
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroCardFrame extends StatelessWidget {
+  const _HeroCardFrame({
+    required this.isDark,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.child,
+  });
+
+  final bool isDark;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = isDark
+        ? const Color(0xFF2A3A52)
+        : const Color(0xFFDDE6F1);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? const [Color(0xFF11263A), Color(0xFF132C43)]
+              : const [Color(0xFFE6FFFA), Color(0xFFEFF6FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? Colors.black : const Color(0x120F172A)).withValues(
+              alpha: isDark ? 0.28 : 0.07,
+            ),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: const Color(0xFF0E9B90), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: isDark
+                        ? const Color(0xFFE2E8F0)
+                        : const Color(0xFF0F172A),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: TextStyle(
+              color: isDark ? const Color(0xFF9FB2CC) : const Color(0xFF516784),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+}
+
+class _SessionsPreviewCard extends ConsumerStatefulWidget {
+  const _SessionsPreviewCard({
+    required this.profile,
+    required this.onUserInteractionStart,
+    required this.onUserInteractionEnd,
+  });
+
+  final UserProfile profile;
+  final VoidCallback onUserInteractionStart;
+  final VoidCallback onUserInteractionEnd;
+
+  @override
+  ConsumerState<_SessionsPreviewCard> createState() =>
+      _SessionsPreviewCardState();
+}
+
+class _SessionsPreviewCardState extends ConsumerState<_SessionsPreviewCard> {
+  final ScrollController _scrollController = ScrollController();
+  Timer? _autoScrollTimer;
+  Timer? _resumeTimer;
+  bool _isInteracting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 55), (_) {
+      if (_isInteracting || !_scrollController.hasClients) {
+        return;
+      }
+      final position = _scrollController.position;
+      if (position.maxScrollExtent <= 0) {
+        return;
+      }
+      var nextOffset = position.pixels + 0.45;
+      if (nextOffset >= position.maxScrollExtent) {
+        nextOffset = 0;
+      }
+      _scrollController.jumpTo(nextOffset);
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoScrollTimer?.cancel();
+    _resumeTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _pauseInteraction() {
+    _resumeTimer?.cancel();
+    if (!_isInteracting) {
+      setState(() => _isInteracting = true);
+      widget.onUserInteractionStart();
+    }
+  }
+
+  void _resumeInteractionLater() {
+    _resumeTimer?.cancel();
+    _resumeTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) {
+        return;
+      }
+      if (_isInteracting) {
+        setState(() => _isInteracting = false);
+        widget.onUserInteractionEnd();
+      }
+    });
+  }
+
+  String _formatDate(DateTime value) {
+    final date = value.toLocal();
+    return '${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')} '
+        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final role = widget.profile.role;
+    final institutionId = (widget.profile.institutionId ?? '').trim();
+    if (institutionId.isEmpty) {
+      return const Center(
+        child: Text(
+          'Join an institution to view sessions.',
+          style: TextStyle(
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    if (role == UserRole.institutionAdmin) {
+      return const Center(
+        child: Text(
+          'Session preview is not available for institution admins.',
+          style: TextStyle(
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    final careRepo = ref.read(careRepositoryProvider);
+    final stream = role == UserRole.counselor
+        ? careRepo.watchCounselorAppointments(
+            institutionId: institutionId,
+            counselorId: widget.profile.id,
+          )
+        : careRepo.watchStudentAppointments(
+            institutionId: institutionId,
+            studentId: widget.profile.id,
+          );
+
+    return NotificationListener<UserScrollNotification>(
+      onNotification: (notification) {
+        if (notification.direction != ScrollDirection.idle) {
+          _pauseInteraction();
+        } else {
+          _resumeInteractionLater();
+        }
+        return false;
+      },
+      child: Listener(
+        onPointerDown: (_) => _pauseInteraction(),
+        onPointerUp: (_) => _resumeInteractionLater(),
+        onPointerCancel: (_) => _resumeInteractionLater(),
+        child: StreamBuilder<List<AppointmentRecord>>(
+          stream: stream,
+          builder: (context, snapshot) {
+            final allSessions = snapshot.data ?? const <AppointmentRecord>[];
+            final sessions =
+                allSessions
+                    .where((entry) => entry.endAt.isAfter(DateTime.now()))
+                    .toList(growable: false)
+                  ..sort((a, b) => a.startAt.compareTo(b.startAt));
+            final display = sessions.take(12).toList(growable: false);
+
+            if (display.isEmpty) {
+              return const Center(
+                child: Text(
+                  'No upcoming sessions.',
+                  style: TextStyle(
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              );
+            }
+
+            return ListView.separated(
+              controller: _scrollController,
+              padding: EdgeInsets.zero,
+              itemCount: display.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final session = display[index];
+                final name = (session.counselorName ?? '').trim().isNotEmpty
+                    ? session.counselorName!.trim()
+                    : session.counselorId;
+                return GestureDetector(
+                  onTap: () => context.go(
+                    '${AppRoute.sessionDetails}?appointmentId=${session.id}',
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.70),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.event_note_rounded,
+                          size: 16,
+                          color: Color(0xFF0E9B90),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '$name - ${_formatDate(session.startAt)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF1E293B),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 16,
+                          color: Color(0xFF64748B),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _OpenSlotsPreviewCard extends ConsumerWidget {
+  const _OpenSlotsPreviewCard({
+    required this.profile,
+    required this.onTapCounselor,
+  });
+
+  final UserProfile profile;
+  final ValueChanged<String> onTapCounselor;
+
+  String _formatDate(DateTime value) {
+    final date = value.toLocal();
+    return '${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')} '
+        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<Map<String, String>> _fetchCounselorNames(
+    FirebaseFirestore firestore,
+    List<String> counselorIds,
+  ) async {
+    if (counselorIds.isEmpty) {
+      return const <String, String>{};
+    }
+
+    final result = <String, String>{};
+    for (var i = 0; i < counselorIds.length; i += 10) {
+      final end = (i + 10 < counselorIds.length) ? i + 10 : counselorIds.length;
+      final chunk = counselorIds.sublist(i, end);
+      final profiles = await firestore
+          .collection('counselor_profiles')
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get();
+      for (final doc in profiles.docs) {
+        final displayName = (doc.data()['displayName'] as String?)?.trim();
+        if (displayName != null && displayName.isNotEmpty) {
+          result[doc.id] = displayName;
+        }
+      }
+    }
+    return result;
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final institutionId = (profile.institutionId ?? '').trim();
+    if (institutionId.isEmpty) {
+      return const Center(
+        child: Text(
+          'Join an institution to view counselor slots.',
+          style: TextStyle(
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    final stream = ref
+        .read(careRepositoryProvider)
+        .watchInstitutionPublicAvailability(institutionId: institutionId);
+    final firestore = ref.read(firestoreProvider);
+
+    return StreamBuilder<List<AvailabilitySlot>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final slots = snapshot.data ?? const <AvailabilitySlot>[];
+        final topSlots = slots.take(8).toList(growable: false);
+        if (topSlots.isEmpty) {
+          return const Center(
+            child: Text(
+              'No open counselor slots right now.',
+              style: TextStyle(
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          );
+        }
+
+        final counselorIds = topSlots
+            .map((entry) => entry.counselorId)
+            .where((entry) => entry.isNotEmpty)
+            .toSet()
+            .toList(growable: false);
+
+        return FutureBuilder<Map<String, String>>(
+          future: _fetchCounselorNames(firestore, counselorIds),
+          builder: (context, namesSnapshot) {
+            final names = namesSnapshot.data ?? const <String, String>{};
+            return ListView.separated(
+              padding: EdgeInsets.zero,
+              itemCount: topSlots.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final slot = topSlots[index];
+                final counselorName =
+                    names[slot.counselorId] ?? 'Counselor ${slot.counselorId}';
+                return GestureDetector(
+                  onTap: () => onTapCounselor(slot.counselorId),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.70),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.schedule_rounded,
+                          size: 16,
+                          color: Color(0xFF0E9B90),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '$counselorName - ${_formatDate(slot.startAt)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF1E293B),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 16,
+                          color: Color(0xFF64748B),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _LiveNowPreviewCard extends ConsumerWidget {
+  const _LiveNowPreviewCard({
+    required this.profile,
+    required this.canAccessLive,
+    required this.onTapLive,
+  });
+
+  final UserProfile profile;
+  final bool canAccessLive;
+  final ValueChanged<String> onTapLive;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final institutionId = (profile.institutionId ?? '').trim();
+    if (institutionId.isEmpty) {
+      return const Center(
+        child: Text(
+          'Join an institution to see live sessions.',
+          style: TextStyle(
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+    if (!canAccessLive) {
+      return const Center(
+        child: Text(
+          'Live is available to student, staff, and counselor roles.',
+          style: TextStyle(
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    return StreamBuilder<List<LiveSession>>(
+      stream: ref
+          .read(liveRepositoryProvider)
+          .watchInstitutionLives(institutionId: institutionId),
+      builder: (context, snapshot) {
+        final liveSessions = snapshot.data ?? const <LiveSession>[];
+        final topSessions = liveSessions.take(8).toList(growable: false);
+        if (topSessions.isEmpty) {
+          return const Center(
+            child: Text(
+              'No live sessions right now.',
+              style: TextStyle(
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          );
+        }
+        return ListView.separated(
+          padding: EdgeInsets.zero,
+          itemCount: topSessions.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 8),
+          itemBuilder: (context, index) {
+            final live = topSessions[index];
+            return GestureDetector(
+              onTap: () => onTapLive(live.id),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.70),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.podcasts_rounded,
+                      size: 16,
+                      color: Color(0xFF0E9B90),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${live.title} - ${live.hostName}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF1E293B),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 16,
+                      color: Color(0xFF64748B),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
 class _AppBarIconBtn extends StatelessWidget {
   const _AppBarIconBtn({required this.icon, required this.enabled, this.onTap});
   final IconData icon;
@@ -1362,9 +2089,7 @@ class _WelcomeHero extends StatelessWidget {
             'How are you,',
             style: TextStyle(
               fontSize: 16,
-              color: isDark
-                  ? const Color(0xFFB7C6DA)
-                  : const Color(0xFF516784),
+              color: isDark ? const Color(0xFFB7C6DA) : const Color(0xFF516784),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1384,9 +2109,7 @@ class _WelcomeHero extends StatelessWidget {
             children: [
               _Pill(
                 label: roleLabel,
-                bg: isDark
-                    ? const Color(0xFF183744)
-                    : const Color(0xFFE7F3F1),
+                bg: isDark ? const Color(0xFF183744) : const Color(0xFFE7F3F1),
                 textColor: isDark
                     ? const Color(0xFF6EE7D8)
                     : const Color(0xFF0E9B90),
@@ -1395,9 +2118,7 @@ class _WelcomeHero extends StatelessWidget {
               const SizedBox(width: 8),
               _Pill(
                 label: institutionName,
-                bg: isDark
-                    ? const Color(0xFF1C2F4A)
-                    : const Color(0xFFEFF6FF),
+                bg: isDark ? const Color(0xFF1C2F4A) : const Color(0xFFEFF6FF),
                 textColor: isDark
                     ? const Color(0xFFB9CCEA)
                     : const Color(0xFF516784),
