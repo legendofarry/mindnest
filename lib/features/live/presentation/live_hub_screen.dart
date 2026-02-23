@@ -11,7 +11,9 @@ import 'package:mindnest/features/live/models/live_participant.dart';
 import 'package:mindnest/features/live/models/live_session.dart';
 
 class LiveHubScreen extends ConsumerStatefulWidget {
-  const LiveHubScreen({super.key});
+  const LiveHubScreen({super.key, this.autoOpenCreate = false});
+
+  final bool autoOpenCreate;
 
   @override
   ConsumerState<LiveHubScreen> createState() => _LiveHubScreenState();
@@ -24,6 +26,7 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
   bool _allowStaff = true;
   bool _allowCounselors = true;
   bool _creating = false;
+  bool _autoCreateHandled = false;
 
   @override
   void dispose() {
@@ -249,6 +252,26 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final institutionId = profile?.institutionId ?? '';
     final canUse = profile != null && _canUseLive(profile);
+
+    if (widget.autoOpenCreate && !_autoCreateHandled && profile != null) {
+      _autoCreateHandled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        if (!canUse || institutionId.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'You cannot start a live session from this account right now.',
+              ),
+            ),
+          );
+          return;
+        }
+        _openCreateLiveDialog(profile);
+      });
+    }
 
     return MindNestShell(
       maxWidth: 980,

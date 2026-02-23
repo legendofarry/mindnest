@@ -324,7 +324,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoute.liveHub,
-        builder: (context, state) => const LiveHubScreen(),
+        builder: (context, state) {
+          final openCreate = state.uri.queryParameters['openCreate'] == '1';
+          return LiveHubScreen(autoOpenCreate: openCreate);
+        },
       ),
       GoRoute(
         path: AppRoute.liveRoom,

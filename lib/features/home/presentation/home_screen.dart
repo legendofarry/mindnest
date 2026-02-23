@@ -1,10 +1,14 @@
 // features/home/presentation/home_screen.dart
+import 'dart:math' as math;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/features/ai/models/assistant_models.dart';
+import 'package:mindnest/features/ai/presentation/home_ai_assistant_section.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
@@ -581,6 +585,15 @@ class HomeScreen extends ConsumerWidget {
                     context.go(AppRoute.privacyControls);
                   },
                 ),
+                if (hasInstitution)
+                  _sheetTile(
+                    icon: Icons.favorite_border_rounded,
+                    label: 'Care Plan',
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      context.go(AppRoute.carePlan);
+                    },
+                  ),
                 if (!hasInstitution)
                   _sheetTile(
                     icon: Icons.add_business_rounded,
@@ -728,6 +741,74 @@ class HomeScreen extends ConsumerWidget {
             profile.role == UserRole.counselor);
   }
 
+  Future<void> _runAssistantAction({
+    required BuildContext context,
+    required UserProfile profile,
+    required AssistantAction action,
+  }) async {
+    final hasInstitution = (profile.institutionId ?? '').isNotEmpty;
+    final canUseLive = _canAccessLive(profile);
+
+    void showMessage(String text) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    }
+
+    switch (action.type) {
+      case AssistantActionType.openLiveHub:
+        if (!hasInstitution) {
+          showMessage('Join an organization to access Live Hub.');
+          return;
+        }
+        if (!canUseLive) {
+          showMessage('Your role cannot access Live Hub.');
+          return;
+        }
+        context.go(AppRoute.liveHub);
+        return;
+      case AssistantActionType.goLiveCreate:
+        if (!hasInstitution) {
+          showMessage('Join an organization before creating a live session.');
+          return;
+        }
+        if (!canUseLive) {
+          showMessage('Your role cannot create live sessions.');
+          return;
+        }
+        context.go('${AppRoute.liveHub}?openCreate=1&source=ai');
+        return;
+      case AssistantActionType.openCounselors:
+        if (!hasInstitution) {
+          showMessage('Join an organization to view counselors.');
+          return;
+        }
+        context.go(AppRoute.counselorDirectory);
+        return;
+      case AssistantActionType.openSessions:
+        if (!hasInstitution) {
+          showMessage('Join an organization to manage sessions.');
+          return;
+        }
+        context.go(AppRoute.studentAppointments);
+        return;
+      case AssistantActionType.openNotifications:
+        context.go(AppRoute.notifications);
+        return;
+      case AssistantActionType.openCarePlan:
+        if (!hasInstitution) {
+          showMessage('Join an organization to access Care Plan.');
+          return;
+        }
+        context.go(AppRoute.carePlan);
+        return;
+      case AssistantActionType.openJoinInstitution:
+        context.go(AppRoute.joinInstitution);
+        return;
+      case AssistantActionType.openPrivacy:
+        context.go(AppRoute.privacyControls);
+        return;
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(currentUserProfileProvider);
@@ -739,13 +820,13 @@ class HomeScreen extends ConsumerWidget {
         loadedProfile != null && _canAccessLive(loadedProfile);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF070E19),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: const Color(0xFF090F1B),
+        backgroundColor: const Color(0xFFF4F7FB),
         surfaceTintColor: Colors.transparent,
         shape: const Border(
-          bottom: BorderSide(color: Color(0x1A94A3B8), width: 1),
+          bottom: BorderSide(color: Color(0xFFDDE6F1), width: 1),
         ),
         titleSpacing: 16,
         title: Row(
@@ -754,12 +835,16 @@ class HomeScreen extends ConsumerWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFF22D3EE),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF15A39A), Color(0xFF0E9B90)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
-                Icons.auto_awesome_rounded,
-                color: Color(0xFF001018),
+                Icons.psychology_alt_rounded,
+                color: Colors.white,
                 size: 22,
               ),
             ),
@@ -768,7 +853,7 @@ class HomeScreen extends ConsumerWidget {
               'MindNest',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                color: Color(0xFFF4F7FF),
+                color: Color(0xFF071937),
                 fontSize: 20,
                 letterSpacing: -0.4,
               ),
@@ -798,41 +883,14 @@ class HomeScreen extends ConsumerWidget {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF050B16), Color(0xFF061121), Color(0xFF07152A)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            colors: [Color(0xFFF4F7FB), Color(0xFFF1F5F9)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
         ),
         child: Stack(
           children: [
-            Positioned(
-              left: -120,
-              top: -20,
-              child: Container(
-                width: 280,
-                height: 280,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [Color(0x440FD1C8), Color(0x000FD1C8)],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              right: -120,
-              top: 180,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [Color(0x332F6BFF), Color(0x002F6BFF)],
-                  ),
-                ),
-              ),
-            ),
+            const Positioned.fill(child: _AnimatedHomeBlobs()),
             SafeArea(
               child: profileAsync.when(
                 data: (profile) {
@@ -840,7 +898,7 @@ class HomeScreen extends ConsumerWidget {
                     return const Center(
                       child: Text(
                         'Profile not found.',
-                        style: TextStyle(color: Color(0xFFC9D5EA)),
+                        style: TextStyle(color: Color(0xFF4A607C)),
                       ),
                     );
                   }
@@ -887,6 +945,16 @@ class HomeScreen extends ConsumerWidget {
                               hasInstitution: hasInstitution,
                             ),
                             const SizedBox(height: 24),
+                            HomeAiAssistantSection(
+                              profile: profile,
+                              onActionRequested: (action) =>
+                                  _runAssistantAction(
+                                    context: context,
+                                    profile: profile,
+                                    action: action,
+                                  ),
+                            ),
+                            const SizedBox(height: 16),
                             _SosButton(
                               onTap: () => _openCrisisSupport(context),
                             ),
@@ -899,14 +967,14 @@ class HomeScreen extends ConsumerWidget {
                 },
                 loading: () => const Center(
                   child: CircularProgressIndicator(
-                    color: Color(0xFF2CD4C0),
+                    color: Color(0xFF0E9B90),
                     strokeWidth: 2.5,
                   ),
                 ),
                 error: (error, _) => Center(
                   child: Text(
                     'Error: $error',
-                    style: const TextStyle(color: Color(0xFFF87171)),
+                    style: const TextStyle(color: Color(0xFFBE123C)),
                   ),
                 ),
               ),
@@ -926,6 +994,76 @@ class HomeScreen extends ConsumerWidget {
 // Extracted sub-widgets (UI only)
 // ---------------------------------------------------------------------------
 
+class _AnimatedHomeBlobs extends StatefulWidget {
+  const _AnimatedHomeBlobs();
+
+  @override
+  State<_AnimatedHomeBlobs> createState() => _AnimatedHomeBlobsState();
+}
+
+class _AnimatedHomeBlobsState extends State<_AnimatedHomeBlobs>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 14),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget _blob(double size, List<Color> colors) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(colors: colors),
+        boxShadow: [
+          BoxShadow(
+            color: colors.first.withValues(alpha: 0.45),
+            blurRadius: 64,
+            spreadRadius: 10,
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          final t = _controller.value * 2 * math.pi;
+          return Stack(
+            children: [
+              Positioned(
+                left: -70 + math.sin(t) * 28,
+                top: -10 + math.cos(t * 1.2) * 20,
+                child: _blob(320, const [Color(0x300BA4FF), Color(0x000BA4FF)]),
+              ),
+              Positioned(
+                right: -70 + math.cos(t * 0.9) * 24,
+                top: 150 + math.sin(t * 1.3) * 18,
+                child: _blob(340, const [Color(0x2A15A39A), Color(0x0015A39A)]),
+              ),
+              Positioned(
+                left: 70 + math.cos(t * 1.1) * 18,
+                bottom: -90 + math.sin(t * 0.75) * 22,
+                child: _blob(280, const [Color(0x2418A89D), Color(0x0018A89D)]),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _AppBarIconBtn extends StatelessWidget {
   const _AppBarIconBtn({required this.icon, required this.enabled, this.onTap});
   final IconData icon;
@@ -943,11 +1081,11 @@ class _AppBarIconBtn extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: const Color(0xFF0D1626),
+            color: Colors.white,
             shape: BoxShape.circle,
-            border: Border.all(color: const Color(0x2A8AA2C8)),
+            border: Border.all(color: const Color(0xFFD2DCE9)),
           ),
-          child: Icon(icon, color: const Color(0xFF9FB0CD), size: 22),
+          child: Icon(icon, color: const Color(0xFF4A607C), size: 22),
         ),
       ),
     );
@@ -973,16 +1111,16 @@ class _WelcomeHero extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF0B2A2B), Color(0xFF12253C)],
+          colors: [Color(0xFFE6FFFA), Color(0xFFEFF6FF)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0x3324D5C8), width: 1),
+        border: Border.all(color: const Color(0xFFDDE6F1), width: 1),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0FD1C8).withValues(alpha: 0.10),
-            blurRadius: 32,
+            color: const Color(0x120F172A),
+            blurRadius: 24,
             offset: const Offset(0, 8),
           ),
         ],
@@ -994,7 +1132,7 @@ class _WelcomeHero extends StatelessWidget {
             'How are you,',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.white.withValues(alpha: 0.62),
+              color: const Color(0xFF516784),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1004,7 +1142,7 @@ class _WelcomeHero extends StatelessWidget {
             style: const TextStyle(
               fontSize: 50,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF2CD4C0),
+              color: Color(0xFF0E9B90),
               letterSpacing: -1.0,
               height: 1.0,
             ),
@@ -1014,15 +1152,15 @@ class _WelcomeHero extends StatelessWidget {
             children: [
               _Pill(
                 label: roleLabel,
-                bg: const Color(0xFF11363A),
-                textColor: const Color(0xFF39E7CB),
+                bg: const Color(0xFFE7F3F1),
+                textColor: const Color(0xFF0E9B90),
                 icon: Icons.school_outlined,
               ),
               const SizedBox(width: 8),
               _Pill(
                 label: institutionName,
-                bg: const Color(0xFF2B2242),
-                textColor: const Color(0xFFA775FF),
+                bg: const Color(0xFFEFF6FF),
+                textColor: const Color(0xFF516784),
                 icon: hasInstitution
                     ? Icons.business_center_outlined
                     : Icons.person_outline_rounded,
@@ -1083,6 +1221,77 @@ class _HomeBottomNav extends StatelessWidget {
   final bool hasInstitution;
   final bool canAccessLive;
 
+  void _showOrganizationRequiredModal(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          icon: const Icon(
+            Icons.warning_amber_rounded,
+            color: Color(0xFFBE123C),
+            size: 32,
+          ),
+          title: const Text('Organization Required'),
+          content: const Text(
+            'You need to be in an organization to access this section.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _handleTap(BuildContext context, String route) {
+    final needsInstitution =
+        route == AppRoute.counselorDirectory ||
+        route == AppRoute.studentAppointments ||
+        route == AppRoute.liveHub;
+
+    if (needsInstitution && !hasInstitution) {
+      _showOrganizationRequiredModal(context);
+      return;
+    }
+
+    if (route == AppRoute.liveHub && !canAccessLive) {
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            icon: const Icon(
+              Icons.info_outline_rounded,
+              color: Color(0xFF0E9B90),
+              size: 30,
+            ),
+            title: const Text('Live Access Limited'),
+            content: const Text(
+              'Only student, staff, or counselor roles can access Live.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
+    context.go(route);
+  }
+
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
@@ -1091,31 +1300,21 @@ class _HomeBottomNav extends StatelessWidget {
         label: 'Home',
         icon: Icons.home_outlined,
         route: AppRoute.home,
-        enabled: true,
       ),
       _BottomNavItem(
         label: 'Counselors',
         icon: Icons.groups_outlined,
         route: AppRoute.counselorDirectory,
-        enabled: hasInstitution,
       ),
       _BottomNavItem(
         label: 'Sessions',
         icon: Icons.calendar_month_outlined,
         route: AppRoute.studentAppointments,
-        enabled: hasInstitution,
-      ),
-      _BottomNavItem(
-        label: 'Care Plan',
-        icon: Icons.favorite_border_rounded,
-        route: AppRoute.carePlan,
-        enabled: hasInstitution,
       ),
       _BottomNavItem(
         label: 'Live',
         icon: Icons.podcasts_outlined,
         route: AppRoute.liveHub,
-        enabled: canAccessLive,
       ),
     ];
 
@@ -1125,13 +1324,13 @@ class _HomeBottomNav extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF0E1727),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0x2D7A8CA6)),
+          border: Border.all(color: const Color(0xFFD2DCE9)),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x66030A14),
-              blurRadius: 24,
+              color: Color(0x120F172A),
+              blurRadius: 18,
               offset: Offset(0, 8),
             ),
           ],
@@ -1144,47 +1343,43 @@ class _HomeBottomNav extends StatelessWidget {
                     location == AppRoute.liveRoom);
             return Expanded(
               child: GestureDetector(
-                onTap: item.enabled ? () => context.go(item.route) : null,
-                child: AnimatedOpacity(
-                  opacity: item.enabled ? 1 : 0.35,
+                onTap: () => _handleTap(context, item.route),
+                child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: active
-                          ? const Color(0xFF113A44)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          item.icon,
-                          size: 22,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? const Color(0xFFE7F3F1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        item.icon,
+                        size: 22,
+                        color: active
+                            ? const Color(0xFF0E9B90)
+                            : const Color(0xFF6A7D96),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        item.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: active
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                           color: active
-                              ? const Color(0xFF2FE6D4)
-                              : const Color(0xFF8EA1BE),
+                              ? const Color(0xFF0E9B90)
+                              : const Color(0xFF6A7D96),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.label,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: active
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            color: active
-                                ? const Color(0xFF2FE6D4)
-                                : const Color(0xFF8EA1BE),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1201,13 +1396,11 @@ class _BottomNavItem {
     required this.label,
     required this.icon,
     required this.route,
-    required this.enabled,
   });
 
   final String label;
   final IconData icon;
   final String route;
-  final bool enabled;
 }
 
 class _RiskAlert extends StatelessWidget {
@@ -1333,23 +1526,23 @@ class _SosButton extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 17),
         decoration: BoxDecoration(
-          color: const Color(0xFF17131C),
+          color: const Color(0xFFFFF1F2),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF6F2233), width: 1.2),
+          border: Border.all(color: const Color(0xFFFECDD3), width: 1.2),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.warning_amber_rounded,
-              color: Color(0xFFFF4D61),
+              color: Color(0xFFBE123C),
               size: 20,
             ),
             SizedBox(width: 10),
             Text(
               'Immediate Crisis Support',
               style: TextStyle(
-                color: Color(0xFFFF4D61),
+                color: Color(0xFF9F1239),
                 fontWeight: FontWeight.w700,
                 fontSize: 16,
                 letterSpacing: -0.2,
