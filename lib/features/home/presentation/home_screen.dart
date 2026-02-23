@@ -1051,6 +1051,7 @@ class HomeScreen extends ConsumerWidget {
           ? const Color(0xFF0B1220)
           : const Color(0xFFF8FAFC),
       extendBodyBehindAppBar: true,
+      extendBody: true,
       appBar: AppBar(
         elevation: 0,
         titleSpacing: 16,
@@ -1167,7 +1168,7 @@ class HomeScreen extends ConsumerWidget {
                           20,
                           kToolbarHeight + 16,
                           20,
-                          18,
+                          118,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
