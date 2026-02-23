@@ -1,3 +1,4 @@
+// core/ui/mindnest_shell.dart
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -36,9 +37,10 @@ class _MindNestShellState extends State<MindNestShell>
 
   @override
   Widget build(BuildContext context) {
-    final topContentOffset = widget.appBar == null
-        ? 0.0
-        : (widget.appBar!.preferredSize.height + 8);
+    final hasAppBar = widget.appBar != null;
+    final effectivePadding = hasAppBar
+        ? widget.padding.copyWith(top: widget.appBar!.preferredSize.height - 30)
+        : widget.padding;
     return Scaffold(
       appBar: widget.appBar,
       extendBodyBehindAppBar: true,
@@ -79,11 +81,10 @@ class _MindNestShellState extends State<MindNestShell>
                   color: const Color(0x5599F6E4),
                 ),
                 SafeArea(
-                  child: Center(
+                  child: Align(
+                    alignment: Alignment.topCenter,
                     child: SingleChildScrollView(
-                      padding: widget.padding.add(
-                        EdgeInsets.only(top: topContentOffset),
-                      ),
+                      padding: effectivePadding,
                       child: ConstrainedBox(
                         constraints: BoxConstraints(maxWidth: widget.maxWidth),
                         child: FadeSlideIn(child: widget.child),
