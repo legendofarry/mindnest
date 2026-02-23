@@ -751,7 +751,9 @@ class HomeScreen extends ConsumerWidget {
                                     subtitle: 'Security and privacy controls',
                                     onTap: () {
                                       Navigator.of(sheetContext).pop();
-                                      parentContext.go(AppRoute.privacyControls);
+                                      parentContext.go(
+                                        AppRoute.privacyControls,
+                                      );
                                     },
                                   ),
                                   if (hasInstitution)
@@ -774,7 +776,9 @@ class HomeScreen extends ConsumerWidget {
                                           'Connect to your school/organization',
                                       onTap: () {
                                         Navigator.of(sheetContext).pop();
-                                        parentContext.go(AppRoute.joinInstitution);
+                                        parentContext.go(
+                                          AppRoute.joinInstitution,
+                                        );
                                       },
                                     ),
                                   if (profile.role == UserRole.institutionAdmin)
@@ -1338,7 +1342,7 @@ class _HeroCarousel extends ConsumerStatefulWidget {
 
 class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
   static const int _cardCount = 4;
-  static const Duration _autoSlideDelay = Duration(seconds: 7);
+  static const Duration _autoSlideDelay = Duration(seconds: 4);
   late final PageController _pageController = PageController(
     initialPage: 1000 * _cardCount,
   );
