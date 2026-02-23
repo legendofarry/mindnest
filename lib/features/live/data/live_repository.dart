@@ -53,18 +53,35 @@ class LiveRepository {
     'staff',
     'counselor',
   };
-  static const String _liveKitUrl = String.fromEnvironment(
+  static const String _liveKitUrlFromDefine = String.fromEnvironment(
     'LIVEKIT_URL',
     defaultValue: '',
   );
-  static const String _liveKitApiKey = String.fromEnvironment(
+  static const String _liveKitApiKeyFromDefine = String.fromEnvironment(
     'LIVEKIT_API_KEY',
     defaultValue: '',
   );
-  static const String _liveKitApiSecret = String.fromEnvironment(
+  static const String _liveKitApiSecretFromDefine = String.fromEnvironment(
     'LIVEKIT_API_SECRET',
     defaultValue: '',
   );
+  // Source-file fallback for local/dev use when --dart-define values are absent.
+  // Rotate these credentials if this source is shared publicly.
+  static const String _liveKitUrlFromSource =
+      'wss://mindnest-ubdebdzl.livekit.cloud';
+  static const String _liveKitApiKeyFromSource = 'API7JbqEBm8JXyA';
+  static const String _liveKitApiSecretFromSource =
+      '0NXJafVMXSlarGmz4RICuXqWSn5yaRMrwdzDxje09faA';
+
+  static String get _liveKitUrl => _liveKitUrlFromDefine.isNotEmpty
+      ? _liveKitUrlFromDefine
+      : _liveKitUrlFromSource;
+  static String get _liveKitApiKey => _liveKitApiKeyFromDefine.isNotEmpty
+      ? _liveKitApiKeyFromDefine
+      : _liveKitApiKeyFromSource;
+  static String get _liveKitApiSecret => _liveKitApiSecretFromDefine.isNotEmpty
+      ? _liveKitApiSecretFromDefine
+      : _liveKitApiSecretFromSource;
 
   CollectionReference<Map<String, dynamic>> get _liveCollection =>
       _firestore.collection('live_sessions');
@@ -800,8 +817,7 @@ class LiveRepository {
     }
 
     final roomName = (sessionData['roomName'] as String?)?.trim();
-    final resolvedRoomName =
-        (roomName != null && roomName.isNotEmpty)
+    final resolvedRoomName = (roomName != null && roomName.isNotEmpty)
         ? roomName
         : 'mindnest_live_$sessionId';
 
