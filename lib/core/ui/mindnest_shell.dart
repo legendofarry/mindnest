@@ -36,8 +36,12 @@ class _MindNestShellState extends State<MindNestShell>
 
   @override
   Widget build(BuildContext context) {
+    final topContentOffset = widget.appBar == null
+        ? 0.0
+        : (widget.appBar!.preferredSize.height + 8);
     return Scaffold(
       appBar: widget.appBar,
+      extendBodyBehindAppBar: true,
       body: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
@@ -77,7 +81,9 @@ class _MindNestShellState extends State<MindNestShell>
                 SafeArea(
                   child: Center(
                     child: SingleChildScrollView(
-                      padding: widget.padding,
+                      padding: widget.padding.add(
+                        EdgeInsets.only(top: topContentOffset),
+                      ),
                       child: ConstrainedBox(
                         constraints: BoxConstraints(maxWidth: widget.maxWidth),
                         child: FadeSlideIn(child: widget.child),

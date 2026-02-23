@@ -105,10 +105,7 @@ class MindNestTheme {
       ),
       textTheme: GoogleFonts.dmSansTextTheme(
         ThemeData.dark().textTheme,
-      ).apply(
-        bodyColor: _darkText,
-        displayColor: _darkText,
-      ),
+      ).apply(bodyColor: _darkText, displayColor: _darkText),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0xFF111A2C),
@@ -125,7 +122,10 @@ class MindNestTheme {
           borderSide: BorderSide(color: _secondary, width: 1.5),
         ),
         hintStyle: const TextStyle(color: Color(0xFF93A5BF)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

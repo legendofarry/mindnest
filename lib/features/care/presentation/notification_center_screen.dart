@@ -285,10 +285,6 @@ class _NotificationCenterScreenState
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final userId = profile?.id ?? '';
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final appBarBg = isDark ? const Color(0xFF0F1728) : const Color(0xFFF4F7FB);
-    final appBorder = isDark
-        ? const Color(0xFF273449)
-        : const Color(0xFFDDE6F1);
     final titleColor = isDark
         ? const Color(0xFFE2E8F0)
         : const Color(0xFF1E293B);
@@ -297,6 +293,7 @@ class _NotificationCenterScreenState
       backgroundColor: isDark
           ? const Color(0xFF0B1220)
           : const Color(0xFFF8FAFC),
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('Notification Center'),
         titleTextStyle: TextStyle(
@@ -305,10 +302,7 @@ class _NotificationCenterScreenState
           fontWeight: FontWeight.w800,
         ),
         centerTitle: false,
-        backgroundColor: appBarBg,
-        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: Border(bottom: BorderSide(color: appBorder, width: 1)),
         leading: const BackToHomeButton(),
         actions: [
           _CircleActionButton(
@@ -337,7 +331,12 @@ class _NotificationCenterScreenState
                   constraints: const BoxConstraints(maxWidth: 760),
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                    padding: const EdgeInsets.fromLTRB(
+                      20,
+                      kToolbarHeight + 16,
+                      20,
+                      24,
+                    ),
                     child: userId.isEmpty
                         ? _emptyCard(isDark)
                         : StreamBuilder<List<AppNotification>>(

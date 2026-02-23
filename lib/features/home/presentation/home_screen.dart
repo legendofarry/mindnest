@@ -1050,18 +1050,9 @@ class HomeScreen extends ConsumerWidget {
       backgroundColor: isDark
           ? const Color(0xFF0B1220)
           : const Color(0xFFF8FAFC),
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: isDark
-            ? const Color(0xFF0F1728)
-            : const Color(0xFFF4F7FB),
-        surfaceTintColor: Colors.transparent,
-        shape: Border(
-          bottom: BorderSide(
-            color: isDark ? const Color(0xFF273449) : const Color(0xFFDDE6F1),
-            width: 1,
-          ),
-        ),
         titleSpacing: 16,
         title: Row(
           children: [
@@ -1172,7 +1163,12 @@ class HomeScreen extends ConsumerWidget {
                       constraints: const BoxConstraints(maxWidth: 760),
                       child: SingleChildScrollView(
                         physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+                        padding: const EdgeInsets.fromLTRB(
+                          20,
+                          kToolbarHeight + 16,
+                          20,
+                          18,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
