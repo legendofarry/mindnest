@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
-import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
@@ -721,45 +720,57 @@ class HomeScreen extends ConsumerWidget {
 
   // ---- build ----
 
+  bool _canAccessLive(UserProfile profile) {
+    final hasInstitution = (profile.institutionId ?? '').isNotEmpty;
+    return hasInstitution &&
+        (profile.role == UserRole.student ||
+            profile.role == UserRole.staff ||
+            profile.role == UserRole.counselor);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(currentUserProfileProvider);
     final loadedProfile = profileAsync.valueOrNull;
     final canOpenNotifications =
         loadedProfile != null && (loadedProfile.institutionId ?? '').isNotEmpty;
+    final hasInstitution = (loadedProfile?.institutionId ?? '').isNotEmpty;
+    final canAccessLive =
+        loadedProfile != null && _canAccessLive(loadedProfile);
 
-    return MindNestShell(
-      maxWidth: 760,
+    return Scaffold(
+      backgroundColor: const Color(0xFF070E19),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF090F1B),
+        surfaceTintColor: Colors.transparent,
+        shape: const Border(
+          bottom: BorderSide(color: Color(0x1A94A3B8), width: 1),
+        ),
+        titleSpacing: 16,
         title: Row(
           children: [
             Container(
-              width: 32,
-              height: 32,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [_teal, Color(0xFF0EA5E9)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(10),
+                color: const Color(0xFF22D3EE),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
-                Icons.spa_rounded,
-                color: Colors.white,
-                size: 18,
+                Icons.auto_awesome_rounded,
+                color: Color(0xFF001018),
+                size: 22,
               ),
             ),
             const SizedBox(width: 10),
             const Text(
               'MindNest',
               style: TextStyle(
-                fontWeight: FontWeight.w900,
-                color: _navy,
-                fontSize: 22,
-                letterSpacing: -0.5,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFFF4F7FF),
+                fontSize: 20,
+                letterSpacing: -0.4,
               ),
             ),
           ],
@@ -773,219 +784,139 @@ class HomeScreen extends ConsumerWidget {
                 ? () => context.go(AppRoute.notifications)
                 : null,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 8),
           _AppBarIconBtn(
-            icon: Icons.account_circle_rounded,
+            icon: Icons.person_outline_rounded,
             enabled: loadedProfile != null,
             onTap: loadedProfile == null
                 ? null
                 : () => _openProfilePanel(context, ref, loadedProfile),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 14),
         ],
       ),
-      child: profileAsync.when(
-        data: (profile) {
-          if (profile == null) {
-            return const Center(child: Text('Profile not found.'));
-          }
-
-          final hasInstitution = (profile.institutionId ?? '').isNotEmpty;
-          final canAccessLive =
-              hasInstitution &&
-              (profile.role == UserRole.student ||
-                  profile.role == UserRole.staff ||
-                  profile.role == UserRole.counselor);
-
-          if (kDebugMode) {
-            final blockers = <String>[
-              if (!hasInstitution) 'institutionId is empty',
-              if (!(profile.role == UserRole.student ||
-                  profile.role == UserRole.staff ||
-                  profile.role == UserRole.counselor))
-                'role is ${profile.role.name} (not student/staff/counselor)',
-            ];
-            debugPrint(
-              '[LiveHub][Home] uid=${profile.id} role=${profile.role.name} '
-              'institutionId=${profile.institutionId ?? 'null'} '
-              'institutionName=${profile.institutionName ?? 'null'} '
-              'hasInstitution=$hasInstitution canAccessLive=$canAccessLive '
-              'blockers=${blockers.isEmpty ? 'none' : blockers.join(' | ')}',
-            );
-          }
-
-          final firstName = profile.name.split(' ')[0];
-
-          return SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ---- WELCOME HERO ----
-                _Reveal(
-                  delay: const Duration(milliseconds: 0),
-                  child: _WelcomeHero(
-                    firstName: firstName,
-                    roleLabel: profile.role.label,
-                    institutionName: hasInstitution
-                        ? (profile.institutionName ?? 'Active Member')
-                        : 'Independent',
-                    hasInstitution: hasInstitution,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF050B16), Color(0xFF061121), Color(0xFF07152A)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              left: -120,
+              top: -20,
+              child: Container(
+                width: 280,
+                height: 280,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [Color(0x440FD1C8), Color(0x000FD1C8)],
                   ),
                 ),
-
-                const SizedBox(height: 28),
-
-                // ---- RISK ALERT ----
-                if (profile.role != UserRole.institutionAdmin)
-                  FutureBuilder<bool>(
-                    future: _hasElevatedRisk(
-                      firestore: ref.read(firestoreProvider),
-                      userId: profile.id,
-                    ),
-                    builder: (context, snapshot) {
-                      if (snapshot.data != true) return const SizedBox.shrink();
-                      return _Reveal(
-                        delay: const Duration(milliseconds: 80),
-                        child: _RiskAlert(
-                          onTap: () => _openCrisisSupport(context),
-                        ),
-                      );
-                    },
-                  ),
-
-                // ---- SECTION LABEL ----
-                _Reveal(
-                  delay: const Duration(milliseconds: 120),
-                  child: const Padding(
-                    padding: EdgeInsets.only(bottom: 16),
-                    child: Row(
-                      children: [
-                        Text(
-                          'Your Care Hub',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            color: _navy,
-                            letterSpacing: -0.4,
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Divider(
-                            color: Color(0xFFF1F5F9),
-                            thickness: 2,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // ---- ACTION CARDS GRID ----
-                _Reveal(
-                  delay: const Duration(milliseconds: 180),
-                  child: GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 14,
-                    mainAxisSpacing: 14,
-                    childAspectRatio: 0.92,
-                    children: [
-                      _ActionCard(
-                        title: 'Counselors',
-                        subtitle: 'Find your match',
-                        icon: Icons.spa_rounded,
-                        gradientColors: _cardGradients[0],
-                        isDisabled: !hasInstitution,
-                        onTap: hasInstitution
-                            ? () => context.go(AppRoute.counselorDirectory)
-                            : null,
-                      ),
-                      _ActionCard(
-                        title: 'Sessions',
-                        subtitle: 'Book & manage',
-                        icon: Icons.calendar_today_rounded,
-                        gradientColors: _cardGradients[1],
-                        isDisabled: !hasInstitution,
-                        onTap: hasInstitution
-                            ? () => context.go(AppRoute.studentAppointments)
-                            : null,
-                      ),
-                      _ActionCard(
-                        title: 'Care Plan',
-                        subtitle: 'Your journey',
-                        icon: Icons.assignment_turned_in_rounded,
-                        gradientColors: _cardGradients[2],
-                        isDisabled: !hasInstitution,
-                        onTap: hasInstitution
-                            ? () => context.go(AppRoute.carePlan)
-                            : null,
-                      ),
-                      _ActionCard(
-                        title: 'Live Hub',
-                        subtitle: 'Real-time support',
-                        icon: Icons.podcasts_rounded,
-                        gradientColors: _cardGradients[3],
-                        isDisabled: !canAccessLive,
-                        onTap: canAccessLive
-                            ? () => context.go(AppRoute.liveHub)
-                            : null,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 32),
-
-                // ---- SOS BUTTON ----
-                _Reveal(
-                  delay: const Duration(milliseconds: 260),
-                  child: _SosButton(onTap: () => _openCrisisSupport(context)),
-                ),
-
-                const SizedBox(height: 24),
-              ],
+              ),
             ),
-          );
-        },
-        loading: () => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [_teal, Color(0xFF0EA5E9)],
+            Positioned(
+              right: -120,
+              top: 180,
+              child: Container(
+                width: 300,
+                height: 300,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [Color(0x332F6BFF), Color(0x002F6BFF)],
                   ),
-                  borderRadius: BorderRadius.circular(18),
                 ),
-                child: const Padding(
-                  padding: EdgeInsets.all(14),
+              ),
+            ),
+            SafeArea(
+              child: profileAsync.when(
+                data: (profile) {
+                  if (profile == null) {
+                    return const Center(
+                      child: Text(
+                        'Profile not found.',
+                        style: TextStyle(color: Color(0xFFC9D5EA)),
+                      ),
+                    );
+                  }
+
+                  final hasInstitution =
+                      (profile.institutionId ?? '').isNotEmpty;
+                  final canAccessLive = _canAccessLive(profile);
+
+                  if (kDebugMode) {
+                    final blockers = <String>[
+                      if (!hasInstitution) 'institutionId is empty',
+                      if (!(profile.role == UserRole.student ||
+                          profile.role == UserRole.staff ||
+                          profile.role == UserRole.counselor))
+                        'role is ${profile.role.name} (not student/staff/counselor)',
+                    ];
+                    debugPrint(
+                      '[LiveHub][Home] uid=${profile.id} role=${profile.role.name} '
+                      'institutionId=${profile.institutionId ?? 'null'} '
+                      'institutionName=${profile.institutionName ?? 'null'} '
+                      'hasInstitution=$hasInstitution canAccessLive=$canAccessLive '
+                      'blockers=${blockers.isEmpty ? 'none' : blockers.join(' | ')}',
+                    );
+                  }
+
+                  final firstName = profile.name.split(' ')[0];
+                  final institutionLabel = hasInstitution
+                      ? (profile.institutionName ?? 'Institution').toUpperCase()
+                      : 'INDIVIDUAL';
+
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 760),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _WelcomeHero(
+                              firstName: firstName,
+                              roleLabel: profile.role.label,
+                              institutionName: institutionLabel,
+                              hasInstitution: hasInstitution,
+                            ),
+                            const SizedBox(height: 24),
+                            _SosButton(
+                              onTap: () => _openCrisisSupport(context),
+                            ),
+                            const SizedBox(height: 10),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                loading: () => const Center(
                   child: CircularProgressIndicator(
-                    color: Colors.white,
+                    color: Color(0xFF2CD4C0),
                     strokeWidth: 2.5,
                   ),
                 ),
+                error: (error, _) => Center(
+                  child: Text(
+                    'Error: $error',
+                    style: const TextStyle(color: Color(0xFFF87171)),
+                  ),
+                ),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Loading your space…',
-                style: TextStyle(color: _muted, fontSize: 14),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-        error: (error, _) => Center(
-          child: Text(
-            'Error: $error',
-            style: const TextStyle(color: Colors.red),
-          ),
-        ),
+      ),
+      bottomNavigationBar: _HomeBottomNav(
+        hasInstitution: hasInstitution,
+        canAccessLive: canAccessLive,
       ),
     );
   }
@@ -1009,13 +940,14 @@ class _AppBarIconBtn extends StatelessWidget {
         opacity: enabled ? 1.0 : 0.35,
         duration: const Duration(milliseconds: 200),
         child: Container(
-          width: 40,
-          height: 40,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(13),
+            color: const Color(0xFF0D1626),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0x2A8AA2C8)),
           ),
-          child: Icon(icon, color: _slate, size: 22),
+          child: Icon(icon, color: const Color(0xFF9FB0CD), size: 22),
         ),
       ),
     );
@@ -1041,68 +973,59 @@ class _WelcomeHero extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF0D9488), Color(0xFF0EA5E9)],
+          colors: [Color(0xFF0B2A2B), Color(0xFF12253C)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0x3324D5C8), width: 1),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0D9488).withValues(alpha: 0.30),
-            blurRadius: 28,
-            offset: const Offset(0, 12),
+            color: const Color(0xFF0FD1C8).withValues(alpha: 0.10),
+            blurRadius: 32,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting
-          Row(
-            children: [
-              const Text('🌿', style: TextStyle(fontSize: 28)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'How are you,',
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.white.withValues(alpha: 0.78),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            'How are you,',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.white.withValues(alpha: 0.62),
+              fontWeight: FontWeight.w600,
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             firstName,
             style: const TextStyle(
-              fontSize: 36,
+              fontSize: 50,
               fontWeight: FontWeight.w900,
-              color: Colors.white,
+              color: Color(0xFF2CD4C0),
               letterSpacing: -1.0,
               height: 1.0,
             ),
           ),
-          const SizedBox(height: 20),
-          // Pills row
+          const SizedBox(height: 22),
           Row(
             children: [
               _Pill(
                 label: roleLabel,
-                bg: Colors.white.withValues(alpha: 0.18),
-                textColor: Colors.white,
-                icon: Icons.badge_rounded,
+                bg: const Color(0xFF11363A),
+                textColor: const Color(0xFF39E7CB),
+                icon: Icons.school_outlined,
               ),
               const SizedBox(width: 8),
               _Pill(
                 label: institutionName,
-                bg: Colors.white.withValues(alpha: 0.18),
-                textColor: Colors.white,
+                bg: const Color(0xFF2B2242),
+                textColor: const Color(0xFFA775FF),
                 icon: hasInstitution
-                    ? Icons.account_balance_rounded
-                    : Icons.person_rounded,
+                    ? Icons.business_center_outlined
+                    : Icons.person_outline_rounded,
               ),
             ],
           ),
@@ -1127,7 +1050,7 @@ class _Pill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(30),
@@ -1135,13 +1058,13 @@ class _Pill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: textColor),
-          const SizedBox(width: 5),
+          Icon(icon, size: 14, color: textColor),
+          const SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
               color: textColor,
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1149,6 +1072,142 @@ class _Pill extends StatelessWidget {
       ),
     );
   }
+}
+
+class _HomeBottomNav extends StatelessWidget {
+  const _HomeBottomNav({
+    required this.hasInstitution,
+    required this.canAccessLive,
+  });
+
+  final bool hasInstitution;
+  final bool canAccessLive;
+
+  @override
+  Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).matchedLocation;
+    final items = <_BottomNavItem>[
+      const _BottomNavItem(
+        label: 'Home',
+        icon: Icons.home_outlined,
+        route: AppRoute.home,
+        enabled: true,
+      ),
+      _BottomNavItem(
+        label: 'Counselors',
+        icon: Icons.groups_outlined,
+        route: AppRoute.counselorDirectory,
+        enabled: hasInstitution,
+      ),
+      _BottomNavItem(
+        label: 'Sessions',
+        icon: Icons.calendar_month_outlined,
+        route: AppRoute.studentAppointments,
+        enabled: hasInstitution,
+      ),
+      _BottomNavItem(
+        label: 'Care Plan',
+        icon: Icons.favorite_border_rounded,
+        route: AppRoute.carePlan,
+        enabled: hasInstitution,
+      ),
+      _BottomNavItem(
+        label: 'Live',
+        icon: Icons.podcasts_outlined,
+        route: AppRoute.liveHub,
+        enabled: canAccessLive,
+      ),
+    ];
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0E1727),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0x2D7A8CA6)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x66030A14),
+              blurRadius: 24,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: items.map((item) {
+            final active =
+                location == item.route ||
+                (item.route == AppRoute.liveHub &&
+                    location == AppRoute.liveRoom);
+            return Expanded(
+              child: GestureDetector(
+                onTap: item.enabled ? () => context.go(item.route) : null,
+                child: AnimatedOpacity(
+                  opacity: item.enabled ? 1 : 0.35,
+                  duration: const Duration(milliseconds: 180),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: active
+                          ? const Color(0xFF113A44)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          item.icon,
+                          size: 22,
+                          color: active
+                              ? const Color(0xFF2FE6D4)
+                              : const Color(0xFF8EA1BE),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: active
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: active
+                                ? const Color(0xFF2FE6D4)
+                                : const Color(0xFF8EA1BE),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomNavItem {
+  const _BottomNavItem({
+    required this.label,
+    required this.icon,
+    required this.route,
+    required this.enabled,
+  });
+
+  final String label;
+  final IconData icon;
+  final String route;
+  final bool enabled;
 }
 
 class _RiskAlert extends StatelessWidget {
@@ -1272,27 +1331,27 @@ class _SosButton extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 18),
+        padding: const EdgeInsets.symmetric(vertical: 17),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF1F2),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFFECDD3), width: 1.5),
+          color: const Color(0xFF17131C),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF6F2233), width: 1.2),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.warning_amber_rounded,
-              color: Color(0xFFE11D48),
+              color: Color(0xFFFF4D61),
               size: 20,
             ),
             SizedBox(width: 10),
             Text(
               'Immediate Crisis Support',
               style: TextStyle(
-                color: Color(0xFFE11D48),
+                color: Color(0xFFFF4D61),
                 fontWeight: FontWeight.w700,
-                fontSize: 15,
+                fontSize: 16,
                 letterSpacing: -0.2,
               ),
             ),
