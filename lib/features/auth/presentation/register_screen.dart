@@ -62,6 +62,7 @@ class RegisterScreen extends StatelessWidget {
     }
 
     return const AuthBackgroundScaffold(
+      fallingSnow: true,
       maxWidth: 460,
       child: _RegisterContent(showBrand: true, isDesktop: false),
     );

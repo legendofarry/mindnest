@@ -118,7 +118,10 @@ class _RegisterInstitutionScreenState
       );
     }
 
-    return AuthBackgroundScaffold(child: _buildFormCard(context));
+    return AuthBackgroundScaffold(
+      fallingSnow: true,
+      child: _buildFormCard(context),
+    );
   }
 
   Widget _buildFormCard(BuildContext context) {

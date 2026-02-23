@@ -154,6 +154,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     return AuthBackgroundScaffold(
+      fallingSnow: true,
       child: _buildFormContent(context, showBrand: true),
     );
   }
@@ -178,6 +179,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               color: const Color(0xFF071937),
               letterSpacing: -0.7,
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
@@ -186,6 +188,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               color: const Color(0xFF5E728D),
               fontWeight: FontWeight.w500,
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
           const _FieldLabel(text: 'EMAIL ADDRESS'),

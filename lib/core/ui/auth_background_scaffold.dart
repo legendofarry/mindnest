@@ -7,10 +7,12 @@ class AuthBackgroundScaffold extends StatefulWidget {
     super.key,
     required this.child,
     this.maxWidth = 430,
+    this.fallingSnow = false,
   });
 
   final Widget child;
   final double maxWidth;
+  final bool fallingSnow;
 
   @override
   State<AuthBackgroundScaffold> createState() => _AuthBackgroundScaffoldState();
@@ -47,7 +49,9 @@ class _AuthBackgroundScaffoldState extends State<AuthBackgroundScaffold>
               children: [
                 Positioned.fill(
                   child: CustomPaint(
-                    painter: _DotsPainter(progress: _controller.value),
+                    painter: widget.fallingSnow
+                        ? _SnowDotsPainter(progress: _controller.value)
+                        : _DotsPainter(progress: _controller.value),
                   ),
                 ),
                 SafeArea(
@@ -175,5 +179,74 @@ class _DotPoint {
   final double x;
   final double y;
   final double r;
+  final double phase;
+}
+
+class _SnowDotsPainter extends CustomPainter {
+  _SnowDotsPainter({required this.progress});
+
+  final double progress;
+
+  static final List<_SnowPoint> _points = List<_SnowPoint>.generate(180, (
+    index,
+  ) {
+    final random = math.Random(index * 19 + 11);
+    return _SnowPoint(
+      x: random.nextDouble(),
+      y: random.nextDouble(),
+      r: random.nextDouble() * 1.8 + 0.5,
+      drift: random.nextDouble() * 0.02 + 0.004,
+      speed: random.nextDouble() * 1.2 + 0.55,
+      phase: random.nextDouble() * math.pi * 2,
+    );
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    final animatedPhase = progress * math.pi * 2;
+
+    for (final point in _points) {
+      final y = (point.y + (progress * point.speed)) % 1.0;
+      var x = point.x + math.sin(animatedPhase + point.phase) * point.drift;
+      x = x % 1.0;
+      if (x < 0) {
+        x += 1.0;
+      }
+
+      final shimmer = (math.sin(animatedPhase * 1.4 + point.phase) + 1) / 2;
+      paint.color =
+          Color.lerp(
+            const Color(0x330BA4FF),
+            const Color(0xAA6EC9FF),
+            0.28 + 0.42 * shimmer,
+          ) ??
+          const Color(0x330BA4FF);
+
+      canvas.drawCircle(Offset(x * size.width, y * size.height), point.r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SnowDotsPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
+class _SnowPoint {
+  const _SnowPoint({
+    required this.x,
+    required this.y,
+    required this.r,
+    required this.drift,
+    required this.speed,
+    required this.phase,
+  });
+
+  final double x;
+  final double y;
+  final double r;
+  final double drift;
+  final double speed;
   final double phase;
 }
