@@ -1162,43 +1162,57 @@ class HomeScreen extends ConsumerWidget {
                   return Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 760),
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(
-                          20,
-                          kToolbarHeight + 16,
-                          20,
-                          118,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _HeroCarousel(
-                              profile: profile,
-                              firstName: firstName,
-                              roleLabel: profile.role.label,
-                              institutionName: institutionLabel,
-                              hasInstitution: hasInstitution,
-                              canAccessLive: canAccessLive,
-                              isDark: isDark,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final content = Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _HeroCarousel(
+                                  profile: profile,
+                                  firstName: firstName,
+                                  roleLabel: profile.role.label,
+                                  institutionName: institutionLabel,
+                                  hasInstitution: hasInstitution,
+                                  canAccessLive: canAccessLive,
+                                  isDark: isDark,
+                                ),
+                                const SizedBox(height: 18),
+                                HomeAiAssistantSection(
+                                  profile: profile,
+                                  onActionRequested: (action) =>
+                                      _runAssistantAction(
+                                        context: context,
+                                        profile: profile,
+                                        action: action,
+                                      ),
+                                ),
+                                const SizedBox(height: 14),
+                                _SosButton(
+                                  onTap: () => _openCrisisSupport(context),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
                             ),
-                            const SizedBox(height: 24),
-                            HomeAiAssistantSection(
-                              profile: profile,
-                              onActionRequested: (action) =>
-                                  _runAssistantAction(
-                                    context: context,
-                                    profile: profile,
-                                    action: action,
-                                  ),
+                          );
+
+                          return SizedBox(
+                            width: constraints.maxWidth,
+                            height: constraints.maxHeight,
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.topCenter,
+                                child: SizedBox(
+                                  width: constraints.maxWidth,
+                                  child: content,
+                                ),
+                              ),
                             ),
-                            const SizedBox(height: 16),
-                            _SosButton(
-                              onTap: () => _openCrisisSupport(context),
-                            ),
-                            const SizedBox(height: 10),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ),
                   );
