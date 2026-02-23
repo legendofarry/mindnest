@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindnest/app/theme_mode_controller.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/ai/models/assistant_models.dart';
@@ -499,75 +500,306 @@ class HomeScreen extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (sheetContext) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
+        return Consumer(
+          builder: (context, modalRef, _) {
+            final mode = modalRef.watch(themeModeControllerProvider);
+            final isDark = mode == ThemeMode.dark;
+            final textPrimary = isDark
+                ? const Color(0xFFE2E8F0)
+                : const Color(0xFF0F172A);
+            final textSecondary = isDark
+                ? const Color(0xFF94A3B8)
+                : const Color(0xFF64748B);
+            final sheetBg = isDark ? const Color(0xFF101A2A) : Colors.white;
+            final sectionBg = isDark
+                ? const Color(0xFF131F32)
+                : const Color(0xFFF8FBFF);
+            final sectionBorder = isDark
+                ? const Color(0xFF2A3A52)
+                : const Color(0xFFDDE6F1);
+            final canOpenNotifications =
+                (profile.institutionId ?? '').isNotEmpty;
+
+            return FractionallySizedBox(
+              heightFactor: 0.95,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: sheetBg,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(36),
                   ),
                 ),
-                const SizedBox(height: 20),
-                // Avatar + name row
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFE6FFFA), Color(0xFFEFF6FF)],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [_teal, Color(0xFF0EA5E9)],
+                      const SizedBox(height: 14),
+                      Center(
+                        child: Container(
+                          width: 44,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF475569)
+                                : const Color(0xFFE2E8F0),
+                            borderRadius: BorderRadius.circular(3),
                           ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          Icons.person_rounded,
-                          color: Colors.white,
-                          size: 28,
                         ),
                       ),
-                      const SizedBox(width: 14),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: isDark
+                                ? const LinearGradient(
+                                    colors: [
+                                      Color(0xFF153043),
+                                      Color(0xFF1A3951),
+                                    ],
+                                  )
+                                : const LinearGradient(
+                                    colors: [
+                                      Color(0xFFE6FFFA),
+                                      Color(0xFFEFF6FF),
+                                    ],
+                                  ),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 52,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [_teal, Color(0xFF0EA5E9)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.person_rounded,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      profile.name,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 17,
+                                        color: textPrimary,
+                                        letterSpacing: -0.3,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      profile.email,
+                                      style: TextStyle(
+                                        color: textSecondary,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                           children: [
                             Text(
-                              profile.name,
-                              style: const TextStyle(
+                              'App Settings',
+                              style: TextStyle(
+                                color: textPrimary,
                                 fontWeight: FontWeight.w800,
-                                fontSize: 17,
-                                color: _navy,
-                                letterSpacing: -0.3,
+                                fontSize: 18,
                               ),
                             ),
-                            const SizedBox(height: 3),
+                            const SizedBox(height: 10),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: sectionBg,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: sectionBorder),
+                              ),
+                              child: Column(
+                                children: [
+                                  SwitchListTile(
+                                    value: isDark,
+                                    onChanged: (value) {
+                                      modalRef
+                                          .read(
+                                            themeModeControllerProvider.notifier,
+                                          )
+                                          .setMode(
+                                            value
+                                                ? ThemeMode.dark
+                                                : ThemeMode.light,
+                                          );
+                                    },
+                                    title: Text(
+                                      'Dark Theme',
+                                      style: TextStyle(
+                                        color: textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      isDark
+                                          ? 'Dark mode enabled'
+                                          : 'Light mode enabled',
+                                      style: TextStyle(color: textSecondary),
+                                    ),
+                                    secondary: Icon(
+                                      isDark
+                                          ? Icons.dark_mode_rounded
+                                          : Icons.light_mode_rounded,
+                                      color: const Color(0xFF0E9B90),
+                                    ),
+                                  ),
+                                  Divider(
+                                    height: 1,
+                                    color: sectionBorder.withValues(alpha: 0.9),
+                                  ),
+                                  _sheetTile(
+                                    context: context,
+                                    icon: Icons.notifications_active_outlined,
+                                    label: 'Notifications',
+                                    subtitle: canOpenNotifications
+                                        ? 'Manage your notification center'
+                                        : 'Join an institution to manage notifications',
+                                    onTap: () {
+                                      if (!canOpenNotifications) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Join an organization to manage notifications.',
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                      Navigator.of(sheetContext).pop();
+                                      context.go(AppRoute.notifications);
+                                    },
+                                  ),
+                                  _sheetTile(
+                                    context: context,
+                                    icon: Icons.language_rounded,
+                                    label: 'Language',
+                                    subtitle: 'Coming soon',
+                                    onTap: () {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Language settings are coming soon.',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
                             Text(
-                              profile.email,
-                              style: const TextStyle(
-                                color: _muted,
-                                fontSize: 13,
+                              'Account Settings',
+                              style: TextStyle(
+                                color: textPrimary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: sectionBg,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: sectionBorder),
+                              ),
+                              child: Column(
+                                children: [
+                                  _sheetTile(
+                                    context: context,
+                                    icon: Icons.shield_moon_rounded,
+                                    label: 'Privacy & Data',
+                                    subtitle: 'Security and privacy controls',
+                                    onTap: () {
+                                      Navigator.of(sheetContext).pop();
+                                      context.go(AppRoute.privacyControls);
+                                    },
+                                  ),
+                                  if (hasInstitution)
+                                    _sheetTile(
+                                      context: context,
+                                      icon: Icons.favorite_border_rounded,
+                                      label: 'Care Plan',
+                                      subtitle: 'Your care goals and progress',
+                                      onTap: () {
+                                        Navigator.of(sheetContext).pop();
+                                        context.go(AppRoute.carePlan);
+                                      },
+                                    ),
+                                  if (!hasInstitution)
+                                    _sheetTile(
+                                      context: context,
+                                      icon: Icons.add_business_rounded,
+                                      label: 'Join Institution',
+                                      subtitle: 'Connect to your school/organization',
+                                      onTap: () {
+                                        Navigator.of(sheetContext).pop();
+                                        context.go(AppRoute.joinInstitution);
+                                      },
+                                    ),
+                                  if (profile.role == UserRole.institutionAdmin)
+                                    _sheetTile(
+                                      context: context,
+                                      icon: Icons.admin_panel_settings_rounded,
+                                      label: 'Admin Dashboard',
+                                      subtitle: 'Manage your institution',
+                                      iconColor: _teal,
+                                      onTap: () {
+                                        Navigator.of(sheetContext).pop();
+                                        context.go(AppRoute.institutionAdmin);
+                                      },
+                                    ),
+                                  if (hasInstitution)
+                                    _sheetTile(
+                                      context: context,
+                                      icon: Icons.exit_to_app_rounded,
+                                      label: 'Leave Institution',
+                                      subtitle:
+                                          'Switch your account role back to Individual',
+                                      iconColor: const Color(0xFFE11D48),
+                                      labelColor: const Color(0xFFE11D48),
+                                      onTap: () {
+                                        Navigator.of(sheetContext).pop();
+                                        _confirmLeaveInstitution(context, ref);
+                                      },
+                                    ),
+                                  _sheetTile(
+                                    context: context,
+                                    icon: Icons.logout_rounded,
+                                    label: 'Logout',
+                                    subtitle: 'Sign out on this device',
+                                    onTap: () {
+                                      Navigator.of(sheetContext).pop();
+                                      confirmAndLogout(context: context, ref: ref);
+                                    },
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -576,83 +808,30 @@ class HomeScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                _sheetTile(
-                  icon: Icons.shield_moon_rounded,
-                  label: 'Privacy & Data',
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    context.go(AppRoute.privacyControls);
-                  },
-                ),
-                if (hasInstitution)
-                  _sheetTile(
-                    icon: Icons.favorite_border_rounded,
-                    label: 'Care Plan',
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      context.go(AppRoute.carePlan);
-                    },
-                  ),
-                if (!hasInstitution)
-                  _sheetTile(
-                    icon: Icons.add_business_rounded,
-                    label: 'Join Institution',
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      context.go(AppRoute.joinInstitution);
-                    },
-                  ),
-                if (profile.role == UserRole.institutionAdmin)
-                  _sheetTile(
-                    icon: Icons.admin_panel_settings_rounded,
-                    label: 'Admin Dashboard',
-                    iconColor: _teal,
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      context.go(AppRoute.institutionAdmin);
-                    },
-                  ),
-                if (hasInstitution)
-                  _sheetTile(
-                    icon: Icons.exit_to_app_rounded,
-                    label: 'Leave Institution',
-                    iconColor: const Color(0xFFE11D48),
-                    labelColor: const Color(0xFFE11D48),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      _confirmLeaveInstitution(context, ref);
-                    },
-                  ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4),
-                  child: Divider(height: 1, color: Color(0xFFF1F5F9)),
-                ),
-                _sheetTile(
-                  icon: Icons.logout_rounded,
-                  label: 'Logout',
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    confirmAndLogout(context: context, ref: ref);
-                  },
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
   Widget _sheetTile({
+    required BuildContext context,
     required IconData icon,
     required String label,
+    String? subtitle,
     required VoidCallback onTap,
     Color iconColor = _muted,
     Color labelColor = _slate,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final resolvedLabelColor = isDark && labelColor == _slate
+        ? const Color(0xFFE2E8F0)
+        : labelColor;
+
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
       leading: Container(
         width: 38,
         height: 38,
@@ -662,17 +841,33 @@ class HomeScreen extends ConsumerWidget {
         ),
         child: Icon(icon, color: iconColor, size: 20),
       ),
-      title: Text(
-        label,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: labelColor,
-          fontSize: 15,
-        ),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: resolvedLabelColor,
+              fontSize: 15,
+            ),
+          ),
+          if (subtitle != null)
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: isDark ? const Color(0xFF94A3B8) : _muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+        ],
       ),
       trailing: Icon(
         Icons.chevron_right_rounded,
-        color: _muted.withValues(alpha: 0.5),
+        color: (isDark ? const Color(0xFF94A3B8) : _muted).withValues(
+          alpha: 0.7,
+        ),
       ),
       onTap: onTap,
     );
@@ -811,6 +1006,7 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final profileAsync = ref.watch(currentUserProfileProvider);
     final loadedProfile = profileAsync.valueOrNull;
     final canOpenNotifications =
@@ -820,13 +1016,16 @@ class HomeScreen extends ConsumerWidget {
         loadedProfile != null && _canAccessLive(loadedProfile);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: const Color(0xFFF4F7FB),
+        backgroundColor: isDark ? const Color(0xFF0F1728) : const Color(0xFFF4F7FB),
         surfaceTintColor: Colors.transparent,
-        shape: const Border(
-          bottom: BorderSide(color: Color(0xFFDDE6F1), width: 1),
+        shape: Border(
+          bottom: BorderSide(
+            color: isDark ? const Color(0xFF273449) : const Color(0xFFDDE6F1),
+            width: 1,
+          ),
         ),
         titleSpacing: 16,
         title: Row(
@@ -849,11 +1048,11 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 10),
-            const Text(
+            Text(
               'MindNest',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF071937),
+                color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF071937),
                 fontSize: 20,
                 letterSpacing: -0.4,
               ),
@@ -881,16 +1080,18 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFF4F7FB), Color(0xFFF1F5F9)],
+            colors: isDark
+                ? const [Color(0xFF0B1220), Color(0xFF0E1A2E)]
+                : const [Color(0xFFF4F7FB), Color(0xFFF1F5F9)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
         ),
         child: Stack(
           children: [
-            const Positioned.fill(child: _AnimatedHomeBlobs()),
+            Positioned.fill(child: _AnimatedHomeBlobs(isDark: isDark)),
             SafeArea(
               child: profileAsync.when(
                 data: (profile) {
@@ -943,6 +1144,7 @@ class HomeScreen extends ConsumerWidget {
                               roleLabel: profile.role.label,
                               institutionName: institutionLabel,
                               hasInstitution: hasInstitution,
+                              isDark: isDark,
                             ),
                             const SizedBox(height: 24),
                             HomeAiAssistantSection(
@@ -995,7 +1197,9 @@ class HomeScreen extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _AnimatedHomeBlobs extends StatefulWidget {
-  const _AnimatedHomeBlobs();
+  const _AnimatedHomeBlobs({required this.isDark});
+
+  final bool isDark;
 
   @override
   State<_AnimatedHomeBlobs> createState() => _AnimatedHomeBlobsState();
@@ -1034,6 +1238,16 @@ class _AnimatedHomeBlobsState extends State<_AnimatedHomeBlobs>
 
   @override
   Widget build(BuildContext context) {
+    final blobA = widget.isDark
+        ? const [Color(0x2E38BDF8), Color(0x0038BDF8)]
+        : const [Color(0x300BA4FF), Color(0x000BA4FF)];
+    final blobB = widget.isDark
+        ? const [Color(0x2E14B8A6), Color(0x0014B8A6)]
+        : const [Color(0x2A15A39A), Color(0x0015A39A)];
+    final blobC = widget.isDark
+        ? const [Color(0x2E22D3EE), Color(0x0022D3EE)]
+        : const [Color(0x2418A89D), Color(0x0018A89D)];
+
     return IgnorePointer(
       child: AnimatedBuilder(
         animation: _controller,
@@ -1044,17 +1258,17 @@ class _AnimatedHomeBlobsState extends State<_AnimatedHomeBlobs>
               Positioned(
                 left: -70 + math.sin(t) * 28,
                 top: -10 + math.cos(t * 1.2) * 20,
-                child: _blob(320, const [Color(0x300BA4FF), Color(0x000BA4FF)]),
+                child: _blob(320, blobA),
               ),
               Positioned(
                 right: -70 + math.cos(t * 0.9) * 24,
                 top: 150 + math.sin(t * 1.3) * 18,
-                child: _blob(340, const [Color(0x2A15A39A), Color(0x0015A39A)]),
+                child: _blob(340, blobB),
               ),
               Positioned(
                 left: 70 + math.cos(t * 1.1) * 18,
                 bottom: -90 + math.sin(t * 0.75) * 22,
-                child: _blob(280, const [Color(0x2418A89D), Color(0x0018A89D)]),
+                child: _blob(280, blobC),
               ),
             ],
           );
@@ -1072,6 +1286,7 @@ class _AppBarIconBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedOpacity(
@@ -1081,11 +1296,17 @@ class _AppBarIconBtn extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? const Color(0xFF131F32) : Colors.white,
             shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFFD2DCE9)),
+            border: Border.all(
+              color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFD2DCE9),
+            ),
           ),
-          child: Icon(icon, color: const Color(0xFF4A607C), size: 22),
+          child: Icon(
+            icon,
+            color: isDark ? const Color(0xFFB7C6DA) : const Color(0xFF4A607C),
+            size: 22,
+          ),
         ),
       ),
     );
@@ -1098,11 +1319,13 @@ class _WelcomeHero extends StatelessWidget {
     required this.roleLabel,
     required this.institutionName,
     required this.hasInstitution,
+    required this.isDark,
   });
   final String firstName;
   final String roleLabel;
   final String institutionName;
   final bool hasInstitution;
+  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
@@ -1110,16 +1333,23 @@ class _WelcomeHero extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFE6FFFA), Color(0xFFEFF6FF)],
+        gradient: LinearGradient(
+          colors: isDark
+              ? const [Color(0xFF11263A), Color(0xFF132C43)]
+              : const [Color(0xFFE6FFFA), Color(0xFFEFF6FF)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFDDE6F1), width: 1),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFDDE6F1),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0x120F172A),
+            color: (isDark ? Colors.black : const Color(0x120F172A)).withValues(
+              alpha: isDark ? 0.30 : 0.07,
+            ),
             blurRadius: 24,
             offset: const Offset(0, 8),
           ),
@@ -1132,7 +1362,9 @@ class _WelcomeHero extends StatelessWidget {
             'How are you,',
             style: TextStyle(
               fontSize: 16,
-              color: const Color(0xFF516784),
+              color: isDark
+                  ? const Color(0xFFB7C6DA)
+                  : const Color(0xFF516784),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1152,15 +1384,23 @@ class _WelcomeHero extends StatelessWidget {
             children: [
               _Pill(
                 label: roleLabel,
-                bg: const Color(0xFFE7F3F1),
-                textColor: const Color(0xFF0E9B90),
+                bg: isDark
+                    ? const Color(0xFF183744)
+                    : const Color(0xFFE7F3F1),
+                textColor: isDark
+                    ? const Color(0xFF6EE7D8)
+                    : const Color(0xFF0E9B90),
                 icon: Icons.school_outlined,
               ),
               const SizedBox(width: 8),
               _Pill(
                 label: institutionName,
-                bg: const Color(0xFFEFF6FF),
-                textColor: const Color(0xFF516784),
+                bg: isDark
+                    ? const Color(0xFF1C2F4A)
+                    : const Color(0xFFEFF6FF),
+                textColor: isDark
+                    ? const Color(0xFFB9CCEA)
+                    : const Color(0xFF516784),
                 icon: hasInstitution
                     ? Icons.business_center_outlined
                     : Icons.person_outline_rounded,
@@ -1294,6 +1534,7 @@ class _HomeBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final location = GoRouterState.of(context).matchedLocation;
     final items = <_BottomNavItem>[
       const _BottomNavItem(
@@ -1324,12 +1565,15 @@ class _HomeBottomNav extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF101A2A) : Colors.white,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFD2DCE9)),
-          boxShadow: const [
+          border: Border.all(
+            color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFD2DCE9),
+          ),
+          boxShadow: [
             BoxShadow(
-              color: Color(0x120F172A),
+              color: (isDark ? Colors.black : const Color(0x120F172A))
+                  .withValues(alpha: isDark ? 0.22 : 0.07),
               blurRadius: 18,
               offset: Offset(0, 8),
             ),
@@ -1352,7 +1596,9 @@ class _HomeBottomNav extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: active
-                        ? const Color(0xFFE7F3F1)
+                        ? (isDark
+                              ? const Color(0xFF143440)
+                              : const Color(0xFFE7F3F1))
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -1364,7 +1610,9 @@ class _HomeBottomNav extends StatelessWidget {
                         size: 22,
                         color: active
                             ? const Color(0xFF0E9B90)
-                            : const Color(0xFF6A7D96),
+                            : (isDark
+                                  ? const Color(0xFF8FA4C2)
+                                  : const Color(0xFF6A7D96)),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -1376,7 +1624,9 @@ class _HomeBottomNav extends StatelessWidget {
                               : FontWeight.w500,
                           color: active
                               ? const Color(0xFF0E9B90)
-                              : const Color(0xFF6A7D96),
+                              : (isDark
+                                    ? const Color(0xFF8FA4C2)
+                                    : const Color(0xFF6A7D96)),
                         ),
                       ),
                     ],
