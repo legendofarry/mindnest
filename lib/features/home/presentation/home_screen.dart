@@ -1262,74 +1262,41 @@ class _RiskAlert extends StatelessWidget {
   }
 }
 
-class _SosButton extends StatefulWidget {
+class _SosButton extends StatelessWidget {
   const _SosButton({required this.onTap});
   final VoidCallback onTap;
 
   @override
-  State<_SosButton> createState() => _SosButtonState();
-}
-
-class _SosButtonState extends State<_SosButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulse;
-  late Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
-    _scale = Tween<double>(
-      begin: 1.0,
-      end: 1.06,
-    ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _scale,
-      builder: (context, child) =>
-          Transform.scale(scale: _scale.value, child: child),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF1F2),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: const Color(0xFFFECDD3), width: 1.5),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.warning_amber_rounded,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF1F2),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFFECDD3), width: 1.5),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: Color(0xFFE11D48),
+              size: 20,
+            ),
+            SizedBox(width: 10),
+            Text(
+              'Immediate Crisis Support',
+              style: TextStyle(
                 color: Color(0xFFE11D48),
-                size: 20,
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                letterSpacing: -0.2,
               ),
-              SizedBox(width: 10),
-              Text(
-                'Immediate Crisis Support',
-                style: TextStyle(
-                  color: Color(0xFFE11D48),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  letterSpacing: -0.2,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

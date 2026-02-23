@@ -14,7 +14,8 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen>
+    with SingleTickerProviderStateMixin {
   static const _lastEmailKey = 'auth.last_email';
   static const _desktopBreakpoint = 1100.0;
 
@@ -24,7 +25,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   bool _rememberMe = true;
   bool _isSubmitting = false;
+  bool _submittedAttempt = false;
   String? _lastEmail;
+  String? _formError;
+
+  late final AnimationController _shakeController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 360),
+  );
+  late final Animation<double> _shakeOffset = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 0, end: -14), weight: 1),
+    TweenSequenceItem(tween: Tween(begin: -14, end: 14), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: 14, end: -10), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: -10, end: 10), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: 10, end: -6), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: -6, end: 6), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: 6, end: 0), weight: 2),
+  ]).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
 
   @override
   void initState() {
@@ -34,13 +51,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
+    _shakeController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
+  Future<void> _triggerShake() async {
+    if (!mounted) {
+      return;
+    }
+    await _shakeController.forward(from: 0);
+  }
+
   Future<void> _submit() async {
+    setState(() {
+      _submittedAttempt = true;
+      _formError = null;
+    });
+
     if (!_formKey.currentState!.validate()) {
+      setState(() {
+        _formError = 'Please correct the highlighted fields.';
+      });
+      await _triggerShake();
       return;
     }
 
@@ -57,20 +91,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           );
       await _saveLastEmail(normalizedEmail);
     } on FirebaseAuthException catch (error) {
-      _showMessage(error.message ?? 'Login failed.');
+      setState(() {
+        _formError = error.message ?? 'Login failed.';
+      });
+      await _triggerShake();
     } catch (error) {
-      _showMessage(error.toString());
+      setState(() {
+        _formError = error.toString().replaceFirst('Exception: ', '');
+      });
+      await _triggerShake();
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
       }
     }
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _restoreLastEmail() async {
@@ -160,242 +194,298 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Widget _buildFormContent(BuildContext context, {required bool showBrand}) {
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (showBrand) ...[
-            const SizedBox(height: 16),
-            const BrandMark(),
-            const SizedBox(height: 38),
-          ] else ...[
-            const SizedBox(height: 8),
-          ],
-          Text(
-            'Welcome Back',
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF071937),
-              letterSpacing: -0.7,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Continue your journey to wellness.',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: const Color(0xFF5E728D),
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          const _FieldLabel(text: 'EMAIL ADDRESS'),
-          const SizedBox(height: 8),
-          _RoundedInput(
-            child: TextFormField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: 'alex@example.com',
-                prefixIcon: Icon(Icons.mail_outline_rounded),
+    return AnimatedBuilder(
+      animation: _shakeController,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(_shakeOffset.value, 0),
+          child: child,
+        );
+      },
+      child: Form(
+        key: _formKey,
+        autovalidateMode: _submittedAttempt
+            ? AutovalidateMode.onUserInteraction
+            : AutovalidateMode.disabled,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (showBrand) ...[
+              const SizedBox(height: 16),
+              const BrandMark(),
+              const SizedBox(height: 38),
+            ] else ...[
+              const SizedBox(height: 8),
+            ],
+            Text(
+              'Welcome Back',
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF071937),
+                letterSpacing: -0.7,
               ),
-              validator: (value) {
-                final trimmed = value?.trim() ?? '';
-                if (trimmed.isEmpty || !trimmed.contains('@')) {
-                  return 'Enter a valid email address.';
-                }
-                return null;
-              },
+              textAlign: TextAlign.center,
             ),
-          ),
-          if ((_lastEmail ?? '').isNotEmpty &&
-              _emailController.text.trim().toLowerCase() != _lastEmail)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: InkWell(
-                  onTap: () {
-                    final lastEmail = _lastEmail;
-                    if (lastEmail == null || lastEmail.isEmpty) {
-                      return;
-                    }
-                    setState(() {
-                      _emailController.text = lastEmail;
-                      _emailController.selection = TextSelection.collapsed(
-                        offset: lastEmail.length,
-                      );
-                    });
-                  },
-                  child: Text(
-                    'Use saved email: $_lastEmail',
-                    style: const TextStyle(
+            const SizedBox(height: 8),
+            Text(
+              'Continue your journey to wellness.',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF5E728D),
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: (_formError == null || _formError!.trim().isEmpty)
+                  ? const SizedBox(height: 24)
+                  : Container(
+                      key: ValueKey(_formError),
+                      margin: const EdgeInsets.only(top: 14, bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFECDD3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: Color(0xFFBE123C),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _formError!,
+                              style: const TextStyle(
+                                color: Color(0xFF9F1239),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+            const _FieldLabel(text: 'EMAIL ADDRESS'),
+            const SizedBox(height: 8),
+            _RoundedInput(
+              child: TextFormField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                onChanged: (_) => setState(() {
+                  _formError = null;
+                }),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: 'alex@example.com',
+                  prefixIcon: Icon(Icons.mail_outline_rounded),
+                ),
+                validator: (value) {
+                  final trimmed = value?.trim() ?? '';
+                  if (trimmed.isEmpty || !trimmed.contains('@')) {
+                    return 'Enter a valid email address.';
+                  }
+                  return null;
+                },
+              ),
+            ),
+            if ((_lastEmail ?? '').isNotEmpty &&
+                _emailController.text.trim().toLowerCase() != _lastEmail)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: InkWell(
+                    onTap: () {
+                      final lastEmail = _lastEmail;
+                      if (lastEmail == null || lastEmail.isEmpty) {
+                        return;
+                      }
+                      setState(() {
+                        _emailController.text = lastEmail;
+                        _emailController.selection = TextSelection.collapsed(
+                          offset: lastEmail.length,
+                        );
+                        _formError = null;
+                      });
+                    },
+                    child: Text(
+                      'Use saved email: $_lastEmail',
+                      style: const TextStyle(
+                        color: Color(0xFF0E9B90),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const _FieldLabel(text: 'PASSWORD'),
+                const Spacer(),
+                TextButton(
+                  onPressed: _isSubmitting
+                      ? null
+                      : () => context.go(AppRoute.forgotPassword),
+                  child: const Text(
+                    'Forgot Password?',
+                    style: TextStyle(
                       color: Color(0xFF0E9B90),
                       fontWeight: FontWeight.w700,
-                      fontSize: 12.5,
                     ),
                   ),
-                ),
-              ),
-            ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              const _FieldLabel(text: 'PASSWORD'),
-              const Spacer(),
-              TextButton(
-                onPressed: _isSubmitting
-                    ? null
-                    : () => context.go(AppRoute.forgotPassword),
-                child: const Text(
-                  'Forgot Password?',
-                  style: TextStyle(
-                    color: Color(0xFF0E9B90),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          _RoundedInput(
-            child: TextFormField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: '********',
-                prefixIcon: Icon(Icons.lock_outline_rounded),
-              ),
-              validator: (value) {
-                if ((value ?? '').isEmpty) {
-                  return 'Password is required.';
-                }
-                return null;
-              },
-            ),
-          ),
-          const SizedBox(height: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Checkbox(
-                    value: _rememberMe,
-                    onChanged: _isSubmitting
-                        ? null
-                        : (value) {
-                            setState(() => _rememberMe = value ?? false);
-                          },
-                  ),
-                  const Text(
-                    'Remember Me',
-                    style: TextStyle(
-                      color: Color(0xFF334155),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-              const Padding(
-                padding: EdgeInsets.only(left: 12),
-                child: Text(
-                  'Keep me signed in for 14 days on this device.',
-                  style: TextStyle(
-                    color: Color(0xFF0E9B90),
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Container(
-            height: 62,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(17),
-              gradient: const LinearGradient(
-                colors: [Color(0xFF0E9B90), Color(0xFF18A89D)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x4D72ECDC),
-                  blurRadius: 28,
-                  offset: Offset(0, 14),
                 ),
               ],
             ),
-            child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                shadowColor: Colors.transparent,
-                backgroundColor: Colors.transparent,
-                disabledBackgroundColor: Colors.transparent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(17),
+            const SizedBox(height: 4),
+            _RoundedInput(
+              child: TextFormField(
+                controller: _passwordController,
+                obscureText: true,
+                onChanged: (_) {
+                  if (_formError != null) {
+                    setState(() => _formError = null);
+                  }
+                },
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: '********',
+                  prefixIcon: Icon(Icons.lock_outline_rounded),
                 ),
+                validator: (value) {
+                  if ((value ?? '').isEmpty) {
+                    return 'Password is required.';
+                  }
+                  return null;
+                },
               ),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: Text(
-                  _isSubmitting ? 'Signing in...' : 'Log In  ->',
-                  key: ValueKey(_isSubmitting),
-                  style: const TextStyle(
-                    fontSize: 17.5,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+            ),
+            const SizedBox(height: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      onChanged: _isSubmitting
+                          ? null
+                          : (value) {
+                              setState(() => _rememberMe = value ?? false);
+                            },
+                    ),
+                    const Text(
+                      'Remember Me',
+                      style: TextStyle(
+                        color: Color(0xFF334155),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(left: 12),
+                  child: Text(
+                    'Keep me signed in for 14 days on this device.',
+                    style: TextStyle(
+                      color: Color(0xFF0E9B90),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Container(
+              height: 62,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(17),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0E9B90), Color(0xFF18A89D)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x4D72ECDC),
+                    blurRadius: 28,
+                    offset: Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  shadowColor: Colors.transparent,
+                  backgroundColor: Colors.transparent,
+                  disabledBackgroundColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(17),
+                  ),
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Text(
+                    _isSubmitting ? 'Signing in...' : 'Log In  ->',
+                    key: ValueKey(_isSubmitting),
+                    style: const TextStyle(
+                      fontSize: 17.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'New to MindNest? ',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: const Color(0xFF4A607C),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'New to MindNest? ',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFF4A607C),
+                  ),
                 ),
-              ),
-              GestureDetector(
-                onTap: _isSubmitting
+                GestureDetector(
+                  onTap: _isSubmitting
+                      ? null
+                      : () => context.go(AppRoute.register),
+                  child: const Text(
+                    'Create Account',
+                    style: TextStyle(
+                      color: Color(0xFF0E9B90),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.center,
+              child: TextButton(
+                onPressed: _isSubmitting
                     ? null
-                    : () => context.go(AppRoute.register),
+                    : () => context.go(AppRoute.registerInstitution),
                 child: const Text(
-                  'Create Account',
-                  style: TextStyle(
-                    color: Color(0xFF0E9B90),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
+                  'Institution Admin? Register Institution',
+                  style: TextStyle(color: Color(0xFF6A7D96)),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.center,
-            child: TextButton(
-              onPressed: _isSubmitting
-                  ? null
-                  : () => context.go(AppRoute.registerInstitution),
-              child: const Text(
-                'Institution Admin? Register Institution',
-                style: TextStyle(color: Color(0xFF6A7D96)),
-              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
