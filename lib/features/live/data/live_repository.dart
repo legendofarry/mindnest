@@ -66,12 +66,10 @@ class LiveRepository {
     defaultValue: '',
   );
   // Source-file fallback for local/dev use when --dart-define values are absent.
-  // Rotate these credentials if this source is shared publicly.
-  static const String _liveKitUrlFromSource =
-      'wss://mindnest-ubdebdzl.livekit.cloud';
-  static const String _liveKitApiKeyFromSource = 'API7JbqEBm8JXyA';
-  static const String _liveKitApiSecretFromSource =
-      '0NXJafVMXSlarGmz4RICuXqWSn5yaRMrwdzDxje09faA';
+  // Leave blank in source; use --dart-define values in local/CI.
+  static const String _liveKitUrlFromSource = '';
+  static const String _liveKitApiKeyFromSource = '';
+  static const String _liveKitApiSecretFromSource = '';
 
   static String get _liveKitUrl => _liveKitUrlFromDefine.isNotEmpty
       ? _liveKitUrlFromDefine

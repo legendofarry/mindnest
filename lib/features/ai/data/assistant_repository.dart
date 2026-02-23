@@ -10,19 +10,34 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 
 // Source-file fallback config (used when no --dart-define values are passed).
 // If you prefer not to pass --dart-define during development, put values here.
-const _externalAiProviderSource = 'auto'; // auto | openai | gemini
+const _externalAiProviderSource =
+    'auto'; // auto | openai | gemini | groq | openrouter
 
 // OpenAI-compatible config
-const _externalAiApiKeySource = 'AIzaSyDZUxuK1aZj-pCpX78NTXBRTJ16YhCGG9o';
+const _externalAiApiKeySource = '';
 const _externalAiBaseUrlSource = 'https://api.openai.com/v1';
 const _externalAiModelSource = 'gpt-4o-mini';
 const _externalAiChatPathSource = '/chat/completions';
 
 // Gemini config
-const _geminiApiKeySource = 'AIzaSyDZUxuK1aZj-pCpX78NTXBRTJ16YhCGG9o';
+const _geminiApiKeysSource = <String>[''];
 const _geminiBaseUrlSource = 'https://generativelanguage.googleapis.com';
 const _geminiModelSource = 'gemini-2.5-flash';
 const _geminiGeneratePathSource = '/v1beta/models/{model}:generateContent';
+
+// Groq (OpenAI-compatible) config
+const _groqApiKeySource = '';
+const _groqBaseUrlSource = 'https://api.groq.com/openai/v1';
+const _groqModelSource = 'llama-3.1-8b-instant';
+const _groqChatPathSource = '/chat/completions';
+
+// OpenRouter (OpenAI-compatible) config
+const _openRouterApiKeySource = '';
+const _openRouterBaseUrlSource = 'https://openrouter.ai/api/v1';
+const _openRouterModelSource = 'nvidia/nemotron-3-nano-30b-a3b:free';
+const _openRouterChatPathSource = '/chat/completions';
+const _openRouterHttpRefererSource = 'https://mindnest.app';
+const _openRouterTitleSource = 'MindNest';
 
 class AssistantRepository {
   AssistantRepository({
@@ -77,6 +92,10 @@ class AssistantRepository {
     'GEMINI_API_KEY',
     defaultValue: '',
   );
+  static const String _geminiApiKeysFromDefine = String.fromEnvironment(
+    'GEMINI_API_KEYS',
+    defaultValue: '',
+  );
   static const String _geminiBaseUrlFromDefine = String.fromEnvironment(
     'GEMINI_BASE_URL',
     defaultValue: '',
@@ -87,6 +106,46 @@ class AssistantRepository {
   );
   static const String _geminiGeneratePathFromDefine = String.fromEnvironment(
     'GEMINI_GENERATE_PATH',
+    defaultValue: '',
+  );
+  static const String _groqApiKeyFromDefine = String.fromEnvironment(
+    'GROQ_API_KEY',
+    defaultValue: '',
+  );
+  static const String _groqBaseUrlFromDefine = String.fromEnvironment(
+    'GROQ_BASE_URL',
+    defaultValue: '',
+  );
+  static const String _groqModelFromDefine = String.fromEnvironment(
+    'GROQ_MODEL',
+    defaultValue: '',
+  );
+  static const String _groqChatPathFromDefine = String.fromEnvironment(
+    'GROQ_CHAT_PATH',
+    defaultValue: '',
+  );
+  static const String _openRouterApiKeyFromDefine = String.fromEnvironment(
+    'OPENROUTER_API_KEY',
+    defaultValue: '',
+  );
+  static const String _openRouterBaseUrlFromDefine = String.fromEnvironment(
+    'OPENROUTER_BASE_URL',
+    defaultValue: '',
+  );
+  static const String _openRouterModelFromDefine = String.fromEnvironment(
+    'OPENROUTER_MODEL',
+    defaultValue: '',
+  );
+  static const String _openRouterChatPathFromDefine = String.fromEnvironment(
+    'OPENROUTER_CHAT_PATH',
+    defaultValue: '',
+  );
+  static const String _openRouterHttpRefererFromDefine = String.fromEnvironment(
+    'OPENROUTER_HTTP_REFERER',
+    defaultValue: '',
+  );
+  static const String _openRouterTitleFromDefine = String.fromEnvironment(
+    'OPENROUTER_TITLE',
     defaultValue: '',
   );
 
@@ -134,9 +193,21 @@ class AssistantRepository {
     return _externalAiChatPathSource;
   }
 
-  String get _geminiApiKey => _geminiApiKeyFromDefine.isNotEmpty
-      ? _geminiApiKeyFromDefine
-      : _geminiApiKeySource;
+  List<String> get _geminiApiKeys {
+    if (_geminiApiKeysFromDefine.isNotEmpty) {
+      final keys = _parseApiKeys(_geminiApiKeysFromDefine);
+      if (keys.isNotEmpty) {
+        return keys;
+      }
+    }
+    if (_geminiApiKeyFromDefine.isNotEmpty) {
+      return <String>[_geminiApiKeyFromDefine.trim()];
+    }
+    return _geminiApiKeysSource
+        .map((key) => key.trim())
+        .where((key) => key.isNotEmpty)
+        .toList(growable: false);
+  }
 
   String get _geminiBaseUrl => _geminiBaseUrlFromDefine.isNotEmpty
       ? _geminiBaseUrlFromDefine
@@ -150,13 +221,61 @@ class AssistantRepository {
       ? _geminiGeneratePathFromDefine
       : _geminiGeneratePathSource;
 
+  String get _groqApiKey => _groqApiKeyFromDefine.isNotEmpty
+      ? _groqApiKeyFromDefine
+      : _groqApiKeySource;
+
+  String get _groqBaseUrl => _groqBaseUrlFromDefine.isNotEmpty
+      ? _groqBaseUrlFromDefine
+      : _groqBaseUrlSource;
+
+  String get _groqModel =>
+      _groqModelFromDefine.isNotEmpty ? _groqModelFromDefine : _groqModelSource;
+
+  String get _groqChatPath => _groqChatPathFromDefine.isNotEmpty
+      ? _groqChatPathFromDefine
+      : _groqChatPathSource;
+
+  String get _openRouterApiKey => _openRouterApiKeyFromDefine.isNotEmpty
+      ? _openRouterApiKeyFromDefine
+      : _openRouterApiKeySource;
+
+  String get _openRouterBaseUrl => _openRouterBaseUrlFromDefine.isNotEmpty
+      ? _openRouterBaseUrlFromDefine
+      : _openRouterBaseUrlSource;
+
+  String get _openRouterModel => _openRouterModelFromDefine.isNotEmpty
+      ? _openRouterModelFromDefine
+      : _openRouterModelSource;
+
+  String get _openRouterChatPath => _openRouterChatPathFromDefine.isNotEmpty
+      ? _openRouterChatPathFromDefine
+      : _openRouterChatPathSource;
+
+  String get _openRouterHttpReferer =>
+      _openRouterHttpRefererFromDefine.isNotEmpty
+      ? _openRouterHttpRefererFromDefine
+      : _openRouterHttpRefererSource;
+
+  String get _openRouterTitle => _openRouterTitleFromDefine.isNotEmpty
+      ? _openRouterTitleFromDefine
+      : _openRouterTitleSource;
+
   bool get _openAiConfigured => _openAiApiKey.isNotEmpty;
 
-  bool get _geminiConfigured => _geminiApiKey.isNotEmpty;
+  bool get _geminiConfigured => _geminiApiKeys.isNotEmpty;
+
+  bool get _groqConfigured => _groqApiKey.isNotEmpty;
+
+  bool get _openRouterConfigured => _openRouterApiKey.isNotEmpty;
 
   bool get _preferOpenAi => _provider == 'openai';
 
   bool get _preferGemini => _provider == 'gemini';
+
+  bool get _preferGroq => _provider == 'groq';
+
+  bool get _preferOpenRouter => _provider == 'openrouter';
 
   bool get _autoProvider => _provider.isEmpty || _provider == 'auto';
 
@@ -511,10 +630,18 @@ class AssistantRepository {
 
     final hasOpenAi = _openAiConfigured;
     final hasGemini = _geminiConfigured;
+    final hasGroq = _groqConfigured;
+    final hasOpenRouter = _openRouterConfigured;
 
     if ((_preferOpenAi && !hasOpenAi) ||
         (_preferGemini && !hasGemini) ||
-        (_autoProvider && !hasOpenAi && !hasGemini)) {
+        (_preferGroq && !hasGroq) ||
+        (_preferOpenRouter && !hasOpenRouter) ||
+        (_autoProvider &&
+            !hasOpenAi &&
+            !hasGemini &&
+            !hasGroq &&
+            !hasOpenRouter)) {
       return AssistantReply(
         text: 'External AI is not configured yet. ${_configuredHint()}',
       );
@@ -523,6 +650,8 @@ class AssistantRepository {
     final providerOrder = _providerSequence(
       hasOpenAi: hasOpenAi,
       hasGemini: hasGemini,
+      hasGroq: hasGroq,
+      hasOpenRouter: hasOpenRouter,
     );
     if (providerOrder.isEmpty) {
       return const AssistantReply(text: 'External AI is not configured yet.');
@@ -530,17 +659,28 @@ class AssistantRepository {
 
     _ExternalCallResult? lastFailure;
     for (final provider in providerOrder) {
-      final result = provider == _ProviderType.openAi
-          ? await _callOpenAi(
-              prompt: prompt,
-              profile: profile,
-              history: history,
-            )
-          : await _callGemini(
-              prompt: prompt,
-              profile: profile,
-              history: history,
-            );
+      final result = switch (provider) {
+        _ProviderType.openAi => await _callOpenAi(
+          prompt: prompt,
+          profile: profile,
+          history: history,
+        ),
+        _ProviderType.gemini => await _callGemini(
+          prompt: prompt,
+          profile: profile,
+          history: history,
+        ),
+        _ProviderType.groq => await _callGroq(
+          prompt: prompt,
+          profile: profile,
+          history: history,
+        ),
+        _ProviderType.openRouter => await _callOpenRouter(
+          prompt: prompt,
+          profile: profile,
+          history: history,
+        ),
+      };
       if (result.isSuccess) {
         return AssistantReply(text: result.text!, usedExternalModel: true);
       }
@@ -573,29 +713,58 @@ class AssistantRepository {
   List<_ProviderType> _providerSequence({
     required bool hasOpenAi,
     required bool hasGemini,
+    required bool hasGroq,
+    required bool hasOpenRouter,
   }) {
     if (_preferOpenAi) {
       return <_ProviderType>[
         if (hasOpenAi) _ProviderType.openAi,
         if (hasGemini) _ProviderType.gemini,
+        if (hasGroq) _ProviderType.groq,
+        if (hasOpenRouter) _ProviderType.openRouter,
       ];
     }
     if (_preferGemini) {
       return <_ProviderType>[
         if (hasGemini) _ProviderType.gemini,
         if (hasOpenAi) _ProviderType.openAi,
+        if (hasGroq) _ProviderType.groq,
+        if (hasOpenRouter) _ProviderType.openRouter,
       ];
     }
-    // auto: default order is OpenAI then Gemini fallback.
+    if (_preferGroq) {
+      return <_ProviderType>[
+        if (hasGroq) _ProviderType.groq,
+        if (hasOpenAi) _ProviderType.openAi,
+        if (hasGemini) _ProviderType.gemini,
+        if (hasOpenRouter) _ProviderType.openRouter,
+      ];
+    }
+    if (_preferOpenRouter) {
+      return <_ProviderType>[
+        if (hasOpenRouter) _ProviderType.openRouter,
+        if (hasOpenAi) _ProviderType.openAi,
+        if (hasGemini) _ProviderType.gemini,
+        if (hasGroq) _ProviderType.groq,
+      ];
+    }
+    // auto: default order is OpenAI, then Gemini, then Groq, then OpenRouter.
     return <_ProviderType>[
       if (hasOpenAi) _ProviderType.openAi,
       if (hasGemini) _ProviderType.gemini,
+      if (hasGroq) _ProviderType.groq,
+      if (hasOpenRouter) _ProviderType.openRouter,
     ];
   }
 
   String _providerLabel(List<_ProviderType> providers) {
     if (providers.length == 1) {
-      return providers.first == _ProviderType.openAi ? 'OpenAI' : 'Gemini';
+      return switch (providers.first) {
+        _ProviderType.openAi => 'OpenAI',
+        _ProviderType.gemini => 'Gemini',
+        _ProviderType.groq => 'Groq',
+        _ProviderType.openRouter => 'OpenRouter',
+      };
     }
     return 'External AI';
   }
@@ -605,9 +774,15 @@ class AssistantRepository {
       return 'Set OPENAI_API_KEY (or EXTERNAL_AI_API_KEY).';
     }
     if (_preferGemini) {
-      return 'Set GEMINI_API_KEY.';
+      return 'Set GEMINI_API_KEY or GEMINI_API_KEYS.';
     }
-    return 'Set OPENAI_API_KEY/EXTERNAL_AI_API_KEY or GEMINI_API_KEY.';
+    if (_preferGroq) {
+      return 'Set GROQ_API_KEY.';
+    }
+    if (_preferOpenRouter) {
+      return 'Set OPENROUTER_API_KEY.';
+    }
+    return 'Set OPENAI_API_KEY/EXTERNAL_AI_API_KEY, GEMINI_API_KEY/GEMINI_API_KEYS, GROQ_API_KEY, or OPENROUTER_API_KEY.';
   }
 
   Future<_ExternalCallResult> _callOpenAi({
@@ -680,9 +855,6 @@ class AssistantRepository {
       Uri.encodeComponent(_geminiModel),
     );
     final baseUri = Uri.parse('$_geminiBaseUrl$resolvedPath');
-    final query = <String, String>{...baseUri.queryParameters};
-    query['key'] = _geminiApiKey;
-    final requestUri = baseUri.replace(queryParameters: query);
 
     final contents = <Map<String, dynamic>>[
       ...recentHistory.map((entry) {
@@ -702,19 +874,114 @@ class AssistantRepository {
       },
     ];
 
+    _ExternalCallResult? lastFailure;
+    for (final apiKey in _geminiApiKeys) {
+      final query = <String, String>{...baseUri.queryParameters};
+      query['key'] = apiKey;
+      final requestUri = baseUri.replace(queryParameters: query);
+
+      try {
+        final response = await _httpClient
+            .post(
+              requestUri,
+              headers: const <String, String>{
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({
+                'systemInstruction': {
+                  'parts': [
+                    {'text': _systemPrompt(profile)},
+                  ],
+                },
+                'contents': contents,
+                'generationConfig': {'temperature': 0.6},
+              }),
+            )
+            .timeout(const Duration(seconds: 22));
+
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          final failed = _ExternalCallResult.failure(
+            statusCode: response.statusCode,
+          );
+          lastFailure = failed;
+          // Try next key on auth/quota/rate-limit/transient failures.
+          final canTryNext =
+              response.statusCode == 401 ||
+              response.statusCode == 403 ||
+              response.statusCode == 429 ||
+              response.statusCode >= 500;
+          if (canTryNext) {
+            continue;
+          }
+          return failed;
+        }
+
+        final payload = jsonDecode(response.body);
+        final candidate =
+            ((payload is Map ? payload['candidates'] : null) as List?)
+                    ?.firstOrNull
+                as Map?;
+        final parts =
+            ((candidate?['content'] as Map?)?['parts'] as List?)
+                ?.cast<Map?>() ??
+            const <Map?>[];
+        final text = parts
+            .map((part) => part?['text'])
+            .whereType<String>()
+            .map((entry) => entry.trim())
+            .where((entry) => entry.isNotEmpty)
+            .join('\n')
+            .trim();
+
+        if (text.isEmpty) {
+          final failed = const _ExternalCallResult.failure();
+          lastFailure = failed;
+          continue;
+        }
+
+        return _ExternalCallResult.success(text);
+      } on TimeoutException {
+        lastFailure = const _ExternalCallResult.timeout();
+        continue;
+      } catch (_) {
+        lastFailure = const _ExternalCallResult.failure();
+        continue;
+      }
+    }
+
+    return lastFailure ?? const _ExternalCallResult.failure();
+  }
+
+  Future<_ExternalCallResult> _callGroq({
+    required String prompt,
+    required UserProfile profile,
+    required List<AssistantConversationMessage> history,
+  }) async {
+    final chatUrl = Uri.parse('$_groqBaseUrl$_groqChatPath');
+    final recentHistory = history.length > 8
+        ? history.sublist(history.length - 8)
+        : history;
+
+    final messages = <Map<String, String>>[
+      {'role': 'system', 'content': _systemPrompt(profile)},
+      ...recentHistory.map(
+        (entry) => {'role': entry.role, 'content': entry.text},
+      ),
+      {'role': 'user', 'content': prompt},
+    ];
+
     try {
       final response = await _httpClient
           .post(
-            requestUri,
-            headers: const <String, String>{'Content-Type': 'application/json'},
+            chatUrl,
+            headers: <String, String>{
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $_groqApiKey',
+            },
             body: jsonEncode({
-              'systemInstruction': {
-                'parts': [
-                  {'text': _systemPrompt(profile)},
-                ],
-              },
-              'contents': contents,
-              'generationConfig': {'temperature': 0.6},
+              'model': _groqModel,
+              'messages': messages,
+              'temperature': 0.6,
             }),
           )
           .timeout(const Duration(seconds: 22));
@@ -724,20 +991,71 @@ class AssistantRepository {
       }
 
       final payload = jsonDecode(response.body);
-      final candidate =
-          ((payload is Map ? payload['candidates'] : null) as List?)
-                  ?.firstOrNull
+      final content =
+          (((payload is Map ? payload['choices'] : null) as List?)?.firstOrNull
+                  as Map?)?['message']?['content']
+              as String?;
+
+      if (content == null || content.trim().isEmpty) {
+        return const _ExternalCallResult.failure();
+      }
+
+      return _ExternalCallResult.success(content.trim());
+    } on TimeoutException {
+      return const _ExternalCallResult.timeout();
+    } catch (_) {
+      return const _ExternalCallResult.failure();
+    }
+  }
+
+  Future<_ExternalCallResult> _callOpenRouter({
+    required String prompt,
+    required UserProfile profile,
+    required List<AssistantConversationMessage> history,
+  }) async {
+    final chatUrl = Uri.parse('$_openRouterBaseUrl$_openRouterChatPath');
+    final recentHistory = history.length > 8
+        ? history.sublist(history.length - 8)
+        : history;
+
+    final messages = <Map<String, String>>[
+      {'role': 'system', 'content': _systemPrompt(profile)},
+      ...recentHistory.map(
+        (entry) => {'role': entry.role, 'content': entry.text},
+      ),
+      {'role': 'user', 'content': prompt},
+    ];
+
+    try {
+      final response = await _httpClient
+          .post(
+            chatUrl,
+            headers: <String, String>{
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $_openRouterApiKey',
+              'HTTP-Referer': _openRouterHttpReferer,
+              'X-Title': _openRouterTitle,
+            },
+            body: jsonEncode({
+              'model': _openRouterModel,
+              'messages': messages,
+              'temperature': 0.6,
+            }),
+          )
+          .timeout(const Duration(seconds: 22));
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return _ExternalCallResult.failure(statusCode: response.statusCode);
+      }
+
+      final payload = jsonDecode(response.body);
+      final message =
+          (((payload is Map ? payload['choices'] : null) as List?)?.firstOrNull
+                  as Map?)?['message']
               as Map?;
-      final parts =
-          ((candidate?['content'] as Map?)?['parts'] as List?)?.cast<Map?>() ??
-          const <Map?>[];
-      final text = parts
-          .map((part) => part?['text'])
-          .whereType<String>()
-          .map((entry) => entry.trim())
-          .where((entry) => entry.isNotEmpty)
-          .join('\n')
-          .trim();
+      final content = (message?['content'] as String?)?.trim() ?? '';
+      final reasoning = (message?['reasoning'] as String?)?.trim() ?? '';
+      final text = content.isNotEmpty ? content : reasoning;
 
       if (text.isEmpty) {
         return const _ExternalCallResult.failure();
@@ -754,13 +1072,27 @@ class AssistantRepository {
   bool _containsAny(String text, List<String> phrases) {
     return phrases.any(text.contains);
   }
+
+  List<String> _parseApiKeys(String raw) {
+    final seen = <String>{};
+    final ordered = <String>[];
+    for (final entry in raw.split(',')) {
+      final key = entry.trim();
+      if (key.isEmpty || seen.contains(key)) {
+        continue;
+      }
+      seen.add(key);
+      ordered.add(key);
+    }
+    return ordered;
+  }
 }
 
 extension _ListFirstOrNull<T> on List<T> {
   T? get firstOrNull => isEmpty ? null : first;
 }
 
-enum _ProviderType { openAi, gemini }
+enum _ProviderType { openAi, gemini, groq, openRouter }
 
 class _ExternalCallResult {
   const _ExternalCallResult.success(this.text)
