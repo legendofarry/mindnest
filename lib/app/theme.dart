@@ -23,6 +23,13 @@ class MindNestTheme {
       textTheme: GoogleFonts.dmSansTextTheme().apply(bodyColor: _text),
       colorScheme: colorScheme,
       scaffoldBackgroundColor: _surface,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+      ),
       inputDecorationTheme: const InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
@@ -89,6 +96,13 @@ class MindNestTheme {
       brightness: Brightness.dark,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: _darkSurface,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+      ),
       textTheme: GoogleFonts.dmSansTextTheme(
         ThemeData.dark().textTheme,
       ).apply(

@@ -1,9 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
-import 'package:mindnest/core/ui/back_to_home_button.dart';
-import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/live/data/live_providers.dart';
@@ -249,6 +249,7 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final institutionId = profile?.institutionId ?? '';
     final canUse = profile != null && _canUseLive(profile);
@@ -273,179 +274,488 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
       });
     }
 
-    return MindNestShell(
-      maxWidth: 980,
+    return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF0B1220)
+          : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Live Audio Hub'),
-        leading: const BackToHomeButton(),
-        actions: [
-          if (canUse && institutionId.isNotEmpty)
-            TextButton.icon(
-              onPressed: () => _openCreateLiveDialog(profile),
-              icon: const Icon(Icons.podcasts_rounded),
-              label: const Text('Go Live'),
-            ),
-        ],
+        backgroundColor: isDark
+            ? const Color(0xFF0F1728)
+            : const Color(0xFFF4F7FB),
+        surfaceTintColor: Colors.transparent,
+        shape: Border(
+          bottom: BorderSide(
+            color: isDark ? const Color(0xFF273449) : const Color(0xFFDDE6F1),
+            width: 1,
+          ),
+        ),
+        titleSpacing: 8,
+        leadingWidth: 72,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: _CircleHeaderButton(
+            icon: Icons.arrow_back_rounded,
+            onTap: () => context.go(AppRoute.home),
+          ),
+        ),
+        title: Text(
+          'Live Audio Hub',
+          style: TextStyle(
+            color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF0F2744),
+            fontSize: 38 / 2,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.2,
+          ),
+        ),
       ),
-      child: profile == null
-          ? const Center(child: CircularProgressIndicator())
-          : !canUse
-          ? const GlassCard(
-              child: Padding(
-                padding: EdgeInsets.all(18),
-                child: Text(
-                  'Live Audio Hub is available for students, staff, and counselors.',
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? const [Color(0xFF0B1220), Color(0xFF0E1A2E)]
+                : const [Color(0xFFF4F7FB), Color(0xFFF1F5F9)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned.fill(child: _LiveHubHomeBlobs(isDark: isDark)),
+            SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 22),
+                    child: profile == null
+                        ? const Center(child: CircularProgressIndicator())
+                        : !canUse
+                        ? _LiveHubInfoMessageCard(
+                            isDark: isDark,
+                            message:
+                                'Live Audio Hub is available for students, staff, and counselors.',
+                          )
+                        : institutionId.isEmpty
+                        ? _LiveHubInfoMessageCard(
+                            isDark: isDark,
+                            message:
+                                'Join an institution to access live sessions.',
+                          )
+                        : StreamBuilder<List<LiveSession>>(
+                            stream: ref
+                                .read(liveRepositoryProvider)
+                                .watchInstitutionLives(
+                                  institutionId: institutionId,
+                                ),
+                            builder: (context, snapshot) {
+                              final sessions =
+                                  snapshot.data ?? const <LiveSession>[];
+                              if (snapshot.connectionState ==
+                                      ConnectionState.waiting &&
+                                  sessions.isEmpty) {
+                                return const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFF0E9B90),
+                                    strokeWidth: 2.5,
+                                  ),
+                                );
+                              }
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: FilledButton.icon(
+                                      onPressed: () =>
+                                          _openCreateLiveDialog(profile),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF0E9B90,
+                                        ),
+                                        foregroundColor: Colors.white,
+                                        shape: const StadiumBorder(),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 18,
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.podcasts_rounded,
+                                        size: 18,
+                                      ),
+                                      label: const Text(
+                                        'Go Live',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  _LiveHubInfoCard(isDark: isDark),
+                                  const SizedBox(height: 22),
+                                  if (sessions.isEmpty)
+                                    _LiveHubEmptyState(isDark: isDark)
+                                  else
+                                    ...sessions.map((session) {
+                                      final statusColor = _statusColor(
+                                        session.status,
+                                      );
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 12,
+                                        ),
+                                        child: _LiveSessionCard(
+                                          session: session,
+                                          statusLabel: _statusLabel(
+                                            session.status,
+                                          ),
+                                          statusColor: statusColor,
+                                        ),
+                                      );
+                                    }),
+                                ],
+                              );
+                            },
+                          ),
+                  ),
                 ),
               ),
-            )
-          : institutionId.isEmpty
-          ? const GlassCard(
-              child: Padding(
-                padding: EdgeInsets.all(18),
-                child: Text('Join an institution to access live sessions.'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CircleHeaderButton extends StatelessWidget {
+  const _CircleHeaderButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: isDark ? const Color(0xFF131F32) : Colors.white,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Ink(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFD2DCE9),
+            ),
+          ),
+          child: Icon(
+            icon,
+            color: isDark ? const Color(0xFFB7C6DA) : const Color(0xFF4A607C),
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveHubInfoCard extends StatelessWidget {
+  const _LiveHubInfoCard({required this.isDark});
+
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF151F31) : Colors.white,
+        borderRadius: BorderRadius.circular(34),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFDDE6F1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? Colors.black : const Color(0x120F172A)).withValues(
+              alpha: isDark ? 0.28 : 0.07,
+            ),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0E9B90),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.podcasts_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
-            )
-          : StreamBuilder<List<LiveSession>>(
-              stream: ref
-                  .read(liveRepositoryProvider)
-                  .watchInstitutionLives(institutionId: institutionId),
-              builder: (context, snapshot) {
-                final sessions = snapshot.data ?? const <LiveSession>[];
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    sessions.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const GlassCard(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text(
-                          'Institution-only live audio sessions. Join to listen, request mic access, comment, and react in real time.',
-                        ),
+              const SizedBox(width: 14),
+              Text(
+                'What is Live Hub?',
+                style: TextStyle(
+                  color: isDark
+                      ? const Color(0xFFE2E8F0)
+                      : const Color(0xFF1E293B),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Join institution-only live audio sessions. Listen in, request mic access, comment, and react in real-time with your community.',
+            style: TextStyle(
+              color: isDark ? const Color(0xFF9FB2CC) : const Color(0xFF516784),
+              fontSize: 33 / 2,
+              height: 1.45,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveHubInfoMessageCard extends StatelessWidget {
+  const _LiveHubInfoMessageCard({required this.isDark, required this.message});
+
+  final bool isDark;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF151F31) : Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFDDE6F1),
+        ),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          color: isDark ? const Color(0xFF9FB2CC) : const Color(0xFF516784),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveHubEmptyState extends StatelessWidget {
+  const _LiveHubEmptyState({required this.isDark});
+
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 120, bottom: 16),
+      child: Column(
+        children: [
+          Container(
+            width: 164,
+            height: 164,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF152338) : Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: (isDark ? Colors.black : const Color(0x120F172A))
+                      .withValues(alpha: isDark ? 0.24 : 0.07),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.podcasts_rounded,
+              color: Color(0xFF0E9B90),
+              size: 56,
+            ),
+          ),
+          const SizedBox(height: 22),
+          Text(
+            'Quiet in the Hub',
+            style: TextStyle(
+              color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF0F2744),
+              fontSize: 43 / 2,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No active lives right now. Be\nthe first to start a conversation!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isDark ? const Color(0xFF9FB2CC) : const Color(0xFF516784),
+              fontSize: 18,
+              height: 1.45,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveSessionCard extends ConsumerWidget {
+  const _LiveSessionCard({
+    required this.session,
+    required this.statusLabel,
+    required this.statusColor,
+  });
+
+  final LiveSession session;
+  final String statusLabel;
+  final Color statusColor;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: () =>
+            context.push('${AppRoute.liveRoom}?sessionId=${session.id}'),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF151F31) : Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFDDE6F1),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (isDark ? Colors.black : const Color(0x120F172A))
+                    .withValues(alpha: isDark ? 0.25 : 0.07),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    if (sessions.isEmpty)
-                      const GlassCard(
-                        child: Padding(
-                          padding: EdgeInsets.all(18),
-                          child: Text(
-                            'No active lives right now. Start one from "Go Live".',
-                          ),
-                        ),
-                      )
-                    else
-                      ...sessions.map((session) {
-                        final statusColor = _statusColor(session.status);
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: GlassCard(
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(24),
-                              onTap: () => context.push(
-                                '${AppRoute.liveRoom}?sessionId=${session.id}',
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: statusColor.withValues(
-                                              alpha: 0.14,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            _statusLabel(session.status),
-                                            style: TextStyle(
-                                              color: statusColor,
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        const Icon(
-                                          Icons.chevron_right_rounded,
-                                          color: Color(0xFF64748B),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      session.title,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 18,
-                                        color: Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                    if (session.description.isNotEmpty) ...[
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        session.description,
-                                        style: const TextStyle(
-                                          color: Color(0xFF64748B),
-                                        ),
-                                      ),
-                                    ],
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      'Host: ${session.hostName} (${session.hostRole.label})',
-                                      style: const TextStyle(
-                                        color: Color(0xFF334155),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Row(
-                                      children: [
-                                        StreamBuilder<List<LiveParticipant>>(
-                                          stream: ref
-                                              .read(liveRepositoryProvider)
-                                              .watchParticipants(session.id),
-                                          builder: (context, participantSnap) {
-                                            final listeners =
-                                                participantSnap.data?.length ??
-                                                0;
-                                            return _MetricChip(
-                                              icon: Icons.headphones_rounded,
-                                              text: '$listeners listening',
-                                            );
-                                          },
-                                        ),
-                                        const SizedBox(width: 8),
-                                        _MetricChip(
-                                          icon: Icons.favorite_rounded,
-                                          text: '${session.likeCount} likes',
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                  ],
-                );
-              },
-            ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: isDark
+                        ? const Color(0xFF9FB2CC)
+                        : const Color(0xFF64748B),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                session.title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                  color: isDark
+                      ? const Color(0xFFE2E8F0)
+                      : const Color(0xFF0F172A),
+                ),
+              ),
+              if (session.description.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  session.description,
+                  style: TextStyle(
+                    color: isDark
+                        ? const Color(0xFF9FB2CC)
+                        : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Text(
+                'Host: ${session.hostName} (${session.hostRole.label})',
+                style: TextStyle(
+                  color: isDark
+                      ? const Color(0xFFC2D2E8)
+                      : const Color(0xFF334155),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  StreamBuilder<List<LiveParticipant>>(
+                    stream: ref
+                        .read(liveRepositoryProvider)
+                        .watchParticipants(session.id),
+                    builder: (context, participantSnap) {
+                      final listeners = participantSnap.data?.length ?? 0;
+                      return _MetricChip(
+                        icon: Icons.headphones_rounded,
+                        text: '$listeners listening',
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _MetricChip(
+                    icon: Icons.favorite_rounded,
+                    text: '${session.likeCount} likes',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -458,26 +768,113 @@ class _MetricChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
+        color: isDark ? const Color(0xFF1D2B41) : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: const Color(0xFF475569)),
+          Icon(
+            icon,
+            size: 14,
+            color: isDark ? const Color(0xFFB7C6DA) : const Color(0xFF475569),
+          ),
           const SizedBox(width: 4),
           Text(
             text,
-            style: const TextStyle(
-              color: Color(0xFF475569),
+            style: TextStyle(
+              color: isDark ? const Color(0xFFB7C6DA) : const Color(0xFF475569),
               fontWeight: FontWeight.w700,
               fontSize: 12,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LiveHubHomeBlobs extends StatefulWidget {
+  const _LiveHubHomeBlobs({required this.isDark});
+
+  final bool isDark;
+
+  @override
+  State<_LiveHubHomeBlobs> createState() => _LiveHubHomeBlobsState();
+}
+
+class _LiveHubHomeBlobsState extends State<_LiveHubHomeBlobs>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 14),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget _blob(double size, List<Color> colors) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(colors: colors),
+        boxShadow: [
+          BoxShadow(
+            color: colors.first.withValues(alpha: 0.45),
+            blurRadius: 64,
+            spreadRadius: 10,
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final blobA = widget.isDark
+        ? const [Color(0x2E38BDF8), Color(0x0038BDF8)]
+        : const [Color(0x300BA4FF), Color(0x000BA4FF)];
+    final blobB = widget.isDark
+        ? const [Color(0x2E14B8A6), Color(0x0014B8A6)]
+        : const [Color(0x2A15A39A), Color(0x0015A39A)];
+    final blobC = widget.isDark
+        ? const [Color(0x2E22D3EE), Color(0x0022D3EE)]
+        : const [Color(0x2418A89D), Color(0x0018A89D)];
+
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          final t = _controller.value * 2 * math.pi;
+          return Stack(
+            children: [
+              Positioned(
+                left: -70 + math.sin(t) * 28,
+                top: -10 + math.cos(t * 1.2) * 20,
+                child: _blob(320, blobA),
+              ),
+              Positioned(
+                right: -70 + math.cos(t * 0.9) * 24,
+                top: 150 + math.sin(t * 1.3) * 18,
+                child: _blob(340, blobB),
+              ),
+              Positioned(
+                left: 70 + math.cos(t * 1.1) * 18,
+                bottom: -90 + math.sin(t * 0.75) * 22,
+                child: _blob(280, blobC),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
