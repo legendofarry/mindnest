@@ -1,3 +1,4 @@
+// features/care/presentation/counselor_directory_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -727,7 +728,7 @@ class _CounselorDirectoryTable extends StatelessWidget {
                   onChanged: onSearchChanged,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search_rounded),
-                    hintText: 'Search by name, specialization, language...',
+                    hintText: 'Search...',
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -820,7 +821,7 @@ class _CounselorDirectoryTable extends StatelessWidget {
                               Expanded(
                                 flex: 18,
                                 child: Padding(
-                                  padding: EdgeInsets.only(right: 12),
+                                  padding: EdgeInsets.only(right: 24),
                                   child: Text(
                                     'Earliest Slot',
                                     style: _headerTextStyle,
@@ -830,10 +831,6 @@ class _CounselorDirectoryTable extends StatelessWidget {
                               Expanded(
                                 flex: 12,
                                 child: Text('Rating', style: _headerTextStyle),
-                              ),
-                              Expanded(
-                                flex: 12,
-                                child: Text('Action', style: _headerTextStyle),
                               ),
                             ],
                           ),
@@ -946,7 +943,7 @@ class _CounselorDirectoryTable extends StatelessWidget {
                                       flex: 18,
                                       child: Padding(
                                         padding: const EdgeInsets.only(
-                                          right: 12,
+                                          right: 24,
                                         ),
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
@@ -1015,43 +1012,6 @@ class _CounselorDirectoryTable extends StatelessWidget {
                                             ),
                                           ),
                                         ],
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 12,
-                                      child: Align(
-                                        alignment: Alignment.topLeft,
-                                        child: OutlinedButton.icon(
-                                          onPressed: () =>
-                                              onOpenProfile(row.counselorId),
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: const Color(
-                                              0xFF0E9B90,
-                                            ),
-                                            side: const BorderSide(
-                                              color: Color(0xFF8DDCD4),
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 9,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                          ),
-                                          icon: const Icon(
-                                            Icons.open_in_new_rounded,
-                                            size: 14,
-                                          ),
-                                          label: const Text(
-                                            'Open',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ),
                                       ),
                                     ),
                                   ],
