@@ -232,6 +232,19 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /user_push_tokens/{tokenId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.token is string &&
+        request.resource.data.token.size() > 0;
+      allow update: if isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.token == resource.data.token;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
     match /user_notification_settings/{uid} {
       allow read, create, update: if isOwner(uid);
       allow delete: if isOwner(uid);

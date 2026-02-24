@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/app/mindnest_app.dart';
 import 'package:mindnest/core/firebase/firebase_initializer.dart';
 import 'package:mindnest/features/auth/data/auth_session_manager.dart';
+import 'package:mindnest/features/notifications/data/push_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,6 +12,11 @@ Future<void> main() async {
   try {
     await FirebaseInitializer.initialize();
     await AuthSessionManager.enforceStartupPolicy(FirebaseAuth.instance);
+    try {
+      await PushNotificationService.bootstrap();
+    } catch (_) {
+      // Keep app startup resilient even if notification setup fails.
+    }
   } catch (error) {
     runApp(
       ProviderScope(

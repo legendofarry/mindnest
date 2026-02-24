@@ -1,5 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/models/app_notification.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
@@ -12,11 +16,19 @@ class CareRepository {
   CareRepository({
     required FirebaseFirestore firestore,
     required FirebaseAuth auth,
+    required http.Client httpClient,
   }) : _firestore = firestore,
-       _auth = auth;
+       _auth = auth,
+       _httpClient = httpClient;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final http.Client _httpClient;
+
+  static const String _pushDispatchEndpoint = String.fromEnvironment(
+    'PUSH_DISPATCH_ENDPOINT',
+    defaultValue: '',
+  );
 
   Stream<List<CounselorProfile>> watchCounselors({
     required String institutionId,
@@ -888,6 +900,55 @@ class CareRepository {
       batch.set(_firestore.collection('notifications').doc(), payload);
     }
     await batch.commit();
+    unawaited(_dispatchPushNotifications(payloads));
+  }
+
+  Future<void> _dispatchPushNotifications(
+    List<Map<String, dynamic>> payloads,
+  ) async {
+    if (_pushDispatchEndpoint.isEmpty) {
+      return;
+    }
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      return;
+    }
+
+    try {
+      final idToken = await currentUser.getIdToken();
+      final uri = Uri.tryParse(_pushDispatchEndpoint);
+      if (uri == null) {
+        return;
+      }
+
+      final notifications = payloads
+          .map(
+            (payload) => <String, dynamic>{
+              'userId': payload['userId'],
+              'institutionId': payload['institutionId'],
+              'title': payload['title'],
+              'body': payload['body'],
+              'type': payload['type'],
+              'relatedAppointmentId': payload['relatedAppointmentId'],
+            },
+          )
+          .toList(growable: false);
+
+      await _httpClient
+          .post(
+            uri,
+            headers: <String, String>{
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+            body: jsonEncode(<String, dynamic>{'notifications': notifications}),
+          )
+          .timeout(const Duration(seconds: 12));
+    } on TimeoutException {
+      // Ignore push dispatch timeout so primary app flow remains responsive.
+    } catch (_) {
+      // Ignore push dispatch failures; in-app notifications are still written.
+    }
   }
 
   String _formatDateTime(DateTime value) {
