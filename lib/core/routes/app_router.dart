@@ -13,6 +13,7 @@ import 'package:mindnest/features/care/presentation/counselor_appointments_scree
 import 'package:mindnest/features/care/presentation/counselor_availability_screen.dart';
 import 'package:mindnest/features/care/presentation/counselor_directory_screen.dart';
 import 'package:mindnest/features/care/presentation/counselor_profile_screen.dart';
+import 'package:mindnest/features/care/presentation/crisis_counselor_support_screen.dart';
 import 'package:mindnest/features/care/presentation/notification_center_screen.dart';
 import 'package:mindnest/features/care/presentation/session_details_screen.dart';
 import 'package:mindnest/features/care/presentation/student_care_plan_screen.dart';
@@ -56,6 +57,7 @@ class AppRoute {
   static const sessionDetails = '/session-details';
   static const notifications = '/notifications';
   static const carePlan = '/care-plan';
+  static const crisisCounselorSupport = '/crisis-counselor-support';
   static const liveHub = '/live-hub';
   static const liveRoom = '/live-room';
   static const privacyControls = '/privacy-controls';
@@ -332,6 +334,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.carePlan,
         builder: (context, state) => const StudentCarePlanScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.crisisCounselorSupport,
+        builder: (context, state) => const CrisisCounselorSupportScreen(),
       ),
       GoRoute(
         path: AppRoute.liveHub,

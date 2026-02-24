@@ -338,7 +338,7 @@ class _NotificationCenterScreenState
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(
                             20,
-                            kToolbarHeight - 4,
+                            kToolbarHeight - 30,
                             20,
                             24,
                           ),

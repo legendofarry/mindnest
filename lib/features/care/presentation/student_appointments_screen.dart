@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/back_to_home_button.dart';
+import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -369,14 +370,29 @@ class _StudentAppointmentsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDesktop = MediaQuery.sizeOf(context).width >= 900;
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final institutionId = profile?.institutionId ?? '';
     final userId = profile?.id ?? '';
+    final canAccessLive =
+        profile != null &&
+        (profile.role == UserRole.student ||
+            profile.role == UserRole.staff ||
+            profile.role == UserRole.counselor);
 
     return MindNestShell(
-      maxWidth: 980,
+      maxWidth: isDesktop ? 1240 : 980,
       appBar: AppBar(
-        title: const Text('My Counseling Sessions'),
+        title: Text(
+          'My Counseling Sessions',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF071937),
+            fontSize: 20,
+            letterSpacing: -0.4,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: const BackToHomeButton(),
@@ -388,290 +404,310 @@ class _StudentAppointmentsScreenState
           ),
         ],
       ),
-      child: institutionId.isEmpty || userId.isEmpty
-          ? const GlassCard(
-              child: Padding(
-                padding: EdgeInsets.all(18),
-                child: Text('Join an institution to manage appointments.'),
-              ),
-            )
-          : StreamBuilder<List<AppointmentRecord>>(
-              key: ValueKey(_refreshTick),
-              stream: ref
-                  .read(careRepositoryProvider)
-                  .watchStudentAppointments(
-                    institutionId: institutionId,
-                    studentId: userId,
-                  ),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return GlassCard(
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            snapshot.error.toString().replaceFirst(
-                              'Exception: ',
-                              '',
+      child: DesktopSectionBody(
+        isDesktop: isDesktop,
+        hasInstitution: institutionId.isNotEmpty,
+        canAccessLive: canAccessLive,
+        child: institutionId.isEmpty || userId.isEmpty
+            ? const GlassCard(
+                child: Padding(
+                  padding: EdgeInsets.all(18),
+                  child: Text('Join an institution to manage appointments.'),
+                ),
+              )
+            : StreamBuilder<List<AppointmentRecord>>(
+                key: ValueKey(_refreshTick),
+                stream: ref
+                    .read(careRepositoryProvider)
+                    .watchStudentAppointments(
+                      institutionId: institutionId,
+                      studentId: userId,
+                    ),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return GlassCard(
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              snapshot.error.toString().replaceFirst(
+                                'Exception: ',
+                                '',
+                              ),
                             ),
+                            const SizedBox(height: 10),
+                            ElevatedButton(
+                              onPressed: () => setState(() => _refreshTick++),
+                              child: const Text('Try Again'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  final appointments = snapshot.data ?? const [];
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      appointments.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (appointments.isEmpty) {
+                    return const GlassCard(
+                      child: Padding(
+                        padding: EdgeInsets.all(18),
+                        child: Text(
+                          'No appointments yet. Open Find Counselors and book your first session.',
+                        ),
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const GlassCard(
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            'Cancellation policy: cancel early when possible so the counselor can reopen the slot for other students.',
                           ),
-                          const SizedBox(height: 10),
-                          ElevatedButton(
-                            onPressed: () => setState(() => _refreshTick++),
-                            child: const Text('Try Again'),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Text(
+                            'View',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: const Text('Cards'),
+                            selected: !_timelineView,
+                            onSelected: (_) =>
+                                setState(() => _timelineView = false),
+                          ),
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: const Text('Timeline'),
+                            selected: _timelineView,
+                            onSelected: (_) =>
+                                setState(() => _timelineView = true),
                           ),
                         ],
                       ),
-                    ),
-                  );
-                }
-
-                final appointments = snapshot.data ?? const [];
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    appointments.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (appointments.isEmpty) {
-                  return const GlassCard(
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text(
-                        'No appointments yet. Open Find Counselors and book your first session.',
-                      ),
-                    ),
-                  );
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const GlassCard(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text(
-                          'Cancellation policy: cancel early when possible so the counselor can reopen the slot for other students.',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        const Text(
-                          'View',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(width: 8),
-                        ChoiceChip(
-                          label: const Text('Cards'),
-                          selected: !_timelineView,
-                          onSelected: (_) =>
-                              setState(() => _timelineView = false),
-                        ),
-                        const SizedBox(width: 8),
-                        ChoiceChip(
-                          label: const Text('Timeline'),
-                          selected: _timelineView,
-                          onSelected: (_) =>
-                              setState(() => _timelineView = true),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    if (_timelineView)
-                      _buildTimeline(appointments)
-                    else
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: appointments
-                            .map(
-                              (appointment) => Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(20),
-                                  onTap: () =>
-                                      _openSessionDetails(context, appointment),
-                                  child: GlassCard(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(16),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  appointment.counselorName ??
-                                                      appointment.counselorId,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w800,
+                      const SizedBox(height: 12),
+                      if (_timelineView)
+                        _buildTimeline(appointments)
+                      else
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: appointments
+                              .map(
+                                (appointment) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(20),
+                                    onTap: () => _openSessionDetails(
+                                      context,
+                                      appointment,
+                                    ),
+                                    child: GlassCard(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    appointment.counselorName ??
+                                                        appointment.counselorId,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 5,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: _statusColor(
-                                                    appointment.status,
-                                                  ).withValues(alpha: 0.14),
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                        999,
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 5,
                                                       ),
-                                                ),
-                                                child: Text(
-                                                  appointment.status.name,
-                                                  style: TextStyle(
+                                                  decoration: BoxDecoration(
                                                     color: _statusColor(
                                                       appointment.status,
+                                                    ).withValues(alpha: 0.14),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          999,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    appointment.status.name,
+                                                    style: TextStyle(
+                                                      color: _statusColor(
+                                                        appointment.status,
+                                                      ),
+                                                      fontWeight:
+                                                          FontWeight.w700,
                                                     ),
-                                                    fontWeight: FontWeight.w700,
                                                   ),
                                                 ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            'Start: ${_formatDate(appointment.startAt)}',
-                                          ),
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            'End: ${_formatDate(appointment.endAt)}',
-                                          ),
-                                          if (appointment.status ==
-                                                  AppointmentStatus.cancelled &&
-                                              (appointment.counselorCancelMessage ??
-                                                      '')
-                                                  .trim()
-                                                  .isNotEmpty) ...[
-                                            const SizedBox(height: 8),
-                                            Container(
-                                              width: double.infinity,
-                                              padding: const EdgeInsets.all(10),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFFFF7ED),
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
-                                              child: Text(
-                                                'Counselor message: ${appointment.counselorCancelMessage!.trim()}',
-                                                style: const TextStyle(
-                                                  color: Color(0xFF9A3412),
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
+                                              ],
                                             ),
-                                          ],
-                                          if (appointment.status ==
-                                                  AppointmentStatus.completed &&
-                                              (appointment.counselorSessionNote ??
-                                                      '')
-                                                  .trim()
-                                                  .isNotEmpty) ...[
-                                            const SizedBox(height: 8),
-                                            Container(
-                                              width: double.infinity,
-                                              padding: const EdgeInsets.all(10),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFEFF6FF),
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
-                                              child: Text(
-                                                'Session note: ${appointment.counselorSessionNote!.trim()}',
-                                                style: const TextStyle(
-                                                  color: Color(0xFF0C4A6E),
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                          if (appointment.status ==
-                                                  AppointmentStatus.completed &&
-                                              appointment
-                                                  .counselorActionItems
-                                                  .isNotEmpty) ...[
-                                            const SizedBox(height: 8),
+                                            const SizedBox(height: 6),
                                             Text(
-                                              'Action items: ${appointment.counselorActionItems.join(', ')}',
+                                              'Start: ${_formatDate(appointment.startAt)}',
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              'End: ${_formatDate(appointment.endAt)}',
+                                            ),
+                                            if (appointment.status ==
+                                                    AppointmentStatus
+                                                        .cancelled &&
+                                                (appointment.counselorCancelMessage ??
+                                                        '')
+                                                    .trim()
+                                                    .isNotEmpty) ...[
+                                              const SizedBox(height: 8),
+                                              Container(
+                                                width: double.infinity,
+                                                padding: const EdgeInsets.all(
+                                                  10,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFFFFF7ED,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: Text(
+                                                  'Counselor message: ${appointment.counselorCancelMessage!.trim()}',
+                                                  style: const TextStyle(
+                                                    color: Color(0xFF9A3412),
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                            if (appointment.status ==
+                                                    AppointmentStatus
+                                                        .completed &&
+                                                (appointment.counselorSessionNote ??
+                                                        '')
+                                                    .trim()
+                                                    .isNotEmpty) ...[
+                                              const SizedBox(height: 8),
+                                              Container(
+                                                width: double.infinity,
+                                                padding: const EdgeInsets.all(
+                                                  10,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFFEFF6FF,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: Text(
+                                                  'Session note: ${appointment.counselorSessionNote!.trim()}',
+                                                  style: const TextStyle(
+                                                    color: Color(0xFF0C4A6E),
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                            if (appointment.status ==
+                                                    AppointmentStatus
+                                                        .completed &&
+                                                appointment
+                                                    .counselorActionItems
+                                                    .isNotEmpty) ...[
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                'Action items: ${appointment.counselorActionItems.join(', ')}',
+                                              ),
+                                            ],
+                                            const SizedBox(height: 12),
+                                            Wrap(
+                                              spacing: 8,
+                                              children: [
+                                                if (appointment.status ==
+                                                        AppointmentStatus
+                                                            .pending ||
+                                                    appointment.status ==
+                                                        AppointmentStatus
+                                                            .confirmed)
+                                                  OutlinedButton(
+                                                    onPressed: profile == null
+                                                        ? null
+                                                        : () =>
+                                                              _rescheduleAppointment(
+                                                                context,
+                                                                ref,
+                                                                profile,
+                                                                appointment,
+                                                              ),
+                                                    child: const Text(
+                                                      'Reschedule',
+                                                    ),
+                                                  ),
+                                                if (appointment.status ==
+                                                        AppointmentStatus
+                                                            .pending ||
+                                                    appointment.status ==
+                                                        AppointmentStatus
+                                                            .confirmed)
+                                                  OutlinedButton(
+                                                    onPressed: () =>
+                                                        _cancelAppointment(
+                                                          context,
+                                                          ref,
+                                                          appointment,
+                                                        ),
+                                                    child: const Text('Cancel'),
+                                                  ),
+                                                if (appointment.status ==
+                                                        AppointmentStatus
+                                                            .completed &&
+                                                    !appointment.rated)
+                                                  ElevatedButton(
+                                                    onPressed: () =>
+                                                        _rateAppointment(
+                                                          context,
+                                                          ref,
+                                                          appointment,
+                                                        ),
+                                                    child: const Text(
+                                                      'Rate Session',
+                                                    ),
+                                                  ),
+                                              ],
                                             ),
                                           ],
-                                          const SizedBox(height: 12),
-                                          Wrap(
-                                            spacing: 8,
-                                            children: [
-                                              if (appointment.status ==
-                                                      AppointmentStatus
-                                                          .pending ||
-                                                  appointment.status ==
-                                                      AppointmentStatus
-                                                          .confirmed)
-                                                OutlinedButton(
-                                                  onPressed: profile == null
-                                                      ? null
-                                                      : () =>
-                                                            _rescheduleAppointment(
-                                                              context,
-                                                              ref,
-                                                              profile,
-                                                              appointment,
-                                                            ),
-                                                  child: const Text(
-                                                    'Reschedule',
-                                                  ),
-                                                ),
-                                              if (appointment.status ==
-                                                      AppointmentStatus
-                                                          .pending ||
-                                                  appointment.status ==
-                                                      AppointmentStatus
-                                                          .confirmed)
-                                                OutlinedButton(
-                                                  onPressed: () =>
-                                                      _cancelAppointment(
-                                                        context,
-                                                        ref,
-                                                        appointment,
-                                                      ),
-                                                  child: const Text('Cancel'),
-                                                ),
-                                              if (appointment.status ==
-                                                      AppointmentStatus
-                                                          .completed &&
-                                                  !appointment.rated)
-                                                ElevatedButton(
-                                                  onPressed: () =>
-                                                      _rateAppointment(
-                                                        context,
-                                                        ref,
-                                                        appointment,
-                                                      ),
-                                                  child: const Text(
-                                                    'Rate Session',
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ],
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            )
-                            .toList(growable: false),
-                      ),
-                  ],
-                );
-              },
-            ),
+                              )
+                              .toList(growable: false),
+                        ),
+                    ],
+                  );
+                },
+              ),
+      ),
     );
   }
 }

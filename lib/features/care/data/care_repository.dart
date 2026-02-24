@@ -25,10 +25,17 @@ class CareRepository {
   final FirebaseAuth _auth;
   final http.Client _httpClient;
 
-  static const String _pushDispatchEndpoint = String.fromEnvironment(
+  static const String _pushDispatchEndpointFromDefine = String.fromEnvironment(
     'PUSH_DISPATCH_ENDPOINT',
     defaultValue: '',
   );
+  // Source fallback for local/native runs when --dart-define is omitted.
+  static const String _pushDispatchEndpointFromSource =
+      'https://mindnest-0o6x.onrender.com/push/dispatch';
+  static String get _pushDispatchEndpoint =>
+      _pushDispatchEndpointFromDefine.isNotEmpty
+      ? _pushDispatchEndpointFromDefine
+      : _pushDispatchEndpointFromSource;
 
   Stream<List<CounselorProfile>> watchCounselors({
     required String institutionId,

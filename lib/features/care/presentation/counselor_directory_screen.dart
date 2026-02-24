@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/back_to_home_button.dart';
+import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -56,13 +57,28 @@ class _CounselorDirectoryScreenState
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDesktop = MediaQuery.sizeOf(context).width >= 900;
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final institutionId = profile?.institutionId ?? '';
+    final canAccessLive =
+        profile != null &&
+        (profile.role == UserRole.student ||
+            profile.role == UserRole.staff ||
+            profile.role == UserRole.counselor);
 
     return MindNestShell(
-      maxWidth: 980,
+      maxWidth: isDesktop ? 1240 : 980,
       appBar: AppBar(
-        title: const Text('Counselor Directory'),
+        title: Text(
+          'Counselor Directory',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF071937),
+            fontSize: 20,
+            letterSpacing: -0.4,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: const BackToHomeButton(),
@@ -73,336 +89,347 @@ class _CounselorDirectoryScreenState
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          GlassCard(
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Find a Counselor',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _searchController,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search_rounded),
-                      hintText: 'Search by name, specialization, language...',
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      DropdownButtonHideUnderline(
-                        child: DropdownButton<_CounselorSort>(
-                          value: _sort,
-                          items: _CounselorSort.values
-                              .map(
-                                (sort) => DropdownMenuItem(
-                                  value: sort,
-                                  child: Text(_sortLabel(sort)),
-                                ),
-                              )
-                              .toList(growable: false),
-                          onChanged: (value) {
-                            if (value == null) {
-                              return;
-                            }
-                            setState(() => _sort = value);
-                          },
-                        ),
+      child: DesktopSectionBody(
+        isDesktop: isDesktop,
+        hasInstitution: institutionId.isNotEmpty,
+        canAccessLive: canAccessLive,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            GlassCard(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Find a Counselor',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search_rounded),
+                        hintText: 'Search by name, specialization, language...',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        DropdownButtonHideUnderline(
+                          child: DropdownButton<_CounselorSort>(
+                            value: _sort,
+                            items: _CounselorSort.values
+                                .map(
+                                  (sort) => DropdownMenuItem(
+                                    value: sort,
+                                    child: Text(_sortLabel(sort)),
+                                  ),
+                                )
+                                .toList(growable: false),
+                            onChanged: (value) {
+                              if (value == null) {
+                                return;
+                              }
+                              setState(() => _sort = value);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          if (institutionId.isEmpty)
-            const GlassCard(
-              child: Padding(
-                padding: EdgeInsets.all(18),
-                child: Text('Join an institution first to view counselors.'),
-              ),
-            )
-          else
-            StreamBuilder<List<CounselorProfile>>(
-              key: ValueKey(_refreshTick),
-              stream: ref
-                  .read(careRepositoryProvider)
-                  .watchCounselors(institutionId: institutionId),
-              builder: (context, counselorSnapshot) {
-                if (counselorSnapshot.hasError) {
-                  return GlassCard(
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            counselorSnapshot.error.toString().replaceFirst(
-                              'Exception: ',
-                              '',
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          ElevatedButton(
-                            onPressed: () => setState(() => _refreshTick++),
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                final counselors = counselorSnapshot.data ?? const [];
-                if (counselorSnapshot.connectionState ==
-                        ConnectionState.waiting &&
-                    counselors.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                return StreamBuilder<List<CounselorPublicRating>>(
-                  stream: ref
-                      .read(careRepositoryProvider)
-                      .watchInstitutionCounselorPublicRatings(
-                        institutionId: institutionId,
-                      ),
-                  builder: (context, publicRatingsSnapshot) {
-                    final publicRatings =
-                        publicRatingsSnapshot.data ?? const [];
-                    final ratingSumByCounselor = <String, int>{};
-                    final ratingCountByCounselor = <String, int>{};
-                    for (final rating in publicRatings) {
-                      final counselorId = rating.counselorId;
-                      ratingSumByCounselor[counselorId] =
-                          (ratingSumByCounselor[counselorId] ?? 0) +
-                          rating.rating;
-                      ratingCountByCounselor[counselorId] =
-                          (ratingCountByCounselor[counselorId] ?? 0) + 1;
-                    }
-
-                    return StreamBuilder<List<AvailabilitySlot>>(
-                      stream: ref
-                          .read(careRepositoryProvider)
-                          .watchInstitutionPublicAvailability(
-                            institutionId: institutionId,
-                          ),
-                      builder: (context, availabilitySnapshot) {
-                        final availability =
-                            availabilitySnapshot.data ?? const [];
-                        final earliestSlotByCounselor = <String, DateTime>{};
-                        for (final slot in availability) {
-                          final existing =
-                              earliestSlotByCounselor[slot.counselorId];
-                          if (existing == null ||
-                              slot.startAt.isBefore(existing)) {
-                            earliestSlotByCounselor[slot.counselorId] =
-                                slot.startAt;
-                          }
-                        }
-
-                        double ratingAverageFor(CounselorProfile counselor) {
-                          final count = ratingCountByCounselor[counselor.id];
-                          if (count == null || count == 0) {
-                            return counselor.ratingAverage;
-                          }
-                          final total = ratingSumByCounselor[counselor.id] ?? 0;
-                          return total / count;
-                        }
-
-                        int ratingCountFor(CounselorProfile counselor) {
-                          return ratingCountByCounselor[counselor.id] ??
-                              counselor.ratingCount;
-                        }
-
-                        final specializations = <String>{'all'};
-                        final languages = <String>{'all'};
-                        final modes = <String>{'all'};
-                        for (final counselor in counselors) {
-                          specializations.add(counselor.specialization);
-                          modes.add(counselor.sessionMode);
-                          for (final lang in counselor.languages) {
-                            languages.add(lang);
-                          }
-                        }
-
-                        if (!specializations.contains(_specializationFilter)) {
-                          _specializationFilter = 'all';
-                        }
-                        if (!languages.contains(_languageFilter)) {
-                          _languageFilter = 'all';
-                        }
-                        if (!modes.contains(_modeFilter)) {
-                          _modeFilter = 'all';
-                        }
-
-                        final query = _searchController.text
-                            .trim()
-                            .toLowerCase();
-                        final filtered = counselors
-                            .where((entry) {
-                              final matchesSearch =
-                                  query.isEmpty ||
-                                  ('${entry.displayName} ${entry.specialization} ${entry.languages.join(' ')}'
-                                          .toLowerCase())
-                                      .contains(query);
-                              final matchesSpecialization =
-                                  _specializationFilter == 'all' ||
-                                  entry.specialization == _specializationFilter;
-                              final matchesLanguage =
-                                  _languageFilter == 'all' ||
-                                  entry.languages.contains(_languageFilter);
-                              final matchesMode =
-                                  _modeFilter == 'all' ||
-                                  entry.sessionMode == _modeFilter;
-                              return matchesSearch &&
-                                  matchesSpecialization &&
-                                  matchesLanguage &&
-                                  matchesMode;
-                            })
-                            .toList(growable: false);
-
-                        filtered.sort((a, b) {
-                          switch (_sort) {
-                            case _CounselorSort.earliestAvailable:
-                              final aSlot = earliestSlotByCounselor[a.id];
-                              final bSlot = earliestSlotByCounselor[b.id];
-                              if (aSlot == null && bSlot == null) {
-                                return a.displayName.compareTo(b.displayName);
-                              }
-                              if (aSlot == null) {
-                                return 1;
-                              }
-                              if (bSlot == null) {
-                                return -1;
-                              }
-                              return aSlot.compareTo(bSlot);
-                            case _CounselorSort.ratingHigh:
-                              return ratingAverageFor(
-                                b,
-                              ).compareTo(ratingAverageFor(a));
-                            case _CounselorSort.experienceHigh:
-                              return b.yearsExperience.compareTo(
-                                a.yearsExperience,
-                              );
-                          }
-                        });
-
-                        return Column(
+            const SizedBox(height: 12),
+            if (institutionId.isEmpty)
+              const GlassCard(
+                child: Padding(
+                  padding: EdgeInsets.all(18),
+                  child: Text('Join an institution first to view counselors.'),
+                ),
+              )
+            else
+              StreamBuilder<List<CounselorProfile>>(
+                key: ValueKey(_refreshTick),
+                stream: ref
+                    .read(careRepositoryProvider)
+                    .watchCounselors(institutionId: institutionId),
+                builder: (context, counselorSnapshot) {
+                  if (counselorSnapshot.hasError) {
+                    return GlassCard(
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            GlassCard(
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    _StringFilterDropdown(
-                                      label: 'Specialization',
-                                      value: _specializationFilter,
-                                      options: specializations.toList()..sort(),
-                                      onChanged: (value) => setState(
-                                        () => _specializationFilter = value,
-                                      ),
-                                    ),
-                                    _StringFilterDropdown(
-                                      label: 'Language',
-                                      value: _languageFilter,
-                                      options: languages.toList()..sort(),
-                                      onChanged: (value) => setState(
-                                        () => _languageFilter = value,
-                                      ),
-                                    ),
-                                    _StringFilterDropdown(
-                                      label: 'Mode',
-                                      value: _modeFilter,
-                                      options: modes.toList()..sort(),
-                                      onChanged: (value) =>
-                                          setState(() => _modeFilter = value),
-                                    ),
-                                    OutlinedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _specializationFilter = 'all';
-                                          _languageFilter = 'all';
-                                          _modeFilter = 'all';
-                                        });
-                                      },
-                                      child: const Text('Reset'),
-                                    ),
-                                  ],
-                                ),
+                            Text(
+                              counselorSnapshot.error.toString().replaceFirst(
+                                'Exception: ',
+                                '',
                               ),
                             ),
                             const SizedBox(height: 10),
-                            if (filtered.isEmpty)
-                              (query.isNotEmpty ||
-                                      _specializationFilter != 'all' ||
-                                      _languageFilter != 'all' ||
-                                      _modeFilter != 'all')
-                                  ? const GlassCard(
-                                      child: Padding(
-                                        padding: EdgeInsets.all(18),
-                                        child: Text(
-                                          'No counselors match your filters. Try broadening your search.',
-                                        ),
-                                      ),
-                                    )
-                                  : _PendingCounselorFallback(
-                                      institutionId: institutionId,
-                                    )
-                            else
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: filtered
-                                    .map(
-                                      (counselor) => Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 10,
-                                        ),
-                                        child: _CounselorCard(
-                                          counselor: counselor,
-                                          earliestAvailable:
-                                              earliestSlotByCounselor[counselor
-                                                  .id],
-                                          ratingAverage: ratingAverageFor(
-                                            counselor,
-                                          ),
-                                          ratingCount: ratingCountFor(
-                                            counselor,
-                                          ),
-                                          formatSlot: _formatSlot,
-                                          onTap: () {
-                                            context.push(
-                                              '${AppRoute.counselorProfile}?counselorId=${counselor.id}',
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    )
-                                    .toList(growable: false),
-                              ),
+                            ElevatedButton(
+                              onPressed: () => setState(() => _refreshTick++),
+                              child: const Text('Retry'),
+                            ),
                           ],
-                        );
-                      },
+                        ),
+                      ),
                     );
-                  },
-                );
-              },
-            ),
-        ],
+                  }
+                  final counselors = counselorSnapshot.data ?? const [];
+                  if (counselorSnapshot.connectionState ==
+                          ConnectionState.waiting &&
+                      counselors.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  return StreamBuilder<List<CounselorPublicRating>>(
+                    stream: ref
+                        .read(careRepositoryProvider)
+                        .watchInstitutionCounselorPublicRatings(
+                          institutionId: institutionId,
+                        ),
+                    builder: (context, publicRatingsSnapshot) {
+                      final publicRatings =
+                          publicRatingsSnapshot.data ?? const [];
+                      final ratingSumByCounselor = <String, int>{};
+                      final ratingCountByCounselor = <String, int>{};
+                      for (final rating in publicRatings) {
+                        final counselorId = rating.counselorId;
+                        ratingSumByCounselor[counselorId] =
+                            (ratingSumByCounselor[counselorId] ?? 0) +
+                            rating.rating;
+                        ratingCountByCounselor[counselorId] =
+                            (ratingCountByCounselor[counselorId] ?? 0) + 1;
+                      }
+
+                      return StreamBuilder<List<AvailabilitySlot>>(
+                        stream: ref
+                            .read(careRepositoryProvider)
+                            .watchInstitutionPublicAvailability(
+                              institutionId: institutionId,
+                            ),
+                        builder: (context, availabilitySnapshot) {
+                          final availability =
+                              availabilitySnapshot.data ?? const [];
+                          final earliestSlotByCounselor = <String, DateTime>{};
+                          for (final slot in availability) {
+                            final existing =
+                                earliestSlotByCounselor[slot.counselorId];
+                            if (existing == null ||
+                                slot.startAt.isBefore(existing)) {
+                              earliestSlotByCounselor[slot.counselorId] =
+                                  slot.startAt;
+                            }
+                          }
+
+                          double ratingAverageFor(CounselorProfile counselor) {
+                            final count = ratingCountByCounselor[counselor.id];
+                            if (count == null || count == 0) {
+                              return counselor.ratingAverage;
+                            }
+                            final total =
+                                ratingSumByCounselor[counselor.id] ?? 0;
+                            return total / count;
+                          }
+
+                          int ratingCountFor(CounselorProfile counselor) {
+                            return ratingCountByCounselor[counselor.id] ??
+                                counselor.ratingCount;
+                          }
+
+                          final specializations = <String>{'all'};
+                          final languages = <String>{'all'};
+                          final modes = <String>{'all'};
+                          for (final counselor in counselors) {
+                            specializations.add(counselor.specialization);
+                            modes.add(counselor.sessionMode);
+                            for (final lang in counselor.languages) {
+                              languages.add(lang);
+                            }
+                          }
+
+                          if (!specializations.contains(
+                            _specializationFilter,
+                          )) {
+                            _specializationFilter = 'all';
+                          }
+                          if (!languages.contains(_languageFilter)) {
+                            _languageFilter = 'all';
+                          }
+                          if (!modes.contains(_modeFilter)) {
+                            _modeFilter = 'all';
+                          }
+
+                          final query = _searchController.text
+                              .trim()
+                              .toLowerCase();
+                          final filtered = counselors
+                              .where((entry) {
+                                final matchesSearch =
+                                    query.isEmpty ||
+                                    ('${entry.displayName} ${entry.specialization} ${entry.languages.join(' ')}'
+                                            .toLowerCase())
+                                        .contains(query);
+                                final matchesSpecialization =
+                                    _specializationFilter == 'all' ||
+                                    entry.specialization ==
+                                        _specializationFilter;
+                                final matchesLanguage =
+                                    _languageFilter == 'all' ||
+                                    entry.languages.contains(_languageFilter);
+                                final matchesMode =
+                                    _modeFilter == 'all' ||
+                                    entry.sessionMode == _modeFilter;
+                                return matchesSearch &&
+                                    matchesSpecialization &&
+                                    matchesLanguage &&
+                                    matchesMode;
+                              })
+                              .toList(growable: false);
+
+                          filtered.sort((a, b) {
+                            switch (_sort) {
+                              case _CounselorSort.earliestAvailable:
+                                final aSlot = earliestSlotByCounselor[a.id];
+                                final bSlot = earliestSlotByCounselor[b.id];
+                                if (aSlot == null && bSlot == null) {
+                                  return a.displayName.compareTo(b.displayName);
+                                }
+                                if (aSlot == null) {
+                                  return 1;
+                                }
+                                if (bSlot == null) {
+                                  return -1;
+                                }
+                                return aSlot.compareTo(bSlot);
+                              case _CounselorSort.ratingHigh:
+                                return ratingAverageFor(
+                                  b,
+                                ).compareTo(ratingAverageFor(a));
+                              case _CounselorSort.experienceHigh:
+                                return b.yearsExperience.compareTo(
+                                  a.yearsExperience,
+                                );
+                            }
+                          });
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              GlassCard(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      _StringFilterDropdown(
+                                        label: 'Specialization',
+                                        value: _specializationFilter,
+                                        options: specializations.toList()
+                                          ..sort(),
+                                        onChanged: (value) => setState(
+                                          () => _specializationFilter = value,
+                                        ),
+                                      ),
+                                      _StringFilterDropdown(
+                                        label: 'Language',
+                                        value: _languageFilter,
+                                        options: languages.toList()..sort(),
+                                        onChanged: (value) => setState(
+                                          () => _languageFilter = value,
+                                        ),
+                                      ),
+                                      _StringFilterDropdown(
+                                        label: 'Mode',
+                                        value: _modeFilter,
+                                        options: modes.toList()..sort(),
+                                        onChanged: (value) =>
+                                            setState(() => _modeFilter = value),
+                                      ),
+                                      OutlinedButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            _specializationFilter = 'all';
+                                            _languageFilter = 'all';
+                                            _modeFilter = 'all';
+                                          });
+                                        },
+                                        child: const Text('Reset'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              if (filtered.isEmpty)
+                                (query.isNotEmpty ||
+                                        _specializationFilter != 'all' ||
+                                        _languageFilter != 'all' ||
+                                        _modeFilter != 'all')
+                                    ? const GlassCard(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(18),
+                                          child: Text(
+                                            'No counselors match your filters. Try broadening your search.',
+                                          ),
+                                        ),
+                                      )
+                                    : _PendingCounselorFallback(
+                                        institutionId: institutionId,
+                                      )
+                              else
+                                Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: filtered
+                                      .map(
+                                        (counselor) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 10,
+                                          ),
+                                          child: _CounselorCard(
+                                            counselor: counselor,
+                                            earliestAvailable:
+                                                earliestSlotByCounselor[counselor
+                                                    .id],
+                                            ratingAverage: ratingAverageFor(
+                                              counselor,
+                                            ),
+                                            ratingCount: ratingCountFor(
+                                              counselor,
+                                            ),
+                                            formatSlot: _formatSlot,
+                                            onTap: () {
+                                              context.push(
+                                                '${AppRoute.counselorProfile}?counselorId=${counselor.id}',
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      )
+                                      .toList(growable: false),
+                                ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+          ],
+        ),
       ),
     );
   }

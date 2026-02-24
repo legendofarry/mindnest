@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/app/theme_mode_controller.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/features/ai/models/assistant_models.dart';
 import 'package:mindnest/features/ai/presentation/home_ai_assistant_section.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
@@ -21,6 +22,7 @@ import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/live/data/live_providers.dart';
 import 'package:mindnest/features/live/models/live_session.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ---------------------------------------------------------------------------
 // Constants & theme helpers
@@ -376,11 +378,12 @@ class HomeScreen extends ConsumerWidget {
   }
 
   void _openCrisisSupport(BuildContext context) {
+    final homeContext = context;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) {
+      builder: (sheetContext) {
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -459,10 +462,57 @@ class HomeScreen extends ConsumerWidget {
                 'Suicide & Crisis Lifeline',
               ),
               _crisisContactTile('UK & ROI', '116 123', 'Samaritans'),
-              _crisisContactTile('Kenya', '999 / 112', 'Emergency Services'),
+              _crisisContactTile(
+                'Kenya',
+                '999 / 112',
+                'Emergency Services',
+                onTap: () =>
+                    _openDialerForNumber(context: homeContext, number: '999'),
+              ),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  homeContext.push(AppRoute.crisisCounselorSupport);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0E9B90),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0E9B90).withValues(alpha: 0.30),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.support_agent_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Talk to a counselor',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 24),
               GestureDetector(
-                onTap: () => Navigator.pop(context),
+                onTap: () => Navigator.of(sheetContext).pop(),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   decoration: BoxDecoration(
@@ -494,6 +544,19 @@ class HomeScreen extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<void> _openDialerForNumber({
+    required BuildContext context,
+    required String number,
+  }) async {
+    final telUri = Uri(scheme: 'tel', path: number);
+    final didLaunch = await launchUrl(telUri);
+    if (!didLaunch && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the phone dialer.')),
+      );
+    }
   }
 
   void _openProfilePanel(
@@ -904,7 +967,12 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _crisisContactTile(String region, String number, String label) {
+  Widget _crisisContactTile(
+    String region,
+    String number,
+    String label, {
+    VoidCallback? onTap,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -952,6 +1020,39 @@ class HomeScreen extends ConsumerWidget {
               ],
             ),
           ),
+          if (onTap != null)
+            GestureDetector(
+              onTap: onTap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE11D48),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.phone_forwarded_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'Call',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -1038,6 +1139,7 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDesktop = MediaQuery.sizeOf(context).width >= 900;
     final profileAsync = ref.watch(currentUserProfileProvider);
     final loadedProfile = profileAsync.valueOrNull;
     final canOpenNotifications =
@@ -1158,6 +1260,69 @@ class HomeScreen extends ConsumerWidget {
                   final institutionLabel = hasInstitution
                       ? (profile.institutionName ?? 'Institution').toUpperCase()
                       : 'INDIVIDUAL';
+                  final mainContent = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _HeroCarousel(
+                        profile: profile,
+                        firstName: firstName,
+                        roleLabel: profile.role.label,
+                        institutionName: institutionLabel,
+                        hasInstitution: hasInstitution,
+                        canAccessLive: canAccessLive,
+                        isDark: isDark,
+                      ),
+                      const SizedBox(height: 18),
+                      HomeAiAssistantSection(
+                        profile: profile,
+                        onActionRequested: (action) => _runAssistantAction(
+                          context: context,
+                          profile: profile,
+                          action: action,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _SosButton(onTap: () => _openCrisisSupport(context)),
+                      const SizedBox(height: 8),
+                    ],
+                  );
+
+                  if (isDesktop) {
+                    return Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1260),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: 240,
+                                child: DesktopSectionNav(
+                                  hasInstitution: hasInstitution,
+                                  canAccessLive: canAccessLive,
+                                ),
+                              ),
+                              const SizedBox(width: 22),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  physics: const BouncingScrollPhysics(),
+                                  padding: const EdgeInsets.only(bottom: 20),
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 860,
+                                    ),
+                                    child: mainContent,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
 
                   return Center(
                     child: ConstrainedBox(
@@ -1166,35 +1331,7 @@ class HomeScreen extends ConsumerWidget {
                         builder: (context, constraints) {
                           final content = Padding(
                             padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _HeroCarousel(
-                                  profile: profile,
-                                  firstName: firstName,
-                                  roleLabel: profile.role.label,
-                                  institutionName: institutionLabel,
-                                  hasInstitution: hasInstitution,
-                                  canAccessLive: canAccessLive,
-                                  isDark: isDark,
-                                ),
-                                const SizedBox(height: 18),
-                                HomeAiAssistantSection(
-                                  profile: profile,
-                                  onActionRequested: (action) =>
-                                      _runAssistantAction(
-                                        context: context,
-                                        profile: profile,
-                                        action: action,
-                                      ),
-                                ),
-                                const SizedBox(height: 14),
-                                _SosButton(
-                                  onTap: () => _openCrisisSupport(context),
-                                ),
-                                const SizedBox(height: 8),
-                              ],
-                            ),
+                            child: mainContent,
                           );
 
                           return SizedBox(
@@ -1234,10 +1371,12 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
-      bottomNavigationBar: _HomeBottomNav(
-        hasInstitution: hasInstitution,
-        canAccessLive: canAccessLive,
-      ),
+      bottomNavigationBar: isDesktop
+          ? null
+          : _HomeBottomNav(
+              hasInstitution: hasInstitution,
+              canAccessLive: canAccessLive,
+            ),
     );
   }
 }
