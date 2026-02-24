@@ -327,74 +327,101 @@ class _NotificationCenterScreenState
           children: [
             Positioned.fill(child: _NotificationsHomeBlobs(isDark: isDark)),
             SafeArea(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 760),
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(
-                      20,
-                      kToolbarHeight + 4,
-                      20,
-                      24,
-                    ),
-                    child: userId.isEmpty
-                        ? _emptyCard(isDark)
-                        : StreamBuilder<List<AppNotification>>(
-                            key: ValueKey(_refreshTick),
-                            stream: ref
-                                .read(careRepositoryProvider)
-                                .watchUserNotifications(userId),
-                            builder: (context, snapshot) {
-                              if (snapshot.hasError) {
-                                return _emptyCard(isDark);
-                              }
-
-                              final notifications = snapshot.data ?? const [];
-                              final filtered = notifications
-                                  .where(
-                                    (entry) =>
-                                        !_showUnreadOnly || !entry.isRead,
-                                  )
-                                  .toList(growable: false);
-
-                              if (snapshot.connectionState ==
-                                      ConnectionState.waiting &&
-                                  notifications.isEmpty) {
-                                return const Center(
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: Color(0xFF0E9B90),
-                                  ),
-                                );
-                              }
-
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  _segmentedControl(
-                                    notifications: notifications,
-                                    isDark: isDark,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  if (filtered.isEmpty) _emptyCard(isDark),
-                                  ...filtered.map(
-                                    (entry) => Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 14,
-                                      ),
-                                      child: _notificationCard(
-                                        entry: entry,
-                                        isDark: isDark,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 760),
+                      child: SizedBox(
+                        height: constraints.maxHeight,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            20,
+                            kToolbarHeight - 4,
+                            20,
+                            24,
                           ),
-                  ),
-                ),
+                          child: userId.isEmpty
+                              ? _emptyCard(isDark)
+                              : StreamBuilder<List<AppNotification>>(
+                                  key: ValueKey(_refreshTick),
+                                  stream: ref
+                                      .read(careRepositoryProvider)
+                                      .watchUserNotifications(userId),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.hasError) {
+                                      return _emptyCard(isDark);
+                                    }
+
+                                    final notifications =
+                                        snapshot.data ?? const [];
+                                    final filtered = notifications
+                                        .where(
+                                          (entry) =>
+                                              !_showUnreadOnly || !entry.isRead,
+                                        )
+                                        .toList(growable: false);
+
+                                    if (snapshot.connectionState ==
+                                            ConnectionState.waiting &&
+                                        notifications.isEmpty) {
+                                      return const Center(
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: Color(0xFF0E9B90),
+                                        ),
+                                      );
+                                    }
+
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        _segmentedControl(
+                                          notifications: notifications,
+                                          isDark: isDark,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Expanded(
+                                          child: filtered.isEmpty
+                                              ? Align(
+                                                  alignment:
+                                                      Alignment.topCenter,
+                                                  child: _emptyCard(isDark),
+                                                )
+                                              : ListView.separated(
+                                                  physics:
+                                                      const BouncingScrollPhysics(),
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        bottom: 6,
+                                                      ),
+                                                  itemCount: filtered.length,
+                                                  separatorBuilder:
+                                                      (context, index) =>
+                                                          const SizedBox(
+                                                            height: 14,
+                                                          ),
+                                                  itemBuilder: (context, index) {
+                                                    final entry =
+                                                        filtered[index];
+                                                    return _notificationCard(
+                                                      entry: entry,
+                                                      isDark: isDark,
+                                                    );
+                                                  },
+                                                ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],
