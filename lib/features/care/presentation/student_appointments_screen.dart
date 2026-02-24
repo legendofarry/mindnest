@@ -33,7 +33,7 @@ class _StudentAppointmentsScreenState
   AppointmentStatus? _timelineStatusFilter;
   int _tableRowsPerPage = 6;
   int _tableCurrentPage = 0;
-  final Set<String> _expandedTimelineDates = <String>{};
+  String? _expandedTimelineDateKey;
 
   @override
   void dispose() {
@@ -610,7 +610,10 @@ class _StudentAppointmentsScreenState
       return ChoiceChip(
         label: Text(label),
         selected: selected,
-        onSelected: (_) => setState(() => _timelineStatusFilter = status),
+        onSelected: (_) => setState(() {
+          _timelineStatusFilter = status;
+          _expandedTimelineDateKey = null;
+        }),
         selectedColor: activeColor.withValues(alpha: 0.16),
         side: BorderSide(
           color: selected ? activeColor : const Color(0xFFD3E0EE),
@@ -681,9 +684,8 @@ class _StudentAppointmentsScreenState
         ...orderedKeys.map((key) {
           final date = dateByKey[key]!;
           final events = grouped[key]!;
-          final expanded = _expandedTimelineDates.isEmpty
-              ? key == defaultExpandedKey
-              : _expandedTimelineDates.contains(key);
+          final expandedKey = _expandedTimelineDateKey ?? defaultExpandedKey;
+          final expanded = key == expandedKey;
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: GlassCard(
@@ -696,13 +698,10 @@ class _StudentAppointmentsScreenState
                       borderRadius: BorderRadius.circular(10),
                       onTap: () {
                         setState(() {
-                          if (_expandedTimelineDates.isEmpty) {
-                            _expandedTimelineDates.add(defaultExpandedKey);
-                          }
-                          if (_expandedTimelineDates.contains(key)) {
-                            _expandedTimelineDates.remove(key);
+                          if (_expandedTimelineDateKey == key) {
+                            _expandedTimelineDateKey = null;
                           } else {
-                            _expandedTimelineDates.add(key);
+                            _expandedTimelineDateKey = key;
                           }
                         });
                       },
