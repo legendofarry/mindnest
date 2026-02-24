@@ -819,9 +819,12 @@ class _CounselorDirectoryTable extends StatelessWidget {
                               ),
                               Expanded(
                                 flex: 18,
-                                child: Text(
-                                  'Earliest Slot',
-                                  style: _headerTextStyle,
+                                child: Padding(
+                                  padding: EdgeInsets.only(right: 12),
+                                  child: Text(
+                                    'Earliest Slot',
+                                    style: _headerTextStyle,
+                                  ),
                                 ),
                               ),
                               Expanded(
@@ -941,32 +944,39 @@ class _CounselorDirectoryTable extends StatelessWidget {
                                     ),
                                     Expanded(
                                       flex: 18,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 7,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 12,
                                         ),
-                                        decoration: BoxDecoration(
-                                          color: row.earliestAvailable == null
-                                              ? const Color(0xFFF1F5F9)
-                                              : const Color(0xFFE6FFFA),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 7,
                                           ),
-                                          border: Border.all(
+                                          decoration: BoxDecoration(
                                             color: row.earliestAvailable == null
-                                                ? const Color(0xFFD8E3EE)
-                                                : const Color(0xFF99F6E4),
+                                                ? const Color(0xFFF1F5F9)
+                                                : const Color(0xFFE6FFFA),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            border: Border.all(
+                                              color:
+                                                  row.earliestAvailable == null
+                                                  ? const Color(0xFFD8E3EE)
+                                                  : const Color(0xFF99F6E4),
+                                            ),
                                           ),
-                                        ),
-                                        child: Text(
-                                          earliest,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: row.earliestAvailable == null
-                                                ? const Color(0xFF64748B)
-                                                : const Color(0xFF0F766E),
+                                          child: Text(
+                                            earliest,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color:
+                                                  row.earliestAvailable == null
+                                                  ? const Color(0xFF64748B)
+                                                  : const Color(0xFF0F766E),
+                                            ),
                                           ),
                                         ),
                                       ),
