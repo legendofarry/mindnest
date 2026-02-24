@@ -1,3 +1,4 @@
+// features/care/presentation/notification_center_screen.dart
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -333,7 +334,7 @@ class _NotificationCenterScreenState
                     physics: const BouncingScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(
                       20,
-                      kToolbarHeight + 16,
+                      kToolbarHeight + 4,
                       20,
                       24,
                     ),
