@@ -913,10 +913,10 @@ class _StudentAppointmentsScreenState
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(
                           width: 1.5,
-                          color: Color(0xFF0E9B90),
+                          color: Color(0xFF0E7490),
                         ),
                       ),
-                      icon: const Icon(Icons.tune_rounded, size: 18),
+                      icon: const Icon(Icons.tune_rounded, size: 12),
                       label: const Text('Filters'),
                     ),
                     if (_activeTableFilterCount() > 0) ...[

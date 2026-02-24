@@ -825,7 +825,7 @@ class _CounselorDirectoryTable extends StatelessWidget {
                           color: Color(0xFF0E7490),
                         ),
                       ),
-                      icon: const Icon(Icons.tune_rounded, size: 18),
+                      icon: const Icon(Icons.tune_rounded, size: 12),
                       label: const Text('Filters'),
                     ),
                     if (activeFilterCount > 0) ...[
