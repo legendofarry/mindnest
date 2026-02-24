@@ -4,6 +4,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+enum MindNestBackgroundMode { defaultShell, homeStyle }
+
 class MindNestShell extends StatefulWidget {
   const MindNestShell({
     super.key,
@@ -11,12 +13,14 @@ class MindNestShell extends StatefulWidget {
     this.appBar,
     this.padding = const EdgeInsets.all(20),
     this.maxWidth = 460,
+    this.backgroundMode = MindNestBackgroundMode.defaultShell,
   });
 
   final Widget child;
   final PreferredSizeWidget? appBar;
   final EdgeInsets padding;
   final double maxWidth;
+  final MindNestBackgroundMode backgroundMode;
 
   @override
   State<MindNestShell> createState() => _MindNestShellState();
@@ -37,6 +41,7 @@ class _MindNestShellState extends State<MindNestShell>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasAppBar = widget.appBar != null;
     final effectivePadding = hasAppBar
         ? widget.padding.copyWith(top: widget.appBar!.preferredSize.height - 30)
@@ -48,38 +53,68 @@ class _MindNestShellState extends State<MindNestShell>
         animation: _controller,
         builder: (context, _) {
           final t = _controller.value * 2 * math.pi;
+          final gradientColors =
+              widget.backgroundMode == MindNestBackgroundMode.homeStyle
+              ? (isDark
+                    ? const [Color(0xFF0B1220), Color(0xFF0E1A2E)]
+                    : const [Color(0xFFF4F7FB), Color(0xFFF1F5F9)])
+              : const [Color(0xFFE5FAF6), Color(0xFFD5EEF8), Color(0xFFCFE8FF)];
           return Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  Color(0xFFE5FAF6),
-                  Color(0xFFD5EEF8),
-                  Color(0xFFCFE8FF),
-                ],
+                colors: gradientColors,
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
             ),
             child: Stack(
               children: [
-                _AnimatedBlob(
-                  left: -120 + math.sin(t) * 30,
-                  top: 20 + math.cos(t * 1.2) * 20,
-                  size: 260,
-                  color: const Color(0x550EA5A0),
-                ),
-                _AnimatedBlob(
-                  right: -90 + math.cos(t * 0.8) * 24,
-                  top: 220 + math.sin(t * 1.4) * 20,
-                  size: 220,
-                  color: const Color(0x553B82F6),
-                ),
-                _AnimatedBlob(
-                  left: 130 + math.cos(t * 1.1) * 14,
-                  bottom: -100 + math.sin(t * 0.7) * 30,
-                  size: 260,
-                  color: const Color(0x5599F6E4),
-                ),
+                if (widget.backgroundMode ==
+                    MindNestBackgroundMode.homeStyle) ...[
+                  _AnimatedBlob(
+                    left: -70 + math.sin(t) * 28,
+                    top: -10 + math.cos(t * 1.2) * 20,
+                    size: 320,
+                    color: isDark
+                        ? const Color(0x2E38BDF8)
+                        : const Color(0x300BA4FF),
+                  ),
+                  _AnimatedBlob(
+                    right: -70 + math.cos(t * 0.9) * 24,
+                    top: 150 + math.sin(t * 1.3) * 18,
+                    size: 340,
+                    color: isDark
+                        ? const Color(0x2E14B8A6)
+                        : const Color(0x2A15A39A),
+                  ),
+                  _AnimatedBlob(
+                    left: 70 + math.cos(t * 1.1) * 18,
+                    bottom: -90 + math.sin(t * 0.75) * 22,
+                    size: 280,
+                    color: isDark
+                        ? const Color(0x2E22D3EE)
+                        : const Color(0x2418A89D),
+                  ),
+                ] else ...[
+                  _AnimatedBlob(
+                    left: -120 + math.sin(t) * 30,
+                    top: 20 + math.cos(t * 1.2) * 20,
+                    size: 260,
+                    color: const Color(0x550EA5A0),
+                  ),
+                  _AnimatedBlob(
+                    right: -90 + math.cos(t * 0.8) * 24,
+                    top: 220 + math.sin(t * 1.4) * 20,
+                    size: 220,
+                    color: const Color(0x553B82F6),
+                  ),
+                  _AnimatedBlob(
+                    left: 130 + math.cos(t * 1.1) * 14,
+                    bottom: -100 + math.sin(t * 0.7) * 30,
+                    size: 260,
+                    color: const Color(0x5599F6E4),
+                  ),
+                ],
                 SafeArea(
                   child: Align(
                     alignment: Alignment.topCenter,

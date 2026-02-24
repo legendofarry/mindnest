@@ -69,6 +69,7 @@ class _CounselorDirectoryScreenState
 
     return MindNestShell(
       maxWidth: isDesktop ? 1240 : 980,
+      backgroundMode: MindNestBackgroundMode.homeStyle,
       appBar: AppBar(
         title: Text(
           'Counselor Directory',
@@ -357,34 +358,126 @@ class _CounselorDirectoryScreenState
 class _StringFilterDropdown extends StatelessWidget {
   const _StringFilterDropdown({
     required this.label,
+    required this.icon,
     required this.value,
     required this.options,
     required this.onChanged,
   });
 
   final String label;
+  final IconData icon;
   final String value;
   final List<String> options;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<String>(
-        value: value,
-        items: options
-            .map(
-              (option) => DropdownMenuItem(
-                value: option,
-                child: Text(option == 'all' ? '$label: All' : option),
-              ),
-            )
-            .toList(growable: false),
-        onChanged: (changed) {
-          if (changed != null) {
-            onChanged(changed);
-          }
-        },
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0x66FFFFFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD0DFEE)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          menuMaxHeight: 320,
+          isDense: true,
+          borderRadius: BorderRadius.circular(12),
+          icon: const Icon(Icons.arrow_drop_down_rounded),
+          selectedItemBuilder: (context) {
+            return options
+                .map(
+                  (option) => Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 16, color: const Color(0xFF5E728D)),
+                      const SizedBox(width: 6),
+                      Text(option == 'all' ? 'All' : option),
+                    ],
+                  ),
+                )
+                .toList(growable: false);
+          },
+          items: options
+              .map(
+                (option) => DropdownMenuItem(
+                  value: option,
+                  child: Text(option == 'all' ? 'All' : option),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (changed) {
+            if (changed != null) {
+              onChanged(changed);
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _SortFilterDropdown extends StatelessWidget {
+  const _SortFilterDropdown({
+    required this.value,
+    required this.sortLabelBuilder,
+    required this.onChanged,
+  });
+
+  final _CounselorSort value;
+  final String Function(_CounselorSort sort) sortLabelBuilder;
+  final ValueChanged<_CounselorSort> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0x66FFFFFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD0DFEE)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<_CounselorSort>(
+          value: value,
+          menuMaxHeight: 320,
+          isDense: true,
+          borderRadius: BorderRadius.circular(12),
+          icon: const Icon(Icons.arrow_drop_down_rounded),
+          selectedItemBuilder: (context) {
+            return _CounselorSort.values
+                .map(
+                  (sortValue) => Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.schedule_rounded,
+                        size: 16,
+                        color: Color(0xFF5E728D),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(sortLabelBuilder(sortValue)),
+                    ],
+                  ),
+                )
+                .toList(growable: false);
+          },
+          items: _CounselorSort.values
+              .map(
+                (sortValue) => DropdownMenuItem(
+                  value: sortValue,
+                  child: Text(sortLabelBuilder(sortValue)),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (changed) {
+            if (changed != null) {
+              onChanged(changed);
+            }
+          },
+        ),
       ),
     );
   }
@@ -513,45 +606,36 @@ class _CounselorDirectoryTable extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    DropdownButtonHideUnderline(
-                      child: DropdownButton<_CounselorSort>(
-                        value: sort,
-                        items: _CounselorSort.values
-                            .map(
-                              (sortValue) => DropdownMenuItem(
-                                value: sortValue,
-                                child: Text(sortLabelBuilder(sortValue)),
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (value) {
-                          if (value != null) {
-                            onSortChanged(value);
-                          }
-                        },
-                      ),
+                    _SortFilterDropdown(
+                      value: sort,
+                      sortLabelBuilder: sortLabelBuilder,
+                      onChanged: onSortChanged,
                     ),
                     _StringFilterDropdown(
                       label: 'Specialization',
+                      icon: Icons.psychology_alt_rounded,
                       value: specializationFilter,
                       options: specializationOptions,
                       onChanged: onSpecializationChanged,
                     ),
                     _StringFilterDropdown(
                       label: 'Language',
+                      icon: Icons.translate_rounded,
                       value: languageFilter,
                       options: languageOptions,
                       onChanged: onLanguageChanged,
                     ),
                     _StringFilterDropdown(
                       label: 'Mode',
+                      icon: Icons.videocam_rounded,
                       value: modeFilter,
                       options: modeOptions,
                       onChanged: onModeChanged,
                     ),
-                    OutlinedButton(
+                    OutlinedButton.icon(
                       onPressed: onResetFilters,
-                      child: const Text('Reset'),
+                      icon: const Icon(Icons.restart_alt_rounded, size: 16),
+                      label: const Text('Reset'),
                     ),
                   ],
                 ),
