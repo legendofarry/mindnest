@@ -389,36 +389,37 @@ class _CounselorDirectoryScreenState
                                         institutionId: institutionId,
                                       )
                               else
-                                Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: filtered
+                                _CounselorDirectoryTable(
+                                  rows: filtered
                                       .map(
-                                        (counselor) => Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 10,
+                                        (counselor) => _CounselorTableRowData(
+                                          counselorId: counselor.id,
+                                          displayName: counselor.displayName,
+                                          title: counselor.title,
+                                          specialization:
+                                              counselor.specialization,
+                                          sessionMode: counselor.sessionMode,
+                                          languages: counselor.languages,
+                                          yearsExperience:
+                                              counselor.yearsExperience,
+                                          ratingAverage: ratingAverageFor(
+                                            counselor,
                                           ),
-                                          child: _CounselorCard(
-                                            counselor: counselor,
-                                            earliestAvailable:
-                                                earliestSlotByCounselor[counselor
-                                                    .id],
-                                            ratingAverage: ratingAverageFor(
-                                              counselor,
-                                            ),
-                                            ratingCount: ratingCountFor(
-                                              counselor,
-                                            ),
-                                            formatSlot: _formatSlot,
-                                            onTap: () {
-                                              context.push(
-                                                '${AppRoute.counselorProfile}?counselorId=${counselor.id}',
-                                              );
-                                            },
+                                          ratingCount: ratingCountFor(
+                                            counselor,
                                           ),
+                                          earliestAvailable:
+                                              earliestSlotByCounselor[counselor
+                                                  .id],
                                         ),
                                       )
                                       .toList(growable: false),
+                                  formatSlot: _formatSlot,
+                                  onOpenProfile: (counselorId) {
+                                    context.push(
+                                      '${AppRoute.counselorProfile}?counselorId=$counselorId',
+                                    );
+                                  },
                                 ),
                             ],
                           );
@@ -471,117 +472,353 @@ class _StringFilterDropdown extends StatelessWidget {
   }
 }
 
-class _CounselorCard extends StatelessWidget {
-  const _CounselorCard({
-    required this.counselor,
-    required this.onTap,
-    required this.formatSlot,
+class _CounselorTableRowData {
+  const _CounselorTableRowData({
+    required this.counselorId,
+    required this.displayName,
+    required this.title,
+    required this.specialization,
+    required this.sessionMode,
+    required this.languages,
+    required this.yearsExperience,
     required this.ratingAverage,
     required this.ratingCount,
-    this.earliestAvailable,
+    required this.earliestAvailable,
   });
 
-  final CounselorProfile counselor;
-  final VoidCallback onTap;
-  final DateTime? earliestAvailable;
-  final String Function(DateTime value) formatSlot;
+  final String counselorId;
+  final String displayName;
+  final String title;
+  final String specialization;
+  final String sessionMode;
+  final List<String> languages;
+  final int yearsExperience;
   final double ratingAverage;
   final int ratingCount;
+  final DateTime? earliestAvailable;
+}
+
+class _CounselorDirectoryTable extends StatelessWidget {
+  const _CounselorDirectoryTable({
+    required this.rows,
+    required this.formatSlot,
+    required this.onOpenProfile,
+  });
+
+  final List<_CounselorTableRowData> rows;
+  final String Function(DateTime value) formatSlot;
+  final ValueChanged<String> onOpenProfile;
+
+  static const _headerTextStyle = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w800,
+    color: Color(0xFF5B6E87),
+    letterSpacing: 0.2,
+  );
 
   @override
   Widget build(BuildContext context) {
     return GlassCard(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F6FF),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.health_and_safety_rounded,
-                    color: Color(0xFF0284C7),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        counselor.displayName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${counselor.title} - ${counselor.specialization}',
-                        style: const TextStyle(color: Color(0xFF5E728D)),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${counselor.yearsExperience} yrs - ${counselor.sessionMode}',
-                        style: const TextStyle(color: Color(0xFF5E728D)),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        earliestAvailable == null
-                            ? 'No open slots yet'
-                            : 'Earliest: ${formatSlot(earliestAvailable!)}',
-                        style: const TextStyle(
-                          color: Color(0xFF0E9B90),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ],
-                  ),
+                const Icon(
+                  Icons.table_chart_rounded,
+                  size: 18,
+                  color: Color(0xFF0E9B90),
                 ),
                 const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.star_rounded,
-                          color: Color(0xFFF59E0B),
-                          size: 18,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          ratingAverage.toStringAsFixed(1),
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      '$ratingCount ratings',
-                      style: const TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Icon(Icons.chevron_right_rounded),
-                  ],
+                Text(
+                  'Counselors (${rows.length})',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
                 ),
               ],
             ),
           ),
-        ),
+          const Divider(height: 1, thickness: 1, color: Color(0x22A5B4C8)),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final tableMinWidth = constraints.maxWidth < 880
+                  ? 880.0
+                  : constraints.maxWidth;
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: tableMinWidth,
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                        color: const Color(0x66EEF6FF),
+                        child: const Row(
+                          children: [
+                            Expanded(
+                              flex: 23,
+                              child: Text('Counselor', style: _headerTextStyle),
+                            ),
+                            Expanded(
+                              flex: 19,
+                              child: Text(
+                                'Specialization',
+                                style: _headerTextStyle,
+                              ),
+                            ),
+                            Expanded(
+                              flex: 16,
+                              child: Text(
+                                'Mode & Languages',
+                                style: _headerTextStyle,
+                              ),
+                            ),
+                            Expanded(
+                              flex: 18,
+                              child: Text(
+                                'Earliest Slot',
+                                style: _headerTextStyle,
+                              ),
+                            ),
+                            Expanded(
+                              flex: 12,
+                              child: Text('Rating', style: _headerTextStyle),
+                            ),
+                            Expanded(
+                              flex: 12,
+                              child: Text('Action', style: _headerTextStyle),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: Color(0x22A5B4C8),
+                      ),
+                      ...rows.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final row = entry.value;
+                        final altBg = index.isEven
+                            ? Colors.transparent
+                            : const Color(0x1AF8FAFC);
+                        final languages = row.languages.isEmpty
+                            ? 'N/A'
+                            : row.languages.join(', ');
+                        final earliest = row.earliestAvailable == null
+                            ? 'No open slots'
+                            : formatSlot(row.earliestAvailable!);
+                        return Material(
+                          color: altBg,
+                          child: InkWell(
+                            onTap: () => onOpenProfile(row.counselorId),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                14,
+                                16,
+                                14,
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    flex: 23,
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          width: 38,
+                                          height: 38,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFE8F6FF),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: const Icon(
+                                            Icons.health_and_safety_rounded,
+                                            color: Color(0xFF0284C7),
+                                            size: 20,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                row.displayName,
+                                                style: const TextStyle(
+                                                  fontSize: 14.5,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Color(0xFF0F172A),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                row.title,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Color(0xFF6B7D95),
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 19,
+                                    child: Text(
+                                      '${row.specialization}\n${row.yearsExperience} yrs experience',
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        height: 1.45,
+                                        color: Color(0xFF445A75),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 16,
+                                    child: Text(
+                                      '${row.sessionMode}\n$languages',
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        height: 1.45,
+                                        color: Color(0xFF445A75),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 18,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 7,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: row.earliestAvailable == null
+                                            ? const Color(0xFFF1F5F9)
+                                            : const Color(0xFFE6FFFA),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: row.earliestAvailable == null
+                                              ? const Color(0xFFD8E3EE)
+                                              : const Color(0xFF99F6E4),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        earliest,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: row.earliestAvailable == null
+                                              ? const Color(0xFF64748B)
+                                              : const Color(0xFF0F766E),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 12,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.star_rounded,
+                                              color: Color(0xFFF59E0B),
+                                              size: 16,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              row.ratingAverage.toStringAsFixed(
+                                                1,
+                                              ),
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF1E293B),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Text(
+                                          '${row.ratingCount} ratings',
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: Color(0xFF6B7D95),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 12,
+                                    child: Align(
+                                      alignment: Alignment.topLeft,
+                                      child: OutlinedButton.icon(
+                                        onPressed: () =>
+                                            onOpenProfile(row.counselorId),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: const Color(
+                                            0xFF0E9B90,
+                                          ),
+                                          side: const BorderSide(
+                                            color: Color(0xFF8DDCD4),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 9,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          Icons.open_in_new_rounded,
+                                          size: 14,
+                                        ),
+                                        label: const Text(
+                                          'Open',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
