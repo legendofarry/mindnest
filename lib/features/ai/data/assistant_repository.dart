@@ -14,25 +14,29 @@ const _externalAiProviderSource =
     'auto'; // auto | openai | gemini | groq | openrouter
 
 // OpenAI-compatible config
-const _externalAiApiKeySource = '';
+const _externalAiApiKeySource = 'AIzaSyDZUxuK1aZj-pCpX78NTXBRTJ16YhCGG9o';
 const _externalAiBaseUrlSource = 'https://api.openai.com/v1';
 const _externalAiModelSource = 'gpt-4o-mini';
 const _externalAiChatPathSource = '/chat/completions';
 
 // Gemini config
-const _geminiApiKeysSource = <String>[''];
+const _geminiApiKeysSource = <String>[
+  'AIzaSyDZUxuK1aZj-pCpX78NTXBRTJ16YhCGG9o',
+];
 const _geminiBaseUrlSource = 'https://generativelanguage.googleapis.com';
 const _geminiModelSource = 'gemini-2.5-flash';
 const _geminiGeneratePathSource = '/v1beta/models/{model}:generateContent';
 
 // Groq (OpenAI-compatible) config
-const _groqApiKeySource = '';
+const _groqApiKeySource =
+    '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';
 const _groqBaseUrlSource = 'https://api.groq.com/openai/v1';
 const _groqModelSource = 'llama-3.1-8b-instant';
 const _groqChatPathSource = '/chat/completions';
 
 // OpenRouter (OpenAI-compatible) config
-const _openRouterApiKeySource = '';
+const _openRouterApiKeySource =
+    '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';
 const _openRouterBaseUrlSource = 'https://openrouter.ai/api/v1';
 const _openRouterModelSource = 'nvidia/nemotron-3-nano-30b-a3b:free';
 const _openRouterChatPathSource = '/chat/completions';
