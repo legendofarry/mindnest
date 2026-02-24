@@ -32,6 +32,8 @@ class _CounselorDirectoryScreenState
   String _modeFilter = 'all';
   double? _minimumRatingFilter;
   int _refreshTick = 0;
+  int _rowsPerPage = 6;
+  int _currentPage = 0;
 
   @override
   void dispose() {
@@ -244,6 +246,7 @@ class _CounselorDirectoryScreenState
                                 _specializationFilter = tempSpecialization;
                                 _modeFilter = tempMode;
                                 _minimumRatingFilter = tempRating;
+                                _currentPage = 0;
                               });
                               Navigator.of(sheetContext).pop();
                             },
@@ -482,9 +485,21 @@ class _CounselorDirectoryScreenState
                           final specializationOptions = specializations.toList()
                             ..sort();
                           final modeOptions = modes.toList()..sort();
+                          final totalRows = filtered.length;
+                          final totalPages = totalRows == 0
+                              ? 1
+                              : ((totalRows + _rowsPerPage - 1) ~/
+                                    _rowsPerPage);
+                          final pageIndex = _currentPage >= totalPages
+                              ? totalPages - 1
+                              : _currentPage;
+                          final pagedRows = filtered
+                              .skip(pageIndex * _rowsPerPage)
+                              .take(_rowsPerPage)
+                              .toList(growable: false);
 
                           return _CounselorDirectoryTable(
-                            rows: filtered
+                            rows: pagedRows
                                 .map(
                                   (counselor) => _CounselorTableRowData(
                                     counselorId: counselor.id,
@@ -508,12 +523,32 @@ class _CounselorDirectoryScreenState
                               );
                             },
                             searchController: _searchController,
-                            onSearchChanged: (_) => setState(() {}),
+                            onSearchChanged: (_) => setState(() {
+                              _currentPage = 0;
+                            }),
                             onOpenFilters: () => _openFilterSheet(
                               specializationOptions: specializationOptions,
                               modeOptions: modeOptions,
                             ),
                             activeFilterCount: _activeFilterCount(),
+                            rowsPerPage: _rowsPerPage,
+                            onRowsPerPageChanged: (value) => setState(() {
+                              _rowsPerPage = value;
+                              _currentPage = 0;
+                            }),
+                            currentPage: pageIndex,
+                            totalPages: totalPages,
+                            totalRows: totalRows,
+                            onPreviousPage: () => setState(() {
+                              if (pageIndex > 0) {
+                                _currentPage = pageIndex - 1;
+                              }
+                            }),
+                            onNextPage: () => setState(() {
+                              if (pageIndex < totalPages - 1) {
+                                _currentPage = pageIndex + 1;
+                              }
+                            }),
                             hasActiveFilters: hasActiveFilters,
                             noDataWidget: hasActiveFilters
                                 ? const Text(
@@ -670,6 +705,13 @@ class _CounselorDirectoryTable extends StatelessWidget {
     required this.onSearchChanged,
     required this.onOpenFilters,
     required this.activeFilterCount,
+    required this.rowsPerPage,
+    required this.onRowsPerPageChanged,
+    required this.currentPage,
+    required this.totalPages,
+    required this.totalRows,
+    required this.onPreviousPage,
+    required this.onNextPage,
     required this.hasActiveFilters,
     required this.noDataWidget,
   });
@@ -681,6 +723,13 @@ class _CounselorDirectoryTable extends StatelessWidget {
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onOpenFilters;
   final int activeFilterCount;
+  final int rowsPerPage;
+  final ValueChanged<int> onRowsPerPageChanged;
+  final int currentPage;
+  final int totalPages;
+  final int totalRows;
+  final VoidCallback onPreviousPage;
+  final VoidCallback onNextPage;
   final bool hasActiveFilters;
   final Widget noDataWidget;
 
@@ -734,9 +783,48 @@ class _CounselorDirectoryTable extends StatelessWidget {
                 const SizedBox(height: 10),
                 Row(
                   children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0x66FFFFFF),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFD0DFEE)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: rowsPerPage,
+                          isDense: true,
+                          borderRadius: BorderRadius.circular(10),
+                          items: const [
+                            DropdownMenuItem(value: 4, child: Text('4 / page')),
+                            DropdownMenuItem(value: 6, child: Text('6 / page')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              onRowsPerPageChanged(value);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$totalRows total',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const Spacer(),
                     OutlinedButton.icon(
                       onPressed: onOpenFilters,
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(
+                          width: 1.5,
+                          color: Color(0xFF0E7490),
+                        ),
+                      ),
                       icon: const Icon(Icons.tune_rounded, size: 18),
                       label: const Text('Filters'),
                     ),
@@ -761,6 +849,33 @@ class _CounselorDirectoryTable extends StatelessWidget {
                         ),
                       ),
                     ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Spacer(),
+                    Text(
+                      'Page ${currentPage + 1} / $totalPages',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: Color(0xFF5E728D),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Previous',
+                      onPressed: currentPage > 0 ? onPreviousPage : null,
+                      icon: const Icon(Icons.chevron_left_rounded),
+                    ),
+                    IconButton(
+                      tooltip: 'Next',
+                      onPressed: currentPage < totalPages - 1
+                          ? onNextPage
+                          : null,
+                      icon: const Icon(Icons.chevron_right_rounded),
+                    ),
                   ],
                 ),
               ],
@@ -821,7 +936,7 @@ class _CounselorDirectoryTable extends StatelessWidget {
                               Expanded(
                                 flex: 18,
                                 child: Padding(
-                                  padding: EdgeInsets.only(right: 24),
+                                  padding: EdgeInsets.only(right: 40),
                                   child: Text(
                                     'Earliest Slot',
                                     style: _headerTextStyle,
@@ -943,7 +1058,7 @@ class _CounselorDirectoryTable extends StatelessWidget {
                                       flex: 18,
                                       child: Padding(
                                         padding: const EdgeInsets.only(
-                                          right: 24,
+                                          right: 32,
                                         ),
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
