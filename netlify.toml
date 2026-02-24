@@ -13,7 +13,9 @@
     flutter build web --release \
       --dart-define=LIVEKIT_URL=$LIVEKIT_URL \
       --dart-define=LIVEKIT_API_KEY=$LIVEKIT_API_KEY \
-      --dart-define=LIVEKIT_API_SECRET=$LIVEKIT_API_SECRET
+      --dart-define=LIVEKIT_API_SECRET=$LIVEKIT_API_SECRET \
+      --dart-define=PUSH_DISPATCH_ENDPOINT=$PUSH_DISPATCH_ENDPOINT \
+      --dart-define=FIREBASE_WEB_VAPID_KEY=$FIREBASE_WEB_VAPID_KEY
   """
 
 [[redirects]]

@@ -11,9 +11,16 @@ Run/build with:
 
 ```bash
 --dart-define=PUSH_DISPATCH_ENDPOINT=https://<your-domain>/push/dispatch
+--dart-define=FIREBASE_WEB_VAPID_KEY=<your-web-push-certificate-key-pair-public-key>
 ```
 
 If this define is missing, in-app notification documents still work, but remote push delivery is skipped.
+For web, if `FIREBASE_WEB_VAPID_KEY` is missing, the browser FCM token is not registered.
+
+### Get `FIREBASE_WEB_VAPID_KEY`
+
+Firebase Console -> Project Settings -> Cloud Messaging -> Web configuration ->
+Web Push certificates -> **Key pair** (public key).
 
 ## 2) Deploy Push Dispatch Backend
 

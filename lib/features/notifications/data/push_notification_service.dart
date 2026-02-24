@@ -1,3 +1,4 @@
+// features/notifications/data/push_notification_service.dart
 import 'dart:async';
 import 'dart:convert';
 
@@ -16,6 +17,14 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class PushNotificationService {
   PushNotificationService._();
 
+  static const String _webVapidKeyFromDefine = String.fromEnvironment(
+    'FIREBASE_WEB_VAPID_KEY',
+    defaultValue: '',
+  );
+  // Optional source fallback for local-only development.
+  static const String _webVapidKeyFromSource =
+      'BK46VBT7inkm_eG6YTSWhm7f9VOe0yNZ5rK688eBMOX4uppJO-SQH_gY5XsPk9XXm2mJO5QKF1rPVu8yhJJ4Krk';
+
   static const String _androidChannelId = 'mindnest_alerts';
   static const String _androidChannelName = 'MindNest Alerts';
   static const String _androidChannelDescription =
@@ -29,6 +38,9 @@ class PushNotificationService {
   static StreamSubscription<String>? _tokenRefreshSub;
   static StreamSubscription<RemoteMessage>? _onMessageSub;
   static String? _currentUserId;
+  static String get _webVapidKey => _webVapidKeyFromDefine.isNotEmpty
+      ? _webVapidKeyFromDefine
+      : _webVapidKeyFromSource;
 
   static Future<void> bootstrap() async {
     if (_bootstrapped) {
@@ -108,7 +120,16 @@ class PushNotificationService {
 
   static Future<void> _registerCurrentDeviceToken(String uid) async {
     try {
-      final token = await FirebaseMessaging.instance.getToken();
+      String? token;
+      if (kIsWeb) {
+        final vapidKey = _webVapidKey.trim();
+        if (vapidKey.isEmpty) {
+          return;
+        }
+        token = await FirebaseMessaging.instance.getToken(vapidKey: vapidKey);
+      } else {
+        token = await FirebaseMessaging.instance.getToken();
+      }
       if (token == null || token.trim().isEmpty) {
         return;
       }
