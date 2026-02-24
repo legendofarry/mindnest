@@ -96,58 +96,6 @@ class _CounselorDirectoryScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            GlassCard(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Find a Counselor',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _searchController,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search_rounded),
-                        hintText: 'Search by name, specialization, language...',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        DropdownButtonHideUnderline(
-                          child: DropdownButton<_CounselorSort>(
-                            value: _sort,
-                            items: _CounselorSort.values
-                                .map(
-                                  (sort) => DropdownMenuItem(
-                                    value: sort,
-                                    child: Text(_sortLabel(sort)),
-                                  ),
-                                )
-                                .toList(growable: false),
-                            onChanged: (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setState(() => _sort = value);
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
             if (institutionId.isEmpty)
               const GlassCard(
                 child: Padding(
@@ -323,105 +271,75 @@ class _CounselorDirectoryScreenState
                             }
                           });
 
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              GlassCard(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: [
-                                      _StringFilterDropdown(
-                                        label: 'Specialization',
-                                        value: _specializationFilter,
-                                        options: specializations.toList()
-                                          ..sort(),
-                                        onChanged: (value) => setState(
-                                          () => _specializationFilter = value,
-                                        ),
-                                      ),
-                                      _StringFilterDropdown(
-                                        label: 'Language',
-                                        value: _languageFilter,
-                                        options: languages.toList()..sort(),
-                                        onChanged: (value) => setState(
-                                          () => _languageFilter = value,
-                                        ),
-                                      ),
-                                      _StringFilterDropdown(
-                                        label: 'Mode',
-                                        value: _modeFilter,
-                                        options: modes.toList()..sort(),
-                                        onChanged: (value) =>
-                                            setState(() => _modeFilter = value),
-                                      ),
-                                      OutlinedButton(
-                                        onPressed: () {
-                                          setState(() {
-                                            _specializationFilter = 'all';
-                                            _languageFilter = 'all';
-                                            _modeFilter = 'all';
-                                          });
-                                        },
-                                        child: const Text('Reset'),
-                                      ),
-                                    ],
+                          final hasActiveFilters =
+                              query.isNotEmpty ||
+                              _specializationFilter != 'all' ||
+                              _languageFilter != 'all' ||
+                              _modeFilter != 'all';
+                          final specializationOptions = specializations.toList()
+                            ..sort();
+                          final languageOptions = languages.toList()..sort();
+                          final modeOptions = modes.toList()..sort();
+
+                          return _CounselorDirectoryTable(
+                            rows: filtered
+                                .map(
+                                  (counselor) => _CounselorTableRowData(
+                                    counselorId: counselor.id,
+                                    displayName: counselor.displayName,
+                                    title: counselor.title,
+                                    specialization: counselor.specialization,
+                                    sessionMode: counselor.sessionMode,
+                                    languages: counselor.languages,
+                                    yearsExperience: counselor.yearsExperience,
+                                    ratingAverage: ratingAverageFor(counselor),
+                                    ratingCount: ratingCountFor(counselor),
+                                    earliestAvailable:
+                                        earliestSlotByCounselor[counselor.id],
                                   ),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              if (filtered.isEmpty)
-                                (query.isNotEmpty ||
-                                        _specializationFilter != 'all' ||
-                                        _languageFilter != 'all' ||
-                                        _modeFilter != 'all')
-                                    ? const GlassCard(
-                                        child: Padding(
-                                          padding: EdgeInsets.all(18),
-                                          child: Text(
-                                            'No counselors match your filters. Try broadening your search.',
-                                          ),
-                                        ),
-                                      )
-                                    : _PendingCounselorFallback(
-                                        institutionId: institutionId,
-                                      )
-                              else
-                                _CounselorDirectoryTable(
-                                  rows: filtered
-                                      .map(
-                                        (counselor) => _CounselorTableRowData(
-                                          counselorId: counselor.id,
-                                          displayName: counselor.displayName,
-                                          title: counselor.title,
-                                          specialization:
-                                              counselor.specialization,
-                                          sessionMode: counselor.sessionMode,
-                                          languages: counselor.languages,
-                                          yearsExperience:
-                                              counselor.yearsExperience,
-                                          ratingAverage: ratingAverageFor(
-                                            counselor,
-                                          ),
-                                          ratingCount: ratingCountFor(
-                                            counselor,
-                                          ),
-                                          earliestAvailable:
-                                              earliestSlotByCounselor[counselor
-                                                  .id],
-                                        ),
-                                      )
-                                      .toList(growable: false),
-                                  formatSlot: _formatSlot,
-                                  onOpenProfile: (counselorId) {
-                                    context.push(
-                                      '${AppRoute.counselorProfile}?counselorId=$counselorId',
-                                    );
-                                  },
-                                ),
-                            ],
+                                )
+                                .toList(growable: false),
+                            formatSlot: _formatSlot,
+                            onOpenProfile: (counselorId) {
+                              context.push(
+                                '${AppRoute.counselorProfile}?counselorId=$counselorId',
+                              );
+                            },
+                            searchController: _searchController,
+                            onSearchChanged: (_) => setState(() {}),
+                            sort: _sort,
+                            sortLabelBuilder: _sortLabel,
+                            onSortChanged: (value) =>
+                                setState(() => _sort = value),
+                            specializationFilter: _specializationFilter,
+                            specializationOptions: specializationOptions,
+                            onSpecializationChanged: (value) =>
+                                setState(() => _specializationFilter = value),
+                            languageFilter: _languageFilter,
+                            languageOptions: languageOptions,
+                            onLanguageChanged: (value) =>
+                                setState(() => _languageFilter = value),
+                            modeFilter: _modeFilter,
+                            modeOptions: modeOptions,
+                            onModeChanged: (value) =>
+                                setState(() => _modeFilter = value),
+                            onResetFilters: () {
+                              setState(() {
+                                _specializationFilter = 'all';
+                                _languageFilter = 'all';
+                                _modeFilter = 'all';
+                                _sort = _CounselorSort.earliestAvailable;
+                                _searchController.clear();
+                              });
+                            },
+                            hasActiveFilters: hasActiveFilters,
+                            noDataWidget: hasActiveFilters
+                                ? const Text(
+                                    'No counselors match your filters. Try broadening your search.',
+                                  )
+                                : _PendingCounselorFallback(
+                                    institutionId: institutionId,
+                                  ),
                           );
                         },
                       );
@@ -503,11 +421,45 @@ class _CounselorDirectoryTable extends StatelessWidget {
     required this.rows,
     required this.formatSlot,
     required this.onOpenProfile,
+    required this.searchController,
+    required this.onSearchChanged,
+    required this.sort,
+    required this.sortLabelBuilder,
+    required this.onSortChanged,
+    required this.specializationFilter,
+    required this.specializationOptions,
+    required this.onSpecializationChanged,
+    required this.languageFilter,
+    required this.languageOptions,
+    required this.onLanguageChanged,
+    required this.modeFilter,
+    required this.modeOptions,
+    required this.onModeChanged,
+    required this.onResetFilters,
+    required this.hasActiveFilters,
+    required this.noDataWidget,
   });
 
   final List<_CounselorTableRowData> rows;
   final String Function(DateTime value) formatSlot;
   final ValueChanged<String> onOpenProfile;
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
+  final _CounselorSort sort;
+  final String Function(_CounselorSort sort) sortLabelBuilder;
+  final ValueChanged<_CounselorSort> onSortChanged;
+  final String specializationFilter;
+  final List<String> specializationOptions;
+  final ValueChanged<String> onSpecializationChanged;
+  final String languageFilter;
+  final List<String> languageOptions;
+  final ValueChanged<String> onLanguageChanged;
+  final String modeFilter;
+  final List<String> modeOptions;
+  final ValueChanged<String> onModeChanged;
+  final VoidCallback onResetFilters;
+  final bool hasActiveFilters;
+  final Widget noDataWidget;
 
   static const _headerTextStyle = TextStyle(
     fontSize: 12,
@@ -543,281 +495,360 @@ class _CounselorDirectoryTable extends StatelessWidget {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: searchController,
+                  onChanged: onSearchChanged,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search_rounded),
+                    hintText: 'Search by name, specialization, language...',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    DropdownButtonHideUnderline(
+                      child: DropdownButton<_CounselorSort>(
+                        value: sort,
+                        items: _CounselorSort.values
+                            .map(
+                              (sortValue) => DropdownMenuItem(
+                                value: sortValue,
+                                child: Text(sortLabelBuilder(sortValue)),
+                              ),
+                            )
+                            .toList(growable: false),
+                        onChanged: (value) {
+                          if (value != null) {
+                            onSortChanged(value);
+                          }
+                        },
+                      ),
+                    ),
+                    _StringFilterDropdown(
+                      label: 'Specialization',
+                      value: specializationFilter,
+                      options: specializationOptions,
+                      onChanged: onSpecializationChanged,
+                    ),
+                    _StringFilterDropdown(
+                      label: 'Language',
+                      value: languageFilter,
+                      options: languageOptions,
+                      onChanged: onLanguageChanged,
+                    ),
+                    _StringFilterDropdown(
+                      label: 'Mode',
+                      value: modeFilter,
+                      options: modeOptions,
+                      onChanged: onModeChanged,
+                    ),
+                    OutlinedButton(
+                      onPressed: onResetFilters,
+                      child: const Text('Reset'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
           const Divider(height: 1, thickness: 1, color: Color(0x22A5B4C8)),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final tableMinWidth = constraints.maxWidth < 880
-                  ? 880.0
-                  : constraints.maxWidth;
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  width: tableMinWidth,
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                        color: const Color(0x66EEF6FF),
-                        child: const Row(
-                          children: [
-                            Expanded(
-                              flex: 23,
-                              child: Text('Counselor', style: _headerTextStyle),
-                            ),
-                            Expanded(
-                              flex: 19,
-                              child: Text(
-                                'Specialization',
-                                style: _headerTextStyle,
+          if (rows.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: hasActiveFilters
+                  ? DefaultTextStyle(
+                      style: const TextStyle(
+                        color: Color(0xFF4A607C),
+                        fontSize: 14,
+                      ),
+                      child: noDataWidget,
+                    )
+                  : noDataWidget,
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final tableMinWidth = constraints.maxWidth < 880
+                    ? 880.0
+                    : constraints.maxWidth;
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableMinWidth,
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                          color: const Color(0x66EEF6FF),
+                          child: const Row(
+                            children: [
+                              Expanded(
+                                flex: 23,
+                                child: Text(
+                                  'Counselor',
+                                  style: _headerTextStyle,
+                                ),
                               ),
-                            ),
-                            Expanded(
-                              flex: 16,
-                              child: Text(
-                                'Mode & Languages',
-                                style: _headerTextStyle,
+                              Expanded(
+                                flex: 19,
+                                child: Text(
+                                  'Specialization',
+                                  style: _headerTextStyle,
+                                ),
                               ),
-                            ),
-                            Expanded(
-                              flex: 18,
-                              child: Text(
-                                'Earliest Slot',
-                                style: _headerTextStyle,
+                              Expanded(
+                                flex: 16,
+                                child: Text(
+                                  'Mode & Languages',
+                                  style: _headerTextStyle,
+                                ),
                               ),
-                            ),
-                            Expanded(
-                              flex: 12,
-                              child: Text('Rating', style: _headerTextStyle),
-                            ),
-                            Expanded(
-                              flex: 12,
-                              child: Text('Action', style: _headerTextStyle),
-                            ),
-                          ],
+                              Expanded(
+                                flex: 18,
+                                child: Text(
+                                  'Earliest Slot',
+                                  style: _headerTextStyle,
+                                ),
+                              ),
+                              Expanded(
+                                flex: 12,
+                                child: Text('Rating', style: _headerTextStyle),
+                              ),
+                              Expanded(
+                                flex: 12,
+                                child: Text('Action', style: _headerTextStyle),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const Divider(
-                        height: 1,
-                        thickness: 1,
-                        color: Color(0x22A5B4C8),
-                      ),
-                      ...rows.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final row = entry.value;
-                        final altBg = index.isEven
-                            ? Colors.transparent
-                            : const Color(0x1AF8FAFC);
-                        final languages = row.languages.isEmpty
-                            ? 'N/A'
-                            : row.languages.join(', ');
-                        final earliest = row.earliestAvailable == null
-                            ? 'No open slots'
-                            : formatSlot(row.earliestAvailable!);
-                        return Material(
-                          color: altBg,
-                          child: InkWell(
-                            onTap: () => onOpenProfile(row.counselorId),
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                14,
-                                16,
-                                14,
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    flex: 23,
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Container(
-                                          width: 38,
-                                          height: 38,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFE8F6FF),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
+                        const Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: Color(0x22A5B4C8),
+                        ),
+                        ...rows.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final row = entry.value;
+                          final altBg = index.isEven
+                              ? Colors.transparent
+                              : const Color(0x1AF8FAFC);
+                          final languages = row.languages.isEmpty
+                              ? 'N/A'
+                              : row.languages.join(', ');
+                          final earliest = row.earliestAvailable == null
+                              ? 'No open slots'
+                              : formatSlot(row.earliestAvailable!);
+                          return Material(
+                            color: altBg,
+                            child: InkWell(
+                              onTap: () => onOpenProfile(row.counselorId),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  14,
+                                  16,
+                                  14,
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      flex: 23,
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            width: 38,
+                                            height: 38,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFE8F6FF),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: const Icon(
+                                              Icons.health_and_safety_rounded,
+                                              color: Color(0xFF0284C7),
+                                              size: 20,
                                             ),
                                           ),
-                                          child: const Icon(
-                                            Icons.health_and_safety_rounded,
-                                            color: Color(0xFF0284C7),
-                                            size: 20,
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  row.displayName,
+                                                  style: const TextStyle(
+                                                    fontSize: 14.5,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Color(0xFF0F172A),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  row.title,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Color(0xFF6B7D95),
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 19,
+                                      child: Text(
+                                        '${row.specialization}\n${row.yearsExperience} yrs experience',
+                                        style: const TextStyle(
+                                          fontSize: 12.5,
+                                          height: 1.45,
+                                          color: Color(0xFF445A75),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 16,
+                                      child: Text(
+                                        '${row.sessionMode}\n$languages',
+                                        style: const TextStyle(
+                                          fontSize: 12.5,
+                                          height: 1.45,
+                                          color: Color(0xFF445A75),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 18,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 7,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: row.earliestAvailable == null
+                                              ? const Color(0xFFF1F5F9)
+                                              : const Color(0xFFE6FFFA),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          border: Border.all(
+                                            color: row.earliestAvailable == null
+                                                ? const Color(0xFFD8E3EE)
+                                                : const Color(0xFF99F6E4),
                                           ),
                                         ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
+                                        child: Text(
+                                          earliest,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: row.earliestAvailable == null
+                                                ? const Color(0xFF64748B)
+                                                : const Color(0xFF0F766E),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 12,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Text(
-                                                row.displayName,
-                                                style: const TextStyle(
-                                                  fontSize: 14.5,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: Color(0xFF0F172A),
-                                                ),
+                                              const Icon(
+                                                Icons.star_rounded,
+                                                color: Color(0xFFF59E0B),
+                                                size: 16,
                                               ),
-                                              const SizedBox(height: 2),
+                                              const SizedBox(width: 4),
                                               Text(
-                                                row.title,
+                                                row.ratingAverage
+                                                    .toStringAsFixed(1),
                                                 style: const TextStyle(
-                                                  fontSize: 12,
-                                                  color: Color(0xFF6B7D95),
-                                                  fontWeight: FontWeight.w500,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Color(0xFF1E293B),
                                                 ),
                                               ),
                                             ],
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Expanded(
-                                    flex: 19,
-                                    child: Text(
-                                      '${row.specialization}\n${row.yearsExperience} yrs experience',
-                                      style: const TextStyle(
-                                        fontSize: 12.5,
-                                        height: 1.45,
-                                        color: Color(0xFF445A75),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    flex: 16,
-                                    child: Text(
-                                      '${row.sessionMode}\n$languages',
-                                      style: const TextStyle(
-                                        fontSize: 12.5,
-                                        height: 1.45,
-                                        color: Color(0xFF445A75),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    flex: 18,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 7,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: row.earliestAvailable == null
-                                            ? const Color(0xFFF1F5F9)
-                                            : const Color(0xFFE6FFFA),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: row.earliestAvailable == null
-                                              ? const Color(0xFFD8E3EE)
-                                              : const Color(0xFF99F6E4),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        earliest,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: row.earliestAvailable == null
-                                              ? const Color(0xFF64748B)
-                                              : const Color(0xFF0F766E),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    flex: 12,
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(
-                                              Icons.star_rounded,
-                                              color: Color(0xFFF59E0B),
-                                              size: 16,
+                                          Text(
+                                            '${row.ratingCount} ratings',
+                                            style: const TextStyle(
+                                              fontSize: 11.5,
+                                              color: Color(0xFF6B7D95),
                                             ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              row.ratingAverage.toStringAsFixed(
-                                                1,
-                                              ),
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w700,
-                                                color: Color(0xFF1E293B),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        Text(
-                                          '${row.ratingCount} ratings',
-                                          style: const TextStyle(
-                                            fontSize: 11.5,
-                                            color: Color(0xFF6B7D95),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  Expanded(
-                                    flex: 12,
-                                    child: Align(
-                                      alignment: Alignment.topLeft,
-                                      child: OutlinedButton.icon(
-                                        onPressed: () =>
-                                            onOpenProfile(row.counselorId),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: const Color(
-                                            0xFF0E9B90,
+                                    Expanded(
+                                      flex: 12,
+                                      child: Align(
+                                        alignment: Alignment.topLeft,
+                                        child: OutlinedButton.icon(
+                                          onPressed: () =>
+                                              onOpenProfile(row.counselorId),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: const Color(
+                                              0xFF0E9B90,
+                                            ),
+                                            side: const BorderSide(
+                                              color: Color(0xFF8DDCD4),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 9,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
                                           ),
-                                          side: const BorderSide(
-                                            color: Color(0xFF8DDCD4),
+                                          icon: const Icon(
+                                            Icons.open_in_new_rounded,
+                                            size: 14,
                                           ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 9,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              10,
+                                          label: const Text(
+                                            'Open',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
                                             ),
                                           ),
                                         ),
-                                        icon: const Icon(
-                                          Icons.open_in_new_rounded,
-                                          size: 14,
-                                        ),
-                                        label: const Text(
-                                          'Open',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }),
-                    ],
+                          );
+                        }),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
+                );
+              },
+            ),
         ],
       ),
     );
