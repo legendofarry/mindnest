@@ -1,3 +1,4 @@
+// features/care/presentation/student_appointments_screen.dart
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -991,6 +992,7 @@ class _StudentAppointmentsScreenState
           else
             LayoutBuilder(
               builder: (context, constraints) {
+                const tableColumnGap = 12.0;
                 final minWidth = constraints.maxWidth < 980
                     ? 980.0
                     : constraints.maxWidth;
@@ -1003,55 +1005,75 @@ class _StudentAppointmentsScreenState
                         Container(
                           padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                           color: const Color(0x66EEF6FF),
-                          child: const Row(
+                          child: Row(
                             children: [
                               Expanded(
-                                flex: 24,
-                                child: Text(
-                                  'Counselor',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF5B6E87),
+                                flex: 20,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    right: tableColumnGap,
+                                  ),
+                                  child: const Text(
+                                    'Counselor',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF5B6E87),
+                                    ),
                                   ),
                                 ),
                               ),
                               Expanded(
                                 flex: 12,
-                                child: Text(
-                                  'Status',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF5B6E87),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    right: tableColumnGap,
+                                  ),
+                                  child: const Text(
+                                    'Status',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF5B6E87),
+                                    ),
                                   ),
                                 ),
                               ),
                               Expanded(
                                 flex: 20,
-                                child: Text(
-                                  'Start',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF5B6E87),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    right: tableColumnGap,
+                                  ),
+                                  child: const Text(
+                                    'Start',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF5B6E87),
+                                    ),
                                   ),
                                 ),
                               ),
                               Expanded(
                                 flex: 20,
-                                child: Text(
-                                  'End',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF5B6E87),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    right: tableColumnGap,
+                                  ),
+                                  child: const Text(
+                                    'End',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF5B6E87),
+                                    ),
                                   ),
                                 ),
                               ),
                               Expanded(
-                                flex: 24,
-                                child: Text(
+                                flex: 28,
+                                child: const Text(
                                   'Actions',
                                   style: TextStyle(
                                     fontSize: 12,
@@ -1091,64 +1113,84 @@ class _StudentAppointmentsScreenState
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Expanded(
-                                      flex: 24,
-                                      child: Text(
-                                        appointment.counselorName ??
-                                            appointment.counselorId,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF0F172A),
+                                      flex: 20,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: tableColumnGap,
+                                        ),
+                                        child: Text(
+                                          appointment.counselorName ??
+                                              appointment.counselorId,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF0F172A),
+                                          ),
                                         ),
                                       ),
                                     ),
                                     Expanded(
                                       flex: 12,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 9,
-                                          vertical: 5,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: tableColumnGap,
                                         ),
-                                        decoration: BoxDecoration(
-                                          color: statusColor.withValues(
-                                            alpha: 0.14,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 9,
+                                            vertical: 5,
                                           ),
-                                          borderRadius: BorderRadius.circular(
-                                            999,
+                                          decoration: BoxDecoration(
+                                            color: statusColor.withValues(
+                                              alpha: 0.14,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
                                           ),
+                                          child: Text(
+                                            _statusLabel(appointment.status),
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: statusColor,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 11.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 20,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: tableColumnGap,
                                         ),
                                         child: Text(
-                                          _statusLabel(appointment.status),
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            color: statusColor,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 11.5,
+                                          _formatDate(appointment.startAt),
+                                          style: const TextStyle(
+                                            color: Color(0xFF445A75),
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
                                       ),
                                     ),
                                     Expanded(
                                       flex: 20,
-                                      child: Text(
-                                        _formatDate(appointment.startAt),
-                                        style: const TextStyle(
-                                          color: Color(0xFF445A75),
-                                          fontWeight: FontWeight.w500,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: tableColumnGap,
+                                        ),
+                                        child: Text(
+                                          _formatDate(appointment.endAt),
+                                          style: const TextStyle(
+                                            color: Color(0xFF445A75),
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                                       ),
                                     ),
                                     Expanded(
-                                      flex: 20,
-                                      child: Text(
-                                        _formatDate(appointment.endAt),
-                                        style: const TextStyle(
-                                          color: Color(0xFF445A75),
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 24,
+                                      flex: 28,
                                       child: Wrap(
                                         spacing: 6,
                                         runSpacing: 6,
