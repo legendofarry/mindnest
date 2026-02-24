@@ -1,3 +1,4 @@
+// features/live/data/live_repository.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -67,9 +68,11 @@ class LiveRepository {
   );
   // Source-file fallback for local/dev use when --dart-define values are absent.
   // Leave blank in source; use --dart-define values in local/CI.
-  static const String _liveKitUrlFromSource = '';
-  static const String _liveKitApiKeyFromSource = '';
-  static const String _liveKitApiSecretFromSource = '';
+  static const String _liveKitUrlFromSource =
+      'wss://mindnest-ubdebdzl.livekit.cloud';
+  static const String _liveKitApiKeyFromSource = 'API7JbqEBm8JXyA';
+  static const String _liveKitApiSecretFromSource =
+      '0NXJafVMXSlarGmz4RICuXqWSn5yaRMrwdzDxje09faA';
 
   static String get _liveKitUrl => _liveKitUrlFromDefine.isNotEmpty
       ? _liveKitUrlFromDefine
