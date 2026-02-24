@@ -28,8 +28,6 @@ class _CounselorDirectoryScreenState
   final _searchController = TextEditingController();
   _CounselorSort _sort = _CounselorSort.earliestAvailable;
   String _specializationFilter = 'all';
-  String _languageFilter = 'all';
-  String _modeFilter = 'all';
   int _refreshTick = 0;
 
   @override
@@ -197,26 +195,14 @@ class _CounselorDirectoryScreenState
                           }
 
                           final specializations = <String>{'all'};
-                          final languages = <String>{'all'};
-                          final modes = <String>{'all'};
                           for (final counselor in counselors) {
                             specializations.add(counselor.specialization);
-                            modes.add(counselor.sessionMode);
-                            for (final lang in counselor.languages) {
-                              languages.add(lang);
-                            }
                           }
 
                           if (!specializations.contains(
                             _specializationFilter,
                           )) {
                             _specializationFilter = 'all';
-                          }
-                          if (!languages.contains(_languageFilter)) {
-                            _languageFilter = 'all';
-                          }
-                          if (!modes.contains(_modeFilter)) {
-                            _modeFilter = 'all';
                           }
 
                           final query = _searchController.text
@@ -233,16 +219,7 @@ class _CounselorDirectoryScreenState
                                     _specializationFilter == 'all' ||
                                     entry.specialization ==
                                         _specializationFilter;
-                                final matchesLanguage =
-                                    _languageFilter == 'all' ||
-                                    entry.languages.contains(_languageFilter);
-                                final matchesMode =
-                                    _modeFilter == 'all' ||
-                                    entry.sessionMode == _modeFilter;
-                                return matchesSearch &&
-                                    matchesSpecialization &&
-                                    matchesLanguage &&
-                                    matchesMode;
+                                return matchesSearch && matchesSpecialization;
                               })
                               .toList(growable: false);
 
@@ -274,13 +251,9 @@ class _CounselorDirectoryScreenState
 
                           final hasActiveFilters =
                               query.isNotEmpty ||
-                              _specializationFilter != 'all' ||
-                              _languageFilter != 'all' ||
-                              _modeFilter != 'all';
+                              _specializationFilter != 'all';
                           final specializationOptions = specializations.toList()
                             ..sort();
-                          final languageOptions = languages.toList()..sort();
-                          final modeOptions = modes.toList()..sort();
 
                           return _CounselorDirectoryTable(
                             rows: filtered
@@ -316,19 +289,9 @@ class _CounselorDirectoryScreenState
                             specializationOptions: specializationOptions,
                             onSpecializationChanged: (value) =>
                                 setState(() => _specializationFilter = value),
-                            languageFilter: _languageFilter,
-                            languageOptions: languageOptions,
-                            onLanguageChanged: (value) =>
-                                setState(() => _languageFilter = value),
-                            modeFilter: _modeFilter,
-                            modeOptions: modeOptions,
-                            onModeChanged: (value) =>
-                                setState(() => _modeFilter = value),
                             onResetFilters: () {
                               setState(() {
                                 _specializationFilter = 'all';
-                                _languageFilter = 'all';
-                                _modeFilter = 'all';
                                 _sort = _CounselorSort.earliestAvailable;
                                 _searchController.clear();
                               });
@@ -357,14 +320,12 @@ class _CounselorDirectoryScreenState
 
 class _StringFilterDropdown extends StatelessWidget {
   const _StringFilterDropdown({
-    required this.label,
     required this.icon,
     required this.value,
     required this.options,
     required this.onChanged,
   });
 
-  final String label;
   final IconData icon;
   final String value;
   final List<String> options;
@@ -522,12 +483,6 @@ class _CounselorDirectoryTable extends StatelessWidget {
     required this.specializationFilter,
     required this.specializationOptions,
     required this.onSpecializationChanged,
-    required this.languageFilter,
-    required this.languageOptions,
-    required this.onLanguageChanged,
-    required this.modeFilter,
-    required this.modeOptions,
-    required this.onModeChanged,
     required this.onResetFilters,
     required this.hasActiveFilters,
     required this.noDataWidget,
@@ -544,12 +499,6 @@ class _CounselorDirectoryTable extends StatelessWidget {
   final String specializationFilter;
   final List<String> specializationOptions;
   final ValueChanged<String> onSpecializationChanged;
-  final String languageFilter;
-  final List<String> languageOptions;
-  final ValueChanged<String> onLanguageChanged;
-  final String modeFilter;
-  final List<String> modeOptions;
-  final ValueChanged<String> onModeChanged;
   final VoidCallback onResetFilters;
   final bool hasActiveFilters;
   final Widget noDataWidget;
@@ -612,25 +561,10 @@ class _CounselorDirectoryTable extends StatelessWidget {
                       onChanged: onSortChanged,
                     ),
                     _StringFilterDropdown(
-                      label: 'Specialization',
                       icon: Icons.psychology_alt_rounded,
                       value: specializationFilter,
                       options: specializationOptions,
                       onChanged: onSpecializationChanged,
-                    ),
-                    _StringFilterDropdown(
-                      label: 'Language',
-                      icon: Icons.translate_rounded,
-                      value: languageFilter,
-                      options: languageOptions,
-                      onChanged: onLanguageChanged,
-                    ),
-                    _StringFilterDropdown(
-                      label: 'Mode',
-                      icon: Icons.videocam_rounded,
-                      value: modeFilter,
-                      options: modeOptions,
-                      onChanged: onModeChanged,
                     ),
                     OutlinedButton.icon(
                       onPressed: onResetFilters,
