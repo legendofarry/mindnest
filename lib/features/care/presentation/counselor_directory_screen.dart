@@ -28,6 +28,8 @@ class _CounselorDirectoryScreenState
   final _searchController = TextEditingController();
   _CounselorSort _sort = _CounselorSort.earliestAvailable;
   String _specializationFilter = 'all';
+  String _modeFilter = 'all';
+  double? _minimumRatingFilter;
   int _refreshTick = 0;
 
   @override
@@ -51,6 +53,213 @@ class _CounselorDirectoryScreenState
     final local = value.toLocal();
     return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} '
         '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  int _activeFilterCount() {
+    var count = 0;
+    if (_sort != _CounselorSort.earliestAvailable) count++;
+    if (_specializationFilter != 'all') count++;
+    if (_modeFilter != 'all') count++;
+    if (_minimumRatingFilter != null) count++;
+    return count;
+  }
+
+  Future<void> _openFilterSheet({
+    required List<String> specializationOptions,
+    required List<String> modeOptions,
+  }) async {
+    var tempSort = _sort;
+    var tempSpecialization = _specializationFilter;
+    var tempMode = _modeFilter;
+    double? tempRating = _minimumRatingFilter;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD3DFEC),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.tune_rounded,
+                          color: Color(0xFF0E9B90),
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Filters',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    _ModalDropdownField<_CounselorSort>(
+                      icon: Icons.schedule_rounded,
+                      label: 'Sort',
+                      value: tempSort,
+                      items: _CounselorSort.values
+                          .map(
+                            (sortValue) => DropdownMenuItem(
+                              value: sortValue,
+                              child: Text(_sortLabel(sortValue)),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setSheetState(() => tempSort = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _ModalDropdownField<String>(
+                      icon: Icons.psychology_alt_rounded,
+                      label: 'Specialization',
+                      value: tempSpecialization,
+                      items: specializationOptions
+                          .map(
+                            (option) => DropdownMenuItem(
+                              value: option,
+                              child: Text(option == 'all' ? 'All' : option),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setSheetState(() => tempSpecialization = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _ModalDropdownField<String>(
+                      icon: Icons.videocam_rounded,
+                      label: 'Mode',
+                      value: tempMode,
+                      items: modeOptions
+                          .map(
+                            (option) => DropdownMenuItem(
+                              value: option,
+                              child: Text(option == 'all' ? 'All' : option),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setSheetState(() => tempMode = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Minimum Rating',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF445A75),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _RatingChip(
+                          label: 'All',
+                          selected: tempRating == null,
+                          onTap: () => setSheetState(() => tempRating = null),
+                        ),
+                        _RatingChip(
+                          label: '4.5+',
+                          selected: tempRating == 4.5,
+                          onTap: () => setSheetState(() => tempRating = 4.5),
+                        ),
+                        _RatingChip(
+                          label: '4.0+',
+                          selected: tempRating == 4.0,
+                          onTap: () => setSheetState(() => tempRating = 4.0),
+                        ),
+                        _RatingChip(
+                          label: '3.5+',
+                          selected: tempRating == 3.5,
+                          onTap: () => setSheetState(() => tempRating = 3.5),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              setSheetState(() {
+                                tempSort = _CounselorSort.earliestAvailable;
+                                tempSpecialization = 'all';
+                                tempMode = 'all';
+                                tempRating = null;
+                              });
+                            },
+                            icon: const Icon(
+                              Icons.restart_alt_rounded,
+                              size: 16,
+                            ),
+                            label: const Text('Reset'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _sort = tempSort;
+                                _specializationFilter = tempSpecialization;
+                                _modeFilter = tempMode;
+                                _minimumRatingFilter = tempRating;
+                              });
+                              Navigator.of(sheetContext).pop();
+                            },
+                            icon: const Icon(Icons.check_rounded, size: 16),
+                            label: const Text('Apply'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -195,14 +404,19 @@ class _CounselorDirectoryScreenState
                           }
 
                           final specializations = <String>{'all'};
+                          final modes = <String>{'all'};
                           for (final counselor in counselors) {
                             specializations.add(counselor.specialization);
+                            modes.add(counselor.sessionMode);
                           }
 
                           if (!specializations.contains(
                             _specializationFilter,
                           )) {
                             _specializationFilter = 'all';
+                          }
+                          if (!modes.contains(_modeFilter)) {
+                            _modeFilter = 'all';
                           }
 
                           final query = _searchController.text
@@ -219,7 +433,17 @@ class _CounselorDirectoryScreenState
                                     _specializationFilter == 'all' ||
                                     entry.specialization ==
                                         _specializationFilter;
-                                return matchesSearch && matchesSpecialization;
+                                final matchesMode =
+                                    _modeFilter == 'all' ||
+                                    entry.sessionMode == _modeFilter;
+                                final matchesRating =
+                                    _minimumRatingFilter == null ||
+                                    ratingAverageFor(entry) >=
+                                        _minimumRatingFilter!;
+                                return matchesSearch &&
+                                    matchesSpecialization &&
+                                    matchesMode &&
+                                    matchesRating;
                               })
                               .toList(growable: false);
 
@@ -251,9 +475,12 @@ class _CounselorDirectoryScreenState
 
                           final hasActiveFilters =
                               query.isNotEmpty ||
-                              _specializationFilter != 'all';
+                              _specializationFilter != 'all' ||
+                              _modeFilter != 'all' ||
+                              _minimumRatingFilter != null;
                           final specializationOptions = specializations.toList()
                             ..sort();
+                          final modeOptions = modes.toList()..sort();
 
                           return _CounselorDirectoryTable(
                             rows: filtered
@@ -281,21 +508,11 @@ class _CounselorDirectoryScreenState
                             },
                             searchController: _searchController,
                             onSearchChanged: (_) => setState(() {}),
-                            sort: _sort,
-                            sortLabelBuilder: _sortLabel,
-                            onSortChanged: (value) =>
-                                setState(() => _sort = value),
-                            specializationFilter: _specializationFilter,
-                            specializationOptions: specializationOptions,
-                            onSpecializationChanged: (value) =>
-                                setState(() => _specializationFilter = value),
-                            onResetFilters: () {
-                              setState(() {
-                                _specializationFilter = 'all';
-                                _sort = _CounselorSort.earliestAvailable;
-                                _searchController.clear();
-                              });
-                            },
+                            onOpenFilters: () => _openFilterSheet(
+                              specializationOptions: specializationOptions,
+                              modeOptions: modeOptions,
+                            ),
+                            activeFilterCount: _activeFilterCount(),
                             hasActiveFilters: hasActiveFilters,
                             noDataWidget: hasActiveFilters
                                 ? const Text(
@@ -312,132 +529,6 @@ class _CounselorDirectoryScreenState
                 },
               ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StringFilterDropdown extends StatelessWidget {
-  const _StringFilterDropdown({
-    required this.icon,
-    required this.value,
-    required this.options,
-    required this.onChanged,
-  });
-
-  final IconData icon;
-  final String value;
-  final List<String> options;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0x66FFFFFF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFD0DFEE)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          menuMaxHeight: 320,
-          isDense: true,
-          borderRadius: BorderRadius.circular(12),
-          icon: const Icon(Icons.arrow_drop_down_rounded),
-          selectedItemBuilder: (context) {
-            return options
-                .map(
-                  (option) => Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(icon, size: 16, color: const Color(0xFF5E728D)),
-                      const SizedBox(width: 6),
-                      Text(option == 'all' ? 'All' : option),
-                    ],
-                  ),
-                )
-                .toList(growable: false);
-          },
-          items: options
-              .map(
-                (option) => DropdownMenuItem(
-                  value: option,
-                  child: Text(option == 'all' ? 'All' : option),
-                ),
-              )
-              .toList(growable: false),
-          onChanged: (changed) {
-            if (changed != null) {
-              onChanged(changed);
-            }
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _SortFilterDropdown extends StatelessWidget {
-  const _SortFilterDropdown({
-    required this.value,
-    required this.sortLabelBuilder,
-    required this.onChanged,
-  });
-
-  final _CounselorSort value;
-  final String Function(_CounselorSort sort) sortLabelBuilder;
-  final ValueChanged<_CounselorSort> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0x66FFFFFF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFD0DFEE)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<_CounselorSort>(
-          value: value,
-          menuMaxHeight: 320,
-          isDense: true,
-          borderRadius: BorderRadius.circular(12),
-          icon: const Icon(Icons.arrow_drop_down_rounded),
-          selectedItemBuilder: (context) {
-            return _CounselorSort.values
-                .map(
-                  (sortValue) => Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.schedule_rounded,
-                        size: 16,
-                        color: Color(0xFF5E728D),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(sortLabelBuilder(sortValue)),
-                    ],
-                  ),
-                )
-                .toList(growable: false);
-          },
-          items: _CounselorSort.values
-              .map(
-                (sortValue) => DropdownMenuItem(
-                  value: sortValue,
-                  child: Text(sortLabelBuilder(sortValue)),
-                ),
-              )
-              .toList(growable: false),
-          onChanged: (changed) {
-            if (changed != null) {
-              onChanged(changed);
-            }
-          },
         ),
       ),
     );
@@ -470,6 +561,105 @@ class _CounselorTableRowData {
   final DateTime? earliestAvailable;
 }
 
+class _ModalDropdownField<T> extends StatelessWidget {
+  const _ModalDropdownField({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final T value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD6E4F2)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF5E728D)),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF475569),
+            ),
+          ),
+          const Spacer(),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              value: value,
+              items: items,
+              menuMaxHeight: 320,
+              borderRadius: BorderRadius.circular(12),
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RatingChip extends StatelessWidget {
+  const _RatingChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF0E9B90) : const Color(0xFFF8FBFF),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? const Color(0xFF0E9B90) : const Color(0xFFD6E4F2),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.star_rounded,
+              size: 14,
+              color: selected ? Colors.white : const Color(0xFFF59E0B),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : const Color(0xFF475569),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CounselorDirectoryTable extends StatelessWidget {
   const _CounselorDirectoryTable({
     required this.rows,
@@ -477,13 +667,8 @@ class _CounselorDirectoryTable extends StatelessWidget {
     required this.onOpenProfile,
     required this.searchController,
     required this.onSearchChanged,
-    required this.sort,
-    required this.sortLabelBuilder,
-    required this.onSortChanged,
-    required this.specializationFilter,
-    required this.specializationOptions,
-    required this.onSpecializationChanged,
-    required this.onResetFilters,
+    required this.onOpenFilters,
+    required this.activeFilterCount,
     required this.hasActiveFilters,
     required this.noDataWidget,
   });
@@ -493,13 +678,8 @@ class _CounselorDirectoryTable extends StatelessWidget {
   final ValueChanged<String> onOpenProfile;
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
-  final _CounselorSort sort;
-  final String Function(_CounselorSort sort) sortLabelBuilder;
-  final ValueChanged<_CounselorSort> onSortChanged;
-  final String specializationFilter;
-  final List<String> specializationOptions;
-  final ValueChanged<String> onSpecializationChanged;
-  final VoidCallback onResetFilters;
+  final VoidCallback onOpenFilters;
+  final int activeFilterCount;
   final bool hasActiveFilters;
   final Widget noDataWidget;
 
@@ -551,26 +731,35 @@ class _CounselorDirectoryTable extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                Row(
                   children: [
-                    _SortFilterDropdown(
-                      value: sort,
-                      sortLabelBuilder: sortLabelBuilder,
-                      onChanged: onSortChanged,
-                    ),
-                    _StringFilterDropdown(
-                      icon: Icons.psychology_alt_rounded,
-                      value: specializationFilter,
-                      options: specializationOptions,
-                      onChanged: onSpecializationChanged,
-                    ),
+                    const Spacer(),
                     OutlinedButton.icon(
-                      onPressed: onResetFilters,
-                      icon: const Icon(Icons.restart_alt_rounded, size: 16),
-                      label: const Text('Reset'),
+                      onPressed: onOpenFilters,
+                      icon: const Icon(Icons.tune_rounded, size: 18),
+                      label: const Text('Filters'),
                     ),
+                    if (activeFilterCount > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0E9B90),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '$activeFilterCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
