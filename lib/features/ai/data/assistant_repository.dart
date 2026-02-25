@@ -287,6 +287,7 @@ class AssistantRepository {
     required String prompt,
     required UserProfile profile,
     List<AssistantConversationMessage> history = const [],
+    String memorySummary = '',
   }) async {
     final normalized = prompt.trim().toLowerCase();
     if (normalized.isEmpty) {
@@ -303,6 +304,7 @@ class AssistantRepository {
       prompt: prompt.trim(),
       profile: profile,
       history: history,
+      memorySummary: memorySummary,
     );
   }
 
@@ -627,6 +629,7 @@ class AssistantRepository {
     required String prompt,
     required UserProfile profile,
     required List<AssistantConversationMessage> history,
+    required String memorySummary,
   }) async {
     if (_auth.currentUser == null) {
       return const AssistantReply(text: 'Please sign in to use AI chat.');
@@ -668,21 +671,25 @@ class AssistantRepository {
           prompt: prompt,
           profile: profile,
           history: history,
+          memorySummary: memorySummary,
         ),
         _ProviderType.gemini => await _callGemini(
           prompt: prompt,
           profile: profile,
           history: history,
+          memorySummary: memorySummary,
         ),
         _ProviderType.groq => await _callGroq(
           prompt: prompt,
           profile: profile,
           history: history,
+          memorySummary: memorySummary,
         ),
         _ProviderType.openRouter => await _callOpenRouter(
           prompt: prompt,
           profile: profile,
           history: history,
+          memorySummary: memorySummary,
         ),
       };
       if (result.isSuccess) {
@@ -707,11 +714,15 @@ class AssistantRepository {
     );
   }
 
-  String _systemPrompt(UserProfile profile) {
+  String _systemPrompt(UserProfile profile, {String memorySummary = ''}) {
+    final summary = memorySummary.trim();
+    final summaryText = summary.isEmpty
+        ? ''
+        : ' Conversation memory summary: $summary';
     return 'You are MindNest assistant. Provide supportive, calm responses. '
         'For emergency self-harm/violence risk, advise immediate local emergency/crisis support. '
         'Do not claim to be a licensed therapist. '
-        'User context: role=${profile.role.name}, institutionId=${profile.institutionId ?? ''}.';
+        'User context: role=${profile.role.name}, institutionId=${profile.institutionId ?? ''}.$summaryText';
   }
 
   List<_ProviderType> _providerSequence({
@@ -793,6 +804,7 @@ class AssistantRepository {
     required String prompt,
     required UserProfile profile,
     required List<AssistantConversationMessage> history,
+    required String memorySummary,
   }) async {
     final chatUrl = Uri.parse('$_openAiBaseUrl$_openAiChatPath');
     final recentHistory = history.length > 8
@@ -800,7 +812,10 @@ class AssistantRepository {
         : history;
 
     final messages = <Map<String, String>>[
-      {'role': 'system', 'content': _systemPrompt(profile)},
+      {
+        'role': 'system',
+        'content': _systemPrompt(profile, memorySummary: memorySummary),
+      },
       ...recentHistory.map(
         (entry) => {'role': entry.role, 'content': entry.text},
       ),
@@ -849,6 +864,7 @@ class AssistantRepository {
     required String prompt,
     required UserProfile profile,
     required List<AssistantConversationMessage> history,
+    required String memorySummary,
   }) async {
     final recentHistory = history.length > 8
         ? history.sublist(history.length - 8)
@@ -894,7 +910,12 @@ class AssistantRepository {
               body: jsonEncode({
                 'systemInstruction': {
                   'parts': [
-                    {'text': _systemPrompt(profile)},
+                    {
+                      'text': _systemPrompt(
+                        profile,
+                        memorySummary: memorySummary,
+                      ),
+                    },
                   ],
                 },
                 'contents': contents,
@@ -960,6 +981,7 @@ class AssistantRepository {
     required String prompt,
     required UserProfile profile,
     required List<AssistantConversationMessage> history,
+    required String memorySummary,
   }) async {
     final chatUrl = Uri.parse('$_groqBaseUrl$_groqChatPath');
     final recentHistory = history.length > 8
@@ -967,7 +989,10 @@ class AssistantRepository {
         : history;
 
     final messages = <Map<String, String>>[
-      {'role': 'system', 'content': _systemPrompt(profile)},
+      {
+        'role': 'system',
+        'content': _systemPrompt(profile, memorySummary: memorySummary),
+      },
       ...recentHistory.map(
         (entry) => {'role': entry.role, 'content': entry.text},
       ),
@@ -1016,6 +1041,7 @@ class AssistantRepository {
     required String prompt,
     required UserProfile profile,
     required List<AssistantConversationMessage> history,
+    required String memorySummary,
   }) async {
     final chatUrl = Uri.parse('$_openRouterBaseUrl$_openRouterChatPath');
     final recentHistory = history.length > 8
@@ -1023,7 +1049,10 @@ class AssistantRepository {
         : history;
 
     final messages = <Map<String, String>>[
-      {'role': 'system', 'content': _systemPrompt(profile)},
+      {
+        'role': 'system',
+        'content': _systemPrompt(profile, memorySummary: memorySummary),
+      },
       ...recentHistory.map(
         (entry) => {'role': entry.role, 'content': entry.text},
       ),
