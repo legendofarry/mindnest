@@ -618,8 +618,6 @@ class HomeScreen extends ConsumerWidget {
             final sectionBorder = isDark
                 ? const Color(0xFF2A3A52)
                 : const Color(0xFFDDE6F1);
-            final canOpenNotifications =
-                (profile.institutionId ?? '').isNotEmpty;
 
             return FractionallySizedBox(
               heightFactor: 0.95,
@@ -770,51 +768,6 @@ class HomeScreen extends ConsumerWidget {
                                           : Icons.light_mode_rounded,
                                       color: const Color(0xFF0E9B90),
                                     ),
-                                  ),
-                                  Divider(
-                                    height: 1,
-                                    color: sectionBorder.withValues(alpha: 0.9),
-                                  ),
-                                  _sheetTile(
-                                    context: context,
-                                    icon: Icons.notifications_active_outlined,
-                                    label: 'Notifications',
-                                    subtitle: canOpenNotifications
-                                        ? 'Manage your notification center'
-                                        : 'Join an institution to manage notifications',
-                                    onTap: () {
-                                      if (!canOpenNotifications) {
-                                        ScaffoldMessenger.of(
-                                          parentContext,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Join an organization to manage notifications.',
-                                            ),
-                                          ),
-                                        );
-                                        return;
-                                      }
-                                      Navigator.of(sheetContext).pop();
-                                      parentContext.go(AppRoute.notifications);
-                                    },
-                                  ),
-                                  _sheetTile(
-                                    context: context,
-                                    icon: Icons.language_rounded,
-                                    label: 'Language',
-                                    subtitle: 'Coming soon',
-                                    onTap: () {
-                                      ScaffoldMessenger.of(
-                                        parentContext,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Language settings are coming soon.',
-                                          ),
-                                        ),
-                                      );
-                                    },
                                   ),
                                 ],
                               ),
