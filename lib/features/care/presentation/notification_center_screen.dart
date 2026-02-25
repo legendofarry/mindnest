@@ -3,8 +3,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/back_to_home_button.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/app_notification.dart';
 
@@ -20,6 +23,7 @@ class _NotificationCenterScreenState
     extends ConsumerState<NotificationCenterScreen> {
   bool _showUnreadOnly = false;
   int _refreshTick = 0;
+  final Set<String> _openingNotificationIds = <String>{};
 
   String _formatDate(DateTime value) {
     final local = value.toLocal();
@@ -46,6 +50,109 @@ class _NotificationCenterScreenState
       return Icons.access_time_rounded;
     }
     return Icons.notifications_none_rounded;
+  }
+
+  String _defaultRouteForRole(UserRole role) {
+    switch (role) {
+      case UserRole.counselor:
+        return AppRoute.counselorAppointments;
+      case UserRole.institutionAdmin:
+        return AppRoute.institutionAdmin;
+      case UserRole.student:
+      case UserRole.staff:
+      case UserRole.individual:
+      case UserRole.other:
+        return AppRoute.home;
+    }
+  }
+
+  String _appointmentNotificationRoute({
+    required AppNotification notification,
+    required UserRole role,
+  }) {
+    if (role == UserRole.counselor) {
+      return AppRoute.counselorAppointments;
+    }
+    if (role == UserRole.institutionAdmin) {
+      return AppRoute.institutionAdmin;
+    }
+    final appointmentId = notification.relatedAppointmentId?.trim() ?? '';
+    if (appointmentId.isNotEmpty) {
+      final encodedId = Uri.encodeQueryComponent(appointmentId);
+      return '${AppRoute.sessionDetails}?appointmentId=$encodedId';
+    }
+    return AppRoute.studentAppointments;
+  }
+
+  String _destinationRouteForNotification({
+    required AppNotification notification,
+    required UserRole role,
+  }) {
+    final type = notification.type.trim().toLowerCase();
+    switch (type) {
+      case 'institution_request_submitted':
+      case 'institution_request_resubmitted':
+      case 'school_request_submitted':
+        return AppRoute.ownerDashboard;
+      case 'institution_request_pending':
+      case 'institution_request_declined':
+        return AppRoute.institutionPending;
+      case 'institution_request_approved':
+        return AppRoute.institutionAdmin;
+      case 'booking_confirmed':
+      case 'booking_request':
+      case 'booking_reminder':
+      case 'appointment_cancelled':
+      case 'session_completed':
+      case 'session_no_show':
+      case 'appointment_rescheduled':
+        return _appointmentNotificationRoute(
+          notification: notification,
+          role: role,
+        );
+      default:
+        return _defaultRouteForRole(role);
+    }
+  }
+
+  Future<void> _openNotification({
+    required AppNotification notification,
+    required UserRole role,
+  }) async {
+    if (_openingNotificationIds.contains(notification.id)) {
+      return;
+    }
+    setState(() => _openingNotificationIds.add(notification.id));
+
+    try {
+      if (!notification.isRead) {
+        await ref
+            .read(careRepositoryProvider)
+            .markNotificationRead(notification.id);
+      }
+      if (!mounted) {
+        return;
+      }
+      context.go(
+        _destinationRouteForNotification(
+          notification: notification,
+          role: role,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _openingNotificationIds.remove(notification.id));
+      }
+    }
   }
 
   Widget _segmentedControl({
@@ -145,6 +252,8 @@ class _NotificationCenterScreenState
   Widget _notificationCard({
     required AppNotification entry,
     required bool isDark,
+    required VoidCallback onTap,
+    required bool isBusy,
   }) {
     final cardColor = isDark ? const Color(0xFF151F31) : Colors.white;
     final border = isDark ? const Color(0xFF2A3A52) : const Color(0xFFDDE6F1);
@@ -163,11 +272,7 @@ class _NotificationCenterScreenState
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(34),
-        onTap: entry.isRead
-            ? null
-            : () => ref
-                  .read(careRepositoryProvider)
-                  .markNotificationRead(entry.id),
+        onTap: isBusy ? null : onTap,
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
@@ -218,7 +323,16 @@ class _NotificationCenterScreenState
                             ),
                           ),
                         ),
-                        if (!entry.isRead)
+                        if (isBusy)
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF0E9B90),
+                            ),
+                          )
+                        else if (!entry.isRead)
                           Container(
                             width: 8,
                             height: 8,
@@ -285,6 +399,7 @@ class _NotificationCenterScreenState
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final userId = profile?.id ?? '';
+    final userRole = profile?.role ?? UserRole.other;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark
         ? const Color(0xFFE2E8F0)
@@ -406,9 +521,18 @@ class _NotificationCenterScreenState
                                                   itemBuilder: (context, index) {
                                                     final entry =
                                                         filtered[index];
+                                                    final isBusy =
+                                                        _openingNotificationIds
+                                                            .contains(entry.id);
                                                     return _notificationCard(
                                                       entry: entry,
                                                       isDark: isDark,
+                                                      isBusy: isBusy,
+                                                      onTap: () =>
+                                                          _openNotification(
+                                                            notification: entry,
+                                                            role: userRole,
+                                                          ),
                                                     );
                                                   },
                                                 ),

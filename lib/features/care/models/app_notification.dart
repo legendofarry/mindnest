@@ -11,6 +11,7 @@ class AppNotification {
     required this.createdAt,
     required this.isRead,
     this.relatedAppointmentId,
+    this.relatedId,
   });
 
   final String id;
@@ -22,6 +23,7 @@ class AppNotification {
   final DateTime createdAt;
   final bool isRead;
   final String? relatedAppointmentId;
+  final String? relatedId;
 
   factory AppNotification.fromMap(String id, Map<String, dynamic> data) {
     DateTime parseDate(dynamic raw) {
@@ -44,6 +46,7 @@ class AppNotification {
       createdAt: parseDate(data['createdAt']),
       isRead: (data['isRead'] as bool?) ?? false,
       relatedAppointmentId: data['relatedAppointmentId'] as String?,
+      relatedId: data['relatedId'] as String?,
     );
   }
 }
