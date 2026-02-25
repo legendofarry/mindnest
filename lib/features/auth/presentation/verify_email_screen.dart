@@ -253,8 +253,8 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
               )
             else
               TextButton(
-                onPressed: () => context.go(AppRoute.postSignup),
-                child: const Text('Update join/institution choice'),
+                onPressed: () => context.go(AppRoute.home),
+                child: const Text('Continue to Home'),
               ),
           ],
         ),

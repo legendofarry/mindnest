@@ -248,13 +248,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoute.registerDetails,
-        builder: (context, state) {
-          final intentParam = state.uri.queryParameters['intent'];
-          final intent = intentParam == 'join'
-              ? RegisterIntent.joinInstitution
-              : RegisterIntent.individual;
-          return RegisterDetailsScreen(intent: intent);
-        },
+        builder: (context, state) => const RegisterDetailsScreen(),
       ),
       GoRoute(
         path: AppRoute.forgotPassword,

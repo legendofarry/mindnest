@@ -559,6 +559,36 @@ class HomeScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _showInstitutionJoinGuide(BuildContext context) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.info_outline_rounded, color: Color(0xFF0E9B90)),
+              SizedBox(width: 8),
+              Text('Institution Access'),
+            ],
+          ),
+          content: const Text(
+            'If your school/organization uses MindNest, ask your institution admin or counselor for the join code.\n\n'
+            'If you already have the join code, tap "Enter Join Code" on this screen to connect your account.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _openProfilePanel(
     BuildContext context,
     WidgetRef ref,
@@ -1260,6 +1290,8 @@ class HomeScreen extends ConsumerWidget {
                   final institutionLabel = hasInstitution
                       ? (profile.institutionName ?? 'Institution').toUpperCase()
                       : 'INDIVIDUAL';
+                  final showJoinInstitutionNudge =
+                      profile.role == UserRole.individual && !hasInstitution;
                   final mainContent = Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1272,6 +1304,15 @@ class HomeScreen extends ConsumerWidget {
                         canAccessLive: canAccessLive,
                         isDark: isDark,
                       ),
+                      if (showJoinInstitutionNudge) ...[
+                        const SizedBox(height: 14),
+                        _InstitutionJoinNudgeCard(
+                          onJoinCode: () =>
+                              context.go(AppRoute.joinInstitution),
+                          onHowItWorks: () =>
+                              _showInstitutionJoinGuide(context),
+                        ),
+                      ],
                       const SizedBox(height: 18),
                       HomeAiAssistantSection(
                         profile: profile,
@@ -2189,6 +2230,103 @@ class _AppBarIconBtn extends StatelessWidget {
             size: 22,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _InstitutionJoinNudgeCard extends StatelessWidget {
+  const _InstitutionJoinNudgeCard({
+    required this.onJoinCode,
+    required this.onHowItWorks,
+  });
+
+  final VoidCallback onJoinCode;
+  final VoidCallback onHowItWorks;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? const [Color(0xFF1A2D45), Color(0xFF16354D)]
+              : const [Color(0xFFEAF5FF), Color(0xFFEFFFFC)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFD7E5F3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.apartment_rounded,
+                color: Color(0xFF0E9B90),
+                size: 19,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Belong to an Institution?',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  color: isDark
+                      ? const Color(0xFFE2E8F0)
+                      : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'If your school/workplace uses MindNest, ask for your join code and connect your account.',
+            style: TextStyle(
+              color: isDark ? const Color(0xFFB7C6DA) : const Color(0xFF516784),
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              ElevatedButton.icon(
+                onPressed: onJoinCode,
+                icon: const Icon(Icons.key_rounded, size: 16),
+                label: const Text('Enter Join Code'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0E9B90),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: onHowItWorks,
+                icon: const Icon(Icons.help_outline_rounded, size: 16),
+                label: const Text('How it works'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF0E7490),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

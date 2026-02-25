@@ -98,7 +98,7 @@ class _RegisterContent extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Choose the account type that best fits your needs.',
+          'Create your MindNest account first, then join your institution from Home if you have a join code.',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: const Color(0xFF516784),
             height: 1.35,
@@ -108,19 +108,10 @@ class _RegisterContent extends StatelessWidget {
         const SizedBox(height: 26),
         _AccountTypeCard(
           icon: Icons.account_circle_outlined,
-          title: 'Individual User',
+          title: 'Create Account',
           description:
-              'Use wellness tools, track your mood, and access resources for personal growth.',
-          onTap: () =>
-              context.go('${AppRoute.registerDetails}?intent=individual'),
-        ),
-        const SizedBox(height: 18),
-        _AccountTypeCard(
-          icon: Icons.apartment_rounded,
-          title: 'Join Institution',
-          description:
-              'Join your school or workplace wellness ecosystem using a unique join code.',
-          onTap: () => context.go('${AppRoute.registerDetails}?intent=join'),
+              'Use wellness tools, track your mood, and access resources. You can connect to an institution after sign-up.',
+          onTap: () => context.go(AppRoute.registerDetails),
         ),
         const SizedBox(height: 24),
         Row(
@@ -196,7 +187,7 @@ class _DesktopMarketingPanel extends StatelessWidget {
           ),
           const SizedBox(height: 26),
           const Text(
-            'Choose your path as an individual or join your\ninstitution wellness ecosystem with one account.',
+            'Create one account first, then join your institution\nlater with a join code from your admin.',
             style: TextStyle(
               color: Color(0xFFA9EFE8),
               fontSize: 23,

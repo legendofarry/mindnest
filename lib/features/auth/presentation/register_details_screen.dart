@@ -6,12 +6,8 @@ import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 
-enum RegisterIntent { individual, joinInstitution }
-
 class RegisterDetailsScreen extends ConsumerStatefulWidget {
-  const RegisterDetailsScreen({super.key, required this.intent});
-
-  final RegisterIntent intent;
+  const RegisterDetailsScreen({super.key});
 
   @override
   ConsumerState<RegisterDetailsScreen> createState() =>
@@ -50,10 +46,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
       if (!mounted) {
         return;
       }
-      final destination = widget.intent == RegisterIntent.joinInstitution
-          ? AppRoute.joinInstitution
-          : AppRoute.verifyEmail;
-      context.go(destination);
+      context.go(AppRoute.verifyEmail);
     } on FirebaseAuthException catch (error) {
       _showMessage(error.message ?? 'Registration failed.');
     } catch (error) {
@@ -73,9 +66,6 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isJoinFlow = widget.intent == RegisterIntent.joinInstitution;
-    final startText = isJoinFlow ? 'Join Institution' : 'Individual';
-
     return AuthBackgroundScaffold(
       child: Form(
         key: _formKey,
@@ -102,7 +92,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                       ),
                       SizedBox(width: 6),
                       Text(
-                        'Change Account Type',
+                        'Back',
                         style: TextStyle(
                           color: Color(0xFF93A3BA),
                           fontWeight: FontWeight.w700,
@@ -125,22 +115,11 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
               ),
             ),
             const SizedBox(height: 6),
-            RichText(
-              text: TextSpan(
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: const Color(0xFF516784),
-                  fontWeight: FontWeight.w500,
-                ),
-                children: [
-                  const TextSpan(text: 'Starting as an '),
-                  TextSpan(
-                    text: '$startText.',
-                    style: const TextStyle(
-                      color: Color(0xFF0E9B90),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+            Text(
+              'You can join your institution later from Home using a join code.',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF516784),
+                fontWeight: FontWeight.w500,
               ),
             ),
             const SizedBox(height: 28),
