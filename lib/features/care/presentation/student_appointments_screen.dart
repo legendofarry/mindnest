@@ -586,35 +586,6 @@ class _StudentAppointmentsScreenState
   }
 
   Widget _buildTimeline(List<AppointmentRecord> appointments) {
-    final filtered = _applyTimelineFilters(appointments);
-    if (filtered.isEmpty) {
-      return const GlassCard(
-        child: Padding(
-          padding: EdgeInsets.all(18),
-          child: Text('No sessions match the selected timeline filter.'),
-        ),
-      );
-    }
-
-    final grouped = <String, List<AppointmentRecord>>{};
-    final dateByKey = <String, DateTime>{};
-    for (final appointment in filtered) {
-      final key = _dateKey(appointment.startAt);
-      grouped.putIfAbsent(key, () => <AppointmentRecord>[]).add(appointment);
-      dateByKey.putIfAbsent(key, () {
-        final local = appointment.startAt.toLocal();
-        return DateTime(local.year, local.month, local.day);
-      });
-    }
-    final orderedKeys = grouped.keys.toList(growable: false);
-    for (final key in orderedKeys) {
-      grouped[key]!.sort((a, b) => a.startAt.compareTo(b.startAt));
-    }
-    final todayKey = _dateKey(DateTime.now());
-    final defaultExpandedKey = grouped.containsKey(todayKey)
-        ? todayKey
-        : orderedKeys.first;
-
     Widget timelineFilterChip({
       required String label,
       required AppointmentStatus? status,
@@ -640,6 +611,74 @@ class _StudentAppointmentsScreenState
       );
     }
 
+    final timelineFilterBar = GlassCard(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            timelineFilterChip(
+              label: 'All',
+              status: null,
+              activeColor: const Color(0xFF0E7490),
+            ),
+            timelineFilterChip(
+              label: 'Cancelled',
+              status: AppointmentStatus.cancelled,
+              activeColor: const Color(0xFFDC2626),
+            ),
+            timelineFilterChip(
+              label: 'No-show',
+              status: AppointmentStatus.noShow,
+              activeColor: const Color(0xFF7C3AED),
+            ),
+            timelineFilterChip(
+              label: 'Completed',
+              status: AppointmentStatus.completed,
+              activeColor: const Color(0xFF059669),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final filtered = _applyTimelineFilters(appointments);
+    if (filtered.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          timelineFilterBar,
+          const SizedBox(height: 10),
+          const GlassCard(
+            child: Padding(
+              padding: EdgeInsets.all(18),
+              child: Text('No sessions match the selected timeline filter.'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final grouped = <String, List<AppointmentRecord>>{};
+    final dateByKey = <String, DateTime>{};
+    for (final appointment in filtered) {
+      final key = _dateKey(appointment.startAt);
+      grouped.putIfAbsent(key, () => <AppointmentRecord>[]).add(appointment);
+      dateByKey.putIfAbsent(key, () {
+        final local = appointment.startAt.toLocal();
+        return DateTime(local.year, local.month, local.day);
+      });
+    }
+    final orderedKeys = grouped.keys.toList(growable: false);
+    for (final key in orderedKeys) {
+      grouped[key]!.sort((a, b) => a.startAt.compareTo(b.startAt));
+    }
+    final todayKey = _dateKey(DateTime.now());
+    final defaultExpandedKey = grouped.containsKey(todayKey)
+        ? todayKey
+        : orderedKeys.first;
+
     Widget statusChip(AppointmentStatus status) {
       final color = _statusColor(status);
       return Container(
@@ -663,37 +702,7 @@ class _StudentAppointmentsScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        GlassCard(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                timelineFilterChip(
-                  label: 'All',
-                  status: null,
-                  activeColor: const Color(0xFF0E7490),
-                ),
-                timelineFilterChip(
-                  label: 'Cancelled',
-                  status: AppointmentStatus.cancelled,
-                  activeColor: const Color(0xFFDC2626),
-                ),
-                timelineFilterChip(
-                  label: 'No-show',
-                  status: AppointmentStatus.noShow,
-                  activeColor: const Color(0xFF7C3AED),
-                ),
-                timelineFilterChip(
-                  label: 'Completed',
-                  status: AppointmentStatus.completed,
-                  activeColor: const Color(0xFF059669),
-                ),
-              ],
-            ),
-          ),
-        ),
+        timelineFilterBar,
         const SizedBox(height: 10),
         ...orderedKeys.map((key) {
           final date = dateByKey[key]!;
