@@ -16,6 +16,19 @@ import 'package:mindnest/features/care/models/counselor_public_rating.dart';
 
 enum _CounselorSort { earliestAvailable, ratingHigh, experienceHigh }
 
+const _sourceQueryKey = 'from';
+const _counselorsSourceValue = 'counselors';
+
+String _counselorProfileRouteFromCounselors(String counselorId) {
+  return Uri(
+    path: AppRoute.counselorProfile,
+    queryParameters: <String, String>{
+      'counselorId': counselorId,
+      _sourceQueryKey: _counselorsSourceValue,
+    },
+  ).toString();
+}
+
 class CounselorDirectoryScreen extends ConsumerStatefulWidget {
   const CounselorDirectoryScreen({super.key});
 
@@ -519,7 +532,9 @@ class _CounselorDirectoryScreenState
                             formatSlot: _formatSlot,
                             onOpenProfile: (counselorId) {
                               context.push(
-                                '${AppRoute.counselorProfile}?counselorId=$counselorId',
+                                _counselorProfileRouteFromCounselors(
+                                  counselorId,
+                                ),
                               );
                             },
                             searchController: _searchController,
@@ -1213,7 +1228,7 @@ class _PendingCounselorFallback extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(24),
                         onTap: () {
                           context.push(
-                            '${AppRoute.counselorProfile}?counselorId=$userId',
+                            _counselorProfileRouteFromCounselors(userId),
                           );
                         },
                         child: Padding(

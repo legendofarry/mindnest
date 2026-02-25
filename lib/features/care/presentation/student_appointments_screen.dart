@@ -16,6 +16,19 @@ import 'package:mindnest/features/care/models/availability_slot.dart';
 
 enum _AppointmentSort { newest, oldest, counselorAz, status }
 
+const _sourceQueryKey = 'from';
+const _studentAppointmentsSourceValue = 'studentAppointments';
+
+String _sessionDetailsRouteFromStudentAppointments(String appointmentId) {
+  return Uri(
+    path: AppRoute.sessionDetails,
+    queryParameters: <String, String>{
+      'appointmentId': appointmentId,
+      _sourceQueryKey: _studentAppointmentsSourceValue,
+    },
+  ).toString();
+}
+
 class StudentAppointmentsScreen extends ConsumerStatefulWidget {
   const StudentAppointmentsScreen({super.key});
 
@@ -1273,7 +1286,7 @@ class _StudentAppointmentsScreenState
     BuildContext context,
     AppointmentRecord appointment,
   ) {
-    context.go('${AppRoute.sessionDetails}?appointmentId=${appointment.id}');
+    context.go(_sessionDetailsRouteFromStudentAppointments(appointment.id));
   }
 
   @override

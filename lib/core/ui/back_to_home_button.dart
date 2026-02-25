@@ -8,6 +8,8 @@ class BackToHomeButton extends StatelessWidget {
   static const String _sourceQueryKey = 'from';
   static const String _notificationSourceValue = 'notifications';
   static const String _profileSourceValue = 'profile';
+  static const String _counselorsSourceValue = 'counselors';
+  static const String _studentAppointmentsSourceValue = 'studentAppointments';
   static const String _openProfileQueryKey = 'openProfile';
   static const String _profileOpenTokenQueryKey = 'profileOpenTs';
 
@@ -18,15 +20,30 @@ class BackToHomeButton extends StatelessWidget {
     ).uri.queryParameters[_sourceQueryKey];
     final shouldReturnToNotifications = source == _notificationSourceValue;
     final shouldReturnToProfile = source == _profileSourceValue;
+    final shouldReturnToCounselors = source == _counselorsSourceValue;
+    final shouldReturnToStudentAppointments =
+        source == _studentAppointmentsSourceValue;
     return IconButton(
       tooltip: shouldReturnToNotifications
           ? 'Back to Notifications'
+          : shouldReturnToStudentAppointments
+          ? 'Back to Sessions'
+          : shouldReturnToCounselors
+          ? 'Back to Counselors'
           : shouldReturnToProfile
           ? 'Back to Profile'
           : 'Back to Home',
       onPressed: () {
         if (shouldReturnToNotifications) {
           context.go(AppRoute.notifications);
+          return;
+        }
+        if (shouldReturnToCounselors) {
+          context.go(AppRoute.counselorDirectory);
+          return;
+        }
+        if (shouldReturnToStudentAppointments) {
+          context.go(AppRoute.studentAppointments);
           return;
         }
         if (shouldReturnToProfile) {
