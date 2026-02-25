@@ -1,7 +1,9 @@
+// features/auth/presentation/register_screen.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
+import 'package:mindnest/core/ui/auth_desktop_shell.dart';
 
 class RegisterScreen extends StatelessWidget {
   const RegisterScreen({super.key});
@@ -12,52 +14,17 @@ class RegisterScreen extends StatelessWidget {
     final isDesktop = MediaQuery.sizeOf(context).width >= _desktopBreakpoint;
 
     if (isDesktop) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        body: Column(
-          children: [
-            Container(
-              height: 52,
-              color: const Color(0xFF171717),
-              alignment: Alignment.center,
-              child: const Text(
-                'MindNest V1 - Mental Wellness Platform',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Row(
-                children: [
-                  const Expanded(child: _DesktopMarketingPanel()),
-                  Expanded(
-                    child: Container(
-                      color: const Color(0xFFF8FAFC),
-                      child: Center(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 40,
-                            vertical: 24,
-                          ),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 560),
-                            child: _RegisterContent(
-                              showBrand: false,
-                              isDesktop: true,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+      return const AuthDesktopShell(
+        heroHighlightText: 'Start your journey',
+        heroBaseText: 'to better mental wellness.',
+        heroDescription:
+            'Create one account first, then join your institution later with '
+            'a join code from your admin.',
+        metrics: [
+          AuthDesktopMetric(value: '3+', label: 'USERS HELPED'),
+          AuthDesktopMetric(value: '1+', label: 'INSTITUTIONS'),
+        ],
+        formChild: _RegisterContent(showBrand: false, isDesktop: true),
       );
     }
 
@@ -135,125 +102,6 @@ class _RegisterContent extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ],
-    );
-  }
-}
-
-class _DesktopMarketingPanel extends StatelessWidget {
-  const _DesktopMarketingPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(76, 74, 76, 68),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF118F88), Color(0xFF0D6E6A)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              _DesktopBrandIcon(),
-              SizedBox(width: 16),
-              Text(
-                'MindNest',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 29,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.4,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          const Text(
-            'Start your journey to\nbetter mental wellness.',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 43,
-              height: 1.2,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.9,
-            ),
-          ),
-          const SizedBox(height: 26),
-          const Text(
-            'Create one account first, then join your institution\nlater with a join code from your admin.',
-            style: TextStyle(
-              color: Color(0xFFA9EFE8),
-              fontSize: 23,
-              height: 1.45,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const Spacer(),
-          const Row(
-            children: [
-              _MetricItem(value: '120k+', label: 'USERS HELPED'),
-              SizedBox(width: 48),
-              _MetricItem(value: '450+', label: 'INSTITUTIONS'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DesktopBrandIcon extends StatelessWidget {
-  const _DesktopBrandIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: const Color(0xFFECFDF5),
-      ),
-      child: const Icon(Icons.psychology_alt_rounded, color: Color(0xFF0E9B90)),
-    );
-  }
-}
-
-class _MetricItem extends StatelessWidget {
-  const _MetricItem({required this.value, required this.label});
-
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 30,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFFA9EFE8),
-            fontSize: 11,
-            letterSpacing: 1.4,
-            fontWeight: FontWeight.w800,
-          ),
         ),
       ],
     );

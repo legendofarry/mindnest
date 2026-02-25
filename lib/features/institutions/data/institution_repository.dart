@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -10,8 +12,13 @@ class InstitutionRepository {
   }) : _firestore = firestore,
        _auth = auth;
 
+  static const Duration _joinCodeValidity = Duration(hours: 24);
+  static const int _joinCodeMaxUses = 50;
+  static const String _joinCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final Random _random = Random.secure();
 
   Stream<UserInvite?> pendingInviteForEmail(String email) {
     final normalizedEmail = email.trim().toLowerCase();
@@ -44,7 +51,12 @@ class InstitutionRepository {
     }
 
     final institutionRef = _firestore.collection('institutions').doc();
-    final joinCode = _generateJoinCode();
+    final joinCode = await _generateUniqueJoinCode();
+    final joinCodePayload = _buildJoinCodePayload(
+      code: joinCode,
+      nowUtc: DateTime.now().toUtc(),
+      usageCount: 0,
+    );
 
     final credential = await _auth.createUserWithEmailAndPassword(
       email: normalizedEmail,
@@ -65,9 +77,9 @@ class InstitutionRepository {
     final batch = _firestore.batch();
     batch.set(institutionRef, {
       'name': trimmedInstitutionName,
-      'joinCode': joinCode,
       'createdBy': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
+      ...joinCodePayload,
     });
     batch.set(_firestore.collection('users').doc(user.uid), {
       'email': user.email ?? normalizedEmail,
@@ -266,40 +278,131 @@ class InstitutionRepository {
     final institutionData = institutionDoc.data();
     final institutionName =
         (institutionData['name'] as String?) ?? 'Institution';
+    final rotatedCodeCandidate = await _generateUniqueJoinCode(
+      excludeInstitutionId: institutionDoc.id,
+    );
 
     final userRef = _firestore.collection('users').doc(currentUser.uid);
-    final userDoc = await userRef.get();
-    final previousInstitutionId = userDoc.data()?['institutionId'] as String?;
     final membershipRef = _firestore
         .collection('institution_members')
         .doc('${institutionDoc.id}_${currentUser.uid}');
 
-    final batch = _firestore.batch();
-    batch.update(userRef, {
-      'institutionId': institutionDoc.id,
-      'institutionName': institutionName,
-      'role': role.name,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    batch.set(membershipRef, {
-      'institutionId': institutionDoc.id,
-      'userId': currentUser.uid,
-      'role': role.name,
-      'userName': currentUser.displayName ?? '',
-      'email': currentUser.email ?? '',
-      'joinedAt': FieldValue.serverTimestamp(),
-      'status': 'active',
-    });
-    if (previousInstitutionId != null &&
-        previousInstitutionId.isNotEmpty &&
-        previousInstitutionId != institutionDoc.id) {
-      final previousMembershipRef = _firestore
-          .collection('institution_members')
-          .doc('${previousInstitutionId}_${currentUser.uid}');
-      batch.delete(previousMembershipRef);
+    final nowUtc = DateTime.now().toUtc();
+    try {
+      await _firestore.runTransaction((transaction) async {
+        final institutionSnapshot = await transaction.get(
+          institutionDoc.reference,
+        );
+        final data = institutionSnapshot.data();
+        if (data == null) {
+          throw const _JoinCodeFlowException('Invalid join code.');
+        }
+
+        final activeJoinCode = (data['joinCode'] as String? ?? '')
+            .trim()
+            .toUpperCase();
+        if (activeJoinCode != normalizedCode) {
+          throw const _JoinCodeFlowException('Invalid join code.');
+        }
+
+        final usageCount = (data['joinCodeUsageCount'] as num?)?.toInt() ?? 0;
+        final expiresAtUtc = _asUtcDate(data['joinCodeExpiresAt']);
+        final isExpired = expiresAtUtc == null || !expiresAtUtc.isAfter(nowUtc);
+        final isUsageCapped = usageCount >= _joinCodeMaxUses;
+
+        if (isExpired || isUsageCapped) {
+          transaction.update(
+            institutionDoc.reference,
+            _buildJoinCodePayload(
+              code: rotatedCodeCandidate,
+              nowUtc: nowUtc,
+              usageCount: 0,
+            ),
+          );
+
+          if (isExpired) {
+            throw const _JoinCodeFlowException(
+              'This join code expired and has been regenerated. Ask your institution admin for the latest code.',
+            );
+          }
+          throw const _JoinCodeFlowException(
+            'This join code reached its 50-user limit and has been regenerated. Ask your institution admin for the latest code.',
+          );
+        }
+
+        final userSnapshot = await transaction.get(userRef);
+        final previousInstitutionId =
+            userSnapshot.data()?['institutionId'] as String?;
+
+        transaction.update(userRef, {
+          'institutionId': institutionDoc.id,
+          'institutionName': institutionName,
+          'role': role.name,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        transaction.set(membershipRef, {
+          'institutionId': institutionDoc.id,
+          'userId': currentUser.uid,
+          'role': role.name,
+          'userName': currentUser.displayName ?? '',
+          'email': currentUser.email ?? '',
+          'joinedAt': FieldValue.serverTimestamp(),
+          'status': 'active',
+          'joinedVia': 'code',
+          'joinedCode': normalizedCode,
+        });
+        transaction.update(institutionDoc.reference, {
+          'joinCodeUsageCount': usageCount + 1,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        if (previousInstitutionId != null &&
+            previousInstitutionId.isNotEmpty &&
+            previousInstitutionId != institutionDoc.id) {
+          final previousMembershipRef = _firestore
+              .collection('institution_members')
+              .doc('${previousInstitutionId}_${currentUser.uid}');
+          transaction.delete(previousMembershipRef);
+        }
+      });
+    } on _JoinCodeFlowException catch (error) {
+      throw Exception(error.message);
+    }
+  }
+
+  Future<void> regenerateJoinCodeForCurrentAdminInstitution() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('You must be logged in.');
     }
 
-    await batch.commit();
+    final userDoc = await _firestore
+        .collection('users')
+        .doc(currentUser.uid)
+        .get();
+    final profile = userDoc.data();
+    if (profile == null ||
+        (profile['role'] as String?) != UserRole.institutionAdmin.name) {
+      throw Exception('Only institution admins can regenerate join codes.');
+    }
+
+    final institutionId = profile['institutionId'] as String?;
+    if (institutionId == null || institutionId.isEmpty) {
+      throw Exception('Admin profile is not linked to an institution.');
+    }
+
+    final nextJoinCode = await _generateUniqueJoinCode(
+      excludeInstitutionId: institutionId,
+    );
+    await _firestore
+        .collection('institutions')
+        .doc(institutionId)
+        .update(
+          _buildJoinCodePayload(
+            code: nextJoinCode,
+            nowUtc: DateTime.now().toUtc(),
+            usageCount: 0,
+          ),
+        );
   }
 
   DateTime? _asUtcDate(dynamic raw) {
@@ -443,9 +546,50 @@ class InstitutionRepository {
   }
 
   String _generateJoinCode() {
-    final timestampBase36 = DateTime.now().millisecondsSinceEpoch
-        .toRadixString(36)
-        .toUpperCase();
-    return timestampBase36.substring(timestampBase36.length - 6);
+    final buffer = StringBuffer();
+    for (var i = 0; i < 8; i++) {
+      final index = _random.nextInt(_joinCodeAlphabet.length);
+      buffer.write(_joinCodeAlphabet[index]);
+    }
+    return buffer.toString();
   }
+
+  Future<String> _generateUniqueJoinCode({String? excludeInstitutionId}) async {
+    for (var attempt = 0; attempt < 8; attempt++) {
+      final candidate = _generateJoinCode();
+      final snapshot = await _firestore
+          .collection('institutions')
+          .where('joinCode', isEqualTo: candidate)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) {
+        return candidate;
+      }
+      if (excludeInstitutionId != null &&
+          snapshot.docs.first.id == excludeInstitutionId) {
+        return candidate;
+      }
+    }
+    throw Exception('Unable to generate a unique join code. Please retry.');
+  }
+
+  Map<String, dynamic> _buildJoinCodePayload({
+    required String code,
+    required DateTime nowUtc,
+    required int usageCount,
+  }) {
+    return {
+      'joinCode': code,
+      'joinCodeCreatedAt': Timestamp.fromDate(nowUtc),
+      'joinCodeExpiresAt': Timestamp.fromDate(nowUtc.add(_joinCodeValidity)),
+      'joinCodeUsageCount': usageCount,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+  }
+}
+
+class _JoinCodeFlowException implements Exception {
+  const _JoinCodeFlowException(this.message);
+
+  final String message;
 }

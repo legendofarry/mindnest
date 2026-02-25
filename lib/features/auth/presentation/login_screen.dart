@@ -1,3 +1,4 @@
+// features/auth/presentation/login_screen.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -142,44 +143,69 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     if (isDesktop) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        body: Column(
+        backgroundColor: const Color(0xFFF7FBFC),
+        body: Stack(
           children: [
-            Container(
-              height: 52,
-              color: const Color(0xFF171717),
-              alignment: Alignment.center,
-              child: const Text(
-                'MindNest V1 - Mental Wellness Platform',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Row(
-                children: [
-                  const Expanded(child: _DesktopMarketingPanel()),
-                  Expanded(
-                    child: Container(
-                      color: const Color(0xFFF8FAFC),
-                      child: Center(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 40,
-                            vertical: 24,
-                          ),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 520),
-                            child: _buildFormContent(context, showBrand: false),
+            const Positioned.fill(child: _DesktopAmbientBackground()),
+            SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 52,
+                    vertical: 28,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1400),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Expanded(
+                          flex: 6,
+                          child: _DesktopMarketingPanel(),
+                        ),
+                        const SizedBox(width: 54),
+                        Expanded(
+                          flex: 5,
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 500),
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: const Color(0xFFBEE9E4),
+                                    width: 1.1,
+                                  ),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x140F172A),
+                                      blurRadius: 36,
+                                      offset: Offset(0, 18),
+                                    ),
+                                  ],
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    34,
+                                    28,
+                                    34,
+                                    26,
+                                  ),
+                                  child: _buildFormContent(
+                                    context,
+                                    showBrand: false,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ],
@@ -496,61 +522,76 @@ class _DesktopMarketingPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(76, 74, 76, 68),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF118F88), Color(0xFF0D6E6A)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 28, 24, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
               _DesktopBrandIcon(),
-              SizedBox(width: 16),
+              SizedBox(width: 14),
               Text(
                 'MindNest',
                 style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 29,
+                  color: Color(0xFF0F172A),
+                  fontSize: 41,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: -0.4,
+                  letterSpacing: -0.8,
                 ),
               ),
             ],
           ),
-          const Spacer(),
-          const Text(
-            'Your safe space for\nmental wellness.',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 43,
-              height: 1.2,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.9,
+          const SizedBox(height: 42),
+          RichText(
+            text: const TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Your safe space\n',
+                  style: TextStyle(
+                    color: Color(0xFF0E9B90),
+                    fontSize: 74,
+                    fontWeight: FontWeight.w800,
+                    height: 0.98,
+                    letterSpacing: -1.9,
+                  ),
+                ),
+                TextSpan(
+                  text: 'for mental wellness.',
+                  style: TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontSize: 74,
+                    fontWeight: FontWeight.w800,
+                    height: 0.98,
+                    letterSpacing: -1.9,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 26),
-          const Text(
-            'Join thousands of individuals and institutions\ncommitted to better mental health outcomes through\nempathy and expert care.',
-            style: TextStyle(
-              color: Color(0xFFA9EFE8),
-              fontSize: 23,
-              height: 1.45,
-              fontWeight: FontWeight.w600,
+          const SizedBox(height: 30),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 700),
+            child: Text(
+              'Join thousands of individuals and institutions committed to better '
+              'mental health outcomes through empathy and expert care.',
+              style: TextStyle(
+                color: Color(0xFF4C607A),
+                fontSize: 31,
+                height: 1.38,
+                fontWeight: FontWeight.w500,
+                letterSpacing: -0.3,
+              ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 54),
           const Row(
             children: [
-              _MetricItem(value: '120k+', label: 'USERS HELPED'),
-              SizedBox(width: 48),
-              _MetricItem(value: '450+', label: 'INSTITUTIONS'),
+              _MetricItem(value: '3+', label: 'USERS HELPED'),
+              SizedBox(width: 54),
+              _MetricItem(value: '1+', label: 'INSTITUTIONS'),
             ],
           ),
         ],
@@ -568,10 +609,14 @@ class _DesktopBrandIcon extends StatelessWidget {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: const Color(0xFFECFDF5),
+        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFF15CFC2),
       ),
-      child: const Icon(Icons.psychology_alt_rounded, color: Color(0xFF0E9B90)),
+      child: const Icon(
+        Icons.psychology_alt_rounded,
+        color: Color(0xFF0A3B37),
+        size: 25,
+      ),
     );
   }
 }
@@ -590,22 +635,102 @@ class _MetricItem extends StatelessWidget {
         Text(
           value,
           style: const TextStyle(
-            color: Colors.white,
-            fontSize: 30,
+            color: Color(0xFF0F172A),
+            fontSize: 49,
             fontWeight: FontWeight.w800,
+            letterSpacing: -1.2,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           label,
           style: const TextStyle(
-            color: Color(0xFFA9EFE8),
-            fontSize: 11,
-            letterSpacing: 1.4,
+            color: Color(0xFF0E9B90),
+            fontSize: 15,
+            letterSpacing: 1.8,
             fontWeight: FontWeight.w800,
           ),
         ),
       ],
+    );
+  }
+}
+
+class _DesktopAmbientBackground extends StatelessWidget {
+  const _DesktopAmbientBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFFF8FCFD),
+                  const Color(0xFFF6FAFC),
+                  const Color(0xFFF4F9FB),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          left: -150,
+          top: -210,
+          child: _GlowBlob(
+            size: 680,
+            color: const Color(0xFF82E9E0).withValues(alpha: 0.35),
+          ),
+        ),
+        Positioned(
+          right: -160,
+          top: 130,
+          child: _GlowBlob(
+            size: 560,
+            color: const Color(0xFFB8F4EF).withValues(alpha: 0.34),
+          ),
+        ),
+        Positioned(
+          right: 150,
+          bottom: -220,
+          child: _GlowBlob(
+            size: 640,
+            color: const Color(0xFF8DE8DF).withValues(alpha: 0.26),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GlowBlob extends StatelessWidget {
+  const _GlowBlob({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color,
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.44),
+              blurRadius: size * 0.28,
+              spreadRadius: size * 0.02,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

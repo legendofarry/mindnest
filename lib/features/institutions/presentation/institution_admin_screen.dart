@@ -36,6 +36,7 @@ class _InstitutionAdminScreenState
   AdminWorkspaceView _activeView = AdminWorkspaceView.overview;
   String _activeFilter = 'all';
   bool _isSubmitting = false;
+  bool _isRegeneratingJoinCode = false;
   int _rowsPerPage = PaginatedDataTable.defaultRowsPerPage;
   int? _sortColumnIndex;
   bool _sortAscending = true;
@@ -87,6 +88,37 @@ class _InstitutionAdminScreenState
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _regenerateJoinCode({bool silent = false}) async {
+    if (_isRegeneratingJoinCode) {
+      return;
+    }
+    setState(() => _isRegeneratingJoinCode = true);
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .regenerateJoinCodeForCurrentAdminInstitution();
+      if (!mounted || silent) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Join code regenerated.')));
+    } catch (error) {
+      if (!mounted || silent) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isRegeneratingJoinCode = false);
       }
     }
   }
@@ -492,6 +524,8 @@ class _InstitutionAdminScreenState
                             institutionRef: institutionRef,
                             fallbackName:
                                 profile.institutionName ?? 'Institution',
+                            isRegeneratingJoinCode: _isRegeneratingJoinCode,
+                            onRegenerateJoinCode: () => _regenerateJoinCode(),
                           ),
                           const SizedBox(height: 14),
                           _StatsRow(
@@ -759,21 +793,75 @@ class _SideNavButton extends StatelessWidget {
   }
 }
 
-class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.institutionRef, required this.fallbackName});
+class _HeroCard extends StatefulWidget {
+  const _HeroCard({
+    required this.institutionRef,
+    required this.fallbackName,
+    required this.isRegeneratingJoinCode,
+    required this.onRegenerateJoinCode,
+  });
 
   final DocumentReference<Map<String, dynamic>> institutionRef;
   final String fallbackName;
+  final bool isRegeneratingJoinCode;
+  final VoidCallback onRegenerateJoinCode;
+
+  @override
+  State<_HeroCard> createState() => _HeroCardState();
+}
+
+class _HeroCardState extends State<_HeroCard> {
+  String? _autoRefreshedCode;
+
+  DateTime? _parseTimestamp(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    if (value is DateTime) {
+      return value;
+    }
+    return null;
+  }
+
+  String _formatTimestamp(DateTime? value) {
+    if (value == null) {
+      return '--';
+    }
+    final local = value.toLocal();
+    final mm = local.month.toString().padLeft(2, '0');
+    final dd = local.day.toString().padLeft(2, '0');
+    final hh = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return '${local.year}-$mm-$dd $hh:$min';
+  }
 
   @override
   Widget build(BuildContext context) {
     return GlassCard(
       child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: institutionRef.snapshots(),
+        stream: widget.institutionRef.snapshots(),
         builder: (context, snapshot) {
           final data = snapshot.data?.data();
-          final name = (data?['name'] as String?) ?? fallbackName;
+          final name = (data?['name'] as String?) ?? widget.fallbackName;
           final joinCode = (data?['joinCode'] as String?) ?? '--';
+          final usageCount =
+              (data?['joinCodeUsageCount'] as num?)?.toInt() ?? 0;
+          final expiresAt = _parseTimestamp(data?['joinCodeExpiresAt']);
+          final now = DateTime.now();
+          final isExpired =
+              expiresAt == null || !expiresAt.toUtc().isAfter(now.toUtc());
+          if (isExpired &&
+              !widget.isRegeneratingJoinCode &&
+              _autoRefreshedCode != joinCode &&
+              joinCode != '--') {
+            _autoRefreshedCode = joinCode;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) {
+                return;
+              }
+              widget.onRegenerateJoinCode();
+            });
+          }
 
           return Container(
             padding: const EdgeInsets.all(22),
@@ -835,28 +923,96 @@ class _HeroCard extends StatelessWidget {
                       ),
                       const Spacer(),
                       FilledButton.tonalIcon(
-                        onPressed: () async {
-                          await Clipboard.setData(
-                            ClipboardData(text: joinCode),
-                          );
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Join code copied.'),
-                              ),
-                            );
-                          }
-                        },
+                        onPressed: widget.isRegeneratingJoinCode
+                            ? null
+                            : () async {
+                                await Clipboard.setData(
+                                  ClipboardData(text: joinCode),
+                                );
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Join code copied.'),
+                                    ),
+                                  );
+                                }
+                              },
                         icon: const Icon(Icons.copy_rounded, size: 18),
                         label: const Text('Copy'),
                       ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: widget.isRegeneratingJoinCode
+                            ? null
+                            : widget.onRegenerateJoinCode,
+                        icon: widget.isRegeneratingJoinCode
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.autorenew_rounded, size: 18),
+                        label: const Text('Regenerate'),
+                      ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _MetaPill(
+                      icon: Icons.timer_outlined,
+                      label: isExpired
+                          ? 'Expired'
+                          : 'Expires ${_formatTimestamp(expiresAt)}',
+                    ),
+                    _MetaPill(
+                      icon: Icons.group_add_rounded,
+                      label: 'Usage $usageCount / 50',
+                    ),
+                  ],
                 ),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _MetaPill extends StatelessWidget {
+  const _MetaPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.75),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x220F172A)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF0F766E)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: const Color(0xFF0F172A),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -38,6 +38,67 @@ service cloud.firestore {
       return currentUserDoc().institutionId;
     }
 
+    function institutionJoinCodeChangedKeys() {
+      return request.resource.data.diff(resource.data).changedKeys();
+    }
+
+    function joinCodeMetadataKeys() {
+      return [
+        'joinCode',
+        'joinCodeCreatedAt',
+        'joinCodeExpiresAt',
+        'joinCodeUsageCount',
+        'updatedAt'
+      ];
+    }
+
+    function sameInstitutionAdmin(institutionId) {
+      return isSignedIn() &&
+        currentUserRole() == 'institutionAdmin' &&
+        currentInstitutionId() == institutionId;
+    }
+
+    function canAdminRegenerateInstitutionCode(institutionId) {
+      return sameInstitutionAdmin(institutionId) &&
+        institutionJoinCodeChangedKeys().hasOnly(joinCodeMetadataKeys()) &&
+        request.resource.data.createdBy == resource.data.createdBy &&
+        request.resource.data.name == resource.data.name &&
+        request.resource.data.joinCodeUsageCount == 0 &&
+        request.resource.data.joinCode != resource.data.joinCode;
+    }
+
+    function canJoinFlowIncrementUsage(institutionId) {
+      return isSignedIn() &&
+        institutionJoinCodeChangedKeys().hasOnly(['joinCodeUsageCount', 'updatedAt']) &&
+        request.resource.data.joinCode == resource.data.joinCode &&
+        request.resource.data.joinCodeCreatedAt == resource.data.joinCodeCreatedAt &&
+        request.resource.data.joinCodeExpiresAt == resource.data.joinCodeExpiresAt &&
+        request.resource.data.joinCodeUsageCount == resource.data.joinCodeUsageCount + 1 &&
+        existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.institutionId == institutionId &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['student', 'staff'] &&
+        existsAfter(/databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)) &&
+        getAfter(/databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)).data.userId == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)).data.institutionId == institutionId;
+    }
+
+    function canAutoRotateExpiredOrCappedCode() {
+      return isSignedIn() &&
+        institutionJoinCodeChangedKeys().hasOnly(joinCodeMetadataKeys()) &&
+        request.resource.data.joinCodeUsageCount == 0 &&
+        request.resource.data.joinCode != resource.data.joinCode &&
+        request.resource.data.createdBy == resource.data.createdBy &&
+        request.resource.data.name == resource.data.name &&
+        (
+          !('joinCodeExpiresAt' in resource.data) ||
+          request.time >= resource.data.joinCodeExpiresAt ||
+          (
+            'joinCodeUsageCount' in resource.data &&
+            resource.data.joinCodeUsageCount >= 50
+          )
+        );
+    }
+
     function sharesInstitutionWithUser(targetUid) {
       return isSignedIn() &&
         currentInstitutionId() != null &&
@@ -80,7 +141,10 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn() &&
         request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if false;
+      allow update: if canAdminRegenerateInstitutionCode(institutionId) ||
+        canJoinFlowIncrementUsage(institutionId) ||
+        canAutoRotateExpiredOrCappedCode();
+      allow delete: if false;
     }
 
     match /institution_members/{membershipId} {
