@@ -21,6 +21,9 @@ class NotificationCenterScreen extends ConsumerStatefulWidget {
 
 class _NotificationCenterScreenState
     extends ConsumerState<NotificationCenterScreen> {
+  static const String _sourceQueryKey = 'from';
+  static const String _notificationSourceValue = 'notifications';
+
   bool _showUnreadOnly = false;
   int _refreshTick = 0;
   final Set<String> _openingNotificationIds = <String>{};
@@ -115,6 +118,13 @@ class _NotificationCenterScreenState
     }
   }
 
+  String _withNotificationSource(String route) {
+    final uri = Uri.parse(route);
+    final updatedQuery = <String, String>{...uri.queryParameters};
+    updatedQuery[_sourceQueryKey] = _notificationSourceValue;
+    return uri.replace(queryParameters: updatedQuery).toString();
+  }
+
   Future<void> _openNotification({
     required AppNotification notification,
     required UserRole role,
@@ -134,9 +144,11 @@ class _NotificationCenterScreenState
         return;
       }
       context.go(
-        _destinationRouteForNotification(
-          notification: notification,
-          role: role,
+        _withNotificationSource(
+          _destinationRouteForNotification(
+            notification: notification,
+            role: role,
+          ),
         ),
       );
     } catch (error) {

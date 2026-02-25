@@ -5,11 +5,44 @@ import 'package:mindnest/core/routes/app_router.dart';
 class BackToHomeButton extends StatelessWidget {
   const BackToHomeButton({super.key});
 
+  static const String _sourceQueryKey = 'from';
+  static const String _notificationSourceValue = 'notifications';
+  static const String _profileSourceValue = 'profile';
+  static const String _openProfileQueryKey = 'openProfile';
+  static const String _profileOpenTokenQueryKey = 'profileOpenTs';
+
   @override
   Widget build(BuildContext context) {
+    final source = GoRouterState.of(
+      context,
+    ).uri.queryParameters[_sourceQueryKey];
+    final shouldReturnToNotifications = source == _notificationSourceValue;
+    final shouldReturnToProfile = source == _profileSourceValue;
     return IconButton(
-      tooltip: 'Back to Home',
-      onPressed: () => context.go(AppRoute.home),
+      tooltip: shouldReturnToNotifications
+          ? 'Back to Notifications'
+          : shouldReturnToProfile
+          ? 'Back to Profile'
+          : 'Back to Home',
+      onPressed: () {
+        if (shouldReturnToNotifications) {
+          context.go(AppRoute.notifications);
+          return;
+        }
+        if (shouldReturnToProfile) {
+          final homeWithProfile = Uri(
+            path: AppRoute.home,
+            queryParameters: <String, String>{
+              _openProfileQueryKey: '1',
+              _profileOpenTokenQueryKey: DateTime.now().millisecondsSinceEpoch
+                  .toString(),
+            },
+          );
+          context.go(homeWithProfile.toString());
+          return;
+        }
+        context.go(AppRoute.home);
+      },
       icon: const Icon(Icons.arrow_back_rounded),
     );
   }

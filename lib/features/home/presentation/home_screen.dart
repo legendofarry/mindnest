@@ -35,6 +35,8 @@ const _muted = Color(0xFF64748B);
 const _surface = Color(0xFFF8FAFC);
 const _cardBg = Colors.white;
 
+final _homeProfileAutoOpenTokenProvider = StateProvider<String?>((_) => null);
+
 // Action card data
 const _cardGradients = [
   [Color(0xFF0D9488), Color(0xFF0EA5E9)], // Counselors – teal → sky
@@ -230,6 +232,11 @@ class _ActionCardState extends State<_ActionCard>
 // ---------------------------------------------------------------------------
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
+
+  static const String _sourceQueryKey = 'from';
+  static const String _profileSourceValue = 'profile';
+  static const String _openProfileQueryKey = 'openProfile';
+  static const String _profileOpenTokenQueryKey = 'profileOpenTs';
 
   // ---- kept logic methods (unchanged) ----
 
@@ -798,7 +805,9 @@ class HomeScreen extends ConsumerWidget {
                                     onTap: () {
                                       Navigator.of(sheetContext).pop();
                                       parentContext.go(
-                                        AppRoute.privacyControls,
+                                        _withProfileSource(
+                                          AppRoute.privacyControls,
+                                        ),
                                       );
                                     },
                                   ),
@@ -810,7 +819,9 @@ class HomeScreen extends ConsumerWidget {
                                       subtitle: 'Your care goals and progress',
                                       onTap: () {
                                         Navigator.of(sheetContext).pop();
-                                        parentContext.go(AppRoute.carePlan);
+                                        parentContext.go(
+                                          _withProfileSource(AppRoute.carePlan),
+                                        );
                                       },
                                     ),
                                   if (!hasInstitution)
@@ -823,7 +834,9 @@ class HomeScreen extends ConsumerWidget {
                                       onTap: () {
                                         Navigator.of(sheetContext).pop();
                                         parentContext.go(
-                                          AppRoute.joinInstitution,
+                                          _withProfileSource(
+                                            AppRoute.joinInstitution,
+                                          ),
                                         );
                                       },
                                     ),
@@ -837,7 +850,9 @@ class HomeScreen extends ConsumerWidget {
                                       onTap: () {
                                         Navigator.of(sheetContext).pop();
                                         parentContext.go(
-                                          AppRoute.institutionAdmin,
+                                          _withProfileSource(
+                                            AppRoute.institutionAdmin,
+                                          ),
                                         );
                                       },
                                     ),
@@ -891,6 +906,13 @@ class HomeScreen extends ConsumerWidget {
         );
       },
     );
+  }
+
+  String _withProfileSource(String route) {
+    final uri = Uri.parse(route);
+    final updatedQuery = <String, String>{...uri.queryParameters};
+    updatedQuery[_sourceQueryKey] = _profileSourceValue;
+    return uri.replace(queryParameters: updatedQuery).toString();
   }
 
   Widget _sheetTile({
@@ -1123,6 +1145,7 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
+    final uri = GoRouterState.of(context).uri;
     final profileAsync = ref.watch(currentUserProfileProvider);
     final loadedProfile = profileAsync.valueOrNull;
     final canOpenNotifications =
@@ -1130,6 +1153,30 @@ class HomeScreen extends ConsumerWidget {
     final hasInstitution = (loadedProfile?.institutionId ?? '').isNotEmpty;
     final canAccessLive =
         loadedProfile != null && _canAccessLive(loadedProfile);
+
+    final shouldAutoOpenProfile =
+        uri.queryParameters[_openProfileQueryKey] == '1';
+    if (shouldAutoOpenProfile && loadedProfile != null) {
+      final tokenFromQuery = uri.queryParameters[_profileOpenTokenQueryKey];
+      final resolvedToken = (tokenFromQuery == null || tokenFromQuery.isEmpty)
+          ? uri.toString()
+          : tokenFromQuery;
+      final lastToken = ref.read(_homeProfileAutoOpenTokenProvider);
+      if (lastToken != resolvedToken) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!context.mounted) {
+            return;
+          }
+          final currentToken = ref.read(_homeProfileAutoOpenTokenProvider);
+          if (currentToken == resolvedToken) {
+            return;
+          }
+          ref.read(_homeProfileAutoOpenTokenProvider.notifier).state =
+              resolvedToken;
+          _openProfilePanel(context, ref, loadedProfile);
+        });
+      }
+    }
 
     return Scaffold(
       backgroundColor: isDark
