@@ -357,6 +357,42 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
     }
 
+    match /mood_entries/{entryId} {
+      allow read: if isSignedIn() &&
+        resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() &&
+        request.resource.data.keys().hasOnly([
+          'userId',
+          'dateKey',
+          'mood',
+          'energy',
+          'updatedAt'
+        ]) &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.dateKey is string &&
+        request.resource.data.dateKey.size() == 10 &&
+        request.resource.data.mood in ['great', 'good', 'okay', 'low', 'stressed', 'sad'] &&
+        request.resource.data.energy is int &&
+        request.resource.data.energy >= 1 &&
+        request.resource.data.energy <= 5;
+      allow update: if isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.keys().hasOnly([
+          'userId',
+          'dateKey',
+          'mood',
+          'energy',
+          'updatedAt'
+        ]) &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.dateKey == resource.data.dateKey &&
+        request.resource.data.mood in ['great', 'good', 'okay', 'low', 'stressed', 'sad'] &&
+        request.resource.data.energy is int &&
+        request.resource.data.energy >= 1 &&
+        request.resource.data.energy <= 5;
+      allow delete: if false;
+    }
+
     match /care_goals/{goalId} {
       allow read: if isSignedIn() && (
         resource.data.studentId == request.auth.uid ||

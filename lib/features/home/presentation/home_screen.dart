@@ -240,6 +240,52 @@ class HomeScreen extends ConsumerWidget {
   static const String _openProfileQueryKey = 'openProfile';
   static const String _profileOpenTokenQueryKey = 'profileOpenTs';
 
+  String _formatInstitutionBadge(String? rawName) {
+    const maxVisibleChars = 12;
+    const stopWords = <String>{
+      'of',
+      'the',
+      'and',
+      'for',
+      'at',
+      'in',
+      'on',
+      'to',
+      'a',
+      'an',
+      '&',
+    };
+
+    final normalized = (rawName ?? '').trim();
+    if (normalized.isEmpty) {
+      return 'INSTITUTION';
+    }
+
+    final compact = normalized.replaceAll(RegExp(r'\s+'), ' ');
+    if (compact.length <= maxVisibleChars) {
+      return compact.toUpperCase();
+    }
+
+    final tokens = compact
+        .split(RegExp(r'[^A-Za-z0-9]+'))
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    if (tokens.length >= 2) {
+      final filtered = tokens
+          .where((part) => !stopWords.contains(part.toLowerCase()))
+          .toList(growable: false);
+      final source = filtered.length >= 2 ? filtered : tokens;
+      final acronym = source
+          .map((part) => part.substring(0, 1).toUpperCase())
+          .join();
+      if (acronym.length >= 2 && acronym.length <= maxVisibleChars) {
+        return acronym;
+      }
+    }
+
+    return compact.substring(0, maxVisibleChars).toUpperCase();
+  }
+
   // ---- kept logic methods (unchanged) ----
 
   Future<void> _confirmLeaveInstitution(
@@ -1215,7 +1261,7 @@ class HomeScreen extends ConsumerWidget {
 
           final firstName = profile.name.split(' ')[0];
           final institutionLabel = hasInstitution
-              ? (profile.institutionName ?? 'Institution').toUpperCase()
+              ? _formatInstitutionBadge(profile.institutionName)
               : 'INDIVIDUAL';
           final showJoinInstitutionNudge =
               profile.role == UserRole.individual && !hasInstitution;
@@ -1255,6 +1301,8 @@ class HomeScreen extends ConsumerWidget {
                         action: action,
                       ),
                     ),
+                    const SizedBox(height: 14),
+                    _WellnessCheckInCard(profile: profile),
                     const SizedBox(height: 14),
                     _SosButton(onTap: () => _openCrisisSupport(context)),
                     const SizedBox(height: 8),
@@ -1389,7 +1437,7 @@ class HomeScreen extends ConsumerWidget {
 
                   final firstName = profile.name.split(' ')[0];
                   final institutionLabel = hasInstitution
-                      ? (profile.institutionName ?? 'Institution').toUpperCase()
+                      ? _formatInstitutionBadge(profile.institutionName)
                       : 'INDIVIDUAL';
                   final showJoinInstitutionNudge =
                       profile.role == UserRole.individual && !hasInstitution;
@@ -1423,6 +1471,8 @@ class HomeScreen extends ConsumerWidget {
                           action: action,
                         ),
                       ),
+                      const SizedBox(height: 14),
+                      _WellnessCheckInCard(profile: profile),
                       const SizedBox(height: 14),
                       _SosButton(onTap: () => _openCrisisSupport(context)),
                       const SizedBox(height: 8),
@@ -2876,6 +2926,450 @@ class _RiskAlert extends StatelessWidget {
       ),
     );
   }
+}
+
+class _WellnessCheckInCard extends ConsumerStatefulWidget {
+  const _WellnessCheckInCard({required this.profile});
+
+  final UserProfile profile;
+
+  @override
+  ConsumerState<_WellnessCheckInCard> createState() =>
+      _WellnessCheckInCardState();
+}
+
+class _WellnessCheckInCardState extends ConsumerState<_WellnessCheckInCard> {
+  bool _saving = false;
+
+  static const List<_MoodChoice> _moods = <_MoodChoice>[
+    _MoodChoice(
+      key: 'great',
+      emoji: '😀',
+      label: 'Great',
+      color: Color(0xFF10B981),
+    ),
+    _MoodChoice(
+      key: 'good',
+      emoji: '🙂',
+      label: 'Good',
+      color: Color(0xFF22C55E),
+    ),
+    _MoodChoice(
+      key: 'okay',
+      emoji: '😐',
+      label: 'Okay',
+      color: Color(0xFFF59E0B),
+    ),
+    _MoodChoice(
+      key: 'low',
+      emoji: '😔',
+      label: 'Low',
+      color: Color(0xFFF97316),
+    ),
+    _MoodChoice(
+      key: 'stressed',
+      emoji: '😣',
+      label: 'Stressed',
+      color: Color(0xFFEF4444),
+    ),
+  ];
+
+  String _dateKey(DateTime value) {
+    final local = value.toLocal();
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+  }
+
+  IconData _energyIcon(int level) {
+    switch (level) {
+      case 1:
+        return Icons.battery_1_bar_rounded;
+      case 2:
+        return Icons.battery_2_bar_rounded;
+      case 3:
+        return Icons.battery_3_bar_rounded;
+      case 4:
+        return Icons.battery_4_bar_rounded;
+      default:
+        return Icons.battery_full_rounded;
+    }
+  }
+
+  _MoodChoice _resolveMood(String? key) {
+    return _moods.firstWhere(
+      (entry) => entry.key == key,
+      orElse: () => _moods[2],
+    );
+  }
+
+  Future<void> _save({required String mood, required int energy}) async {
+    final userId = widget.profile.id.trim();
+    if (userId.isEmpty || _saving) {
+      return;
+    }
+
+    final firestore = ref.read(firestoreProvider);
+    final todayKey = _dateKey(DateTime.now());
+    final docId = '${userId}_$todayKey';
+
+    setState(() => _saving = true);
+    try {
+      await firestore.collection('mood_entries').doc(docId).set({
+        'userId': userId,
+        'dateKey': todayKey,
+        'mood': mood,
+        'energy': energy.clamp(1, 5),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final userId = widget.profile.id.trim();
+
+    final cardColor = isDark ? const Color(0xFF151F31) : Colors.white;
+    final borderColor = isDark
+        ? const Color(0xFF2A3A52)
+        : const Color(0xFFDDE6F1);
+    final headingColor = isDark
+        ? const Color(0xFFE2E8F0)
+        : const Color(0xFF0F172A);
+    final mutedColor = isDark
+        ? const Color(0xFF9FB2CC)
+        : const Color(0xFF64748B);
+    final selectedBg = isDark
+        ? const Color(0xFF1F2D44)
+        : const Color(0xFFEAF2FB);
+
+    if (userId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: ref
+          .read(firestoreProvider)
+          .collection('mood_entries')
+          .where('userId', isEqualTo: userId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final byDate = <String, _WellnessEntry>{};
+        for (final doc in snapshot.data?.docs ?? const []) {
+          final data = doc.data();
+          final key = (data['dateKey'] as String?) ?? '';
+          if (key.isEmpty) {
+            continue;
+          }
+          final moodKey = (data['mood'] as String?) ?? 'okay';
+          final energyRaw = data['energy'];
+          final energy = energyRaw is int ? energyRaw.clamp(1, 5) : 3;
+          byDate[key] = _WellnessEntry(
+            dateKey: key,
+            mood: moodKey,
+            energy: energy,
+          );
+        }
+
+        final todayKey = _dateKey(DateTime.now());
+        final today = byDate[todayKey];
+        final selectedMood = _resolveMood(today?.mood);
+        final selectedEnergy = today?.energy ?? 3;
+
+        final now = DateTime.now();
+        final last7 = List<DateTime>.generate(
+          7,
+          (index) => DateTime(now.year, now.month, now.day - (6 - index)),
+          growable: false,
+        );
+        final dayLetters = const <int, String>{
+          DateTime.monday: 'M',
+          DateTime.tuesday: 'T',
+          DateTime.wednesday: 'W',
+          DateTime.thursday: 'T',
+          DateTime.friday: 'F',
+          DateTime.saturday: 'S',
+          DateTime.sunday: 'S',
+        };
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: (isDark ? Colors.black : const Color(0x120F172A))
+                    .withValues(alpha: isDark ? 0.22 : 0.07),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0E9B90).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.self_improvement_rounded,
+                      size: 18,
+                      color: Color(0xFF0E9B90),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Wellness Check-in',
+                    style: TextStyle(
+                      color: headingColor,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (_saving)
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF0E9B90),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Daily check-in. Update anytime today.',
+                style: TextStyle(
+                  color: mutedColor,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Mood',
+                style: TextStyle(
+                  color: headingColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _moods
+                    .map((entry) {
+                      final selected = selectedMood.key == entry.key;
+                      return Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(999),
+                          onTap: () =>
+                              _save(mood: entry.key, energy: selectedEnergy),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 160),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: selected ? selectedBg : Colors.transparent,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: selected
+                                    ? entry.color
+                                    : borderColor.withValues(alpha: 0.85),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  entry.emoji,
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  entry.label,
+                                  style: TextStyle(
+                                    color: selected ? entry.color : mutedColor,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    })
+                    .toList(growable: false),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Energy',
+                style: TextStyle(
+                  color: headingColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: List<Widget>.generate(5, (index) {
+                  final level = index + 1;
+                  final selected = level <= selectedEnergy;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () =>
+                            _save(mood: selectedMood.key, energy: level),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: selected ? selectedBg : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: selected
+                                  ? const Color(0xFF0E9B90)
+                                  : borderColor.withValues(alpha: 0.85),
+                            ),
+                          ),
+                          child: Icon(
+                            _energyIcon(level),
+                            size: 18,
+                            color: selected
+                                ? const Color(0xFF0E9B90)
+                                : mutedColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Last 7 days',
+                style: TextStyle(
+                  color: headingColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: last7
+                    .map((day) {
+                      final key = _dateKey(day);
+                      final point = byDate[key];
+                      final mood = _resolveMood(point?.mood);
+                      return Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              dayLetters[day.weekday] ?? '-',
+                              style: TextStyle(
+                                color: mutedColor,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              point == null ? '•' : mood.emoji,
+                              style: TextStyle(
+                                fontSize: point == null ? 15 : 16,
+                                color: point == null ? mutedColor : null,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List<Widget>.generate(5, (index) {
+                                final filled =
+                                    point != null && index < point.energy;
+                                return Container(
+                                  width: 3.5,
+                                  height: 6,
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: filled
+                                        ? const Color(0xFF0E9B90)
+                                        : borderColor,
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ],
+                        ),
+                      );
+                    })
+                    .toList(growable: false),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MoodChoice {
+  const _MoodChoice({
+    required this.key,
+    required this.emoji,
+    required this.label,
+    required this.color,
+  });
+
+  final String key;
+  final String emoji;
+  final String label;
+  final Color color;
+}
+
+class _WellnessEntry {
+  const _WellnessEntry({
+    required this.dateKey,
+    required this.mood,
+    required this.energy,
+  });
+
+  final String dateKey;
+  final String mood;
+  final int energy;
 }
 
 class _SosButton extends StatelessWidget {

@@ -524,15 +524,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
 
     return MindNestShell(
       maxWidth: 1080,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text('Live Room'),
-        leading: IconButton(
-          onPressed: () => _leave(goHome: true),
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-      ),
+      appBar: null,
       child: _joining
           ? const Center(child: CircularProgressIndicator())
           : _joinError != null

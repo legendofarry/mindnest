@@ -1,3 +1,4 @@
+// features/ai/presentation/home_ai_assistant_section.dart
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -66,26 +67,7 @@ class HomeAiAssistantSection extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          const Text(
-            'Ask app questions, open pages instantly, find counselor slots, or chat for support.',
-            style: TextStyle(
-              color: Color(0xFF516784),
-              fontWeight: FontWeight.w500,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: const [
-              _QuickChip(label: 'I want to go live'),
-              _QuickChip(label: 'Find open counselor slots'),
-              _QuickChip(label: 'Open my sessions'),
-            ],
-          ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -107,31 +89,6 @@ class HomeAiAssistantSection extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _QuickChip extends StatelessWidget {
-  const _QuickChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFF4A607C),
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
       ),
     );
   }

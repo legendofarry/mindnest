@@ -40,6 +40,8 @@ class DesktopPrimaryShell extends ConsumerWidget {
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final location = GoRouterState.of(context).matchedLocation;
+    final showHeader = location == AppRoute.home;
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final hasInstitution = (profile?.institutionId ?? '').isNotEmpty;
     final canAccessLive = profile != null && _canAccessLive(profile);
@@ -47,60 +49,64 @@ class DesktopPrimaryShell extends ConsumerWidget {
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0B1220) : const Color(0xFFF8FAFC),
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        titleSpacing: 16,
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF15A39A), Color(0xFF0E9B90)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+      appBar: showHeader
+          ? AppBar(
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              titleSpacing: 16,
+              title: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF15A39A), Color(0xFF0E9B90)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.psychology_alt_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'MindNest',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: isDark
+                          ? const Color(0xFFE2E8F0)
+                          : const Color(0xFF071937),
+                      fontSize: 20,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                IconButton(
+                  tooltip: 'Notifications',
+                  onPressed: hasInstitution
+                      ? () => context.go(AppRoute.notifications)
+                      : null,
+                  icon: const Icon(Icons.notifications_none_rounded),
                 ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.psychology_alt_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              'MindNest',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF071937),
-                fontSize: 20,
-                letterSpacing: -0.4,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Notifications',
-            onPressed: hasInstitution
-                ? () => context.go(AppRoute.notifications)
-                : null,
-            icon: const Icon(Icons.notifications_none_rounded),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            tooltip: 'Profile',
-            onPressed: profile == null
-                ? null
-                : () => _openProfileFromHeader(context),
-            icon: const Icon(Icons.person_outline_rounded),
-          ),
-          const SizedBox(width: 14),
-        ],
-      ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Profile',
+                  onPressed: profile == null
+                      ? null
+                      : () => _openProfileFromHeader(context),
+                  icon: const Icon(Icons.person_outline_rounded),
+                ),
+                const SizedBox(width: 14),
+              ],
+            )
+          : null,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -114,7 +120,7 @@ class DesktopPrimaryShell extends ConsumerWidget {
         child: SafeArea(
           child: Column(
             children: [
-              const SizedBox(height: kToolbarHeight + 6),
+              SizedBox(height: showHeader ? kToolbarHeight + 6 : 0),
               Expanded(
                 child: Align(
                   alignment: Alignment.topCenter,

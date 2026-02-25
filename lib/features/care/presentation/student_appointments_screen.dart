@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
-import 'package:mindnest/core/ui/back_to_home_button.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
@@ -1305,7 +1304,6 @@ class _StudentAppointmentsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final institutionId = profile?.institutionId ?? '';
@@ -1318,31 +1316,7 @@ class _StudentAppointmentsScreenState
 
     return MindNestShell(
       maxWidth: isDesktop ? 1240 : 980,
-      appBar: (widget.embeddedInDesktopShell && isDesktop)
-          ? null
-          : AppBar(
-              title: Text(
-                'My Counseling Sessions',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: isDark
-                      ? const Color(0xFFE2E8F0)
-                      : const Color(0xFF071937),
-                  fontSize: 20,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              leading: const BackToHomeButton(),
-              actions: [
-                IconButton(
-                  tooltip: 'Retry',
-                  onPressed: () => setState(() => _refreshTick++),
-                  icon: const Icon(Icons.refresh_rounded),
-                ),
-              ],
-            ),
+      appBar: null,
       child: DesktopSectionBody(
         isDesktop: isDesktop && !widget.embeddedInDesktopShell,
         hasInstitution: institutionId.isNotEmpty,

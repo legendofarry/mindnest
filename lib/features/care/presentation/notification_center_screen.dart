@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
-import 'package:mindnest/core/ui/back_to_home_button.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
@@ -25,7 +24,6 @@ class _NotificationCenterScreenState
   static const String _notificationSourceValue = 'notifications';
 
   bool _showUnreadOnly = false;
-  int _refreshTick = 0;
   final Set<String> _openingNotificationIds = <String>{};
 
   String _formatDate(DateTime value) {
@@ -413,33 +411,13 @@ class _NotificationCenterScreenState
     final userId = profile?.id ?? '';
     final userRole = profile?.role ?? UserRole.other;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark
-        ? const Color(0xFFE2E8F0)
-        : const Color(0xFF1E293B);
 
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF0B1220)
           : const Color(0xFFF8FAFC),
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text('Notification Center'),
-        titleTextStyle: TextStyle(
-          color: titleColor,
-          fontSize: 41 / 2,
-          fontWeight: FontWeight.w800,
-        ),
-        centerTitle: false,
-        elevation: 0,
-        leading: const BackToHomeButton(),
-        actions: [
-          _CircleActionButton(
-            onPressed: () => setState(() => _refreshTick++),
-            icon: Icons.refresh_rounded,
-          ),
-          const SizedBox(width: 12),
-        ],
-      ),
+      appBar: null,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -465,14 +443,13 @@ class _NotificationCenterScreenState
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(
                             20,
-                            kToolbarHeight - 30,
+                            12,
                             20,
                             24,
                           ),
                           child: userId.isEmpty
                               ? _emptyCard(isDark)
                               : StreamBuilder<List<AppNotification>>(
-                                  key: ValueKey(_refreshTick),
                                   stream: ref
                                       .read(careRepositoryProvider)
                                       .watchUserNotifications(userId),
@@ -562,32 +539,6 @@ class _NotificationCenterScreenState
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _CircleActionButton extends StatelessWidget {
-  const _CircleActionButton({required this.onPressed, required this.icon});
-
-  final VoidCallback onPressed;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return IconButton(
-      onPressed: onPressed,
-      style: IconButton.styleFrom(
-        backgroundColor: isDark ? const Color(0xFF131F32) : Colors.white,
-        shape: const CircleBorder(),
-        side: BorderSide(
-          color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFD2DCE9),
-        ),
-      ),
-      icon: Icon(
-        icon,
-        color: isDark ? const Color(0xFFB7C6DA) : const Color(0xFF4A607C),
       ),
     );
   }

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
-import 'package:mindnest/core/ui/back_to_home_button.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -475,27 +474,6 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
           ? const Color(0xFF0B1220)
           : const Color(0xFFF8FAFC),
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: const BackToHomeButton(),
-        title: Text(
-          'Live Audio Hub',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF071937),
-            fontSize: 20,
-            letterSpacing: -0.4,
-          ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Retry',
-            onPressed: () => setState(() => _refreshTick++),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
       body: hubBody,
     );
   }
