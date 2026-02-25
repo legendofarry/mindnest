@@ -1,7 +1,11 @@
 import 'dart:math';
+import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'package:mindnest/core/config/owner_config.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/institutions/models/user_invite.dart';
 
@@ -9,15 +13,28 @@ class InstitutionRepository {
   InstitutionRepository({
     required FirebaseFirestore firestore,
     required FirebaseAuth auth,
+    required http.Client httpClient,
   }) : _firestore = firestore,
-       _auth = auth;
+       _auth = auth,
+       _httpClient = httpClient;
 
   static const Duration _joinCodeValidity = Duration(hours: 24);
   static const int _joinCodeMaxUses = 50;
   static const String _joinCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  static const String _pushDispatchEndpointFromDefine = String.fromEnvironment(
+    'PUSH_DISPATCH_ENDPOINT',
+    defaultValue: '',
+  );
+  static const String _pushDispatchEndpointFromSource =
+      'https://mindnest-0o6x.onrender.com/push/dispatch';
+  static String get _pushDispatchEndpoint =>
+      _pushDispatchEndpointFromDefine.isNotEmpty
+      ? _pushDispatchEndpointFromDefine
+      : _pushDispatchEndpointFromSource;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final http.Client _httpClient;
   final Random _random = Random.secure();
 
   Stream<UserInvite?> pendingInviteForEmail(String email) {
@@ -51,12 +68,6 @@ class InstitutionRepository {
     }
 
     final institutionRef = _firestore.collection('institutions').doc();
-    final joinCode = await _generateUniqueJoinCode();
-    final joinCodePayload = _buildJoinCodePayload(
-      code: joinCode,
-      nowUtc: DateTime.now().toUtc(),
-      usageCount: 0,
-    );
 
     final credential = await _auth.createUserWithEmailAndPassword(
       email: normalizedEmail,
@@ -77,9 +88,16 @@ class InstitutionRepository {
     final batch = _firestore.batch();
     batch.set(institutionRef, {
       'name': trimmedInstitutionName,
+      'status': 'pending',
       'createdBy': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
-      ...joinCodePayload,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'review': <String, dynamic>{
+        'reviewedBy': null,
+        'reviewedAt': null,
+        'decision': null,
+        'declineReason': null,
+      },
     });
     batch.set(_firestore.collection('users').doc(user.uid), {
       'email': user.email ?? normalizedEmail,
@@ -100,6 +118,30 @@ class InstitutionRepository {
       'status': 'active',
     });
     await batch.commit();
+
+    final ownerUserId = await _resolveOwnerUserId();
+    if (ownerUserId != null) {
+      await _createNotifications([
+        _notificationPayload(
+          userId: ownerUserId,
+          institutionId: institutionRef.id,
+          type: 'institution_request_submitted',
+          title: 'New institution approval request',
+          body: '$trimmedInstitutionName was submitted for approval.',
+        ),
+      ]);
+    }
+
+    await _createNotifications([
+      _notificationPayload(
+        userId: user.uid,
+        institutionId: institutionRef.id,
+        type: 'institution_request_pending',
+        title: 'Institution submitted',
+        body:
+            'Your institution request is pending review. Approval usually takes about 30 minutes.',
+      ),
+    ]);
   }
 
   Future<void> createRoleInvite({
@@ -297,6 +339,12 @@ class InstitutionRepository {
         if (data == null) {
           throw const _JoinCodeFlowException('Invalid join code.');
         }
+        final institutionStatus = (data['status'] as String?) ?? 'approved';
+        if (institutionStatus != 'approved') {
+          throw const _JoinCodeFlowException(
+            'This institution is not approved yet. Ask your institution admin for an approved join code.',
+          );
+        }
 
         final activeJoinCode = (data['joinCode'] as String? ?? '')
             .trim()
@@ -389,6 +437,15 @@ class InstitutionRepository {
     if (institutionId == null || institutionId.isEmpty) {
       throw Exception('Admin profile is not linked to an institution.');
     }
+    final institutionDoc = await _firestore
+        .collection('institutions')
+        .doc(institutionId)
+        .get();
+    final institutionData = institutionDoc.data();
+    final status = (institutionData?['status'] as String?) ?? 'approved';
+    if (status != 'approved') {
+      throw Exception('Join code is available only after approval.');
+    }
 
     final nextJoinCode = await _generateUniqueJoinCode(
       excludeInstitutionId: institutionId,
@@ -403,6 +460,374 @@ class InstitutionRepository {
             usageCount: 0,
           ),
         );
+  }
+
+  Stream<Map<String, dynamic>?> watchCurrentAdminInstitution() {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      return const Stream<Map<String, dynamic>?>.empty();
+    }
+
+    return _firestore
+        .collection('users')
+        .doc(currentUser.uid)
+        .snapshots()
+        .asyncExpand((userDoc) {
+          final institutionId = userDoc.data()?['institutionId'] as String?;
+          if (institutionId == null || institutionId.isEmpty) {
+            return Stream<Map<String, dynamic>?>.value(null);
+          }
+          return _firestore
+              .collection('institutions')
+              .doc(institutionId)
+              .snapshots()
+              .map((institutionDoc) {
+                final data = institutionDoc.data();
+                if (data == null) {
+                  return null;
+                }
+                return <String, dynamic>{'id': institutionDoc.id, ...data};
+              });
+        });
+  }
+
+  Stream<List<Map<String, dynamic>>> watchOwnerPendingInstitutions() {
+    _ensureOwnerAccount();
+    return _firestore
+        .collection('institutions')
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snapshot) {
+          final items = snapshot.docs
+              .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+              .toList(growable: false);
+          items.sort((a, b) {
+            final aDate =
+                _asUtcDate(a['createdAt']) ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            final bDate =
+                _asUtcDate(b['createdAt']) ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            return bDate.compareTo(aDate);
+          });
+          return items;
+        });
+  }
+
+  Stream<List<Map<String, dynamic>>> watchOwnerSchoolRequests() {
+    _ensureOwnerAccount();
+    return _firestore
+        .collection('school_requests')
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snapshot) {
+          final items = snapshot.docs
+              .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+              .toList(growable: false);
+          items.sort((a, b) {
+            final aDate =
+                _asUtcDate(a['createdAt']) ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            final bDate =
+                _asUtcDate(b['createdAt']) ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            return bDate.compareTo(aDate);
+          });
+          return items;
+        });
+  }
+
+  Future<void> submitSchoolRequest({
+    required String schoolName,
+    required String mobileNumber,
+    String? requesterName,
+    String? requesterEmail,
+  }) async {
+    final normalizedSchoolName = schoolName.trim();
+    final normalizedMobile = mobileNumber.trim();
+    if (normalizedSchoolName.length < 2) {
+      throw Exception('School name is required.');
+    }
+    if (normalizedMobile.length < 6) {
+      throw Exception('Mobile number is required.');
+    }
+
+    final currentUser = _auth.currentUser;
+    String notificationInstitutionId = '';
+    if (currentUser != null) {
+      try {
+        final requesterDoc = await _firestore
+            .collection('users')
+            .doc(currentUser.uid)
+            .get();
+        notificationInstitutionId =
+            (requesterDoc.data()?['institutionId'] as String?) ?? '';
+      } catch (_) {
+        notificationInstitutionId = '';
+      }
+    }
+    final createdDoc = await _firestore.collection('school_requests').add({
+      'schoolName': normalizedSchoolName,
+      'mobileNumber': normalizedMobile,
+      'requesterUid': currentUser?.uid,
+      'requesterName': (requesterName ?? currentUser?.displayName ?? '').trim(),
+      'requesterEmail': (requesterEmail ?? currentUser?.email ?? '')
+          .trim()
+          .toLowerCase(),
+      'status': 'pending',
+      'ownerEmail': kOwnerEmail,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final ownerUserId = await _resolveOwnerUserId();
+    if (ownerUserId != null &&
+        currentUser != null &&
+        notificationInstitutionId.isNotEmpty) {
+      await _createNotifications([
+        _notificationPayload(
+          userId: ownerUserId,
+          institutionId: notificationInstitutionId,
+          type: 'school_request_submitted',
+          title: 'School not listed request',
+          body: '$normalizedSchoolName was requested for onboarding.',
+          relatedId: createdDoc.id,
+        ),
+      ]);
+    }
+  }
+
+  Future<void> approveInstitutionRequest({
+    required String institutionId,
+  }) async {
+    _ensureOwnerAccount();
+    final owner = _auth.currentUser;
+    if (owner == null) {
+      throw Exception('You must be logged in.');
+    }
+
+    final institutionRef = _firestore
+        .collection('institutions')
+        .doc(institutionId);
+    final nextJoinCode = await _generateUniqueJoinCode(
+      excludeInstitutionId: institutionId,
+    );
+
+    String? createdBy;
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(institutionRef);
+      final data = snapshot.data();
+      if (data == null) {
+        throw Exception('Institution request not found.');
+      }
+      final status = (data['status'] as String?) ?? 'pending';
+      if (status == 'approved') {
+        throw Exception('Institution is already approved.');
+      }
+      createdBy = data['createdBy'] as String?;
+      transaction.update(institutionRef, {
+        'status': 'approved',
+        'approvedAt': FieldValue.serverTimestamp(),
+        'review': <String, dynamic>{
+          'reviewedBy': owner.uid,
+          'reviewedAt': FieldValue.serverTimestamp(),
+          'decision': 'approved',
+          'declineReason': null,
+        },
+        ..._buildJoinCodePayload(
+          code: nextJoinCode,
+          nowUtc: DateTime.now().toUtc(),
+          usageCount: 0,
+        ),
+      });
+    });
+
+    if (createdBy != null && createdBy!.isNotEmpty) {
+      await _createNotifications([
+        _notificationPayload(
+          userId: createdBy!,
+          institutionId: institutionId,
+          type: 'institution_request_approved',
+          title: 'Institution approved',
+          body:
+              'Your institution request was approved. You can now use the admin dashboard.',
+        ),
+      ]);
+    }
+  }
+
+  Future<void> declineInstitutionRequest({
+    required String institutionId,
+    required String declineReason,
+  }) async {
+    _ensureOwnerAccount();
+    final owner = _auth.currentUser;
+    if (owner == null) {
+      throw Exception('You must be logged in.');
+    }
+    final reason = declineReason.trim();
+    if (reason.length < 3) {
+      throw Exception('Decline reason is required.');
+    }
+
+    final institutionRef = _firestore
+        .collection('institutions')
+        .doc(institutionId);
+    final snapshot = await institutionRef.get();
+    final data = snapshot.data();
+    if (data == null) {
+      throw Exception('Institution request not found.');
+    }
+    final createdBy = data['createdBy'] as String?;
+
+    await institutionRef.update({
+      'status': 'declined',
+      'updatedAt': FieldValue.serverTimestamp(),
+      'review': <String, dynamic>{
+        'reviewedBy': owner.uid,
+        'reviewedAt': FieldValue.serverTimestamp(),
+        'decision': 'declined',
+        'declineReason': reason,
+      },
+    });
+
+    if (createdBy != null && createdBy.isNotEmpty) {
+      await _createNotifications([
+        _notificationPayload(
+          userId: createdBy,
+          institutionId: institutionId,
+          type: 'institution_request_declined',
+          title: 'Institution declined',
+          body:
+              'Your request was declined: $reason. You can edit and resubmit.',
+        ),
+      ]);
+    }
+  }
+
+  Future<void> resubmitCurrentAdminInstitutionRequest({
+    required String institutionName,
+  }) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('You must be logged in.');
+    }
+
+    final userDoc = await _firestore
+        .collection('users')
+        .doc(currentUser.uid)
+        .get();
+    final profile = userDoc.data();
+    if (profile == null ||
+        (profile['role'] as String?) != UserRole.institutionAdmin.name) {
+      throw Exception('Only institution admins can resubmit requests.');
+    }
+
+    final institutionId = profile['institutionId'] as String?;
+    if (institutionId == null || institutionId.isEmpty) {
+      throw Exception('Admin profile is not linked to an institution.');
+    }
+
+    final institutionRef = _firestore
+        .collection('institutions')
+        .doc(institutionId);
+    final snapshot = await institutionRef.get();
+    final data = snapshot.data();
+    if (data == null) {
+      throw Exception('Institution request not found.');
+    }
+    final currentStatus = (data['status'] as String?) ?? 'pending';
+    if (currentStatus == 'approved') {
+      throw Exception('Institution is already approved.');
+    }
+
+    final normalizedName = institutionName.trim();
+    if (normalizedName.length < 2) {
+      throw Exception('Select a valid institution name.');
+    }
+
+    await institutionRef.update({
+      'name': normalizedName,
+      'status': 'pending',
+      'updatedAt': FieldValue.serverTimestamp(),
+      'review': <String, dynamic>{
+        'reviewedBy': null,
+        'reviewedAt': null,
+        'decision': null,
+        'declineReason': null,
+      },
+    });
+
+    final ownerUserId = await _resolveOwnerUserId();
+    if (ownerUserId != null) {
+      await _createNotifications([
+        _notificationPayload(
+          userId: ownerUserId,
+          institutionId: institutionId,
+          type: 'institution_request_resubmitted',
+          title: 'Institution request resubmitted',
+          body: '$normalizedName was resubmitted for approval.',
+        ),
+      ]);
+    }
+  }
+
+  Future<void> resolveSchoolRequest({
+    required String requestId,
+    required bool approved,
+    String? note,
+  }) async {
+    _ensureOwnerAccount();
+    final owner = _auth.currentUser;
+    if (owner == null) {
+      throw Exception('You must be logged in.');
+    }
+    await _firestore.collection('school_requests').doc(requestId).update({
+      'status': approved ? 'approved' : 'declined',
+      'note': (note ?? '').trim(),
+      'reviewedBy': owner.uid,
+      'reviewedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> clearAllDataForDevelopment() async {
+    final liveSessionsSnapshot = await _firestore
+        .collection('live_sessions')
+        .get();
+    for (final sessionDoc in liveSessionsSnapshot.docs) {
+      for (final sub in const <String>[
+        'participants',
+        'mic_requests',
+        'comments',
+        'reactions',
+        'comment_reports',
+      ]) {
+        await _deleteCollectionPath('live_sessions/${sessionDoc.id}/$sub');
+      }
+    }
+
+    for (final collectionPath in const <String>[
+      'appointments',
+      'care_goals',
+      'counselor_availability',
+      'counselor_profiles',
+      'counselor_public_ratings',
+      'counselor_ratings',
+      'institution_members',
+      'institutions',
+      'live_sessions',
+      'notifications',
+      'onboarding_responses',
+      'school_requests',
+      'user_invites',
+      'user_notification_settings',
+      'user_privacy_settings',
+      'user_push_tokens',
+      'users',
+    ]) {
+      await _deleteCollectionPath(collectionPath);
+    }
   }
 
   DateTime? _asUtcDate(dynamic raw) {
@@ -543,6 +968,146 @@ class InstitutionRepository {
     batch.delete(membershipRef);
     await batch.commit();
     return cancelledCount;
+  }
+
+  void _ensureOwnerAccount() {
+    if (!isOwnerEmail(_auth.currentUser?.email)) {
+      throw Exception('Only owner account can perform this action.');
+    }
+  }
+
+  Future<String?> _resolveOwnerUserId() async {
+    final currentUser = _auth.currentUser;
+    if (isOwnerEmail(currentUser?.email)) {
+      return currentUser?.uid;
+    }
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: kOwnerEmail)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isNotEmpty) {
+        return snapshot.docs.first.id;
+      }
+
+      final fallback = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: kOwnerEmail.toUpperCase())
+          .limit(1)
+          .get();
+      if (fallback.docs.isNotEmpty) {
+        return fallback.docs.first.id;
+      }
+    } catch (_) {
+      // Owner lookup can be blocked by security rules for non-owner users.
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _notificationPayload({
+    required String userId,
+    required String institutionId,
+    required String type,
+    required String title,
+    required String body,
+    String? relatedId,
+  }) {
+    return <String, dynamic>{
+      'userId': userId,
+      'institutionId': institutionId,
+      'type': type,
+      'title': title,
+      'body': body,
+      'isRead': false,
+      'relatedId': relatedId,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  Future<void> _createNotifications(List<Map<String, dynamic>> payloads) async {
+    if (payloads.isEmpty) {
+      return;
+    }
+    try {
+      final batch = _firestore.batch();
+      for (final payload in payloads) {
+        batch.set(_firestore.collection('notifications').doc(), payload);
+      }
+      await batch.commit();
+    } catch (_) {
+      // Notification delivery should not fail critical workflows.
+      return;
+    }
+    unawaited(_dispatchPushNotifications(payloads));
+  }
+
+  Future<void> _dispatchPushNotifications(
+    List<Map<String, dynamic>> payloads,
+  ) async {
+    if (_pushDispatchEndpoint.isEmpty) {
+      return;
+    }
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      return;
+    }
+
+    try {
+      final idToken = await currentUser.getIdToken();
+      final uri = Uri.tryParse(_pushDispatchEndpoint);
+      if (uri == null) {
+        return;
+      }
+      final notifications = payloads
+          .map(
+            (payload) => <String, dynamic>{
+              'userId': payload['userId'],
+              'institutionId': payload['institutionId'],
+              'title': payload['title'],
+              'body': payload['body'],
+              'type': payload['type'],
+              'relatedId': payload['relatedId'],
+            },
+          )
+          .toList(growable: false);
+
+      await _httpClient
+          .post(
+            uri,
+            headers: <String, String>{
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+            body: jsonEncode(<String, dynamic>{'notifications': notifications}),
+          )
+          .timeout(const Duration(seconds: 12));
+    } on TimeoutException {
+      // Keep primary flow responsive.
+    } catch (_) {
+      // In-app notification already persisted.
+    }
+  }
+
+  Future<void> _deleteCollectionPath(
+    String collectionPath, {
+    int batchSize = 250,
+  }) async {
+    while (true) {
+      final snapshot = await _firestore
+          .collection(collectionPath)
+          .limit(batchSize)
+          .get();
+      if (snapshot.docs.isEmpty) {
+        break;
+      }
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
   }
 
   String _generateJoinCode() {

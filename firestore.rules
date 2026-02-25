@@ -38,6 +38,29 @@ service cloud.firestore {
       return currentUserDoc().institutionId;
     }
 
+    function isOwnerAccount() {
+      return isSignedIn() &&
+        request.auth.token.email == 'karimiarrison@gmail.com';
+    }
+
+    function isDevClearAccount() {
+      return isSignedIn() &&
+        request.auth.token.email == 'legendofarrie@gmail.com';
+    }
+
+    function currentInstitutionApproved() {
+      return isSignedIn() &&
+        currentInstitutionId() != null &&
+        exists(/databases/$(database)/documents/institutions/$(currentInstitutionId())) &&
+        institutionStatusIsApproved(
+          get(/databases/$(database)/documents/institutions/$(currentInstitutionId())).data
+        );
+    }
+
+    function institutionStatusIsApproved(data) {
+      return !('status' in data) || data.status == 'approved';
+    }
+
     function institutionJoinCodeChangedKeys() {
       return request.resource.data.diff(resource.data).changedKeys();
     }
@@ -60,6 +83,7 @@ service cloud.firestore {
 
     function canAdminRegenerateInstitutionCode(institutionId) {
       return sameInstitutionAdmin(institutionId) &&
+        institutionStatusIsApproved(resource.data) &&
         institutionJoinCodeChangedKeys().hasOnly(joinCodeMetadataKeys()) &&
         request.resource.data.createdBy == resource.data.createdBy &&
         request.resource.data.name == resource.data.name &&
@@ -69,6 +93,7 @@ service cloud.firestore {
 
     function canJoinFlowIncrementUsage(institutionId) {
       return isSignedIn() &&
+        institutionStatusIsApproved(resource.data) &&
         institutionJoinCodeChangedKeys().hasOnly(['joinCodeUsageCount', 'updatedAt']) &&
         request.resource.data.joinCode == resource.data.joinCode &&
         request.resource.data.joinCodeCreatedAt == resource.data.joinCodeCreatedAt &&
@@ -84,6 +109,7 @@ service cloud.firestore {
 
     function canAutoRotateExpiredOrCappedCode() {
       return isSignedIn() &&
+        institutionStatusIsApproved(resource.data) &&
         institutionJoinCodeChangedKeys().hasOnly(joinCodeMetadataKeys()) &&
         request.resource.data.joinCodeUsageCount == 0 &&
         request.resource.data.joinCode != resource.data.joinCode &&
@@ -124,7 +150,8 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if isOwner(uid);
+      allow read: if isOwner(uid) ||
+        resource.data.email == 'karimiarrison@gmail.com';
       allow create: if isOwner(uid) &&
         isAllowedRole(request.resource.data.role) &&
         request.resource.data.role in ['individual', 'institutionAdmin'];
@@ -158,6 +185,7 @@ service cloud.firestore {
     match /user_invites/{inviteId} {
       allow create: if isSignedIn() &&
         currentUserRole() == 'institutionAdmin' &&
+        currentInstitutionApproved() &&
         request.resource.data.institutionId == currentInstitutionId() &&
         request.resource.data.intendedRole in ['student', 'staff', 'counselor'] &&
         request.resource.data.status == 'pending';
@@ -180,12 +208,22 @@ service cloud.firestore {
     match /counselor_invites/{inviteId} {
       allow create: if isSignedIn() &&
         currentUserRole() == 'institutionAdmin' &&
+        currentInstitutionApproved() &&
         request.resource.data.institutionId == currentInstitutionId() &&
         request.resource.data.role == 'counselor';
       allow read: if isSignedIn() &&
         currentUserRole() == 'institutionAdmin' &&
         resource.data.institutionId == currentInstitutionId();
       allow update, delete: if false;
+    }
+
+    match /school_requests/{requestId} {
+      allow create: if request.resource.data.schoolName is string &&
+        request.resource.data.schoolName.size() >= 2 &&
+        request.resource.data.mobileNumber is string &&
+        request.resource.data.mobileNumber.size() >= 6 &&
+        request.resource.data.status == 'pending';
+      allow read, update, delete: if isOwnerAccount();
     }
 
     match /onboarding_responses/{responseId} {
@@ -512,6 +550,10 @@ service cloud.firestore {
         get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.institutionId == currentInstitutionId() &&
         get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.status == 'completed';
       allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if isOwnerAccount() || isDevClearAccount();
     }
   }
 }

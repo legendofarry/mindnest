@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mindnest/core/config/owner_config.dart';
 import 'package:mindnest/core/routes/go_router_refresh_stream.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -25,8 +26,10 @@ import 'package:mindnest/features/counselor/presentation/counselor_setup_screen.
 import 'package:mindnest/features/home/presentation/home_screen.dart';
 import 'package:mindnest/features/home/presentation/privacy_controls_screen.dart';
 import 'package:mindnest/features/institutions/presentation/institution_admin_screen.dart';
+import 'package:mindnest/features/institutions/presentation/institution_pending_screen.dart';
 import 'package:mindnest/features/institutions/presentation/invite_accept_screen.dart';
 import 'package:mindnest/features/institutions/presentation/join_institution_screen.dart';
+import 'package:mindnest/features/institutions/presentation/owner_dashboard_screen.dart';
 import 'package:mindnest/features/institutions/presentation/post_signup_decision_screen.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/live/presentation/live_hub_screen.dart';
@@ -64,6 +67,8 @@ class AppRoute {
   static const home = '/home';
   static const joinInstitution = '/join-institution';
   static const institutionAdmin = '/institution-admin';
+  static const institutionPending = '/institution-pending';
+  static const ownerDashboard = '/owner-dashboard';
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -71,6 +76,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final authRepository = ref.watch(authRepositoryProvider);
   final profileAsync = ref.watch(currentUserProfileProvider);
   final pendingInviteAsync = ref.watch(pendingUserInviteProvider);
+  final currentAdminInstitutionAsync = ref.watch(
+    currentAdminInstitutionRequestProvider,
+  );
   final onboardingRepository = ref.watch(onboardingRepositoryProvider);
   final counselorRepository = ref.watch(counselorRepositoryProvider);
 
@@ -105,6 +113,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.carePlan;
       final isLiveRoute =
           location == AppRoute.liveHub || location == AppRoute.liveRoom;
+      final isOwnerRoute = location == AppRoute.ownerDashboard;
 
       if (authState == null) {
         return isAuthRoute ? null : AppRoute.login;
@@ -118,7 +127,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      if (profileAsync.isLoading || pendingInviteAsync.isLoading) {
+      if (isOwnerEmail(authState.email)) {
+        return isOwnerRoute ? null : AppRoute.ownerDashboard;
+      }
+
+      if (profileAsync.isLoading ||
+          pendingInviteAsync.isLoading ||
+          currentAdminInstitutionAsync.isLoading) {
         return null;
       }
 
@@ -127,6 +142,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final role = profile?.role ?? UserRole.other;
       final roleResolved = role != UserRole.other;
       final needsCounselorSetup = counselorRepository.requiresSetup(profile);
+      final institutionRequest = currentAdminInstitutionAsync.valueOrNull;
 
       // 3. Verified but invite pending -> invite accept screen.
       if (pendingInvite != null) {
@@ -143,6 +159,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return AppRoute.postSignup;
         }
         return null;
+      }
+
+      if (isOwnerRoute) {
+        return AppRoute.home;
+      }
+
+      if (role == UserRole.institutionAdmin) {
+        final institutionStatus =
+            (institutionRequest?['status'] as String?) ?? 'approved';
+        final isInstitutionBlocked = institutionStatus != 'approved';
+        if (isInstitutionBlocked && location != AppRoute.institutionPending) {
+          return AppRoute.institutionPending;
+        }
+        if (!isInstitutionBlocked && location == AppRoute.institutionPending) {
+          return AppRoute.institutionAdmin;
+        }
       }
 
       // 5. Counselor setup gate (counselors do not run wellness onboarding).
@@ -362,6 +394,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.institutionAdmin,
         builder: (context, state) => const InstitutionAdminScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.institutionPending,
+        builder: (context, state) => const InstitutionPendingScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.ownerDashboard,
+        builder: (context, state) => const OwnerDashboardScreen(),
       ),
     ],
   );

@@ -8,15 +8,86 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
+import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
 enum _CounselorHeaderAction { profile, notifications, logout }
 
-class CounselorDashboardScreen extends ConsumerWidget {
+class CounselorDashboardScreen extends ConsumerStatefulWidget {
   const CounselorDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CounselorDashboardScreen> createState() =>
+      _CounselorDashboardScreenState();
+}
+
+class _CounselorDashboardScreenState
+    extends ConsumerState<CounselorDashboardScreen> {
+  static const String _devClearEmail = 'legendofarrie@gmail.com';
+  bool _isClearingDev = false;
+
+  Future<void> _clearDevelopmentData() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear all Firestore data?'),
+        content: const Text(
+          'Development action. This will delete all app data and cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            child: const Text('Clear DB'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+
+    setState(() => _isClearingDev = true);
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .clearAllDataForDevelopment();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Development data cleared.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error
+                .toString()
+                .replaceFirst('Exception: ', '')
+                .replaceFirst('[cloud_firestore/permission-denied] ', ''),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isClearingDev = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final profileAsync = ref.watch(currentUserProfileProvider);
+    final authUser = ref.watch(authStateChangesProvider).valueOrNull;
+    final showDevClear =
+        (authUser?.email ?? '').trim().toLowerCase() == _devClearEmail;
 
     return MindNestShell(
       maxWidth: 980,
@@ -230,6 +301,36 @@ class CounselorDashboardScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  if (showDevClear) ...[
+                    const SizedBox(height: 14),
+                    GlassCard(
+                      child: Padding(
+                        padding: const EdgeInsets.all(22),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed: _isClearingDev
+                                ? null
+                                : _clearDevelopmentData,
+                            icon: Icon(
+                              _isClearingDev
+                                  ? Icons.hourglass_top_rounded
+                                  : Icons.delete_forever_rounded,
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red.shade700,
+                              side: BorderSide(color: Colors.red.shade200),
+                            ),
+                            label: Text(
+                              _isClearingDev
+                                  ? 'Clearing...'
+                                  : 'Dev only: Clear DB',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               );
             },

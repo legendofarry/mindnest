@@ -1,0 +1,17 @@
+const List<String> kHardcodedSchools = <String>[
+  'University of Nairobi',
+  'Kenyatta University',
+  'Moi University',
+  'Jomo Kenyatta University of Agriculture and Technology',
+  'Egerton University',
+  'Maseno University',
+  'USIU-Africa',
+  'Strathmore University',
+  'Mount Kenya University',
+  'KCA University',
+  'Daystar University',
+  'Technical University of Kenya',
+  'Multimedia University of Kenya',
+  'Africa Nazarene University',
+  'Zetech University',
+];

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mindnest/core/config/school_catalog.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/core/ui/auth_desktop_shell.dart';
@@ -20,18 +21,22 @@ class _RegisterInstitutionScreenState
     extends ConsumerState<RegisterInstitutionScreen> {
   static const _desktopBreakpoint = 1100.0;
   final _formKey = GlobalKey<FormState>();
-  final _institutionController = TextEditingController();
   final _adminNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _schoolRequestNameController = TextEditingController();
+  final _schoolRequestMobileController = TextEditingController();
+  String? _selectedSchoolName;
   bool _isSubmitting = false;
+  bool _isSubmittingSchoolRequest = false;
 
   @override
   void dispose() {
-    _institutionController.dispose();
     _adminNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _schoolRequestNameController.dispose();
+    _schoolRequestMobileController.dispose();
     super.dispose();
   }
 
@@ -48,8 +53,18 @@ class _RegisterInstitutionScreenState
             adminName: _adminNameController.text,
             adminEmail: _emailController.text,
             password: _passwordController.text,
-            institutionName: _institutionController.text,
+            institutionName: _selectedSchoolName ?? '',
           );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Institution request submitted. Approval usually takes about 30 minutes.',
+            ),
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+      }
       if (mounted) {
         context.go(AppRoute.verifyEmail);
       }
@@ -68,6 +83,97 @@ class _RegisterInstitutionScreenState
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _openSchoolNotListedDialog() async {
+    if (_isSubmittingSchoolRequest) {
+      return;
+    }
+    _schoolRequestNameController.text = _schoolRequestNameController.text
+        .trim();
+    _schoolRequestMobileController.text = _schoolRequestMobileController.text
+        .trim();
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('School not listed?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _schoolRequestNameController,
+                decoration: const InputDecoration(
+                  labelText: 'School name',
+                  hintText: 'Example High School',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _schoolRequestMobileController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Mobile number',
+                  hintText: '+254...',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: _isSubmittingSchoolRequest
+                  ? null
+                  : () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: _isSubmittingSchoolRequest
+                  ? null
+                  : _submitSchoolRequest,
+              child: Text(
+                _isSubmittingSchoolRequest ? 'Sending...' : 'Send request',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _submitSchoolRequest() async {
+    final schoolName = _schoolRequestNameController.text.trim();
+    final mobileNumber = _schoolRequestMobileController.text.trim();
+    if (schoolName.length < 2 || mobileNumber.length < 6) {
+      _showMessage('Enter school name and mobile number.');
+      return;
+    }
+    setState(() => _isSubmittingSchoolRequest = true);
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .submitSchoolRequest(
+            schoolName: schoolName,
+            mobileNumber: mobileNumber,
+            requesterName: _adminNameController.text,
+            requesterEmail: _emailController.text,
+          );
+      if (mounted) {
+        Navigator.of(context).pop();
+        _showMessage(
+          'School request sent. We will review and contact you shortly.',
+        );
+        _schoolRequestNameController.clear();
+        _schoolRequestMobileController.clear();
+      }
+    } catch (error) {
+      if (mounted) {
+        _showMessage(error.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmittingSchoolRequest = false);
+      }
+    }
   }
 
   @override
@@ -155,7 +261,7 @@ class _RegisterInstitutionScreenState
           ),
           const SizedBox(height: 10),
           Text(
-            'Create your institution workspace, admin account, and join code in one step.',
+            'Choose your school from the approved list. New institution approvals usually take about 30 minutes.',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: const Color(0xFF516784),
               height: 1.35,
@@ -165,20 +271,38 @@ class _RegisterInstitutionScreenState
           const SizedBox(height: 24),
           const _FieldLabel(text: 'INSTITUTION NAME'),
           const SizedBox(height: 8),
-          _RoundedInput(
-            child: TextFormField(
-              controller: _institutionController,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: 'MindNest University',
-                prefixIcon: Icon(Icons.business_rounded),
-              ),
-              validator: (value) {
-                if ((value ?? '').trim().length < 2) {
-                  return 'Enter an institution name.';
-                }
-                return null;
-              },
+          DropdownButtonFormField<String>(
+            initialValue: _selectedSchoolName,
+            decoration: const InputDecoration(
+              hintText: 'Select school',
+              prefixIcon: Icon(Icons.apartment_rounded),
+            ),
+            isExpanded: true,
+            items: kHardcodedSchools
+                .map(
+                  (school) => DropdownMenuItem<String>(
+                    value: school,
+                    child: Text(school, overflow: TextOverflow.ellipsis),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: _isSubmitting
+                ? null
+                : (value) => setState(() => _selectedSchoolName = value),
+            validator: (value) {
+              if ((value ?? '').trim().isEmpty) {
+                return 'Select your school from the list.';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _isSubmitting ? null : _openSchoolNotListedDialog,
+              icon: const Icon(Icons.add_business_rounded, size: 18),
+              label: const Text('School not listed?'),
             ),
           ),
           const SizedBox(height: 16),
