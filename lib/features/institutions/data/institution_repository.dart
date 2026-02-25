@@ -57,14 +57,18 @@ class InstitutionRepository {
   Future<void> createInstitutionAdminAccount({
     required String adminName,
     required String adminEmail,
+    required String adminPhoneNumber,
     required String password,
     required String institutionName,
   }) async {
     final trimmedName = adminName.trim();
     final trimmedInstitutionName = institutionName.trim();
+    final trimmedAdminPhone = adminPhoneNumber.trim();
     final normalizedEmail = adminEmail.trim().toLowerCase();
-    if (trimmedName.length < 2 || trimmedInstitutionName.length < 2) {
-      throw Exception('Name and institution name are required.');
+    if (trimmedName.length < 2 ||
+        trimmedInstitutionName.length < 2 ||
+        trimmedAdminPhone.length < 6) {
+      throw Exception('Name, institution name, and phone number are required.');
     }
 
     final institutionRef = _firestore.collection('institutions').doc();
@@ -90,6 +94,8 @@ class InstitutionRepository {
       'name': trimmedInstitutionName,
       'status': 'pending',
       'createdBy': user.uid,
+      'adminPhoneNumber': trimmedAdminPhone,
+      'contactPhone': trimmedAdminPhone,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'review': <String, dynamic>{
@@ -106,6 +112,7 @@ class InstitutionRepository {
       'onboardingCompletedRoles': <String, int>{},
       'institutionId': institutionRef.id,
       'institutionName': trimmedInstitutionName,
+      'phoneNumber': trimmedAdminPhone,
       'createdAt': FieldValue.serverTimestamp(),
     });
     batch.set(membershipRef, {
@@ -114,6 +121,7 @@ class InstitutionRepository {
       'role': UserRole.institutionAdmin.name,
       'userName': trimmedName,
       'email': user.email ?? normalizedEmail,
+      'phoneNumber': trimmedAdminPhone,
       'joinedAt': FieldValue.serverTimestamp(),
       'status': 'active',
     });

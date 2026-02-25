@@ -23,6 +23,7 @@ class _RegisterInstitutionScreenState
   final _formKey = GlobalKey<FormState>();
   final _adminNameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _adminPhoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _schoolRequestNameController = TextEditingController();
   final _schoolRequestMobileController = TextEditingController();
@@ -34,6 +35,7 @@ class _RegisterInstitutionScreenState
   void dispose() {
     _adminNameController.dispose();
     _emailController.dispose();
+    _adminPhoneController.dispose();
     _passwordController.dispose();
     _schoolRequestNameController.dispose();
     _schoolRequestMobileController.dispose();
@@ -52,6 +54,7 @@ class _RegisterInstitutionScreenState
           .createInstitutionAdminAccount(
             adminName: _adminNameController.text,
             adminEmail: _emailController.text,
+            adminPhoneNumber: _adminPhoneController.text,
             password: _passwordController.text,
             institutionName: _selectedSchoolName ?? '',
           );
@@ -343,6 +346,36 @@ class _RegisterInstitutionScreenState
                 }
                 return null;
               },
+            ),
+          ),
+          const SizedBox(height: 16),
+          const _FieldLabel(text: 'ADMIN PHONE NUMBER'),
+          const SizedBox(height: 8),
+          _RoundedInput(
+            child: TextFormField(
+              controller: _adminPhoneController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: '+254...',
+                prefixIcon: Icon(Icons.phone_rounded),
+              ),
+              validator: (value) {
+                final trimmed = value?.trim() ?? '';
+                if (trimmed.length < 6) {
+                  return 'Enter a valid phone number.';
+                }
+                return null;
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'This number may be called to help confirm institution eligibility.',
+            style: TextStyle(
+              color: Color(0xFF6A7D96),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 16),

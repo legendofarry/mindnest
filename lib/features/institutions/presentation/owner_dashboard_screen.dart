@@ -246,6 +246,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                         'Institution';
                                     final createdBy =
                                         (item['createdBy'] as String?) ?? '--';
+                                    final contactNumber =
+                                        (item['adminPhoneNumber'] as String?) ??
+                                        (item['contactPhone'] as String?) ??
+                                        (item['mobileNumber'] as String?) ??
+                                        '--';
                                     return Card(
                                       margin: const EdgeInsets.only(bottom: 10),
                                       child: Padding(
@@ -262,6 +267,25 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                             ),
                                             const SizedBox(height: 4),
                                             Text('Created by: $createdBy'),
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.phone_rounded,
+                                                  size: 16,
+                                                  color: Color(0xFF0E7490),
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Admin contact: $contactNumber',
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                             Text(
                                               'Submitted: ${_formatDate(item['createdAt'])}',
                                             ),
@@ -343,11 +367,16 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                     final id = (item['id'] as String?) ?? '';
                                     final schoolName =
                                         (item['schoolName'] as String?) ?? '--';
-                                    final mobile =
+                                    final contactNumber =
                                         (item['mobileNumber'] as String?) ??
+                                        (item['phoneNumber'] as String?) ??
+                                        (item['mobile'] as String?) ??
                                         '--';
                                     final requesterEmail =
                                         (item['requesterEmail'] as String?) ??
+                                        '--';
+                                    final requesterName =
+                                        (item['requesterName'] as String?) ??
                                         '--';
                                     return Card(
                                       margin: const EdgeInsets.only(bottom: 10),
@@ -364,8 +393,28 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                               ),
                                             ),
                                             const SizedBox(height: 4),
-                                            Text('Mobile: $mobile'),
-                                            Text('Requester: $requesterEmail'),
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.phone_rounded,
+                                                  size: 16,
+                                                  color: Color(0xFF0E7490),
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Contact: $contactNumber',
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text('Requester: $requesterName'),
+                                            Text('Email: $requesterEmail'),
                                             Text(
                                               'Submitted: ${_formatDate(item['createdAt'])}',
                                             ),
