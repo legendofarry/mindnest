@@ -231,7 +231,9 @@ class _ActionCardState extends State<_ActionCard>
 // Main screen
 // ---------------------------------------------------------------------------
 class HomeScreen extends ConsumerWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.embeddedInDesktopShell = false});
+
+  final bool embeddedInDesktopShell;
 
   static const String _sourceQueryKey = 'from';
   static const String _profileSourceValue = 'profile';
@@ -1145,6 +1147,7 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
+    final useDesktopShell = embeddedInDesktopShell && isDesktop;
     final uri = GoRouterState.of(context).uri;
     final profileAsync = ref.watch(currentUserProfileProvider);
     final loadedProfile = profileAsync.valueOrNull;
@@ -1176,6 +1179,104 @@ class HomeScreen extends ConsumerWidget {
           _openProfilePanel(context, ref, loadedProfile);
         });
       }
+    }
+
+    if (useDesktopShell) {
+      return profileAsync.when(
+        data: (profile) {
+          if (profile == null) {
+            return const Center(
+              child: Text(
+                'Profile not found.',
+                style: TextStyle(color: Color(0xFF4A607C)),
+              ),
+            );
+          }
+
+          final hasInstitution = (profile.institutionId ?? '').isNotEmpty;
+          final canAccessLive = _canAccessLive(profile);
+
+          if (kDebugMode) {
+            final blockers = <String>[
+              if (!hasInstitution) 'institutionId is empty',
+              if (!(profile.role == UserRole.student ||
+                  profile.role == UserRole.staff ||
+                  profile.role == UserRole.counselor))
+                'role is ${profile.role.name} (not student/staff/counselor)',
+            ];
+            debugPrint(
+              '[LiveHub][Home] uid=${profile.id} role=${profile.role.name} '
+              'institutionId=${profile.institutionId ?? 'null'} '
+              'institutionName=${profile.institutionName ?? 'null'} '
+              'hasInstitution=$hasInstitution canAccessLive=$canAccessLive '
+              'blockers=${blockers.isEmpty ? 'none' : blockers.join(' | ')}',
+            );
+          }
+
+          final firstName = profile.name.split(' ')[0];
+          final institutionLabel = hasInstitution
+              ? (profile.institutionName ?? 'Institution').toUpperCase()
+              : 'INDIVIDUAL';
+          final showJoinInstitutionNudge =
+              profile.role == UserRole.individual && !hasInstitution;
+
+          return Align(
+            alignment: Alignment.topCenter,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 860),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _HeroCarousel(
+                      profile: profile,
+                      firstName: firstName,
+                      roleLabel: profile.role.label,
+                      institutionName: institutionLabel,
+                      hasInstitution: hasInstitution,
+                      canAccessLive: canAccessLive,
+                      isDark: isDark,
+                    ),
+                    if (showJoinInstitutionNudge) ...[
+                      const SizedBox(height: 14),
+                      _InstitutionJoinNudgeCard(
+                        onJoinCode: () => context.go(AppRoute.joinInstitution),
+                        onHowItWorks: () => _showInstitutionJoinGuide(context),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    HomeAiAssistantSection(
+                      profile: profile,
+                      onActionRequested: (action) => _runAssistantAction(
+                        context: context,
+                        profile: profile,
+                        action: action,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _SosButton(onTap: () => _openCrisisSupport(context)),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+        loading: () => const Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF0E9B90),
+            strokeWidth: 2.5,
+          ),
+        ),
+        error: (error, _) => Center(
+          child: Text(
+            'Error: $error',
+            style: const TextStyle(color: Color(0xFFBE123C)),
+          ),
+        ),
+      );
     }
 
     return Scaffold(

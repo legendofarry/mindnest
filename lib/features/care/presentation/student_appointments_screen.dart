@@ -30,7 +30,12 @@ String _sessionDetailsRouteFromStudentAppointments(String appointmentId) {
 }
 
 class StudentAppointmentsScreen extends ConsumerStatefulWidget {
-  const StudentAppointmentsScreen({super.key});
+  const StudentAppointmentsScreen({
+    super.key,
+    this.embeddedInDesktopShell = false,
+  });
+
+  final bool embeddedInDesktopShell;
 
   @override
   ConsumerState<StudentAppointmentsScreen> createState() =>
@@ -1313,29 +1318,33 @@ class _StudentAppointmentsScreenState
 
     return MindNestShell(
       maxWidth: isDesktop ? 1240 : 980,
-      appBar: AppBar(
-        title: Text(
-          'My Counseling Sessions',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF071937),
-            fontSize: 20,
-            letterSpacing: -0.4,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: const BackToHomeButton(),
-        actions: [
-          IconButton(
-            tooltip: 'Retry',
-            onPressed: () => setState(() => _refreshTick++),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
+      appBar: (widget.embeddedInDesktopShell && isDesktop)
+          ? null
+          : AppBar(
+              title: Text(
+                'My Counseling Sessions',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: isDark
+                      ? const Color(0xFFE2E8F0)
+                      : const Color(0xFF071937),
+                  fontSize: 20,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: const BackToHomeButton(),
+              actions: [
+                IconButton(
+                  tooltip: 'Retry',
+                  onPressed: () => setState(() => _refreshTick++),
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              ],
+            ),
       child: DesktopSectionBody(
-        isDesktop: isDesktop,
+        isDesktop: isDesktop && !widget.embeddedInDesktopShell,
         hasInstitution: institutionId.isNotEmpty,
         canAccessLive: canAccessLive,
         child: institutionId.isEmpty || userId.isEmpty

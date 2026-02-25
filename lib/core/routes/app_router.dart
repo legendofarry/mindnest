@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/config/owner_config.dart';
 import 'package:mindnest/core/routes/go_router_refresh_stream.dart';
+import 'package:mindnest/core/ui/desktop_primary_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/forgot_password_screen.dart';
@@ -330,9 +331,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.counselorSettings,
         builder: (context, state) => const CounselorProfileSettingsScreen(),
       ),
-      GoRoute(
-        path: AppRoute.counselorDirectory,
-        builder: (context, state) => const CounselorDirectoryScreen(),
+      ShellRoute(
+        builder: (context, state, child) => DesktopPrimaryShell(child: child),
+        routes: [
+          GoRoute(
+            path: AppRoute.home,
+            builder: (context, state) =>
+                const HomeScreen(embeddedInDesktopShell: true),
+          ),
+          GoRoute(
+            path: AppRoute.counselorDirectory,
+            builder: (context, state) =>
+                const CounselorDirectoryScreen(embeddedInDesktopShell: true),
+          ),
+          GoRoute(
+            path: AppRoute.studentAppointments,
+            builder: (context, state) =>
+                const StudentAppointmentsScreen(embeddedInDesktopShell: true),
+          ),
+          GoRoute(
+            path: AppRoute.liveHub,
+            builder: (context, state) {
+              final openCreate = state.uri.queryParameters['openCreate'] == '1';
+              return LiveHubScreen(
+                autoOpenCreate: openCreate,
+                embeddedInDesktopShell: true,
+              );
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoute.counselorProfile,
@@ -340,10 +367,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final counselorId = state.uri.queryParameters['counselorId'] ?? '';
           return CounselorProfileScreen(counselorId: counselorId);
         },
-      ),
-      GoRoute(
-        path: AppRoute.studentAppointments,
-        builder: (context, state) => const StudentAppointmentsScreen(),
       ),
       GoRoute(
         path: AppRoute.sessionDetails,
@@ -366,13 +389,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const CrisisCounselorSupportScreen(),
       ),
       GoRoute(
-        path: AppRoute.liveHub,
-        builder: (context, state) {
-          final openCreate = state.uri.queryParameters['openCreate'] == '1';
-          return LiveHubScreen(autoOpenCreate: openCreate);
-        },
-      ),
-      GoRoute(
         path: AppRoute.liveRoom,
         builder: (context, state) {
           final sessionId = state.uri.queryParameters['sessionId'] ?? '';
@@ -382,10 +398,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.privacyControls,
         builder: (context, state) => const PrivacyControlsScreen(),
-      ),
-      GoRoute(
-        path: AppRoute.home,
-        builder: (context, state) => const HomeScreen(),
       ),
       GoRoute(
         path: AppRoute.joinInstitution,

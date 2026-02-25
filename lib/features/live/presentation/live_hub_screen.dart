@@ -14,9 +14,14 @@ import 'package:mindnest/features/live/models/live_participant.dart';
 import 'package:mindnest/features/live/models/live_session.dart';
 
 class LiveHubScreen extends ConsumerStatefulWidget {
-  const LiveHubScreen({super.key, this.autoOpenCreate = false});
+  const LiveHubScreen({
+    super.key,
+    this.autoOpenCreate = false,
+    this.embeddedInDesktopShell = false,
+  });
 
   final bool autoOpenCreate;
+  final bool embeddedInDesktopShell;
 
   @override
   ConsumerState<LiveHubScreen> createState() => _LiveHubScreenState();
@@ -255,6 +260,7 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
+    final useDesktopShell = widget.embeddedInDesktopShell && isDesktop;
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final institutionId = profile?.institutionId ?? '';
     final canUse = profile != null && _canUseLive(profile);
@@ -279,33 +285,7 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
       });
     }
 
-    return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0B1220)
-          : const Color(0xFFF8FAFC),
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: const BackToHomeButton(),
-        title: Text(
-          'Live Audio Hub',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF071937),
-            fontSize: 20,
-            letterSpacing: -0.4,
-          ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Retry',
-            onPressed: () => setState(() => _refreshTick++),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-      body: Container(
+    final hubBody = Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: isDark
@@ -328,7 +308,7 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                         maxWidth: isDesktop ? 1240 : 760,
                       ),
                       child: DesktopSectionBody(
-                        isDesktop: isDesktop,
+                        isDesktop: isDesktop && !useDesktopShell,
                         hasInstitution: institutionId.isNotEmpty,
                         canAccessLive: canUse,
                         child: ConstrainedBox(
@@ -336,9 +316,9 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                           child: SizedBox(
                             height: constraints.maxHeight,
                             child: Padding(
-                              padding: const EdgeInsets.fromLTRB(
+                              padding: EdgeInsets.fromLTRB(
                                 20,
-                                kToolbarHeight + 2,
+                                useDesktopShell ? 12 : kToolbarHeight + 2,
                                 20,
                                 22,
                               ),
@@ -484,7 +464,39 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
             ),
           ],
         ),
+      );
+
+    if (useDesktopShell) {
+      return hubBody;
+    }
+
+    return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF0B1220)
+          : const Color(0xFFF8FAFC),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: const BackToHomeButton(),
+        title: Text(
+          'Live Audio Hub',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF071937),
+            fontSize: 20,
+            letterSpacing: -0.4,
+          ),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Retry',
+            onPressed: () => setState(() => _refreshTick++),
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
       ),
+      body: hubBody,
     );
   }
 }
