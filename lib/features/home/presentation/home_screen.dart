@@ -1516,32 +1516,14 @@ class HomeScreen extends ConsumerWidget {
                     );
                   }
 
-                  return Center(
+                  return Align(
+                    alignment: Alignment.topCenter,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 760),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final content = Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-                            child: mainContent,
-                          );
-
-                          return SizedBox(
-                            width: constraints.maxWidth,
-                            height: constraints.maxHeight,
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.topCenter,
-                                child: SizedBox(
-                                  width: constraints.maxWidth,
-                                  child: content,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+                        child: mainContent,
                       ),
                     ),
                   );
