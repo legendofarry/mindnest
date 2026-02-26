@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -14,7 +13,8 @@ class WellnessCheckInCard extends ConsumerStatefulWidget {
   final UserProfile profile;
 
   @override
-  ConsumerState<WellnessCheckInCard> createState() => _WellnessCheckInCardState();
+  ConsumerState<WellnessCheckInCard> createState() =>
+      _WellnessCheckInCardState();
 }
 
 class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
@@ -158,9 +158,7 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
       if (timestamp == null) {
         continue;
       }
-      out.add(
-        _WellnessEvent(timestamp: timestamp, mood: mood, energy: energy),
-      );
+      out.add(_WellnessEvent(timestamp: timestamp, mood: mood, energy: energy));
     }
     return out;
   }
@@ -347,27 +345,29 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
         _adviceInFlightKey = key;
         _adviceLoading = true;
       });
-      _generateAdvice(summary).then((message) {
-        if (!mounted || _adviceInFlightKey != key) {
-          return;
-        }
-        setState(() {
-          _adviceText = message;
-          _adviceLoading = false;
-          _adviceResolvedKey = key;
-          _adviceInFlightKey = '';
-        });
-      }).catchError((_) {
-        if (!mounted || _adviceInFlightKey != key) {
-          return;
-        }
-        setState(() {
-          _adviceText = _fallbackAdvice(summary);
-          _adviceLoading = false;
-          _adviceResolvedKey = key;
-          _adviceInFlightKey = '';
-        });
-      });
+      _generateAdvice(summary)
+          .then((message) {
+            if (!mounted || _adviceInFlightKey != key) {
+              return;
+            }
+            setState(() {
+              _adviceText = message;
+              _adviceLoading = false;
+              _adviceResolvedKey = key;
+              _adviceInFlightKey = '';
+            });
+          })
+          .catchError((_) {
+            if (!mounted || _adviceInFlightKey != key) {
+              return;
+            }
+            setState(() {
+              _adviceText = _fallbackAdvice(summary);
+              _adviceLoading = false;
+              _adviceResolvedKey = key;
+              _adviceInFlightKey = '';
+            });
+          });
     });
   }
 
@@ -376,7 +376,8 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
         ? 'unknown'
         : _resolveMood(summary.topMoodKey).label.toLowerCase();
     final topEnergy = summary.topEnergy?.toString() ?? '-';
-    final prompt = 'Write one short caring and playful wellness note (max 28 words). '
+    final prompt =
+        'Write one short caring and playful wellness note (max 28 words). '
         'Period: ${summary.period.label}. '
         'Top mood: $topMood. '
         'Average energy: ${summary.averageEnergy.toStringAsFixed(1)} out of 5. '
@@ -428,9 +429,6 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
   Widget _buildBaseContent({
     required _MoodChoice selectedMood,
     required int selectedEnergy,
-    required Map<int, String> dayLetters,
-    required List<DateTime> last7,
-    required Map<String, _WellnessEntry> byDate,
     required Color headingColor,
     required Color mutedColor,
     required Color borderColor,
@@ -608,65 +606,6 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
               ),
             );
           }),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Last 7 days',
-          style: TextStyle(
-            color: headingColor,
-            fontWeight: FontWeight.w700,
-            fontSize: 13,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: last7
-              .map((day) {
-                final key = _dateKey(day);
-                final point = byDate[key];
-                final mood = _resolveMood(point?.mood);
-                return Expanded(
-                  child: Column(
-                    children: [
-                      Text(
-                        dayLetters[day.weekday] ?? '-',
-                        style: TextStyle(
-                          color: mutedColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        point == null ? '\u2022' : mood.emoji,
-                        style: TextStyle(
-                          fontSize: point == null ? 15 : 16,
-                          color: point == null ? mutedColor : null,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List<Widget>.generate(5, (index) {
-                          final filled = point != null && index < point.energy;
-                          return Container(
-                            width: 3.5,
-                            height: 6,
-                            margin: const EdgeInsets.symmetric(horizontal: 1),
-                            decoration: BoxDecoration(
-                              color: filled
-                                  ? const Color(0xFF0E9B90)
-                                  : borderColor,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          );
-                        }),
-                      ),
-                    ],
-                  ),
-                );
-              })
-              .toList(growable: false),
         ),
       ],
     );
@@ -1032,22 +971,6 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
         final selectedMood = _resolveMood(today?.mood);
         final selectedEnergy = today?.energy ?? 3;
 
-        final now = DateTime.now();
-        final last7 = List<DateTime>.generate(
-          7,
-          (index) => DateTime(now.year, now.month, now.day - (6 - index)),
-          growable: false,
-        );
-        final dayLetters = const <int, String>{
-          DateTime.monday: 'M',
-          DateTime.tuesday: 'T',
-          DateTime.wednesday: 'W',
-          DateTime.thursday: 'T',
-          DateTime.friday: 'F',
-          DateTime.saturday: 'S',
-          DateTime.sunday: 'S',
-        };
-
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -1077,9 +1000,6 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
               : _buildBaseContent(
                   selectedMood: selectedMood,
                   selectedEnergy: selectedEnergy,
-                  dayLetters: dayLetters,
-                  last7: last7,
-                  byDate: byDate,
                   headingColor: headingColor,
                   mutedColor: mutedColor,
                   borderColor: borderColor,
@@ -1340,7 +1260,9 @@ class _WellnessBarChart extends StatelessWidget {
                     curve: Curves.easeOutCubic,
                     height: 8 + (92 * ratio),
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: values[index] == 0 ? 0.22 : 1),
+                      color: color.withValues(
+                        alpha: values[index] == 0 ? 0.22 : 1,
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
@@ -1379,7 +1301,10 @@ class _WellnessPieChart extends StatelessWidget {
           width: 116,
           height: 116,
           child: CustomPaint(
-            painter: _WellnessPiePainter(points: points, mutedColor: mutedColor),
+            painter: _WellnessPiePainter(
+              points: points,
+              mutedColor: mutedColor,
+            ),
           ),
         ),
         const SizedBox(width: 10),
@@ -1430,7 +1355,10 @@ class _WellnessPiePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final radius = (math.min(size.width, size.height) / 2) - 5;
-    final total = points.fold<int>(0, (sum, entry) => sum + entry.value);
+    final total = points.fold<int>(
+      0,
+      (currentTotal, entry) => currentTotal + entry.value,
+    );
 
     if (total <= 0) {
       final basePaint = Paint()
@@ -1629,7 +1557,9 @@ class _WellnessAnalyticsSummary {
     final energySig = energyCounts.entries
         .map((entry) => '${entry.key}:${entry.value}')
         .join('|');
-    final trendSig = trendValues.map((entry) => entry.toStringAsFixed(2)).join(',');
+    final trendSig = trendValues
+        .map((entry) => entry.toStringAsFixed(2))
+        .join(',');
     return '$moodSig#$energySig#$trendSig#${averageEnergy.toStringAsFixed(2)}#${averageMoodScore.toStringAsFixed(2)}';
   }
 }

@@ -11,7 +11,6 @@ import 'package:mindnest/app/theme_mode_controller.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
-import 'package:mindnest/features/ai/data/assistant_providers.dart';
 import 'package:mindnest/features/ai/models/assistant_models.dart';
 import 'package:mindnest/features/ai/presentation/assistant_fab.dart';
 import 'package:mindnest/features/ai/presentation/home_ai_assistant_section.dart';
@@ -24,6 +23,7 @@ import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/live/data/live_providers.dart';
 import 'package:mindnest/features/live/models/live_session.dart';
+import 'package:mindnest/features/home/presentation/widgets/wellness_check_in_card.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // ---------------------------------------------------------------------------
@@ -1332,7 +1332,7 @@ class HomeScreen extends ConsumerWidget {
                           ),
                         ],
                         const SizedBox(height: 18),
-                        _WellnessCheckInCard(profile: profile),
+                        WellnessCheckInCard(profile: profile),
                         const SizedBox(height: 14),
                         _SosButton(onTap: () => _openCrisisSupport(context)),
                         const SizedBox(height: 8),
@@ -1512,7 +1512,7 @@ class HomeScreen extends ConsumerWidget {
                         ),
                       ],
                       const SizedBox(height: 18),
-                      _WellnessCheckInCard(profile: profile),
+                      WellnessCheckInCard(profile: profile),
                       const SizedBox(height: 14),
                       _SosButton(onTap: () => _openCrisisSupport(context)),
                       const SizedBox(height: 8),
