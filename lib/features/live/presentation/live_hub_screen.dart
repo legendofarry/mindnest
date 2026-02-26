@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/blanket_pull_to_refresh.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -69,6 +70,14 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
       case LiveSessionStatus.ended:
         return const Color(0xFF64748B);
     }
+  }
+
+  Future<void> _refreshLiveHub() async {
+    if (!mounted) {
+      return;
+    }
+    setState(() => _refreshTick++);
+    await Future<void>.delayed(const Duration(milliseconds: 280));
   }
 
   Future<void> _openCreateLiveDialog(UserProfile profile) async {
@@ -285,136 +294,155 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
     }
 
     final hubBody = Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isDark
-                ? const [Color(0xFF0B1220), Color(0xFF0E1A2E)]
-                : const [Color(0xFFF4F7FB), Color(0xFFF1F5F9)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? const [Color(0xFF0B1220), Color(0xFF0E1A2E)]
+              : const [Color(0xFFF4F7FB), Color(0xFFF1F5F9)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Stack(
-          children: [
-            Positioned.fill(child: _LiveHubHomeBlobs(isDark: isDark)),
-            SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: isDesktop ? 1240 : 760,
-                      ),
-                      child: DesktopSectionBody(
-                        isDesktop: isDesktop && !useDesktopShell,
-                        hasInstitution: institutionId.isNotEmpty,
-                        canAccessLive: canUse,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 760),
-                          child: SizedBox(
-                            height: constraints.maxHeight,
-                            child: Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                20,
-                                useDesktopShell ? 12 : kToolbarHeight + 2,
-                                20,
-                                22,
-                              ),
-                              child: profile == null
-                                  ? const Center(
-                                      child: CircularProgressIndicator(),
-                                    )
-                                  : !canUse
-                                  ? _LiveHubInfoMessageCard(
-                                      isDark: isDark,
-                                      message:
-                                          'Live Audio Hub is available for students, staff, and counselors.',
-                                    )
-                                  : institutionId.isEmpty
-                                  ? _LiveHubInfoMessageCard(
-                                      isDark: isDark,
-                                      message:
-                                          'Join an institution to access live sessions.',
-                                    )
-                                  : StreamBuilder<List<LiveSession>>(
-                                      key: ValueKey(_refreshTick),
-                                      stream: ref
-                                          .read(liveRepositoryProvider)
-                                          .watchInstitutionLives(
-                                            institutionId: institutionId,
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(child: _LiveHubHomeBlobs(isDark: isDark)),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: isDesktop ? 1240 : 760,
+                    ),
+                    child: DesktopSectionBody(
+                      isDesktop: isDesktop && !useDesktopShell,
+                      hasInstitution: institutionId.isNotEmpty,
+                      canAccessLive: canUse,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 760),
+                        child: SizedBox(
+                          height: constraints.maxHeight,
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              20,
+                              useDesktopShell ? 12 : kToolbarHeight + 2,
+                              20,
+                              22,
+                            ),
+                            child: profile == null
+                                ? const Center(
+                                    child: CircularProgressIndicator(),
+                                  )
+                                : !canUse
+                                ? _LiveHubInfoMessageCard(
+                                    isDark: isDark,
+                                    message:
+                                        'Live Audio Hub is available for students, staff, and counselors.',
+                                  )
+                                : institutionId.isEmpty
+                                ? _LiveHubInfoMessageCard(
+                                    isDark: isDark,
+                                    message:
+                                        'Join an institution to access live sessions.',
+                                  )
+                                : StreamBuilder<List<LiveSession>>(
+                                    key: ValueKey(_refreshTick),
+                                    stream: ref
+                                        .read(liveRepositoryProvider)
+                                        .watchInstitutionLives(
+                                          institutionId: institutionId,
+                                        ),
+                                    builder: (context, snapshot) {
+                                      final sessions =
+                                          snapshot.data ??
+                                          const <LiveSession>[];
+                                      if (snapshot.connectionState ==
+                                              ConnectionState.waiting &&
+                                          sessions.isEmpty) {
+                                        return const Center(
+                                          child: CircularProgressIndicator(
+                                            color: Color(0xFF0E9B90),
+                                            strokeWidth: 2.5,
                                           ),
-                                      builder: (context, snapshot) {
-                                        final sessions =
-                                            snapshot.data ??
-                                            const <LiveSession>[];
-                                        if (snapshot.connectionState ==
-                                                ConnectionState.waiting &&
-                                            sessions.isEmpty) {
-                                          return const Center(
-                                            child: CircularProgressIndicator(
-                                              color: Color(0xFF0E9B90),
-                                              strokeWidth: 2.5,
-                                            ),
-                                          );
-                                        }
+                                        );
+                                      }
 
-                                        return Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            Align(
-                                              alignment: Alignment.centerRight,
-                                              child: FilledButton.icon(
-                                                onPressed: () =>
-                                                    _openCreateLiveDialog(
-                                                      profile,
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            child: FilledButton.icon(
+                                              onPressed: () =>
+                                                  _openCreateLiveDialog(
+                                                    profile,
+                                                  ),
+                                              style: FilledButton.styleFrom(
+                                                backgroundColor: const Color(
+                                                  0xFF0E9B90,
+                                                ),
+                                                foregroundColor: Colors.white,
+                                                shape: const StadiumBorder(),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 18,
+                                                      vertical: 12,
                                                     ),
-                                                style: FilledButton.styleFrom(
-                                                  backgroundColor: const Color(
-                                                    0xFF0E9B90,
-                                                  ),
-                                                  foregroundColor: Colors.white,
-                                                  shape: const StadiumBorder(),
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 18,
-                                                        vertical: 12,
-                                                      ),
-                                                ),
-                                                icon: const Icon(
-                                                  Icons.podcasts_rounded,
-                                                  size: 18,
-                                                ),
-                                                label: const Text(
-                                                  'Go Live',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w800,
-                                                    fontSize: 16,
-                                                  ),
+                                              ),
+                                              icon: const Icon(
+                                                Icons.podcasts_rounded,
+                                                size: 18,
+                                              ),
+                                              label: const Text(
+                                                'Go Live',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 16,
                                                 ),
                                               ),
                                             ),
-                                            const SizedBox(height: 14),
-                                            _LiveHubInfoCard(isDark: isDark),
-                                            const SizedBox(height: 18),
-                                            Expanded(
+                                          ),
+                                          const SizedBox(height: 14),
+                                          _LiveHubInfoCard(isDark: isDark),
+                                          const SizedBox(height: 18),
+                                          Expanded(
+                                            child: BlanketPullToRefresh(
+                                              onRefresh: _refreshLiveHub,
                                               child: sessions.isEmpty
-                                                  ? Center(
-                                                      child: FittedBox(
-                                                        fit: BoxFit.scaleDown,
-                                                        child: SizedBox(
-                                                          width: 420,
-                                                          child:
-                                                              _LiveHubEmptyState(
-                                                                isDark: isDark,
+                                                  ? CustomScrollView(
+                                                      physics:
+                                                          const AlwaysScrollableScrollPhysics(
+                                                            parent:
+                                                                BouncingScrollPhysics(),
+                                                          ),
+                                                      slivers: [
+                                                        SliverFillRemaining(
+                                                          hasScrollBody: false,
+                                                          child: Center(
+                                                            child: FittedBox(
+                                                              fit: BoxFit
+                                                                  .scaleDown,
+                                                              child: SizedBox(
+                                                                width: 420,
+                                                                child:
+                                                                    _LiveHubEmptyState(
+                                                                      isDark:
+                                                                          isDark,
+                                                                    ),
                                                               ),
+                                                            ),
+                                                          ),
                                                         ),
-                                                      ),
+                                                      ],
                                                     )
                                                   : ListView.separated(
                                                       physics:
-                                                          const BouncingScrollPhysics(),
+                                                          const AlwaysScrollableScrollPhysics(
+                                                            parent:
+                                                                BouncingScrollPhysics(),
+                                                          ),
                                                       padding:
                                                           const EdgeInsets.only(
                                                             bottom: 6,
@@ -448,22 +476,23 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                                                           },
                                                     ),
                                             ),
-                                          ],
-                                        );
-                                      },
-                                    ),
-                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
                           ),
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
 
     if (useDesktopShell) {
       return hubBody;
