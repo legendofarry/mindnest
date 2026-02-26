@@ -6,6 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
+import 'package:mindnest/features/ai/models/assistant_models.dart';
+import 'package:mindnest/features/ai/presentation/assistant_fab.dart';
+import 'package:mindnest/features/ai/presentation/home_ai_assistant_section.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
@@ -56,6 +59,82 @@ class _CounselorDirectoryScreenState
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  bool _canUseLive(UserProfile profile) {
+    final hasInstitution = (profile.institutionId ?? '').isNotEmpty;
+    return hasInstitution &&
+        (profile.role == UserRole.student ||
+            profile.role == UserRole.staff ||
+            profile.role == UserRole.counselor);
+  }
+
+  Future<void> _runAssistantAction({
+    required BuildContext context,
+    required UserProfile profile,
+    required AssistantAction action,
+  }) async {
+    final hasInstitution = (profile.institutionId ?? '').isNotEmpty;
+    final canUseLive = _canUseLive(profile);
+
+    void showMessage(String text) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    }
+
+    switch (action.type) {
+      case AssistantActionType.openLiveHub:
+        if (!hasInstitution) {
+          showMessage('Join an organization to access Live Hub.');
+          return;
+        }
+        if (!canUseLive) {
+          showMessage('Your role cannot access Live Hub.');
+          return;
+        }
+        context.go(AppRoute.liveHub);
+        return;
+      case AssistantActionType.goLiveCreate:
+        if (!hasInstitution) {
+          showMessage('Join an organization before creating a live session.');
+          return;
+        }
+        if (!canUseLive) {
+          showMessage('Your role cannot create live sessions.');
+          return;
+        }
+        context.go('${AppRoute.liveHub}?openCreate=1&source=ai');
+        return;
+      case AssistantActionType.openCounselors:
+        if (!hasInstitution) {
+          showMessage('Join an organization to view counselors.');
+          return;
+        }
+        context.go(AppRoute.counselorDirectory);
+        return;
+      case AssistantActionType.openSessions:
+        if (!hasInstitution) {
+          showMessage('Join an organization to manage sessions.');
+          return;
+        }
+        context.go(AppRoute.studentAppointments);
+        return;
+      case AssistantActionType.openNotifications:
+        context.go(AppRoute.notifications);
+        return;
+      case AssistantActionType.openCarePlan:
+        if (!hasInstitution) {
+          showMessage('Join an organization to access Care Plan.');
+          return;
+        }
+        context.go(AppRoute.carePlan);
+        return;
+      case AssistantActionType.openJoinInstitution:
+        context.go(AppRoute.joinInstitution);
+        return;
+      case AssistantActionType.openPrivacy:
+        context.go(AppRoute.privacyControls);
+        return;
+    }
   }
 
   String _sortLabel(_CounselorSort sort) {
@@ -298,6 +377,21 @@ class _CounselorDirectoryScreenState
       maxWidth: isDesktop ? 1240 : 980,
       backgroundMode: MindNestBackgroundMode.homeStyle,
       appBar: null,
+      floatingActionButton: profile == null
+          ? null
+          : AssistantFab(
+              heroTag: 'assistant-fab-counselors',
+              onPressed: () => showMindNestAssistantSheet(
+                context: context,
+                profile: profile,
+                onActionRequested: (action) => _runAssistantAction(
+                  context: context,
+                  profile: profile,
+                  action: action,
+                ),
+              ),
+            ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       child: DesktopSectionBody(
         isDesktop: isDesktop && !widget.embeddedInDesktopShell,
         hasInstitution: institutionId.isNotEmpty,

@@ -72,16 +72,10 @@ class HomeAiAssistantSection extends ConsumerWidget {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () async {
-                await showModalBottomSheet<void>(
+                await showMindNestAssistantSheet(
                   context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (sheetContext) {
-                    return _AssistantChatSheet(
-                      profile: profile,
-                      onActionRequested: onActionRequested,
-                    );
-                  },
+                  profile: profile,
+                  onActionRequested: onActionRequested,
                 );
               },
               icon: const Icon(Icons.chat_bubble_outline_rounded),
@@ -94,8 +88,27 @@ class HomeAiAssistantSection extends ConsumerWidget {
   }
 }
 
-class _AssistantChatSheet extends ConsumerStatefulWidget {
-  const _AssistantChatSheet({
+Future<void> showMindNestAssistantSheet({
+  required BuildContext context,
+  required UserProfile profile,
+  required Future<void> Function(AssistantAction action) onActionRequested,
+}) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      return AssistantChatSheet(
+        profile: profile,
+        onActionRequested: onActionRequested,
+      );
+    },
+  );
+}
+
+class AssistantChatSheet extends ConsumerStatefulWidget {
+  const AssistantChatSheet({
+    super.key,
     required this.profile,
     required this.onActionRequested,
   });
@@ -104,11 +117,10 @@ class _AssistantChatSheet extends ConsumerStatefulWidget {
   final Future<void> Function(AssistantAction action) onActionRequested;
 
   @override
-  ConsumerState<_AssistantChatSheet> createState() =>
-      _AssistantChatSheetState();
+  ConsumerState<AssistantChatSheet> createState() => _AssistantChatSheetState();
 }
 
-class _AssistantChatSheetState extends ConsumerState<_AssistantChatSheet> {
+class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
   static const _defaultAssistantGreeting =
       'Hi, I am MindNest AI. Ask me to open app sections, find counselor slots, or chat for support.';
   static const _maxConversations = 24;

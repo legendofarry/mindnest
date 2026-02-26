@@ -14,6 +14,8 @@ class MindNestShell extends StatefulWidget {
     this.padding = const EdgeInsets.all(20),
     this.maxWidth = 460,
     this.backgroundMode = MindNestBackgroundMode.defaultShell,
+    this.floatingActionButton,
+    this.floatingActionButtonLocation,
   });
 
   final Widget child;
@@ -21,6 +23,8 @@ class MindNestShell extends StatefulWidget {
   final EdgeInsets padding;
   final double maxWidth;
   final MindNestBackgroundMode backgroundMode;
+  final Widget? floatingActionButton;
+  final FloatingActionButtonLocation? floatingActionButtonLocation;
 
   @override
   State<MindNestShell> createState() => _MindNestShellState();
@@ -49,6 +53,8 @@ class _MindNestShellState extends State<MindNestShell>
     return Scaffold(
       appBar: widget.appBar,
       extendBodyBehindAppBar: true,
+      floatingActionButton: widget.floatingActionButton,
+      floatingActionButtonLocation: widget.floatingActionButtonLocation,
       body: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {

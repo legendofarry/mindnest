@@ -12,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/features/ai/models/assistant_models.dart';
+import 'package:mindnest/features/ai/presentation/assistant_fab.dart';
 import 'package:mindnest/features/ai/presentation/home_ai_assistant_section.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -1266,50 +1267,63 @@ class HomeScreen extends ConsumerWidget {
           final showJoinInstitutionNudge =
               profile.role == UserRole.individual && !hasInstitution;
 
-          return Align(
-            alignment: Alignment.topCenter,
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 20),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 860),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _HeroCarousel(
-                      profile: profile,
-                      firstName: firstName,
-                      roleLabel: profile.role.label,
-                      institutionName: institutionLabel,
-                      hasInstitution: hasInstitution,
-                      canAccessLive: canAccessLive,
-                      isDark: isDark,
+          return Stack(
+            children: [
+              Align(
+                alignment: Alignment.topCenter,
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 860),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _HeroCarousel(
+                          profile: profile,
+                          firstName: firstName,
+                          roleLabel: profile.role.label,
+                          institutionName: institutionLabel,
+                          hasInstitution: hasInstitution,
+                          canAccessLive: canAccessLive,
+                          isDark: isDark,
+                        ),
+                        if (showJoinInstitutionNudge) ...[
+                          const SizedBox(height: 14),
+                          _InstitutionJoinNudgeCard(
+                            onJoinCode: () =>
+                                context.go(AppRoute.joinInstitution),
+                            onHowItWorks: () =>
+                                _showInstitutionJoinGuide(context),
+                          ),
+                        ],
+                        const SizedBox(height: 18),
+                        _WellnessCheckInCard(profile: profile),
+                        const SizedBox(height: 14),
+                        _SosButton(onTap: () => _openCrisisSupport(context)),
+                        const SizedBox(height: 8),
+                      ],
                     ),
-                    if (showJoinInstitutionNudge) ...[
-                      const SizedBox(height: 14),
-                      _InstitutionJoinNudgeCard(
-                        onJoinCode: () => context.go(AppRoute.joinInstitution),
-                        onHowItWorks: () => _showInstitutionJoinGuide(context),
-                      ),
-                    ],
-                    const SizedBox(height: 18),
-                    HomeAiAssistantSection(
-                      profile: profile,
-                      onActionRequested: (action) => _runAssistantAction(
-                        context: context,
-                        profile: profile,
-                        action: action,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _WellnessCheckInCard(profile: profile),
-                    const SizedBox(height: 14),
-                    _SosButton(onTap: () => _openCrisisSupport(context)),
-                    const SizedBox(height: 8),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              Positioned(
+                right: 20,
+                bottom: 20,
+                child: AssistantFab(
+                  heroTag: 'assistant-fab-home-desktop',
+                  onPressed: () => showMindNestAssistantSheet(
+                    context: context,
+                    profile: profile,
+                    onActionRequested: (action) => _runAssistantAction(
+                      context: context,
+                      profile: profile,
+                      action: action,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           );
         },
         loading: () => const Center(
@@ -1463,15 +1477,6 @@ class HomeScreen extends ConsumerWidget {
                         ),
                       ],
                       const SizedBox(height: 18),
-                      HomeAiAssistantSection(
-                        profile: profile,
-                        onActionRequested: (action) => _runAssistantAction(
-                          context: context,
-                          profile: profile,
-                          action: action,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
                       _WellnessCheckInCard(profile: profile),
                       const SizedBox(height: 14),
                       _SosButton(onTap: () => _openCrisisSupport(context)),
@@ -1551,6 +1556,24 @@ class HomeScreen extends ConsumerWidget {
               hasInstitution: hasInstitution,
               canAccessLive: canAccessLive,
             ),
+      floatingActionButton: loadedProfile == null
+          ? null
+          : Padding(
+              padding: EdgeInsets.only(bottom: isDesktop ? 0 : 72),
+              child: AssistantFab(
+                heroTag: 'assistant-fab-home',
+                onPressed: () => showMindNestAssistantSheet(
+                  context: context,
+                  profile: loadedProfile,
+                  onActionRequested: (action) => _runAssistantAction(
+                    context: context,
+                    profile: loadedProfile,
+                    action: action,
+                  ),
+                ),
+              ),
+            ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
