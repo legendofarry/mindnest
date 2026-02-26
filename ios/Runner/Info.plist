@@ -70,6 +70,10 @@
 	<string>MindNest uses the microphone for counselor voice notes.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>MindNest converts counselor speech to text for session documentation.</string>
+	<key>UIStatusBarHidden</key>
+	<true/>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
