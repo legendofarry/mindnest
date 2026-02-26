@@ -5,10 +5,8 @@ import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
-import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
-import 'package:mindnest/features/care/models/counselor_public_rating.dart';
 
 enum _SpotPeriod { any, morning, afternoon, evening }
 
@@ -231,163 +229,6 @@ class _CounselorProfileScreenState
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
       );
-    }
-  }
-
-  double _averageRating(List<CounselorPublicRating> ratings) {
-    if (ratings.isEmpty) {
-      return 0;
-    }
-    final total = ratings.fold<int>(
-      0,
-      (runningTotal, entry) => runningTotal + entry.rating,
-    );
-    return total / ratings.length;
-  }
-
-  Future<void> _rateCounselorPublic({
-    required List<AppointmentRecord> eligibleAppointments,
-  }) async {
-    if (eligibleAppointments.isEmpty) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Complete a session with this counselor to leave a public rating.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    final commentController = TextEditingController();
-    int selectedRating = 5;
-    AppointmentRecord selectedAppointment = eligibleAppointments.first;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Rate Counselor (Public)'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text(
-                      'This review is visible to students in your institution.',
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedAppointment.id,
-                      decoration: const InputDecoration(
-                        labelText: 'Session',
-                        prefixIcon: Icon(Icons.event_note_rounded),
-                      ),
-                      items: eligibleAppointments
-                          .map(
-                            (appointment) => DropdownMenuItem(
-                              value: appointment.id,
-                              child: Text(_formatDateTime(appointment.startAt)),
-                            ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (value) {
-                        if (value == null) {
-                          return;
-                        }
-                        final match = eligibleAppointments.firstWhere(
-                          (appointment) => appointment.id == value,
-                        );
-                        setState(() => selectedAppointment = match);
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 6,
-                      children: List<Widget>.generate(5, (index) {
-                        final value = index + 1;
-                        return IconButton(
-                          onPressed: () =>
-                              setState(() => selectedRating = value),
-                          icon: Icon(
-                            value <= selectedRating
-                                ? Icons.star_rounded
-                                : Icons.star_border_rounded,
-                            color: const Color(0xFFF59E0B),
-                          ),
-                        );
-                      }),
-                    ),
-                    TextField(
-                      controller: commentController,
-                      minLines: 2,
-                      maxLines: 4,
-                      maxLength: 250,
-                      decoration: const InputDecoration(
-                        labelText: 'Public comment (optional)',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(true),
-                  child: const Text('Submit Review'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (confirmed != true) {
-      commentController.dispose();
-      return;
-    }
-
-    try {
-      await ref
-          .read(careRepositoryProvider)
-          .submitCounselorPublicRating(
-            appointment: selectedAppointment,
-            rating: selectedRating,
-            feedback: commentController.text.trim(),
-          );
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Public counselor rating submitted.')),
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      String message;
-      if (error is FirebaseException) {
-        message = error.message ?? error.code;
-      } else {
-        message = error.toString().replaceFirst('Exception: ', '');
-        if (message.contains('Dart exception thrown from converted Future')) {
-          message = 'Could not submit review right now. Please try again.';
-        }
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    } finally {
-      commentController.dispose();
     }
   }
 
@@ -642,6 +483,356 @@ class _CounselorProfileScreenState
     );
   }
 
+  Widget _buildHeroChip({
+    required String label,
+    required Color background,
+    required Color foreground,
+    IconData? icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: foreground),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: foreground,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCounselorHeroCard(CounselorProfile counselor) {
+    return GlassCard(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 92,
+                  height: 92,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE7EBFF),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: const Icon(
+                    Icons.person_outline_rounded,
+                    size: 48,
+                    color: Color(0xFF4F46E5),
+                  ),
+                ),
+                Positioned(
+                  right: -2,
+                  bottom: -2,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              counselor.displayName,
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              counselor.title,
+              style: const TextStyle(
+                fontSize: 24 / 2,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF4F46E5),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildHeroChip(
+                  label: '${counselor.yearsExperience} yrs experience',
+                  background: const Color(0xFFEFF6FF),
+                  foreground: const Color(0xFF5E728D),
+                ),
+                _buildHeroChip(
+                  label: counselor.sessionMode,
+                  background: const Color(0xFFF1F5F9),
+                  foreground: const Color(0xFF64748B),
+                ),
+                _buildHeroChip(
+                  label:
+                      '${counselor.ratingAverage.toStringAsFixed(1)} (${counselor.ratingCount} ratings)',
+                  background: const Color(0xFFFFF7E6),
+                  foreground: const Color(0xFFB45309),
+                  icon: Icons.star_rounded,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              counselor.bio.trim().isNotEmpty
+                  ? counselor.bio.trim()
+                  : 'Specializing in ${counselor.specialization.toLowerCase()}, helping you navigate life\'s challenges with evidence-based approaches.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF5E728D),
+                fontSize: 22 / 2,
+                height: 1.45,
+              ),
+            ),
+            if (counselor.languages.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.language_rounded,
+                    size: 15,
+                    color: Color(0xFF8DA0B7),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      counselor.languages.join(', ').toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFF8DA0B7),
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookingPolicyCard() {
+    return GlassCard(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF6F7FF),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFD9E0FF)),
+        ),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 42,
+              height: 42,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Color(0xFFFFFFFF),
+                  borderRadius: BorderRadius.all(Radius.circular(13)),
+                  border: Border.fromBorderSide(
+                    BorderSide(color: Color(0xFFD9E0FF)),
+                  ),
+                ),
+                child: Icon(
+                  Icons.info_outline_rounded,
+                  color: Color(0xFF4F46E5),
+                  size: 20,
+                ),
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Booking Policy',
+                    style: TextStyle(
+                      fontSize: 18 / 2,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E1B4B),
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Please cancel or reschedule at least 24 hours in advance. Counselors aim to confirm sessions within 2 hours of booking.',
+                    style: TextStyle(
+                      color: Color(0xFF4F46E5),
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFindSpotSection({
+    required CounselorProfile counselor,
+    required List<AvailabilitySlot> filteredWeekSlots,
+    required UserProfile? profile,
+    required bool canBook,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Find a Spot',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const Spacer(),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _selectedDay = null;
+                  _period = _SpotPeriod.any;
+                });
+              },
+              child: const Text('CLEAR FILTERS'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        GlassCard(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _pickSpotDay,
+                        icon: const Icon(
+                          Icons.calendar_today_rounded,
+                          size: 16,
+                        ),
+                        label: Text(
+                          _selectedDay == null
+                              ? 'Any day'
+                              : '${_selectedDay!.year}-${_selectedDay!.month.toString().padLeft(2, '0')}-${_selectedDay!.day.toString().padLeft(2, '0')}',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: PopupMenuButton<_SpotPeriod>(
+                        onSelected: (value) => setState(() => _period = value),
+                        itemBuilder: (context) => _SpotPeriod.values
+                            .map(
+                              (period) => PopupMenuItem<_SpotPeriod>(
+                                value: period,
+                                child: Text(_periodLabel(period)),
+                              ),
+                            )
+                            .toList(growable: false),
+                        child: Container(
+                          height: 48,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFDCE5EF)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.access_time_rounded,
+                                size: 16,
+                                color: Color(0xFF64748B),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _periodLabel(_period),
+                                  style: const TextStyle(
+                                    color: Color(0xFF334155),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: filteredWeekSlots.isEmpty || !canBook
+                      ? null
+                      : () => _bookSlot(
+                          counselor: counselor,
+                          slot: filteredWeekSlots.first,
+                          currentProfile: profile!,
+                        ),
+                  icon: const Icon(Icons.bolt_rounded),
+                  label: const Text('Book next available'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${filteredWeekSlots.length} matching spots in this week.',
+                  style: const TextStyle(color: Color(0xFF64748B)),
+                ),
+                if (!canBook)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Only students, staff, and individual users can book sessions.',
+                      style: TextStyle(color: Color(0xFF64748B)),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
@@ -700,208 +891,10 @@ class _CounselorProfileScreenState
                       institutionId: institutionId,
                       counselorId: widget.counselorId,
                     )
-                  : GlassCard(
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              counselor.displayName,
-                              style: Theme.of(context).textTheme.headlineSmall
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '${counselor.title} - ${counselor.specialization}',
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${counselor.yearsExperience} years experience - ${counselor.sessionMode}',
-                            ),
-                            const SizedBox(height: 4),
-                            Text('Timezone: ${counselor.timezone}'),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.star_rounded,
-                                  color: Color(0xFFF59E0B),
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${counselor.ratingAverage.toStringAsFixed(1)} (${counselor.ratingCount} ratings)',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (counselor.languages.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                'Languages: ${counselor.languages.join(', ')}',
-                              ),
-                            ],
-                            if (counselor.bio.trim().isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              Text(counselor.bio),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
+                  : _buildCounselorHeroCard(counselor),
               const SizedBox(height: 12),
-              const GlassCard(
-                child: Padding(
-                  padding: EdgeInsets.all(14),
-                  child: Text(
-                    'Expectation: cancel/reschedule early when possible. Counselors should confirm sessions promptly and share updates if schedules change.',
-                  ),
-                ),
-              ),
+              _buildBookingPolicyCard(),
               const SizedBox(height: 12),
-              if (institutionId.isNotEmpty)
-                StreamBuilder<List<CounselorPublicRating>>(
-                  stream: ref
-                      .read(careRepositoryProvider)
-                      .watchCounselorPublicRatings(
-                        institutionId: institutionId,
-                        counselorId: effectiveCounselor.id,
-                      ),
-                  builder: (context, publicRatingsSnapshot) {
-                    final publicRatings =
-                        publicRatingsSnapshot.data ?? const [];
-                    final publicAverage = _averageRating(publicRatings);
-                    final canLeavePublicRating =
-                        profile?.role == UserRole.student;
-                    final myRatedAppointments = profile == null
-                        ? <String>{}
-                        : publicRatings
-                              .where((entry) => entry.studentId == profile.id)
-                              .map((entry) => entry.appointmentId)
-                              .toSet();
-
-                    return GlassCard(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Public Counselor Ratings',
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              publicRatings.isEmpty
-                                  ? 'No public ratings yet.'
-                                  : 'Average: ${publicAverage.toStringAsFixed(1)} from ${publicRatings.length} ratings.',
-                            ),
-                            if (canLeavePublicRating) ...[
-                              const SizedBox(height: 10),
-                              StreamBuilder<List<AppointmentRecord>>(
-                                stream: ref
-                                    .read(careRepositoryProvider)
-                                    .watchStudentAppointments(
-                                      institutionId: institutionId,
-                                      studentId: profile!.id,
-                                    ),
-                                builder: (context, appointmentSnapshot) {
-                                  final eligible =
-                                      (appointmentSnapshot.data ??
-                                              const <AppointmentRecord>[])
-                                          .where(
-                                            (appointment) =>
-                                                appointment.counselorId ==
-                                                    effectiveCounselor.id &&
-                                                appointment.status ==
-                                                    AppointmentStatus
-                                                        .completed &&
-                                                !myRatedAppointments.contains(
-                                                  appointment.id,
-                                                ),
-                                          )
-                                          .toList(growable: false);
-                                  eligible.sort(
-                                    (a, b) => b.startAt.compareTo(a.startAt),
-                                  );
-                                  return ElevatedButton.icon(
-                                    onPressed: eligible.isEmpty
-                                        ? null
-                                        : () => _rateCounselorPublic(
-                                            eligibleAppointments: eligible,
-                                          ),
-                                    icon: const Icon(Icons.rate_review_rounded),
-                                    label: Text(
-                                      eligible.isEmpty
-                                          ? 'No eligible session to rate publicly'
-                                          : 'Rate Counselor Publicly',
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                            if (publicRatings.isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              ...publicRatings.take(5).map((rating) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF8FAFC),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.star_rounded,
-                                              color: Color(0xFFF59E0B),
-                                              size: 16,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              rating.rating.toString(),
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                            const Spacer(),
-                                            Text(
-                                              _formatDateTime(rating.createdAt),
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Color(0xFF64748B),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        if (rating.feedback
-                                            .trim()
-                                            .isNotEmpty) ...[
-                                          const SizedBox(height: 6),
-                                          Text(rating.feedback.trim()),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ],
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              if (institutionId.isNotEmpty) const SizedBox(height: 12),
               if (institutionId.isEmpty)
                 const GlassCard(
                   child: Padding(
@@ -935,7 +928,9 @@ class _CounselorProfileScreenState
                     }
 
                     final slots = availabilitySnapshot.data ?? const [];
-                    final filtered = _filterAndSortSlots(slots);
+                    final weeklyFiltered = _filterAndSortSlots(
+                      _weekSlots(slots),
+                    );
 
                     if (availabilitySnapshot.connectionState ==
                             ConnectionState.waiting &&
@@ -946,96 +941,11 @@ class _CounselorProfileScreenState
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        GlassCard(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  'Find a Spot',
-                                  style: Theme.of(context).textTheme.titleLarge
-                                      ?.copyWith(fontWeight: FontWeight.w800),
-                                ),
-                                const SizedBox(height: 10),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    OutlinedButton.icon(
-                                      onPressed: _pickSpotDay,
-                                      icon: const Icon(
-                                        Icons.calendar_today_rounded,
-                                      ),
-                                      label: Text(
-                                        _selectedDay == null
-                                            ? 'Any day'
-                                            : '${_selectedDay!.year}-${_selectedDay!.month.toString().padLeft(2, '0')}-${_selectedDay!.day.toString().padLeft(2, '0')}',
-                                      ),
-                                    ),
-                                    DropdownButtonHideUnderline(
-                                      child: DropdownButton<_SpotPeriod>(
-                                        value: _period,
-                                        items: _SpotPeriod.values
-                                            .map(
-                                              (period) => DropdownMenuItem(
-                                                value: period,
-                                                child: Text(
-                                                  _periodLabel(period),
-                                                ),
-                                              ),
-                                            )
-                                            .toList(growable: false),
-                                        onChanged: (value) {
-                                          if (value == null) {
-                                            return;
-                                          }
-                                          setState(() => _period = value);
-                                        },
-                                      ),
-                                    ),
-                                    OutlinedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _selectedDay = null;
-                                          _period = _SpotPeriod.any;
-                                        });
-                                      },
-                                      child: const Text('Clear filters'),
-                                    ),
-                                    ElevatedButton.icon(
-                                      onPressed: filtered.isEmpty || !canBook
-                                          ? null
-                                          : () => _bookSlot(
-                                              counselor: effectiveCounselor,
-                                              slot: filtered.first,
-                                              currentProfile: profile!,
-                                            ),
-                                      icon: const Icon(Icons.bolt_rounded),
-                                      label: const Text('Book next available'),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '${filtered.length} matching spots found.',
-                                  style: const TextStyle(
-                                    color: Color(0xFF64748B),
-                                  ),
-                                ),
-                                if (!canBook)
-                                  const Padding(
-                                    padding: EdgeInsets.only(top: 6),
-                                    child: Text(
-                                      'Only students, staff, and individual users can book sessions.',
-                                      style: TextStyle(
-                                        color: Color(0xFF64748B),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
+                        _buildFindSpotSection(
+                          counselor: effectiveCounselor,
+                          filteredWeekSlots: weeklyFiltered,
+                          profile: profile,
+                          canBook: canBook,
                         ),
                         const SizedBox(height: 12),
                         _buildWeeklyGrid(
@@ -1043,87 +953,6 @@ class _CounselorProfileScreenState
                           slots: slots,
                           profile: profile,
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Available Spots',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 8),
-                        if (slots.isEmpty)
-                          const GlassCard(
-                            child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Text('No public available slots yet.'),
-                            ),
-                          )
-                        else if (filtered.isEmpty)
-                          const GlassCard(
-                            child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Text(
-                                'No available spots match the current filters.',
-                              ),
-                            ),
-                          )
-                        else
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: filtered
-                                .take(30)
-                                .map(
-                                  (slot) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: GlassCard(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(14),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    _formatDateTime(
-                                                      slot.startAt,
-                                                    ),
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    'Ends: ${_formatDateTime(slot.endAt)}',
-                                                    style: const TextStyle(
-                                                      color: Color(0xFF64748B),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            ElevatedButton(
-                                              onPressed:
-                                                  !canBook || profile == null
-                                                  ? null
-                                                  : () => _bookSlot(
-                                                      counselor:
-                                                          effectiveCounselor,
-                                                      slot: slot,
-                                                      currentProfile: profile,
-                                                    ),
-                                              child: const Text('Book'),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                )
-                                .toList(growable: false),
-                          ),
                       ],
                     );
                   },
