@@ -240,6 +240,28 @@ class _CounselorDirectoryScreenState
         '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 
+  bool _isSameLocalDate(DateTime a, DateTime b) {
+    final first = a.toLocal();
+    final second = b.toLocal();
+    return first.year == second.year &&
+        first.month == second.month &&
+        first.day == second.day;
+  }
+
+  String _formatNextOpenSlotSummary(DateTime? value) {
+    if (value == null) {
+      return 'No open slots';
+    }
+    final local = value.toLocal();
+    final now = DateTime.now();
+    final clock =
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    if (_isSameLocalDate(local, now)) {
+      return 'Today $clock';
+    }
+    return '${local.month}/${local.day} $clock';
+  }
+
   int _activeFilterCount() {
     var count = 0;
     if (_sort != _CounselorSort.earliestAvailable) count++;
@@ -683,67 +705,113 @@ class _CounselorDirectoryScreenState
                               .take(_rowsPerPage)
                               .toList(growable: false);
 
-                          return _CounselorDirectoryTable(
-                            rows: pagedRows
-                                .map(
-                                  (counselor) => _CounselorTableRowData(
-                                    counselorId: counselor.id,
-                                    displayName: counselor.displayName,
-                                    title: counselor.title,
-                                    specialization: counselor.specialization,
-                                    sessionMode: counselor.sessionMode,
-                                    languages: counselor.languages,
-                                    yearsExperience: counselor.yearsExperience,
-                                    ratingAverage: ratingAverageFor(counselor),
-                                    ratingCount: ratingCountFor(counselor),
-                                    earliestAvailable:
-                                        earliestSlotByCounselor[counselor.id],
-                                  ),
-                                )
-                                .toList(growable: false),
-                            formatSlot: _formatSlot,
-                            onOpenProfile: (counselorId) {
-                              context.push(
-                                _counselorProfileRouteFromCounselors(
-                                  counselorId,
+                          final filteredCounselorIds = filtered
+                              .map((entry) => entry.id)
+                              .toSet();
+                          final activeNowCount = filtered
+                              .where(
+                                (entry) =>
+                                    earliestSlotByCounselor[entry.id] != null,
+                              )
+                              .length;
+                          final availableTodayCounselorIds = <String>{};
+                          DateTime? nextOpenSlot;
+                          final now = DateTime.now();
+                          for (final slot in availability) {
+                            if (!filteredCounselorIds.contains(
+                              slot.counselorId,
+                            )) {
+                              continue;
+                            }
+                            if (_isSameLocalDate(slot.startAt, now)) {
+                              availableTodayCounselorIds.add(slot.counselorId);
+                            }
+                            if (nextOpenSlot == null ||
+                                slot.startAt.isBefore(nextOpenSlot)) {
+                              nextOpenSlot = slot.startAt;
+                            }
+                          }
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _CounselorOverviewStrip(
+                                activeNowCount: activeNowCount,
+                                availableTodayCount:
+                                    availableTodayCounselorIds.length,
+                                nextOpenSlotLabel: _formatNextOpenSlotSummary(
+                                  nextOpenSlot,
                                 ),
-                              );
-                            },
-                            searchController: _searchController,
-                            onSearchChanged: (_) => setState(() {
-                              _currentPage = 0;
-                            }),
-                            onOpenFilters: () => _openFilterSheet(
-                              specializationOptions: specializationOptions,
-                              modeOptions: modeOptions,
-                            ),
-                            activeFilterCount: _activeFilterCount(),
-                            rowsPerPage: _rowsPerPage,
-                            onRowsPerPageChanged: (value) => setState(() {
-                              _rowsPerPage = value;
-                              _currentPage = 0;
-                            }),
-                            currentPage: pageIndex,
-                            totalPages: totalPages,
-                            totalRows: totalRows,
-                            onPreviousPage: () => setState(() {
-                              if (pageIndex > 0) {
-                                _currentPage = pageIndex - 1;
-                              }
-                            }),
-                            onNextPage: () => setState(() {
-                              if (pageIndex < totalPages - 1) {
-                                _currentPage = pageIndex + 1;
-                              }
-                            }),
-                            hasActiveFilters: hasActiveFilters,
-                            noDataWidget: hasActiveFilters
-                                ? const Text(
-                                    'No counselors match your filters. Try broadening your search.',
-                                  )
-                                : _PendingCounselorFallback(
-                                    institutionId: institutionId,
-                                  ),
+                              ),
+                              const SizedBox(height: 12),
+                              _CounselorDirectoryTable(
+                                rows: pagedRows
+                                    .map(
+                                      (counselor) => _CounselorTableRowData(
+                                        counselorId: counselor.id,
+                                        displayName: counselor.displayName,
+                                        title: counselor.title,
+                                        specialization:
+                                            counselor.specialization,
+                                        sessionMode: counselor.sessionMode,
+                                        languages: counselor.languages,
+                                        yearsExperience:
+                                            counselor.yearsExperience,
+                                        ratingAverage: ratingAverageFor(
+                                          counselor,
+                                        ),
+                                        ratingCount: ratingCountFor(counselor),
+                                        earliestAvailable:
+                                            earliestSlotByCounselor[counselor
+                                                .id],
+                                      ),
+                                    )
+                                    .toList(growable: false),
+                                formatSlot: _formatSlot,
+                                onOpenProfile: (counselorId) {
+                                  context.push(
+                                    _counselorProfileRouteFromCounselors(
+                                      counselorId,
+                                    ),
+                                  );
+                                },
+                                searchController: _searchController,
+                                onSearchChanged: (_) => setState(() {
+                                  _currentPage = 0;
+                                }),
+                                onOpenFilters: () => _openFilterSheet(
+                                  specializationOptions: specializationOptions,
+                                  modeOptions: modeOptions,
+                                ),
+                                activeFilterCount: _activeFilterCount(),
+                                rowsPerPage: _rowsPerPage,
+                                onRowsPerPageChanged: (value) => setState(() {
+                                  _rowsPerPage = value;
+                                  _currentPage = 0;
+                                }),
+                                currentPage: pageIndex,
+                                totalPages: totalPages,
+                                totalRows: totalRows,
+                                onPreviousPage: () => setState(() {
+                                  if (pageIndex > 0) {
+                                    _currentPage = pageIndex - 1;
+                                  }
+                                }),
+                                onNextPage: () => setState(() {
+                                  if (pageIndex < totalPages - 1) {
+                                    _currentPage = pageIndex + 1;
+                                  }
+                                }),
+                                hasActiveFilters: hasActiveFilters,
+                                noDataWidget: hasActiveFilters
+                                    ? const Text(
+                                        'No counselors match your filters. Try broadening your search.',
+                                      )
+                                    : _PendingCounselorFallback(
+                                        institutionId: institutionId,
+                                      ),
+                              ),
+                            ],
                           );
                         },
                       );
@@ -878,6 +946,133 @@ class _RatingChip extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CounselorOverviewStrip extends StatelessWidget {
+  const _CounselorOverviewStrip({
+    required this.activeNowCount,
+    required this.availableTodayCount,
+    required this.nextOpenSlotLabel,
+  });
+
+  final int activeNowCount;
+  final int availableTodayCount;
+  final String nextOpenSlotLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _OverviewCard(
+            title: 'Active now',
+            value: '$activeNowCount',
+            icon: Icons.bolt_rounded,
+            primary: true,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _OverviewCard(
+            title: 'Available today',
+            value: '$availableTodayCount',
+            icon: Icons.calendar_today_rounded,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _OverviewCard(
+            title: 'Next open slot',
+            value: nextOpenSlotLabel,
+            icon: Icons.schedule_rounded,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OverviewCard extends StatelessWidget {
+  const _OverviewCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    this.primary = false,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) {
+    final titleStyle = TextStyle(
+      fontSize: 12,
+      letterSpacing: 0.9,
+      fontWeight: FontWeight.w800,
+      color: primary ? const Color(0xFFEEF2FF) : const Color(0xFF8698B2),
+    );
+    final valueStyle = TextStyle(
+      fontSize: 35 / 2,
+      fontWeight: FontWeight.w800,
+      color: primary ? Colors.white : const Color(0xFF0F172A),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: primary
+            ? const LinearGradient(
+                colors: [Color(0xFF5146FF), Color(0xFF4639E6)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        color: primary ? null : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: primary ? const Color(0xFF5B4FFF) : const Color(0xFFDCE5EF),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: primary ? const Color(0x4D4338DC) : const Color(0x1A0F172A),
+            blurRadius: 16,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: primary
+                  ? const Color(0x40FFFFFF)
+                  : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(
+              icon,
+              size: 18,
+              color: primary ? Colors.white : const Color(0xFF0E9B90),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(title.toUpperCase(), style: titleStyle),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: valueStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }

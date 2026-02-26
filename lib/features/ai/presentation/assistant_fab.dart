@@ -1,3 +1,4 @@
+// features/ai/presentation/assistant_fab.dart
 import 'package:flutter/material.dart';
 
 class AssistantFab extends StatelessWidget {
@@ -17,6 +18,7 @@ class AssistantFab extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias, // 👈 ADD THIS
         child: InkWell(
           onTap: onPressed,
           borderRadius: BorderRadius.circular(22),
