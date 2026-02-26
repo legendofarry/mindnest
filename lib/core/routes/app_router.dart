@@ -17,6 +17,7 @@ import 'package:mindnest/features/care/presentation/counselor_directory_screen.d
 import 'package:mindnest/features/care/presentation/counselor_profile_screen.dart';
 import 'package:mindnest/features/care/presentation/crisis_counselor_support_screen.dart';
 import 'package:mindnest/features/care/presentation/notification_center_screen.dart';
+import 'package:mindnest/features/care/presentation/notification_details_screen.dart';
 import 'package:mindnest/features/care/presentation/session_details_screen.dart';
 import 'package:mindnest/features/care/presentation/student_care_plan_screen.dart';
 import 'package:mindnest/features/care/presentation/student_appointments_screen.dart';
@@ -60,6 +61,7 @@ class AppRoute {
   static const studentAppointments = '/student-appointments';
   static const sessionDetails = '/session-details';
   static const notifications = '/notifications';
+  static const notificationDetails = '/notification-details';
   static const carePlan = '/care-plan';
   static const crisisCounselorSupport = '/crisis-counselor-support';
   static const liveHub = '/live-hub';
@@ -379,6 +381,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.notifications,
         builder: (context, state) => const NotificationCenterScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.notificationDetails,
+        builder: (context, state) {
+          final notificationId =
+              state.uri.queryParameters['notificationId'] ?? '';
+          return NotificationDetailsScreen(notificationId: notificationId);
+        },
       ),
       GoRoute(
         path: AppRoute.carePlan,

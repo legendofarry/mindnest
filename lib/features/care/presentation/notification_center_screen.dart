@@ -1,12 +1,8 @@
-// features/care/presentation/notification_center_screen.dart
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
-import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/app_notification.dart';
 
@@ -20,9 +16,6 @@ class NotificationCenterScreen extends ConsumerStatefulWidget {
 
 class _NotificationCenterScreenState
     extends ConsumerState<NotificationCenterScreen> {
-  static const String _sourceQueryKey = 'from';
-  static const String _notificationSourceValue = 'notifications';
-
   bool _showUnreadOnly = false;
   final Set<String> _openingNotificationIds = <String>{};
 
@@ -42,7 +35,7 @@ class _NotificationCenterScreenState
       return Icons.check_circle_outline_rounded;
     }
     if (normalized.contains('cancel')) {
-      return Icons.cancel_outlined;
+      return Icons.event_busy_outlined;
     }
     if (normalized.contains('reminder')) {
       return Icons.notifications_active_outlined;
@@ -50,83 +43,40 @@ class _NotificationCenterScreenState
     if (normalized.contains('attendance') || normalized.contains('no_show')) {
       return Icons.access_time_rounded;
     }
+    if (normalized.contains('approved')) {
+      return Icons.verified_rounded;
+    }
+    if (normalized.contains('declined')) {
+      return Icons.report_gmailerrorred_rounded;
+    }
     return Icons.notifications_none_rounded;
   }
 
-  String _defaultRouteForRole(UserRole role) {
-    switch (role) {
-      case UserRole.counselor:
-        return AppRoute.counselorAppointments;
-      case UserRole.institutionAdmin:
-        return AppRoute.institutionAdmin;
-      case UserRole.student:
-      case UserRole.staff:
-      case UserRole.individual:
-      case UserRole.other:
-        return AppRoute.home;
+  Color _typeAccent(ColorScheme scheme, String type) {
+    final normalized = type.toLowerCase();
+    if (normalized.contains('confirm') || normalized.contains('completed')) {
+      return const Color(0xFF059669);
     }
+    if (normalized.contains('cancel') || normalized.contains('declined')) {
+      return scheme.error;
+    }
+    if (normalized.contains('attendance') || normalized.contains('no_show')) {
+      return const Color(0xFFDC2626);
+    }
+    if (normalized.contains('reminder')) {
+      return const Color(0xFFD97706);
+    }
+    return scheme.primary;
   }
 
-  String _appointmentNotificationRoute({
-    required AppNotification notification,
-    required UserRole role,
-  }) {
-    if (role == UserRole.counselor) {
-      return AppRoute.counselorAppointments;
-    }
-    if (role == UserRole.institutionAdmin) {
-      return AppRoute.institutionAdmin;
-    }
-    final appointmentId = notification.relatedAppointmentId?.trim() ?? '';
-    if (appointmentId.isNotEmpty) {
-      final encodedId = Uri.encodeQueryComponent(appointmentId);
-      return '${AppRoute.sessionDetails}?appointmentId=$encodedId';
-    }
-    return AppRoute.studentAppointments;
+  String _notificationDetailsRoute(String notificationId) {
+    return Uri(
+      path: AppRoute.notificationDetails,
+      queryParameters: <String, String>{'notificationId': notificationId},
+    ).toString();
   }
 
-  String _destinationRouteForNotification({
-    required AppNotification notification,
-    required UserRole role,
-  }) {
-    final type = notification.type.trim().toLowerCase();
-    switch (type) {
-      case 'institution_request_submitted':
-      case 'institution_request_resubmitted':
-      case 'school_request_submitted':
-        return AppRoute.ownerDashboard;
-      case 'institution_request_pending':
-      case 'institution_request_declined':
-        return AppRoute.institutionPending;
-      case 'institution_request_approved':
-        return AppRoute.institutionAdmin;
-      case 'booking_confirmed':
-      case 'booking_request':
-      case 'booking_reminder':
-      case 'appointment_cancelled':
-      case 'session_completed':
-      case 'session_no_show':
-      case 'appointment_rescheduled':
-        return _appointmentNotificationRoute(
-          notification: notification,
-          role: role,
-        );
-      default:
-        return _defaultRouteForRole(role);
-    }
-  }
-
-  String _withNotificationSource(String route) {
-    final uri = Uri.parse(route);
-    final updatedQuery = <String, String>{...uri.queryParameters};
-    updatedQuery[_sourceQueryKey] = _notificationSourceValue;
-    return uri.replace(queryParameters: updatedQuery).toString();
-  }
-
-  Future<void> _openNotification({
-    required AppNotification notification,
-    required UserRole role,
-  }) async {
+  Future<void> _openNotification(AppNotification notification) async {
     if (_openingNotificationIds.contains(notification.id)) {
       return;
     }
@@ -141,14 +91,7 @@ class _NotificationCenterScreenState
       if (!mounted) {
         return;
       }
-      context.go(
-        _withNotificationSource(
-          _destinationRouteForNotification(
-            notification: notification,
-            role: role,
-          ),
-        ),
-      );
+      context.go(_notificationDetailsRoute(notification.id));
     } catch (error) {
       if (!mounted) {
         return;
@@ -165,54 +108,108 @@ class _NotificationCenterScreenState
     }
   }
 
-  Widget _segmentedControl({
+  Widget _header({
+    required BuildContext context,
     required List<AppNotification> notifications,
-    required bool isDark,
   }) {
-    final bg = isDark ? const Color(0xFF111C2E) : const Color(0xFFE9EEF4);
-    final activeBg = isDark ? const Color(0xFF0F8D95) : const Color(0xFF0E9B90);
-    final textMuted = isDark
-        ? const Color(0xFF9FB2CC)
-        : const Color(0xFF64748B);
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final unreadCount = notifications.where((entry) => !entry.isRead).length;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Notifications',
+                style: textTheme.headlineMedium?.copyWith(
+                  color: scheme.onSurface,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                unreadCount > 0
+                    ? '$unreadCount unread updates'
+                    : 'Stay updated with your sessions',
+                style: textTheme.titleMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          onPressed: null,
+          icon: Icon(
+            Icons.more_horiz_rounded,
+            color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
+          ),
+          tooltip: 'More',
+        ),
+      ],
+    );
+  }
+
+  Widget _segmentedControl({
+    required BuildContext context,
+    required List<AppNotification> notifications,
+    required String userId,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    final containerColor = scheme.surfaceContainerHighest.withValues(
+      alpha: 0.45,
+    );
+    final activeBg = scheme.surface;
+    final activeText = scheme.onSurface;
+    final inactiveText = scheme.onSurfaceVariant;
+    final canMarkAllRead =
+        userId.isNotEmpty && notifications.any((entry) => !entry.isRead);
+
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
+        color: containerColor,
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         children: [
           _segmentChip(
+            context: context,
             label: 'All',
             active: !_showUnreadOnly,
             activeBg: activeBg,
-            inactiveText: textMuted,
+            activeText: activeText,
+            inactiveText: inactiveText,
             onTap: () => setState(() => _showUnreadOnly = false),
           ),
           const SizedBox(width: 8),
           _segmentChip(
+            context: context,
             label: 'Unread',
             active: _showUnreadOnly,
             activeBg: activeBg,
-            inactiveText: textMuted,
+            activeText: activeText,
+            inactiveText: inactiveText,
             onTap: () => setState(() => _showUnreadOnly = true),
           ),
           const Spacer(),
           TextButton(
-            onPressed: notifications.any((entry) => !entry.isRead)
+            onPressed: canMarkAllRead
                 ? () => ref
                       .read(careRepositoryProvider)
-                      .markAllNotificationsRead(
-                        ref.read(currentUserProfileProvider).valueOrNull?.id ??
-                            '',
-                      )
+                      .markAllNotificationsRead(userId)
                 : null,
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF0E9B90),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              textStyle: const TextStyle(
+              foregroundColor: scheme.primary,
+              textStyle: textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w800,
-                fontSize: 14,
               ),
             ),
             child: const Text('Mark all read'),
@@ -223,26 +220,37 @@ class _NotificationCenterScreenState
   }
 
   Widget _segmentChip({
+    required BuildContext context,
     required String label,
     required bool active,
     required Color activeBg,
+    required Color activeText,
     required Color inactiveText,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         decoration: BoxDecoration(
           color: active ? activeBg : Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: active
+                ? Theme.of(
+                    context,
+                  ).colorScheme.outlineVariant.withValues(alpha: 0.5)
+                : Colors.transparent,
+          ),
           boxShadow: active
-              ? const [
+              ? [
                   BoxShadow(
-                    color: Color(0x33119095),
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.shadow.withValues(alpha: 0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ]
               : const [],
@@ -250,9 +258,9 @@ class _NotificationCenterScreenState
         child: Text(
           label,
           style: TextStyle(
-            color: active ? Colors.white : inactiveText,
-            fontWeight: FontWeight.w800,
-            fontSize: 14,
+            color: active ? activeText : inactiveText,
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
           ),
         ),
       ),
@@ -260,41 +268,35 @@ class _NotificationCenterScreenState
   }
 
   Widget _notificationCard({
+    required BuildContext context,
     required AppNotification entry,
-    required bool isDark,
-    required VoidCallback onTap,
     required bool isBusy,
+    required VoidCallback onTap,
   }) {
-    final cardColor = isDark ? const Color(0xFF151F31) : Colors.white;
-    final border = isDark ? const Color(0xFF2A3A52) : const Color(0xFFDDE6F1);
-    final iconBg = isDark ? const Color(0xFF1D2B41) : const Color(0xFFEFF3F8);
-    final titleColor = isDark
-        ? const Color(0xFFE2E8F0)
-        : const Color(0xFF334155);
-    final bodyColor = isDark
-        ? const Color(0xFF9FB2CC)
-        : const Color(0xFF516784);
-    final dateColor = isDark
-        ? const Color(0xFF89A0BE)
-        : const Color(0xFF8A9AB4);
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final accent = _typeAccent(scheme, entry.type);
+    final iconBg = accent.withValues(alpha: 0.12);
+    final cardBg = scheme.surface;
+    final borderColor = entry.isRead
+        ? scheme.outlineVariant.withValues(alpha: 0.45)
+        : scheme.primary.withValues(alpha: 0.26);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(34),
+        borderRadius: BorderRadius.circular(24),
         onTap: isBusy ? null : onTap,
         child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(34),
-            border: Border.all(color: border),
+            color: cardBg,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: (isDark ? Colors.black : const Color(0x120F172A))
-                    .withValues(alpha: isDark ? 0.28 : 0.07),
-                blurRadius: 18,
+                color: scheme.shadow.withValues(alpha: 0.06),
+                blurRadius: 16,
                 offset: const Offset(0, 8),
               ),
             ],
@@ -303,33 +305,30 @@ class _NotificationCenterScreenState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 56,
-                height: 56,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
                   color: iconBg,
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(
-                  _typeIcon(entry.type),
-                  color: const Color(0xFF0E9B90),
-                ),
+                child: Icon(_typeIcon(entry.type), color: accent),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           child: Text(
                             entry.title,
-                            style: TextStyle(
-                              color: titleColor,
+                            style: textTheme.titleLarge?.copyWith(
+                              color: scheme.onSurface,
                               fontWeight: entry.isRead
                                   ? FontWeight.w700
                                   : FontWeight.w800,
-                              fontSize: 34 / 2,
                             ),
                           ),
                         ),
@@ -337,17 +336,15 @@ class _NotificationCenterScreenState
                           const SizedBox(
                             width: 14,
                             height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Color(0xFF0E9B90),
-                            ),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         else if (!entry.isRead)
                           Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF0E9B90),
+                            width: 9,
+                            height: 9,
+                            margin: const EdgeInsets.only(top: 6),
+                            decoration: BoxDecoration(
+                              color: scheme.primary,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -356,21 +353,18 @@ class _NotificationCenterScreenState
                     const SizedBox(height: 6),
                     Text(
                       entry.body,
-                      style: TextStyle(
-                        color: bodyColor,
-                        fontSize: 17,
-                        height: 1.35,
+                      style: textTheme.titleMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
                         fontWeight: FontWeight.w500,
+                        height: 1.35,
                       ),
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      '${_formatDate(entry.createdAt)}  -  ${_formatTime(entry.createdAt)}',
-                      style: TextStyle(
-                        color: dateColor,
-                        fontSize: 12,
+                      '${_formatDate(entry.createdAt)}  •  ${_formatTime(entry.createdAt)}',
+                      style: textTheme.labelLarge?.copyWith(
+                        color: scheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: 0.2,
                       ),
                     ),
                   ],
@@ -383,21 +377,25 @@ class _NotificationCenterScreenState
     );
   }
 
-  Widget _emptyCard(bool isDark) {
-    final cardColor = isDark ? const Color(0xFF151F31) : Colors.white;
-    final border = isDark ? const Color(0xFF2A3A52) : const Color(0xFFDDE6F1);
+  Widget _emptyCard(BuildContext context, {required bool forUnread}) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(34),
-        border: Border.all(color: border),
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.45),
+        ),
       ),
       child: Text(
-        'No notifications yet. Booking, reminders, and cancellations will show here.',
-        style: TextStyle(
-          color: isDark ? const Color(0xFF9FB2CC) : const Color(0xFF64748B),
+        forUnread
+            ? 'No unread notifications right now.'
+            : 'No notifications yet. Booking, reminders, and cancellations will show here.',
+        style: textTheme.titleMedium?.copyWith(
+          color: scheme.onSurfaceVariant,
           fontWeight: FontWeight.w600,
           height: 1.4,
         ),
@@ -409,219 +407,89 @@ class _NotificationCenterScreenState
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final userId = profile?.id ?? '';
-    final userRole = profile?.role ?? UserRole.other;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0B1220)
-          : const Color(0xFFF8FAFC),
-      extendBodyBehindAppBar: true,
-      appBar: null,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isDark
-                ? const [Color(0xFF0B1220), Color(0xFF0E1A2E)]
-                : const [Color(0xFFF4F7FB), Color(0xFFF1F5F9)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Stack(
-          children: [
-            Positioned.fill(child: _NotificationsHomeBlobs(isDark: isDark)),
-            SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 760),
-                      child: SizedBox(
-                        height: constraints.maxHeight,
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                            20,
-                            12,
-                            20,
-                            24,
-                          ),
-                          child: userId.isEmpty
-                              ? _emptyCard(isDark)
-                              : StreamBuilder<List<AppNotification>>(
-                                  stream: ref
-                                      .read(careRepositoryProvider)
-                                      .watchUserNotifications(userId),
-                                  builder: (context, snapshot) {
-                                    if (snapshot.hasError) {
-                                      return _emptyCard(isDark);
-                                    }
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+              child: userId.isEmpty
+                  ? _emptyCard(context, forUnread: false)
+                  : StreamBuilder<List<AppNotification>>(
+                      stream: ref
+                          .read(careRepositoryProvider)
+                          .watchUserNotifications(userId),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return _emptyCard(context, forUnread: false);
+                        }
 
-                                    final notifications =
-                                        snapshot.data ?? const [];
-                                    final filtered = notifications
-                                        .where(
-                                          (entry) =>
-                                              !_showUnreadOnly || !entry.isRead,
-                                        )
-                                        .toList(growable: false);
+                        final notifications = snapshot.data ?? const [];
+                        final filtered = notifications
+                            .where((entry) => !_showUnreadOnly || !entry.isRead)
+                            .toList(growable: false);
 
-                                    if (snapshot.connectionState ==
-                                            ConnectionState.waiting &&
-                                        notifications.isEmpty) {
-                                      return const Center(
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          color: Color(0xFF0E9B90),
-                                        ),
-                                      );
-                                    }
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
+                            notifications.isEmpty) {
+                          return const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2.6),
+                          );
+                        }
 
-                                    return Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        _segmentedControl(
-                                          notifications: notifications,
-                                          isDark: isDark,
-                                        ),
-                                        const SizedBox(height: 16),
-                                        Expanded(
-                                          child: filtered.isEmpty
-                                              ? Align(
-                                                  alignment:
-                                                      Alignment.topCenter,
-                                                  child: _emptyCard(isDark),
-                                                )
-                                              : ListView.separated(
-                                                  physics:
-                                                      const BouncingScrollPhysics(),
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        bottom: 6,
-                                                      ),
-                                                  itemCount: filtered.length,
-                                                  separatorBuilder:
-                                                      (context, index) =>
-                                                          const SizedBox(
-                                                            height: 14,
-                                                          ),
-                                                  itemBuilder: (context, index) {
-                                                    final entry =
-                                                        filtered[index];
-                                                    final isBusy =
-                                                        _openingNotificationIds
-                                                            .contains(entry.id);
-                                                    return _notificationCard(
-                                                      entry: entry,
-                                                      isDark: isDark,
-                                                      isBusy: isBusy,
-                                                      onTap: () =>
-                                                          _openNotification(
-                                                            notification: entry,
-                                                            role: userRole,
-                                                          ),
-                                                    );
-                                                  },
-                                                ),
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                        ),
-                      ),
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _header(
+                              context: context,
+                              notifications: notifications,
+                            ),
+                            const SizedBox(height: 16),
+                            _segmentedControl(
+                              context: context,
+                              notifications: notifications,
+                              userId: userId,
+                            ),
+                            const SizedBox(height: 16),
+                            Expanded(
+                              child: filtered.isEmpty
+                                  ? Align(
+                                      alignment: Alignment.topCenter,
+                                      child: _emptyCard(
+                                        context,
+                                        forUnread: _showUnreadOnly,
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      physics: const BouncingScrollPhysics(),
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      itemCount: filtered.length,
+                                      separatorBuilder: (_, _) =>
+                                          const SizedBox(height: 12),
+                                      itemBuilder: (context, index) {
+                                        final entry = filtered[index];
+                                        final isBusy = _openingNotificationIds
+                                            .contains(entry.id);
+                                        return _notificationCard(
+                                          context: context,
+                                          entry: entry,
+                                          isBusy: isBusy,
+                                          onTap: () => _openNotification(entry),
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NotificationsHomeBlobs extends StatefulWidget {
-  const _NotificationsHomeBlobs({required this.isDark});
-
-  final bool isDark;
-
-  @override
-  State<_NotificationsHomeBlobs> createState() =>
-      _NotificationsHomeBlobsState();
-}
-
-class _NotificationsHomeBlobsState extends State<_NotificationsHomeBlobs>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 14),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Widget _blob(double size, List<Color> colors) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(colors: colors),
-        boxShadow: [
-          BoxShadow(
-            color: colors.first.withValues(alpha: 0.45),
-            blurRadius: 64,
-            spreadRadius: 10,
           ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final blobA = widget.isDark
-        ? const [Color(0x2E38BDF8), Color(0x0038BDF8)]
-        : const [Color(0x300BA4FF), Color(0x000BA4FF)];
-    final blobB = widget.isDark
-        ? const [Color(0x2E14B8A6), Color(0x0014B8A6)]
-        : const [Color(0x2A15A39A), Color(0x0015A39A)];
-    final blobC = widget.isDark
-        ? const [Color(0x2E22D3EE), Color(0x0022D3EE)]
-        : const [Color(0x2418A89D), Color(0x0018A89D)];
-
-    return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          final t = _controller.value * 2 * math.pi;
-          return Stack(
-            children: [
-              Positioned(
-                left: -70 + math.sin(t) * 28,
-                top: -10 + math.cos(t * 1.2) * 20,
-                child: _blob(320, blobA),
-              ),
-              Positioned(
-                right: -70 + math.cos(t * 0.9) * 24,
-                top: 150 + math.sin(t * 1.3) * 18,
-                child: _blob(340, blobB),
-              ),
-              Positioned(
-                left: 70 + math.cos(t * 1.1) * 18,
-                bottom: -90 + math.sin(t * 0.75) * 22,
-                child: _blob(280, blobC),
-              ),
-            ],
-          );
-        },
+        ),
       ),
     );
   }
