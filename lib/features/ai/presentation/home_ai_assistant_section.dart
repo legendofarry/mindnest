@@ -435,6 +435,14 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
     }
 
     final replyAt = DateTime.now().millisecondsSinceEpoch;
+    final suggestedActions = <AssistantSuggestedAction>[
+      ...reply.suggestedActions,
+      if (reply.action != null)
+        AssistantSuggestedAction(
+          label: _defaultActionLabel(reply.action!),
+          action: reply.action!,
+        ),
+    ];
     setState(() {
       _updateConversation(active.id, (conversation) {
         final nextMessages = _trimMessages(<_UiMessage>[
@@ -445,6 +453,9 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
             isUser: false,
             createdAtMs: replyAt,
             usedExternalModel: reply.usedExternalModel,
+            quickActions: suggestedActions
+                .map((item) => _UiQuickAction.fromSuggested(item))
+                .toList(growable: false),
           ),
         ]);
         final nextSummary = _rollMemorySummary(
@@ -462,15 +473,41 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
     });
     await _persistConversations();
     _scrollToBottom();
+  }
 
-    if (reply.action != null) {
-      await Future<void>.delayed(const Duration(milliseconds: 220));
-      if (!mounted) {
-        return;
-      }
-      Navigator.of(context).pop();
-      await widget.onActionRequested(reply.action!);
+  String _defaultActionLabel(AssistantAction action) {
+    switch (action.type) {
+      case AssistantActionType.openLiveHub:
+        return 'Open Live Hub';
+      case AssistantActionType.goLiveCreate:
+        return 'Go Live';
+      case AssistantActionType.openCounselors:
+        return 'Open Counselors';
+      case AssistantActionType.openCounselorProfile:
+        return 'View Profile';
+      case AssistantActionType.openSessions:
+        return 'Open Sessions';
+      case AssistantActionType.openNotifications:
+        return 'Open Notifications';
+      case AssistantActionType.openCarePlan:
+        return 'Open Care Plan';
+      case AssistantActionType.openJoinInstitution:
+        return 'Join Institution';
+      case AssistantActionType.openPrivacy:
+        return 'Open Privacy';
+      case AssistantActionType.setThemeLight:
+        return 'Switch to Light Mode';
+      case AssistantActionType.setThemeDark:
+        return 'Switch to Dark Mode';
     }
+  }
+
+  Future<void> _runQuickAction(AssistantAction action) async {
+    if (!mounted || _sending) {
+      return;
+    }
+    Navigator.of(context).pop();
+    await widget.onActionRequested(action);
   }
 
   void _scrollToBottom({bool jump = false}) {
@@ -677,6 +714,45 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
+                            if (!message.isUser &&
+                                message.quickActions.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: message.quickActions
+                                    .map(
+                                      (item) => OutlinedButton(
+                                        onPressed: () =>
+                                            _runQuickAction(item.action),
+                                        style: OutlinedButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          foregroundColor: const Color(
+                                            0xFF0E7490,
+                                          ),
+                                          side: const BorderSide(
+                                            color: Color(0xFFBFE5F4),
+                                          ),
+                                          backgroundColor: const Color(
+                                            0xFFF0F9FF,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 7,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          item.label,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(growable: false),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -759,6 +835,14 @@ class _UiConversation {
             isUser: entry.role == 'user',
             createdAtMs: entry.createdAtMs,
             usedExternalModel: entry.usedExternalModel,
+            quickActions: entry.quickActions
+                .map(
+                  (item) => _UiQuickAction.fromLocal(
+                    item,
+                    fallbackLabel: _defaultLabelForActionTypeName(item.type),
+                  ),
+                )
+                .toList(growable: false),
           ),
         )
         .where((entry) => entry.text.trim().isNotEmpty)
@@ -807,6 +891,9 @@ class _UiConversation {
               text: item.text,
               createdAtMs: item.createdAtMs,
               usedExternalModel: item.usedExternalModel,
+              quickActions: item.quickActions
+                  .map((action) => action.toLocal())
+                  .toList(growable: false),
             ),
           )
           .toList(growable: false),
@@ -821,6 +908,7 @@ class _UiMessage {
     required this.isUser,
     required this.createdAtMs,
     this.usedExternalModel = false,
+    this.quickActions = const <_UiQuickAction>[],
   });
 
   final String id;
@@ -828,4 +916,67 @@ class _UiMessage {
   final bool isUser;
   final int createdAtMs;
   final bool usedExternalModel;
+  final List<_UiQuickAction> quickActions;
+}
+
+class _UiQuickAction {
+  const _UiQuickAction({required this.label, required this.action});
+
+  factory _UiQuickAction.fromSuggested(AssistantSuggestedAction input) {
+    return _UiQuickAction(label: input.label, action: input.action);
+  }
+
+  factory _UiQuickAction.fromLocal(
+    AssistantLocalQuickAction input, {
+    required String fallbackLabel,
+  }) {
+    final type = AssistantActionType.values.firstWhere(
+      (entry) => entry.name == input.type,
+      orElse: () => AssistantActionType.openCounselors,
+    );
+    return _UiQuickAction(
+      label: input.label.isEmpty ? fallbackLabel : input.label,
+      action: AssistantAction(type: type, params: input.params),
+    );
+  }
+
+  final String label;
+  final AssistantAction action;
+
+  AssistantLocalQuickAction toLocal() {
+    return AssistantLocalQuickAction(
+      label: label,
+      type: action.type.name,
+      params: action.params,
+    );
+  }
+}
+
+String _defaultLabelForActionTypeName(String rawType) {
+  switch (rawType) {
+    case 'openLiveHub':
+      return 'Open Live Hub';
+    case 'goLiveCreate':
+      return 'Go Live';
+    case 'openCounselors':
+      return 'Open Counselors';
+    case 'openCounselorProfile':
+      return 'View Profile';
+    case 'openSessions':
+      return 'Open Sessions';
+    case 'openNotifications':
+      return 'Open Notifications';
+    case 'openCarePlan':
+      return 'Open Care Plan';
+    case 'openJoinInstitution':
+      return 'Join Institution';
+    case 'openPrivacy':
+      return 'Open Privacy';
+    case 'setThemeLight':
+      return 'Switch to Light Mode';
+    case 'setThemeDark':
+      return 'Switch to Dark Mode';
+    default:
+      return 'Open';
+  }
 }

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mindnest/app/theme_mode_controller.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
@@ -55,11 +56,18 @@ class _StudentAppointmentsScreenState
   int _tableRowsPerPage = 6;
   int _tableCurrentPage = 0;
   String? _expandedTimelineDateKey;
+  String? _appliedAssistantFilterToken;
 
   @override
   void dispose() {
     _searchController?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _applyAssistantQueryFilters();
   }
 
   bool _canUseLive(UserProfile profile) {
@@ -80,6 +88,13 @@ class _StudentAppointmentsScreenState
 
     void showMessage(String text) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    }
+
+    String withQuery(String path, Map<String, String> params) {
+      if (params.isEmpty) {
+        return path;
+      }
+      return Uri(path: path, queryParameters: params).toString();
     }
 
     switch (action.type) {
@@ -110,14 +125,27 @@ class _StudentAppointmentsScreenState
           showMessage('Join an organization to view counselors.');
           return;
         }
-        context.go(AppRoute.counselorDirectory);
+        context.go(withQuery(AppRoute.counselorDirectory, action.params));
+        return;
+      case AssistantActionType.openCounselorProfile:
+        final counselorId = action.params['counselorId']?.trim() ?? '';
+        if (counselorId.isEmpty) {
+          context.go(AppRoute.counselorDirectory);
+          return;
+        }
+        context.go(
+          Uri(
+            path: AppRoute.counselorProfile,
+            queryParameters: <String, String>{'counselorId': counselorId},
+          ).toString(),
+        );
         return;
       case AssistantActionType.openSessions:
         if (!hasInstitution) {
           showMessage('Join an organization to manage sessions.');
           return;
         }
-        context.go(AppRoute.studentAppointments);
+        context.go(withQuery(AppRoute.studentAppointments, action.params));
         return;
       case AssistantActionType.openNotifications:
         context.go(AppRoute.notifications);
@@ -135,11 +163,74 @@ class _StudentAppointmentsScreenState
       case AssistantActionType.openPrivacy:
         context.go(AppRoute.privacyControls);
         return;
+      case AssistantActionType.setThemeLight:
+        await ref
+            .read(themeModeControllerProvider.notifier)
+            .setMode(ThemeMode.light);
+        showMessage('Switched to light mode.');
+        return;
+      case AssistantActionType.setThemeDark:
+        await ref
+            .read(themeModeControllerProvider.notifier)
+            .setMode(ThemeMode.dark);
+        showMessage('Switched to dark mode.');
+        return;
     }
   }
 
   TextEditingController get _effectiveSearchController =>
       _searchController ??= TextEditingController();
+
+  void _applyAssistantQueryFilters() {
+    final uri = GoRouterState.of(context).uri;
+    final token = uri.queryParameters['aiq']?.trim() ?? '';
+    if (token.isEmpty || token == _appliedAssistantFilterToken) {
+      return;
+    }
+
+    final statusRaw = uri.queryParameters['status']?.trim().toLowerCase();
+    final status = _statusFromQuery(statusRaw);
+    final view = uri.queryParameters['view']?.trim().toLowerCase();
+    final search = uri.queryParameters['search']?.trim() ?? '';
+
+    setState(() {
+      if (view == 'timeline') {
+        _timelineView = true;
+      } else if (view == 'table') {
+        _timelineView = false;
+      }
+      if (status != null) {
+        _tableStatusFilter = status;
+        _timelineStatusFilter = status;
+      }
+      if (search.isNotEmpty) {
+        _effectiveSearchController.text = search;
+      }
+      _tableCurrentPage = 0;
+      _expandedTimelineDateKey = null;
+      _appliedAssistantFilterToken = token;
+    });
+  }
+
+  AppointmentStatus? _statusFromQuery(String? value) {
+    switch (value) {
+      case 'pending':
+        return AppointmentStatus.pending;
+      case 'confirmed':
+        return AppointmentStatus.confirmed;
+      case 'completed':
+        return AppointmentStatus.completed;
+      case 'cancelled':
+      case 'canceled':
+        return AppointmentStatus.cancelled;
+      case 'noshow':
+      case 'no-show':
+      case 'no_show':
+        return AppointmentStatus.noShow;
+      default:
+        return null;
+    }
+  }
 
   String _formatDate(DateTime value) {
     final date = value.toLocal();

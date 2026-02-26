@@ -312,6 +312,15 @@ class AssistantRepository {
     const appKeywords = <String>[
       'app',
       'mindnest',
+      'my name',
+      'my email',
+      'my phone',
+      'my number',
+      'account',
+      'profile',
+      'theme',
+      'dark mode',
+      'light mode',
       'live',
       'go live',
       'counselor',
@@ -329,9 +338,14 @@ class AssistantRepository {
       'organization',
       'organisation',
       'privacy',
-      'profile',
       'dashboard',
       'onboarding',
+      'no show',
+      'no-show',
+      'noshow',
+      'rating',
+      'filter',
+      'unread',
     ];
     return appKeywords.any(text.contains);
   }
@@ -351,15 +365,107 @@ class AssistantRepository {
     required UserProfile profile,
   }) async {
     final text = prompt.toLowerCase();
+    if (_containsAny(text, const [
+      'dark mode',
+      'dark theme',
+      'switch to dark',
+      'turn on dark',
+      'enable dark',
+    ])) {
+      return const AssistantReply(
+        text: 'I can switch your app to dark mode.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Switch to Dark Mode',
+            action: AssistantAction(type: AssistantActionType.setThemeDark),
+          ),
+        ],
+      );
+    }
+
+    if (_containsAny(text, const [
+      'light mode',
+      'light theme',
+      'switch to light',
+      'turn on light',
+      'enable light',
+    ])) {
+      return const AssistantReply(
+        text: 'I can switch your app to light mode.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Switch to Light Mode',
+            action: AssistantAction(type: AssistantActionType.setThemeLight),
+          ),
+        ],
+      );
+    }
+
+    if (_isPersonalOrAccountQuestion(text)) {
+      return _replyWithPersonalInfo(profile: profile, normalizedPrompt: text);
+    }
+
+    if (_containsAny(text, const ['notification', 'notifications', 'alerts'])) {
+      return _replyWithNotifications(profile: profile, normalizedPrompt: text);
+    }
+
+    if (_containsAny(text, const ['care plan', 'goals', 'care goals'])) {
+      return _replyWithCarePlan(profile: profile, normalizedPrompt: text);
+    }
+
+    if (_containsAny(text, const [
+      'which counselor',
+      'which counsellor',
+      'seeing more',
+      'seeing less',
+      'no-show',
+      'no show',
+      'noshow',
+      'attendance',
+      'my sessions stats',
+      'session stats',
+    ])) {
+      return _replyWithSessionStats(profile: profile, normalizedPrompt: text);
+    }
+
+    if (_containsAny(text, const [
+      'about counselor',
+      'about counsellor',
+      'tell me about counselor',
+      'tell me about counsellor',
+      'specific counselor',
+      'specific counsellor',
+    ])) {
+      final insight = await _replyWithCounselorInsight(
+        profile: profile,
+        rawPrompt: prompt,
+      );
+      if (insight != null) {
+        return insight;
+      }
+    }
+
+    final filterReply = _replyWithFilterActions(
+      profile: profile,
+      normalizedPrompt: text,
+    );
+    if (filterReply != null) {
+      return filterReply;
+    }
 
     if (_containsAny(text, const ['go live', 'start live', 'create live'])) {
       if (!_hasInstitution(profile)) {
         return const AssistantReply(
           text:
               'You need to join an organization before starting a live session.',
-          action: AssistantAction(
-            type: AssistantActionType.openJoinInstitution,
-          ),
+          suggestedActions: <AssistantSuggestedAction>[
+            AssistantSuggestedAction(
+              label: 'Join Institution',
+              action: AssistantAction(
+                type: AssistantActionType.openJoinInstitution,
+              ),
+            ),
+          ],
         );
       }
       if (!_canUseLive(profile)) {
@@ -369,8 +475,13 @@ class AssistantRepository {
         );
       }
       return const AssistantReply(
-        text: 'Opening Live Hub and preparing the create-live form.',
-        action: AssistantAction(type: AssistantActionType.goLiveCreate),
+        text: 'I can take you to Live Hub and open create-live.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Go Live',
+            action: AssistantAction(type: AssistantActionType.goLiveCreate),
+          ),
+        ],
       );
     }
 
@@ -378,9 +489,14 @@ class AssistantRepository {
       if (!_hasInstitution(profile)) {
         return const AssistantReply(
           text: 'Live Hub is available after you join an organization.',
-          action: AssistantAction(
-            type: AssistantActionType.openJoinInstitution,
-          ),
+          suggestedActions: <AssistantSuggestedAction>[
+            AssistantSuggestedAction(
+              label: 'Join Institution',
+              action: AssistantAction(
+                type: AssistantActionType.openJoinInstitution,
+              ),
+            ),
+          ],
         );
       }
       if (!_canUseLive(profile)) {
@@ -390,8 +506,13 @@ class AssistantRepository {
         );
       }
       return const AssistantReply(
-        text: 'Opening Live Hub now.',
-        action: AssistantAction(type: AssistantActionType.openLiveHub),
+        text: 'I can open Live Hub now.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Live Hub',
+            action: AssistantAction(type: AssistantActionType.openLiveHub),
+          ),
+        ],
       );
     }
 
@@ -414,14 +535,24 @@ class AssistantRepository {
       if (!_hasInstitution(profile)) {
         return const AssistantReply(
           text: 'You need to join an organization before viewing counselors.',
-          action: AssistantAction(
-            type: AssistantActionType.openJoinInstitution,
-          ),
+          suggestedActions: <AssistantSuggestedAction>[
+            AssistantSuggestedAction(
+              label: 'Join Institution',
+              action: AssistantAction(
+                type: AssistantActionType.openJoinInstitution,
+              ),
+            ),
+          ],
         );
       }
       return const AssistantReply(
-        text: 'Opening counselors for your organization.',
-        action: AssistantAction(type: AssistantActionType.openCounselors),
+        text: 'I can open counselors for your organization.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Counselors',
+            action: AssistantAction(type: AssistantActionType.openCounselors),
+          ),
+        ],
       );
     }
 
@@ -436,56 +567,50 @@ class AssistantRepository {
         return const AssistantReply(
           text:
               'Sessions are available once you join an organization. I can open Join Institution for you.',
-          action: AssistantAction(
-            type: AssistantActionType.openJoinInstitution,
-          ),
+          suggestedActions: <AssistantSuggestedAction>[
+            AssistantSuggestedAction(
+              label: 'Join Institution',
+              action: AssistantAction(
+                type: AssistantActionType.openJoinInstitution,
+              ),
+            ),
+          ],
         );
       }
       return const AssistantReply(
-        text: 'Opening your sessions.',
-        action: AssistantAction(type: AssistantActionType.openSessions),
-      );
-    }
-
-    if (_containsAny(text, const ['notifications', 'alerts'])) {
-      return const AssistantReply(
-        text: 'Opening notifications.',
-        action: AssistantAction(type: AssistantActionType.openNotifications),
-      );
-    }
-
-    if (_containsAny(text, const ['care plan', 'goals'])) {
-      if (!_hasInstitution(profile)) {
-        return const AssistantReply(
-          text:
-              'Care Plan is organization-linked. Join an organization first to access it.',
-          action: AssistantAction(
-            type: AssistantActionType.openJoinInstitution,
+        text: 'I can open your sessions.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Sessions',
+            action: AssistantAction(type: AssistantActionType.openSessions),
           ),
-        );
-      }
-      return const AssistantReply(
-        text: 'Opening your care plan.',
-        action: AssistantAction(type: AssistantActionType.openCarePlan),
+        ],
       );
     }
 
-    if (_containsAny(text, const [
-      'join institution',
-      'join organization',
-      'join organisation',
-      'join school',
-    ])) {
+    if (_containsAny(text, const ['join institution', 'join organization'])) {
       return const AssistantReply(
-        text: 'Opening Join Institution.',
-        action: AssistantAction(type: AssistantActionType.openJoinInstitution),
+        text: 'I can open Join Institution for you.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Join Institution',
+            action: AssistantAction(
+              type: AssistantActionType.openJoinInstitution,
+            ),
+          ),
+        ],
       );
     }
 
     if (_containsAny(text, const ['privacy', 'data settings'])) {
       return const AssistantReply(
-        text: 'Opening privacy controls.',
-        action: AssistantAction(type: AssistantActionType.openPrivacy),
+        text: 'I can open privacy controls.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Privacy',
+            action: AssistantAction(type: AssistantActionType.openPrivacy),
+          ),
+        ],
       );
     }
 
@@ -494,22 +619,916 @@ class AssistantRepository {
         return const AssistantReply(
           text:
               'To book a counselor slot, first join your organization from Join Institution.',
-          action: AssistantAction(
-            type: AssistantActionType.openJoinInstitution,
-          ),
+          suggestedActions: <AssistantSuggestedAction>[
+            AssistantSuggestedAction(
+              label: 'Join Institution',
+              action: AssistantAction(
+                type: AssistantActionType.openJoinInstitution,
+              ),
+            ),
+          ],
         );
       }
       return const AssistantReply(
         text:
-            'To book: open Counselors, select a counselor profile, choose an available slot, and confirm booking.',
-        action: AssistantAction(type: AssistantActionType.openCounselors),
+            'To book: open Counselors, choose a counselor, pick an available slot, and confirm.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Counselors',
+            action: AssistantAction(type: AssistantActionType.openCounselors),
+          ),
+        ],
       );
     }
 
     return const AssistantReply(
       text:
-          'I can handle app actions like opening Live Hub, finding counselor slots, opening sessions, notifications, privacy controls, or guiding organization join.',
+          'I can help with your profile/account details, counselor insights, sessions and no-show stats, notifications, care plans, theme switch, and smart navigation with filters.',
     );
+  }
+
+  bool _isPersonalOrAccountQuestion(String text) {
+    return _containsAny(text, const [
+      'my name',
+      'my email',
+      'my phone',
+      'my number',
+      'my role',
+      'who am i',
+      'account',
+      'institution name',
+      'which institution',
+      'when did i join',
+      'when did i create',
+      'when did i sign up',
+      'profile info',
+      'personal information',
+    ]);
+  }
+
+  Future<AssistantReply> _replyWithPersonalInfo({
+    required UserProfile profile,
+    required String normalizedPrompt,
+  }) async {
+    final userDocSnap = await _firestore
+        .collection('users')
+        .doc(profile.id)
+        .get();
+    final userData = userDocSnap.data() ?? const <String, dynamic>{};
+
+    final displayName = (userData['name'] as String?)?.trim().isNotEmpty == true
+        ? (userData['name'] as String).trim()
+        : profile.name;
+    final email = (userData['email'] as String?)?.trim().isNotEmpty == true
+        ? (userData['email'] as String).trim()
+        : profile.email;
+    final phone =
+        (userData['phoneNumber'] as String?)?.trim() ??
+        (userData['mobileNumber'] as String?)?.trim() ??
+        (userData['phone'] as String?)?.trim() ??
+        '';
+    final createdAt =
+        _asDate(userData['createdAt']) ??
+        _auth.currentUser?.metadata.creationTime;
+    final institutionName = (profile.institutionName ?? '').trim().isNotEmpty
+        ? profile.institutionName!.trim()
+        : 'Not linked';
+    final joinedAt = await _fetchInstitutionJoinedAt(profile);
+
+    if (_containsAny(normalizedPrompt, const ['my name', 'who am i'])) {
+      return AssistantReply(text: 'Your name is $displayName.');
+    }
+    if (_containsAny(normalizedPrompt, const ['my email', 'email'])) {
+      return AssistantReply(text: 'Your email is $email.');
+    }
+    if (_containsAny(normalizedPrompt, const [
+      'my phone',
+      'my number',
+      'phone number',
+    ])) {
+      if (phone.isEmpty) {
+        return const AssistantReply(
+          text: 'I do not see a phone number saved on your profile yet.',
+        );
+      }
+      return AssistantReply(text: 'Your phone number is $phone.');
+    }
+    if (_containsAny(normalizedPrompt, const [
+      'when did i create',
+      'when did i sign up',
+      'account created',
+      'mindnest account',
+    ])) {
+      if (createdAt == null) {
+        return const AssistantReply(
+          text: 'I could not find your account creation date right now.',
+        );
+      }
+      return AssistantReply(
+        text: 'Your MindNest account was created on ${_formatDate(createdAt)}.',
+      );
+    }
+    if (_containsAny(normalizedPrompt, const [
+      'institution name',
+      'which institution',
+      'name of my institution',
+    ])) {
+      if (!_hasInstitution(profile)) {
+        return const AssistantReply(
+          text: 'You are currently not linked to an institution.',
+          suggestedActions: <AssistantSuggestedAction>[
+            AssistantSuggestedAction(
+              label: 'Join Institution',
+              action: AssistantAction(
+                type: AssistantActionType.openJoinInstitution,
+              ),
+            ),
+          ],
+        );
+      }
+      return AssistantReply(text: 'Your institution is $institutionName.');
+    }
+    if (_containsAny(normalizedPrompt, const [
+      'when did i join my institution',
+      'when did i join institution',
+      'joined institution',
+    ])) {
+      if (!_hasInstitution(profile)) {
+        return const AssistantReply(
+          text: 'You are not linked to an institution yet.',
+          suggestedActions: <AssistantSuggestedAction>[
+            AssistantSuggestedAction(
+              label: 'Join Institution',
+              action: AssistantAction(
+                type: AssistantActionType.openJoinInstitution,
+              ),
+            ),
+          ],
+        );
+      }
+      if (joinedAt == null) {
+        return const AssistantReply(
+          text: 'I could not determine your institution join date.',
+        );
+      }
+      return AssistantReply(
+        text: 'You joined your institution on ${_formatDate(joinedAt)}.',
+      );
+    }
+
+    final joinedText = joinedAt == null ? 'Unknown' : _formatDate(joinedAt);
+    final createdText = createdAt == null ? 'Unknown' : _formatDate(createdAt);
+    final phoneText = phone.isEmpty ? 'Not set' : phone;
+    return AssistantReply(
+      text:
+          'Here is your profile summary:\n'
+          'Name: $displayName\n'
+          'Email: $email\n'
+          'Phone: $phoneText\n'
+          'Role: ${profile.role.label}\n'
+          'Institution: $institutionName\n'
+          'Account created: $createdText\n'
+          'Institution joined: $joinedText',
+    );
+  }
+
+  Future<DateTime?> _fetchInstitutionJoinedAt(UserProfile profile) async {
+    final institutionId = (profile.institutionId ?? '').trim();
+    if (institutionId.isEmpty) {
+      return null;
+    }
+    final directId = '${institutionId}_${profile.id}';
+    final directDoc = await _firestore
+        .collection('institution_members')
+        .doc(directId)
+        .get();
+    if (directDoc.exists) {
+      final data = directDoc.data() ?? const <String, dynamic>{};
+      return _asDate(data['joinedAt']) ?? _asDate(data['createdAt']);
+    }
+    final fallback = await _firestore
+        .collection('institution_members')
+        .where('institutionId', isEqualTo: institutionId)
+        .where('userId', isEqualTo: profile.id)
+        .limit(1)
+        .get();
+    if (fallback.docs.isEmpty) {
+      return null;
+    }
+    final data = fallback.docs.first.data();
+    return _asDate(data['joinedAt']) ?? _asDate(data['createdAt']);
+  }
+
+  Future<AssistantReply> _replyWithNotifications({
+    required UserProfile profile,
+    required String normalizedPrompt,
+  }) async {
+    final snapshot = await _firestore
+        .collection('notifications')
+        .where('userId', isEqualTo: profile.id)
+        .limit(80)
+        .get();
+    final docs = snapshot.docs
+        .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+        .toList(growable: false);
+    if (docs.isEmpty) {
+      return const AssistantReply(
+        text: 'You currently have no notifications.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Notifications',
+            action: AssistantAction(
+              type: AssistantActionType.openNotifications,
+            ),
+          ),
+        ],
+      );
+    }
+
+    docs.sort((a, b) {
+      final aAt =
+          _asDate(a['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bAt =
+          _asDate(b['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bAt.compareTo(aAt);
+    });
+
+    final unreadCount = docs.where((item) => item['isRead'] != true).length;
+    if (_containsAny(normalizedPrompt, const ['unread', 'new notifications'])) {
+      return AssistantReply(
+        text: 'You have $unreadCount unread notifications.',
+        suggestedActions: const <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Notifications',
+            action: AssistantAction(
+              type: AssistantActionType.openNotifications,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final keywords = _extractIntentKeywords(normalizedPrompt);
+    if (keywords.isNotEmpty &&
+        _containsAny(normalizedPrompt, const [
+          'about',
+          'specific',
+          'related',
+        ])) {
+      final filtered = docs
+          .where((item) {
+            final haystack =
+                '${item['title'] ?? ''} ${item['body'] ?? ''} ${item['type'] ?? ''}'
+                    .toLowerCase();
+            return keywords.every(haystack.contains);
+          })
+          .toList(growable: false);
+      if (filtered.isEmpty) {
+        return AssistantReply(
+          text:
+              'I did not find notifications matching "${keywords.join(' ')}".',
+          suggestedActions: const <AssistantSuggestedAction>[
+            AssistantSuggestedAction(
+              label: 'Open Notifications',
+              action: AssistantAction(
+                type: AssistantActionType.openNotifications,
+              ),
+            ),
+          ],
+        );
+      }
+      final lines = filtered
+          .take(3)
+          .map((item) {
+            final when = _asDate(item['createdAt']);
+            final label = when == null ? 'Unknown time' : _formatDate(when);
+            return '- ${item['title'] ?? 'Notification'} ($label)';
+          })
+          .join('\n');
+      return AssistantReply(
+        text: 'I found ${filtered.length} matching notifications:\n$lines',
+        suggestedActions: const <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Notifications',
+            action: AssistantAction(
+              type: AssistantActionType.openNotifications,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final latest = docs.first;
+    final latestWhen = _asDate(latest['createdAt']);
+    final latestLabel = latestWhen == null
+        ? 'Unknown time'
+        : _formatDate(latestWhen);
+    return AssistantReply(
+      text:
+          'You have ${docs.length} total notifications ($unreadCount unread).\n'
+          'Latest: ${latest['title'] ?? 'Notification'} at $latestLabel.',
+      suggestedActions: const <AssistantSuggestedAction>[
+        AssistantSuggestedAction(
+          label: 'Open Notifications',
+          action: AssistantAction(type: AssistantActionType.openNotifications),
+        ),
+      ],
+    );
+  }
+
+  Future<AssistantReply> _replyWithCarePlan({
+    required UserProfile profile,
+    required String normalizedPrompt,
+  }) async {
+    if (!_hasInstitution(profile)) {
+      return const AssistantReply(
+        text: 'Care plans are available after joining an institution.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Join Institution',
+            action: AssistantAction(
+              type: AssistantActionType.openJoinInstitution,
+            ),
+          ),
+        ],
+      );
+    }
+
+    QuerySnapshot<Map<String, dynamic>> snapshot;
+    if (profile.role == UserRole.counselor) {
+      snapshot = await _firestore
+          .collection('care_goals')
+          .where('counselorId', isEqualTo: profile.id)
+          .where('institutionId', isEqualTo: profile.institutionId)
+          .limit(80)
+          .get();
+    } else {
+      snapshot = await _firestore
+          .collection('care_goals')
+          .where('studentId', isEqualTo: profile.id)
+          .where('institutionId', isEqualTo: profile.institutionId)
+          .limit(80)
+          .get();
+    }
+
+    final goals = snapshot.docs
+        .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+        .toList(growable: false);
+    if (goals.isEmpty) {
+      return const AssistantReply(
+        text: 'No care goals found yet.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Care Plan',
+            action: AssistantAction(type: AssistantActionType.openCarePlan),
+          ),
+        ],
+      );
+    }
+
+    final completed = goals
+        .where((g) => (g['status'] as String?) == 'completed')
+        .length;
+    final active = goals.length - completed;
+    goals.sort((a, b) {
+      final aAt =
+          _asDate(a['updatedAt']) ??
+          _asDate(a['createdAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bAt =
+          _asDate(b['updatedAt']) ??
+          _asDate(b['createdAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return bAt.compareTo(aAt);
+    });
+
+    if (_containsAny(normalizedPrompt, const ['incomplete', 'active goals'])) {
+      final lines = goals
+          .where((g) => (g['status'] as String?) != 'completed')
+          .take(5)
+          .map((g) => '- ${g['title'] ?? 'Goal'} (${g['status'] ?? 'active'})')
+          .join('\n');
+      return AssistantReply(
+        text: lines.isEmpty
+            ? 'All your care goals are completed.'
+            : 'Here are your active goals:\n$lines',
+        suggestedActions: const <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Care Plan',
+            action: AssistantAction(type: AssistantActionType.openCarePlan),
+          ),
+        ],
+      );
+    }
+
+    final latest = goals.first;
+    return AssistantReply(
+      text:
+          'You have ${goals.length} care goals: $active active and $completed completed.\n'
+          'Most recent: ${latest['title'] ?? 'Goal'} (${latest['status'] ?? 'active'}).',
+      suggestedActions: const <AssistantSuggestedAction>[
+        AssistantSuggestedAction(
+          label: 'Open Care Plan',
+          action: AssistantAction(type: AssistantActionType.openCarePlan),
+        ),
+      ],
+    );
+  }
+
+  Future<AssistantReply> _replyWithSessionStats({
+    required UserProfile profile,
+    required String normalizedPrompt,
+  }) async {
+    QuerySnapshot<Map<String, dynamic>> snapshot;
+    if (profile.role == UserRole.counselor) {
+      snapshot = await _firestore
+          .collection('appointments')
+          .where('counselorId', isEqualTo: profile.id)
+          .limit(300)
+          .get();
+    } else {
+      snapshot = await _firestore
+          .collection('appointments')
+          .where('studentId', isEqualTo: profile.id)
+          .limit(300)
+          .get();
+    }
+
+    final records = snapshot.docs
+        .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+        .toList(growable: false);
+    if (records.isEmpty) {
+      return const AssistantReply(
+        text: 'I could not find any sessions for your account yet.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Sessions',
+            action: AssistantAction(type: AssistantActionType.openSessions),
+          ),
+        ],
+      );
+    }
+
+    final counselorCounts = <String, int>{};
+    var noShowByUser = 0;
+    var noShowByCounselor = 0;
+    var unknownNoShow = 0;
+    var completed = 0;
+    var upcoming = 0;
+    final now = DateTime.now();
+
+    for (final item in records) {
+      final status = (item['status'] as String?)?.toLowerCase() ?? 'pending';
+      final counselorId = (item['counselorId'] as String?) ?? '';
+      final counselorName =
+          (item['counselorName'] as String?)?.trim().isNotEmpty == true
+          ? (item['counselorName'] as String).trim()
+          : counselorId;
+      if (counselorName.isNotEmpty) {
+        counselorCounts[counselorName] =
+            (counselorCounts[counselorName] ?? 0) + 1;
+      }
+      final start = _asDate(item['startAt']);
+      if (start != null &&
+          start.isAfter(now) &&
+          (status == 'pending' || status == 'confirmed')) {
+        upcoming++;
+      }
+      if (status == 'completed') {
+        completed++;
+      }
+      if (status == 'noshow' || status == 'no_show' || status == 'no-show') {
+        final attendance =
+            (item['attendanceStatus'] as String?)?.toLowerCase() ?? '';
+        if (attendance.contains('student') ||
+            attendance.contains('client') ||
+            attendance.contains('user')) {
+          noShowByUser++;
+        } else if (attendance.contains('counselor') ||
+            attendance.contains('counsellor')) {
+          noShowByCounselor++;
+        } else {
+          unknownNoShow++;
+        }
+      }
+    }
+
+    if (_containsAny(normalizedPrompt, const [
+      'no-show',
+      'no show',
+      'noshow',
+    ])) {
+      return AssistantReply(
+        text:
+            'No-show summary:\n'
+            '- You: $noShowByUser\n'
+            '- Counselors: $noShowByCounselor\n'
+            '- Unclassified: $unknownNoShow',
+        suggestedActions: const <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Sessions',
+            action: AssistantAction(type: AssistantActionType.openSessions),
+          ),
+        ],
+      );
+    }
+
+    if (_containsAny(normalizedPrompt, const [
+      'seeing more',
+      'most',
+      'seeing less',
+      'least',
+    ])) {
+      if (counselorCounts.isEmpty) {
+        return const AssistantReply(
+          text: 'I could not determine counselor history yet.',
+        );
+      }
+      final sorted = counselorCounts.entries.toList(growable: false)
+        ..sort((a, b) => b.value.compareTo(a.value));
+      final most = sorted.first;
+      final least = sorted.last;
+      return AssistantReply(
+        text:
+            'Counselor frequency:\n'
+            '- Most seen: ${most.key} (${most.value} sessions)\n'
+            '- Least seen: ${least.key} (${least.value} sessions)',
+        suggestedActions: const <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Sessions',
+            action: AssistantAction(type: AssistantActionType.openSessions),
+          ),
+        ],
+      );
+    }
+
+    return AssistantReply(
+      text:
+          'Session summary:\n'
+          '- Total: ${records.length}\n'
+          '- Upcoming: $upcoming\n'
+          '- Completed: $completed\n'
+          '- No-shows (you/counselor): $noShowByUser / $noShowByCounselor',
+      suggestedActions: const <AssistantSuggestedAction>[
+        AssistantSuggestedAction(
+          label: 'Open Sessions',
+          action: AssistantAction(type: AssistantActionType.openSessions),
+        ),
+      ],
+    );
+  }
+
+  Future<AssistantReply?> _replyWithCounselorInsight({
+    required UserProfile profile,
+    required String rawPrompt,
+  }) async {
+    final institutionId = (profile.institutionId ?? '').trim();
+    if (institutionId.isEmpty) {
+      return const AssistantReply(
+        text: 'I can show counselor details after you join an institution.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Join Institution',
+            action: AssistantAction(
+              type: AssistantActionType.openJoinInstitution,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final prompt = rawPrompt.toLowerCase();
+    final keywordTokens = _extractIntentKeywords(prompt);
+    final profiles = await _firestore
+        .collection('counselor_profiles')
+        .where('institutionId', isEqualTo: institutionId)
+        .limit(120)
+        .get();
+    if (profiles.docs.isEmpty) {
+      return const AssistantReply(
+        text: 'There are no active counselor profiles available yet.',
+      );
+    }
+
+    QueryDocumentSnapshot<Map<String, dynamic>>? selected;
+    var bestScore = 0;
+    for (final doc in profiles.docs) {
+      final data = doc.data();
+      final name = ((data['displayName'] as String?) ?? '').toLowerCase();
+      final specialization = ((data['specialization'] as String?) ?? '')
+          .toLowerCase();
+      final bio = ((data['bio'] as String?) ?? '').toLowerCase();
+      var score = 0;
+      if (prompt.contains(name) && name.isNotEmpty) {
+        score += 10;
+      }
+      for (final token in keywordTokens) {
+        if (token.length < 3) {
+          continue;
+        }
+        if (name.contains(token)) {
+          score += 4;
+        }
+        if (specialization.contains(token)) {
+          score += 2;
+        }
+        if (bio.contains(token)) {
+          score += 1;
+        }
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        selected = doc;
+      }
+    }
+
+    if (selected == null || bestScore < 2) {
+      return const AssistantReply(
+        text:
+            'Tell me the counselor name (for example: "Tell me about counselor Mercy") and I will summarize their profile here.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Counselors',
+            action: AssistantAction(type: AssistantActionType.openCounselors),
+          ),
+        ],
+      );
+    }
+
+    final data = selected.data();
+    final counselorId = selected.id;
+    final displayName = (data['displayName'] as String?) ?? 'Counselor';
+    final title = (data['title'] as String?) ?? 'Counselor';
+    final specialization = (data['specialization'] as String?) ?? 'General';
+    final mode = (data['sessionMode'] as String?) ?? 'Not specified';
+    final yearsExperience = (data['yearsExperience'] as num?)?.toInt() ?? 0;
+    final ratingAverage = (data['ratingAverage'] as num?)?.toDouble() ?? 0.0;
+    final ratingCount = (data['ratingCount'] as num?)?.toInt() ?? 0;
+    final languagesRaw = data['languages'];
+    final languages = <String>[];
+    if (languagesRaw is List) {
+      for (final item in languagesRaw) {
+        if (item is String && item.trim().isNotEmpty) {
+          languages.add(item.trim());
+        }
+      }
+    }
+    final bio = ((data['bio'] as String?) ?? '').trim();
+
+    final availability = await _firestore
+        .collection('counselor_availability')
+        .where('institutionId', isEqualTo: institutionId)
+        .where('counselorId', isEqualTo: counselorId)
+        .where('status', isEqualTo: 'available')
+        .limit(20)
+        .get();
+    final now = DateTime.now().toUtc();
+    final upcomingSlots =
+        availability.docs
+            .map((doc) => doc.data())
+            .where((slot) {
+              final end = _asDate(slot['endAt']);
+              return end != null && end.toUtc().isAfter(now);
+            })
+            .toList(growable: false)
+          ..sort((a, b) {
+            final aStart =
+                _asDate(a['startAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bStart =
+                _asDate(b['startAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return aStart.compareTo(bStart);
+          });
+
+    final nextSlotText = upcomingSlots.isEmpty
+        ? 'No open slots currently'
+        : _formatSlotTime(_asDate(upcomingSlots.first['startAt'])!.toLocal());
+    final bioText = bio.isEmpty
+        ? ''
+        : '\nBio: ${bio.length > 220 ? '${bio.substring(0, 220)}...' : bio}';
+    final languagesText = languages.isEmpty
+        ? 'Not listed'
+        : languages.join(', ');
+
+    return AssistantReply(
+      text:
+          '$displayName\n'
+          '$title\n'
+          'Specialization: $specialization\n'
+          'Mode: $mode\n'
+          'Experience: $yearsExperience years\n'
+          'Rating: ${ratingAverage.toStringAsFixed(1)} ($ratingCount ratings)\n'
+          'Languages: $languagesText\n'
+          'Next open slot: $nextSlotText$bioText',
+      suggestedActions: <AssistantSuggestedAction>[
+        AssistantSuggestedAction(
+          label: 'View Profile',
+          action: AssistantAction(
+            type: AssistantActionType.openCounselorProfile,
+            params: <String, String>{'counselorId': counselorId},
+          ),
+        ),
+        const AssistantSuggestedAction(
+          label: 'Open Counselors',
+          action: AssistantAction(type: AssistantActionType.openCounselors),
+        ),
+      ],
+    );
+  }
+
+  AssistantReply? _replyWithFilterActions({
+    required UserProfile profile,
+    required String normalizedPrompt,
+  }) {
+    final hasInstitution = _hasInstitution(profile);
+    if (!hasInstitution) {
+      return null;
+    }
+
+    final status = _parseStatusFilter(normalizedPrompt);
+    final wantsTimeline = _containsAny(normalizedPrompt, const ['timeline']);
+    final wantsTable = _containsAny(normalizedPrompt, const ['table']);
+    final wantsSessionFilter =
+        _containsAny(normalizedPrompt, const ['session', 'appointment']) &&
+        (status != null ||
+            wantsTimeline ||
+            wantsTable ||
+            normalizedPrompt.contains('filter'));
+
+    if (wantsSessionFilter) {
+      final params = <String, String>{'aiq': _newActionToken()};
+      if (status != null) {
+        params['status'] = status;
+      }
+      if (wantsTimeline) {
+        params['view'] = 'timeline';
+      } else if (wantsTable) {
+        params['view'] = 'table';
+      }
+      return AssistantReply(
+        text:
+            'I prepared a filtered Sessions view${status == null ? '' : ' for "$status"'}'
+            '${wantsTimeline ? ' in timeline mode' : ''}.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Filtered Sessions',
+            action: AssistantAction(
+              type: AssistantActionType.openSessions,
+              params: params,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final wantsCounselorFilter =
+        _containsAny(normalizedPrompt, const ['counselor', 'counsellor']) &&
+        (normalizedPrompt.contains('filter') ||
+            normalizedPrompt.contains('rating') ||
+            normalizedPrompt.contains('virtual') ||
+            normalizedPrompt.contains('in-person') ||
+            normalizedPrompt.contains('in person'));
+    if (wantsCounselorFilter) {
+      final params = <String, String>{'aiq': _newActionToken()};
+      final minRating = _parseRatingFilter(normalizedPrompt);
+      if (minRating != null) {
+        params['minRating'] = minRating.toStringAsFixed(1);
+      }
+      if (_containsAny(normalizedPrompt, const ['virtual', 'online'])) {
+        params['mode'] = 'virtual';
+      } else if (_containsAny(normalizedPrompt, const [
+        'in-person',
+        'in person',
+      ])) {
+        params['mode'] = 'in-person';
+      }
+      if (_containsAny(normalizedPrompt, const [
+        'highest rated',
+        'top rated',
+      ])) {
+        params['sort'] = 'rating';
+      } else if (_containsAny(normalizedPrompt, const [
+        'most experience',
+        'experienced',
+      ])) {
+        params['sort'] = 'experience';
+      }
+
+      final extractedSearch = _extractSearchPhrase(normalizedPrompt);
+      if (extractedSearch.isNotEmpty) {
+        params['search'] = extractedSearch;
+      }
+
+      return AssistantReply(
+        text: 'I prepared counselor filters from your request.',
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Filtered Counselors',
+            action: AssistantAction(
+              type: AssistantActionType.openCounselors,
+              params: params,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return null;
+  }
+
+  String _newActionToken() {
+    return DateTime.now().microsecondsSinceEpoch.toString();
+  }
+
+  String? _parseStatusFilter(String text) {
+    if (text.contains('confirmed')) return 'confirmed';
+    if (text.contains('pending')) return 'pending';
+    if (text.contains('completed')) return 'completed';
+    if (text.contains('cancelled') || text.contains('canceled')) {
+      return 'cancelled';
+    }
+    if (text.contains('no-show') ||
+        text.contains('no show') ||
+        text.contains('noshow')) {
+      return 'noShow';
+    }
+    return null;
+  }
+
+  double? _parseRatingFilter(String text) {
+    final pattern = RegExp(r'([3-5](?:\.\d)?)\s*\+?');
+    final match = pattern.firstMatch(text);
+    if (match == null) {
+      return null;
+    }
+    final value = double.tryParse(match.group(1) ?? '');
+    if (value == null || value < 0 || value > 5) {
+      return null;
+    }
+    return value;
+  }
+
+  String _extractSearchPhrase(String text) {
+    final markerIndex = text.indexOf('for ');
+    if (markerIndex < 0) {
+      return '';
+    }
+    final raw = text.substring(markerIndex + 4).trim();
+    if (raw.isEmpty) {
+      return '';
+    }
+    final tokens = raw
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((item) => item.trim().length >= 3)
+        .take(4)
+        .toList(growable: false);
+    return tokens.join(' ');
+  }
+
+  List<String> _extractIntentKeywords(String text) {
+    const stop = <String>{
+      'the',
+      'and',
+      'for',
+      'with',
+      'about',
+      'specific',
+      'notification',
+      'notifications',
+      'counselor',
+      'counsellor',
+      'my',
+      'me',
+      'show',
+      'tell',
+      'what',
+      'is',
+      'are',
+    };
+    return text
+        .split(RegExp(r'[^a-z0-9]+'))
+        .map((item) => item.trim())
+        .where((item) => item.length >= 3 && !stop.contains(item))
+        .take(6)
+        .toList(growable: false);
+  }
+
+  DateTime? _asDate(dynamic raw) {
+    if (raw is Timestamp) {
+      return raw.toDate();
+    }
+    if (raw is DateTime) {
+      return raw;
+    }
+    return null;
+  }
+
+  String _formatDate(DateTime value) {
+    final local = value.toLocal();
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '${local.year}-$month-$day $hour:$minute';
   }
 
   Future<AssistantReply> _replyWithOpenSlots(UserProfile profile) async {
@@ -517,7 +1536,14 @@ class AssistantRepository {
       return const AssistantReply(
         text:
             'I cannot check counselor slots yet because you are not in an organization.',
-        action: AssistantAction(type: AssistantActionType.openJoinInstitution),
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Join Institution',
+            action: AssistantAction(
+              type: AssistantActionType.openJoinInstitution,
+            ),
+          ),
+        ],
       );
     }
 
@@ -546,7 +1572,12 @@ class AssistantRepository {
         return const AssistantReply(
           text:
               'I found no open counselor slots right now. Please check again later.',
-          action: AssistantAction(type: AssistantActionType.openCounselors),
+          suggestedActions: <AssistantSuggestedAction>[
+            AssistantSuggestedAction(
+              label: 'Open Counselors',
+              action: AssistantAction(type: AssistantActionType.openCounselors),
+            ),
+          ],
         );
       }
 
@@ -583,13 +1614,23 @@ class AssistantRepository {
 
       return AssistantReply(
         text: 'Here are the next open counselor slots:\n$lines',
-        action: const AssistantAction(type: AssistantActionType.openCounselors),
+        suggestedActions: const <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Counselors',
+            action: AssistantAction(type: AssistantActionType.openCounselors),
+          ),
+        ],
       );
     } catch (_) {
       return const AssistantReply(
         text:
             'I could not load slots right now. Opening counselors so you can check manually.',
-        action: AssistantAction(type: AssistantActionType.openCounselors),
+        suggestedActions: <AssistantSuggestedAction>[
+          AssistantSuggestedAction(
+            label: 'Open Counselors',
+            action: AssistantAction(type: AssistantActionType.openCounselors),
+          ),
+        ],
       );
     }
   }

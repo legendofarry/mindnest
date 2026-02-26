@@ -130,14 +130,29 @@ class AssistantLocalMessage {
     required this.text,
     required this.createdAtMs,
     required this.usedExternalModel,
+    this.quickActions = const <AssistantLocalQuickAction>[],
   });
 
   factory AssistantLocalMessage.fromJson(Map<String, dynamic> json) {
+    final rawQuickActions = json['quickActions'];
+    final parsedQuickActions = <AssistantLocalQuickAction>[];
+    if (rawQuickActions is List) {
+      for (final item in rawQuickActions) {
+        if (item is Map<String, dynamic>) {
+          parsedQuickActions.add(AssistantLocalQuickAction.fromJson(item));
+        } else if (item is Map) {
+          parsedQuickActions.add(
+            AssistantLocalQuickAction.fromJson(item.cast<String, dynamic>()),
+          );
+        }
+      }
+    }
     return AssistantLocalMessage(
       role: (json['role'] as String?)?.trim() ?? 'assistant',
       text: (json['text'] as String?)?.trim() ?? '',
       createdAtMs: (json['createdAtMs'] as num?)?.toInt() ?? 0,
       usedExternalModel: (json['usedExternalModel'] as bool?) ?? false,
+      quickActions: parsedQuickActions,
     );
   }
 
@@ -145,6 +160,7 @@ class AssistantLocalMessage {
   final String text;
   final int createdAtMs;
   final bool usedExternalModel;
+  final List<AssistantLocalQuickAction> quickActions;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -152,6 +168,38 @@ class AssistantLocalMessage {
       'text': text,
       'createdAtMs': createdAtMs,
       'usedExternalModel': usedExternalModel,
+      'quickActions': quickActions.map((item) => item.toJson()).toList(),
     };
+  }
+}
+
+class AssistantLocalQuickAction {
+  const AssistantLocalQuickAction({
+    required this.label,
+    required this.type,
+    this.params = const <String, String>{},
+  });
+
+  factory AssistantLocalQuickAction.fromJson(Map<String, dynamic> json) {
+    final paramsRaw = json['params'];
+    final params = <String, String>{};
+    if (paramsRaw is Map) {
+      for (final entry in paramsRaw.entries) {
+        params[entry.key.toString()] = entry.value.toString();
+      }
+    }
+    return AssistantLocalQuickAction(
+      label: (json['label'] as String?)?.trim() ?? '',
+      type: (json['type'] as String?)?.trim() ?? '',
+      params: params,
+    );
+  }
+
+  final String label;
+  final String type;
+  final Map<String, String> params;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{'label': label, 'type': type, 'params': params};
   }
 }

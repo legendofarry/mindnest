@@ -1124,6 +1124,7 @@ class HomeScreen extends ConsumerWidget {
 
   Future<void> _runAssistantAction({
     required BuildContext context,
+    required WidgetRef ref,
     required UserProfile profile,
     required AssistantAction action,
   }) async {
@@ -1132,6 +1133,13 @@ class HomeScreen extends ConsumerWidget {
 
     void showMessage(String text) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    }
+
+    String withQuery(String path, Map<String, String> params) {
+      if (params.isEmpty) {
+        return path;
+      }
+      return Uri(path: path, queryParameters: params).toString();
     }
 
     switch (action.type) {
@@ -1162,14 +1170,27 @@ class HomeScreen extends ConsumerWidget {
           showMessage('Join an organization to view counselors.');
           return;
         }
-        context.go(AppRoute.counselorDirectory);
+        context.go(withQuery(AppRoute.counselorDirectory, action.params));
+        return;
+      case AssistantActionType.openCounselorProfile:
+        final counselorId = action.params['counselorId']?.trim() ?? '';
+        if (counselorId.isEmpty) {
+          context.go(AppRoute.counselorDirectory);
+          return;
+        }
+        context.go(
+          Uri(
+            path: AppRoute.counselorProfile,
+            queryParameters: <String, String>{'counselorId': counselorId},
+          ).toString(),
+        );
         return;
       case AssistantActionType.openSessions:
         if (!hasInstitution) {
           showMessage('Join an organization to manage sessions.');
           return;
         }
-        context.go(AppRoute.studentAppointments);
+        context.go(withQuery(AppRoute.studentAppointments, action.params));
         return;
       case AssistantActionType.openNotifications:
         context.go(AppRoute.notifications);
@@ -1186,6 +1207,18 @@ class HomeScreen extends ConsumerWidget {
         return;
       case AssistantActionType.openPrivacy:
         context.go(AppRoute.privacyControls);
+        return;
+      case AssistantActionType.setThemeLight:
+        await ref
+            .read(themeModeControllerProvider.notifier)
+            .setMode(ThemeMode.light);
+        showMessage('Switched to light mode.');
+        return;
+      case AssistantActionType.setThemeDark:
+        await ref
+            .read(themeModeControllerProvider.notifier)
+            .setMode(ThemeMode.dark);
+        showMessage('Switched to dark mode.');
         return;
     }
   }
@@ -1317,6 +1350,7 @@ class HomeScreen extends ConsumerWidget {
                     profile: profile,
                     onActionRequested: (action) => _runAssistantAction(
                       context: context,
+                      ref: ref,
                       profile: profile,
                       action: action,
                     ),
@@ -1559,7 +1593,7 @@ class HomeScreen extends ConsumerWidget {
       floatingActionButton: loadedProfile == null
           ? null
           : Padding(
-              padding: EdgeInsets.only(bottom: isDesktop ? 0 : 72),
+              padding: EdgeInsets.only(bottom: isDesktop ? 0 : 0),
               child: AssistantFab(
                 heroTag: 'assistant-fab-home',
                 onPressed: () => showMindNestAssistantSheet(
@@ -1567,6 +1601,7 @@ class HomeScreen extends ConsumerWidget {
                   profile: loadedProfile,
                   onActionRequested: (action) => _runAssistantAction(
                     context: context,
+                    ref: ref,
                     profile: loadedProfile,
                     action: action,
                   ),

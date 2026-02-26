@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mindnest/app/theme_mode_controller.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
@@ -54,11 +55,64 @@ class _CounselorDirectoryScreenState
   int _refreshTick = 0;
   int _rowsPerPage = 6;
   int _currentPage = 0;
+  String? _appliedAssistantFilterToken;
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _applyAssistantQueryFilters();
+  }
+
+  void _applyAssistantQueryFilters() {
+    final uri = GoRouterState.of(context).uri;
+    final token = uri.queryParameters['aiq']?.trim() ?? '';
+    if (token.isEmpty || token == _appliedAssistantFilterToken) {
+      return;
+    }
+
+    final sortRaw = uri.queryParameters['sort']?.trim().toLowerCase();
+    final modeRaw = uri.queryParameters['mode']?.trim().toLowerCase();
+    final minRatingRaw = uri.queryParameters['minRating']?.trim() ?? '';
+    final search = uri.queryParameters['search']?.trim() ?? '';
+    final specialization = uri.queryParameters['specialization']?.trim() ?? '';
+
+    setState(() {
+      if (sortRaw == 'rating') {
+        _sort = _CounselorSort.ratingHigh;
+      } else if (sortRaw == 'experience') {
+        _sort = _CounselorSort.experienceHigh;
+      } else if (sortRaw == 'earliest') {
+        _sort = _CounselorSort.earliestAvailable;
+      }
+
+      if (modeRaw == 'virtual' || modeRaw == 'online') {
+        _modeFilter = 'virtual';
+      } else if (modeRaw == 'in-person' || modeRaw == 'in person') {
+        _modeFilter = 'in-person';
+      }
+
+      final parsedMinRating = double.tryParse(minRatingRaw);
+      if (parsedMinRating != null) {
+        _minimumRatingFilter = parsedMinRating;
+      }
+
+      if (search.isNotEmpty) {
+        _searchController.text = search;
+      }
+
+      if (specialization.isNotEmpty) {
+        _specializationFilter = specialization;
+      }
+
+      _currentPage = 0;
+      _appliedAssistantFilterToken = token;
+    });
   }
 
   bool _canUseLive(UserProfile profile) {
@@ -79,6 +133,13 @@ class _CounselorDirectoryScreenState
 
     void showMessage(String text) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    }
+
+    String withQuery(String path, Map<String, String> params) {
+      if (params.isEmpty) {
+        return path;
+      }
+      return Uri(path: path, queryParameters: params).toString();
     }
 
     switch (action.type) {
@@ -109,14 +170,27 @@ class _CounselorDirectoryScreenState
           showMessage('Join an organization to view counselors.');
           return;
         }
-        context.go(AppRoute.counselorDirectory);
+        context.go(withQuery(AppRoute.counselorDirectory, action.params));
+        return;
+      case AssistantActionType.openCounselorProfile:
+        final counselorId = action.params['counselorId']?.trim() ?? '';
+        if (counselorId.isEmpty) {
+          context.go(AppRoute.counselorDirectory);
+          return;
+        }
+        context.go(
+          Uri(
+            path: AppRoute.counselorProfile,
+            queryParameters: <String, String>{'counselorId': counselorId},
+          ).toString(),
+        );
         return;
       case AssistantActionType.openSessions:
         if (!hasInstitution) {
           showMessage('Join an organization to manage sessions.');
           return;
         }
-        context.go(AppRoute.studentAppointments);
+        context.go(withQuery(AppRoute.studentAppointments, action.params));
         return;
       case AssistantActionType.openNotifications:
         context.go(AppRoute.notifications);
@@ -133,6 +207,18 @@ class _CounselorDirectoryScreenState
         return;
       case AssistantActionType.openPrivacy:
         context.go(AppRoute.privacyControls);
+        return;
+      case AssistantActionType.setThemeLight:
+        await ref
+            .read(themeModeControllerProvider.notifier)
+            .setMode(ThemeMode.light);
+        showMessage('Switched to light mode.');
+        return;
+      case AssistantActionType.setThemeDark:
+        await ref
+            .read(themeModeControllerProvider.notifier)
+            .setMode(ThemeMode.dark);
+        showMessage('Switched to dark mode.');
         return;
     }
   }
@@ -505,12 +591,19 @@ class _CounselorDirectoryScreenState
                             modes.add(counselor.sessionMode);
                           }
 
-                          if (!specializations.contains(
-                            _specializationFilter,
-                          )) {
+                          final hasSpecialization = specializations.any(
+                            (item) =>
+                                item.toLowerCase() ==
+                                _specializationFilter.toLowerCase(),
+                          );
+                          if (!hasSpecialization) {
                             _specializationFilter = 'all';
                           }
-                          if (!modes.contains(_modeFilter)) {
+                          final hasMode = modes.any(
+                            (item) =>
+                                item.toLowerCase() == _modeFilter.toLowerCase(),
+                          );
+                          if (!hasMode) {
                             _modeFilter = 'all';
                           }
 
@@ -526,11 +619,12 @@ class _CounselorDirectoryScreenState
                                         .contains(query);
                                 final matchesSpecialization =
                                     _specializationFilter == 'all' ||
-                                    entry.specialization ==
-                                        _specializationFilter;
+                                    entry.specialization.toLowerCase() ==
+                                        _specializationFilter.toLowerCase();
                                 final matchesMode =
                                     _modeFilter == 'all' ||
-                                    entry.sessionMode == _modeFilter;
+                                    entry.sessionMode.toLowerCase() ==
+                                        _modeFilter.toLowerCase();
                                 final matchesRating =
                                     _minimumRatingFilter == null ||
                                     ratingAverageFor(entry) >=
