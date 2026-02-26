@@ -37,8 +37,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
         .split('_')
         .where((part) => part.isNotEmpty)
         .map(
-          (part) =>
-              '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+          (part) => '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
         )
         .join(' ');
   }
@@ -80,67 +79,10 @@ class NotificationDetailsScreen extends ConsumerWidget {
     if (normalized.contains('reminder')) {
       return const Color(0xFFD97706);
     }
-    if (normalized.contains('approved')) {
-      return scheme.primary;
-    }
     return scheme.primary;
   }
 
-  String _defaultRouteForRole(UserRole role) {
-    switch (role) {
-      case UserRole.counselor:
-        return AppRoute.counselorAppointments;
-      case UserRole.institutionAdmin:
-        return AppRoute.institutionAdmin;
-      case UserRole.student:
-      case UserRole.staff:
-      case UserRole.individual:
-      case UserRole.other:
-        return AppRoute.home;
-    }
-  }
-
-  String _routeForNotificationType({
-    required AppNotification notification,
-    required UserRole role,
-  }) {
-    final type = notification.type.trim().toLowerCase();
-    switch (type) {
-      case 'institution_request_submitted':
-      case 'institution_request_resubmitted':
-      case 'school_request_submitted':
-        return AppRoute.ownerDashboard;
-      case 'institution_request_pending':
-      case 'institution_request_declined':
-        return AppRoute.institutionPending;
-      case 'institution_request_approved':
-        return AppRoute.institutionAdmin;
-      case 'booking_confirmed':
-      case 'booking_request':
-      case 'booking_reminder':
-      case 'appointment_cancelled':
-      case 'session_completed':
-      case 'session_no_show':
-      case 'appointment_rescheduled':
-        if (role == UserRole.counselor) {
-          return AppRoute.counselorAppointments;
-        }
-        if (role == UserRole.institutionAdmin) {
-          return AppRoute.institutionAdmin;
-        }
-        return AppRoute.studentAppointments;
-      default:
-        return _defaultRouteForRole(role);
-    }
-  }
-
   bool _canOpenCounselorProfile(UserRole role) {
-    return role == UserRole.student ||
-        role == UserRole.staff ||
-        role == UserRole.individual;
-  }
-
-  bool _canOpenSessionDetails(UserRole role) {
     return role == UserRole.student ||
         role == UserRole.staff ||
         role == UserRole.individual;
@@ -166,66 +108,119 @@ class NotificationDetailsScreen extends ConsumerWidget {
     return _formatDisplayType(notification.type);
   }
 
+  String _statusLabel(AppointmentStatus status) {
+    switch (status) {
+      case AppointmentStatus.pending:
+        return 'Pending';
+      case AppointmentStatus.confirmed:
+        return 'Confirmed';
+      case AppointmentStatus.completed:
+        return 'Completed';
+      case AppointmentStatus.cancelled:
+        return 'Cancelled';
+      case AppointmentStatus.noShow:
+        return 'No Show';
+    }
+  }
+
+  Color _statusColor(ColorScheme scheme, AppointmentStatus status) {
+    switch (status) {
+      case AppointmentStatus.pending:
+        return const Color(0xFFD97706);
+      case AppointmentStatus.confirmed:
+        return const Color(0xFF0369A1);
+      case AppointmentStatus.completed:
+        return const Color(0xFF059669);
+      case AppointmentStatus.cancelled:
+        return scheme.error;
+      case AppointmentStatus.noShow:
+        return const Color(0xFFDC2626);
+    }
+  }
+
+  String _appointmentsRouteForRole(UserRole role) {
+    switch (role) {
+      case UserRole.counselor:
+        return AppRoute.counselorAppointments;
+      case UserRole.institutionAdmin:
+        return AppRoute.institutionAdmin;
+      case UserRole.student:
+      case UserRole.staff:
+      case UserRole.individual:
+      case UserRole.other:
+        return AppRoute.studentAppointments;
+    }
+  }
+
+  String _appointmentsLabelForRole(UserRole role) {
+    if (role == UserRole.institutionAdmin) {
+      return 'Dashboard';
+    }
+    return 'All Sessions';
+  }
+
   List<_NotificationAction> _buildActions({
-    required AppNotification notification,
     required UserRole role,
     required AppointmentRecord? appointment,
   }) {
     final actions = <_NotificationAction>[];
 
-    final appointmentId = notification.relatedAppointmentId?.trim() ?? '';
-    if (appointment != null &&
-        appointmentId.isNotEmpty &&
-        _canOpenSessionDetails(role)) {
-      final encodedId = Uri.encodeQueryComponent(appointmentId);
-      final route =
-          '${AppRoute.sessionDetails}?appointmentId=$encodedId&from=notifications';
-      actions.add(
-        _NotificationAction(
-          label: 'Open Session',
-          route: route,
-          icon: Icons.calendar_month_rounded,
-          primary: true,
-        ),
-      );
-    }
-
     if (appointment != null &&
         appointment.counselorId.trim().isNotEmpty &&
         _canOpenCounselorProfile(role)) {
-      final encodedCounselorId = Uri.encodeQueryComponent(
-        appointment.counselorId,
-      );
+      final encodedCounselorId = Uri.encodeQueryComponent(appointment.counselorId);
       actions.add(
         _NotificationAction(
           label: 'View Counselor',
           route:
               '${AppRoute.counselorProfile}?counselorId=$encodedCounselorId&from=notifications',
           icon: Icons.person_outline_rounded,
+          primary: true,
         ),
       );
     }
 
     actions.add(
       _NotificationAction(
-        label: 'Open Destination',
-        route: _routeForNotificationType(
-          notification: notification,
-          role: role,
-        ),
-        icon: Icons.open_in_new_rounded,
+        label: _appointmentsLabelForRole(role),
+        route: _appointmentsRouteForRole(role),
+        icon: Icons.calendar_month_rounded,
+        primary: appointment == null,
       ),
     );
-
-    actions.add(
-      const _NotificationAction(
-        label: 'All Notifications',
-        route: AppRoute.notifications,
-        icon: Icons.notifications_none_rounded,
-      ),
-    );
-
     return actions;
+  }
+
+  Widget _summaryField({
+    required BuildContext context,
+    required String label,
+    required String value,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: textTheme.labelSmall?.copyWith(
+            color: scheme.onSurfaceVariant,
+            letterSpacing: 0.7,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: textTheme.titleMedium?.copyWith(
+            color: scheme.onSurface,
+            fontWeight: FontWeight.w700,
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
   }
 
   Widget _appointmentSummary({
@@ -253,9 +248,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.55),
-        ),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,38 +325,6 @@ class NotificationDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _summaryField({
-    required BuildContext context,
-    required String label,
-    required String value,
-  }) {
-    final textTheme = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: textTheme.labelSmall?.copyWith(
-            color: scheme.onSurfaceVariant,
-            letterSpacing: 0.7,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: textTheme.titleMedium?.copyWith(
-            color: scheme.onSurface,
-            fontWeight: FontWeight.w700,
-          ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    );
-  }
-
   Widget _buildDetails({
     required BuildContext context,
     required AppNotification notification,
@@ -375,11 +336,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
     final textTheme = theme.textTheme;
     final accent = _typeAccent(scheme, notification.type);
     final icon = _typeIcon(notification.type);
-    final actions = _buildActions(
-      notification: notification,
-      role: role,
-      appointment: appointment,
-    );
+    final actions = _buildActions(role: role, appointment: appointment);
 
     return Container(
       width: double.infinity,
@@ -387,9 +344,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: scheme.surface,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.55),
-        ),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
         boxShadow: [
           BoxShadow(
             color: scheme.shadow.withValues(alpha: 0.08),
@@ -423,10 +378,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: notification.isRead
                       ? scheme.surfaceContainerHighest.withValues(alpha: 0.55)
@@ -441,9 +393,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
                 child: Text(
                   notification.isRead ? 'Read' : 'Unread',
                   style: textTheme.labelMedium?.copyWith(
-                    color: notification.isRead
-                        ? scheme.onSurfaceVariant
-                        : accent,
+                    color: notification.isRead ? scheme.onSurfaceVariant : accent,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -476,54 +426,95 @@ class NotificationDetailsScreen extends ConsumerWidget {
             ),
           ),
           if (appointment != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Text(
+                  'Current session status:',
+                  style: textTheme.labelLarge?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _statusLabel(appointment.status),
+                  style: textTheme.labelLarge?.copyWith(
+                    color: _statusColor(scheme, appointment.status),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             _appointmentSummary(context: context, appointment: appointment),
           ],
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: actions
-                .map((action) {
-                  final style = action.primary
-                      ? ElevatedButton.styleFrom(
-                          backgroundColor: scheme.primary,
-                          foregroundColor: scheme.onPrimary,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        )
-                      : OutlinedButton.styleFrom(
-                          foregroundColor: scheme.onSurface,
-                          side: BorderSide(
-                            color: scheme.outlineVariant.withValues(
-                              alpha: 0.75,
-                            ),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        );
-                  final button = action.primary
-                      ? ElevatedButton.icon(
-                          onPressed: () => context.go(action.route),
-                          icon: Icon(action.icon, size: 18),
-                          label: Text(action.label),
-                          style: style,
-                        )
-                      : OutlinedButton.icon(
-                          onPressed: () => context.go(action.route),
-                          icon: Icon(action.icon, size: 18),
-                          label: Text(action.label),
-                          style: style,
-                        );
-                  return button;
-                })
-                .toList(growable: false),
-          ),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: actions.map((action) {
+                final style = action.primary
+                    ? ElevatedButton.styleFrom(
+                        backgroundColor: scheme.primary,
+                        foregroundColor: scheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      )
+                    : OutlinedButton.styleFrom(
+                        foregroundColor: scheme.onSurface,
+                        side: BorderSide(
+                          color: scheme.outlineVariant.withValues(alpha: 0.75),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      );
+                final button = action.primary
+                    ? ElevatedButton.icon(
+                        onPressed: () => context.go(action.route),
+                        icon: Icon(action.icon, size: 18),
+                        label: Text(action.label),
+                        style: style,
+                      )
+                    : OutlinedButton.icon(
+                        onPressed: () => context.go(action.route),
+                        icon: Icon(action.icon, size: 18),
+                        label: Text(action.label),
+                        style: style,
+                      );
+                return button;
+              }).toList(growable: false),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildErrorCard({
+    required BuildContext context,
+    required String message,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
+      ),
+      child: Text(
+        message,
+        style: textTheme.bodyMedium?.copyWith(
+          color: scheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -544,9 +535,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
           child: Center(
             child: Text(
               'Invalid notification.',
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -619,9 +608,9 @@ class NotificationDetailsScreen extends ConsumerWidget {
                         doc.id,
                         doc.data()!,
                       );
-
                       final relatedAppointmentId =
                           notification.relatedAppointmentId?.trim() ?? '';
+
                       if (relatedAppointmentId.isEmpty) {
                         return _buildDetails(
                           context: context,
@@ -631,9 +620,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
                         );
                       }
 
-                      return StreamBuilder<
-                        DocumentSnapshot<Map<String, dynamic>>
-                      >(
+                      return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                         stream: firestore
                             .collection('appointments')
                             .doc(relatedAppointmentId)
@@ -650,6 +637,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
                               );
                             }
                           }
+
                           return _buildDetails(
                             context: context,
                             notification: notification,
@@ -664,31 +652,6 @@ class NotificationDetailsScreen extends ConsumerWidget {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorCard({
-    required BuildContext context,
-    required String message,
-  }) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.55),
-        ),
-      ),
-      child: Text(
-        message,
-        style: textTheme.bodyMedium?.copyWith(
-          color: scheme.onSurfaceVariant,
-          fontWeight: FontWeight.w600,
         ),
       ),
     );
