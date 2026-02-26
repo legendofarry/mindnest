@@ -162,12 +162,6 @@ class _BlanketPullToRefreshState extends State<BlanketPullToRefresh>
                         refreshing: _refreshing,
                       );
 
-                      final handOpacity = (0.24 + (progress * 0.9)).clamp(
-                        0.0,
-                        1.0,
-                      );
-                      final handScale = ui.lerpDouble(0.82, 1.06, progress)!;
-                      final handSize = ui.lerpDouble(40, 58, progress)!;
                       final dotScale = _refreshing
                           ? 0.86 +
                                 (math.sin(_fxController.value * math.pi * 2) *
@@ -198,17 +192,6 @@ class _BlanketPullToRefreshState extends State<BlanketPullToRefresh>
                                   ),
                                 );
                               },
-                            ),
-                            Positioned(
-                              left: metrics.centerX - (handSize / 2),
-                              top: metrics.handY,
-                              child: Opacity(
-                                opacity: handOpacity,
-                                child: Transform.scale(
-                                  scale: handScale,
-                                  child: _GrabHand(size: handSize),
-                                ),
-                              ),
                             ),
                             if (showDot)
                               Positioned(
@@ -257,13 +240,11 @@ class _FoldMetrics {
     required this.centerX,
     required this.rimY,
     required this.pinchY,
-    required this.handY,
   });
 
   final double centerX;
   final double rimY;
   final double pinchY;
-  final double handY;
 
   static _FoldMetrics compute({
     required double width,
@@ -278,14 +259,8 @@ class _FoldMetrics {
     final drift = refreshing ? math.sin(shimmerT * math.pi * 2.2) * 5.5 : 0.0;
     final centerX = (width / 2) + drift;
     final pinchY = rimY + travel + wave;
-    final handY = pinchY - ui.lerpDouble(46, 38, progress)!;
 
-    return _FoldMetrics(
-      centerX: centerX,
-      rimY: rimY,
-      pinchY: pinchY,
-      handY: handY,
-    );
+    return _FoldMetrics(centerX: centerX, rimY: rimY, pinchY: pinchY);
   }
 }
 
@@ -475,96 +450,4 @@ class _BlanketFoldPainter extends CustomPainter {
         oldDelegate.primary != primary ||
         oldDelegate.secondary != secondary;
   }
-}
-
-class _GrabHand extends StatelessWidget {
-  const _GrabHand({required this.size});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size * 1.18,
-      child: CustomPaint(painter: _GrabHandPainter()),
-    );
-  }
-}
-
-class _GrabHandPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final wristPaint = Paint()..color = const Color(0xFFF7C6BE);
-    final wristRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(
-        size.width * 0.34,
-        0,
-        size.width * 0.32,
-        size.height * 0.36,
-      ),
-      Radius.circular(size.width * 0.14),
-    );
-    canvas.drawRRect(wristRect, wristPaint);
-
-    final palmPaint = Paint()
-      ..shader = ui.Gradient.linear(
-        Offset(size.width * 0.18, size.height * 0.30),
-        Offset(size.width * 0.66, size.height * 0.96),
-        const [Color(0xFFF8CEC7), Color(0xFFEFB7AE)],
-      );
-    final palmRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(
-        size.width * 0.16,
-        size.height * 0.30,
-        size.width * 0.68,
-        size.height * 0.56,
-      ),
-      Radius.circular(size.width * 0.22),
-    );
-    canvas.drawRRect(palmRect, palmPaint);
-
-    final fingerPaint = Paint()..color = const Color(0xFFF8CEC7);
-    final fingerY = size.height * 0.36;
-    final fingerRadius = size.width * 0.10;
-    for (var i = 0; i < 4; i++) {
-      final cx = size.width * (0.28 + (i * 0.14));
-      final cy = fingerY + (i == 0 || i == 3 ? 2 : 0);
-      canvas.drawCircle(Offset(cx, cy), fingerRadius, fingerPaint);
-    }
-
-    final thumbRect = Rect.fromCenter(
-      center: Offset(size.width * 0.80, size.height * 0.56),
-      width: size.width * 0.18,
-      height: size.height * 0.24,
-    );
-    canvas.drawOval(thumbRect, Paint()..color = const Color(0xFFF2B9AF));
-
-    final shinePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.32)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(size.width * 0.42, size.height * 0.54),
-        width: size.width * 0.30,
-        height: size.height * 0.18,
-      ),
-      shinePaint,
-    );
-
-    final handShadow = Paint()
-      ..color = Colors.black.withValues(alpha: 0.10)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(size.width * 0.52, size.height * 0.90),
-        width: size.width * 0.40,
-        height: size.height * 0.12,
-      ),
-      handShadow,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
