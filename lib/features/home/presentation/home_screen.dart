@@ -11,6 +11,7 @@ import 'package:mindnest/app/theme_mode_controller.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
+import 'package:mindnest/features/ai/data/assistant_providers.dart';
 import 'package:mindnest/features/ai/models/assistant_models.dart';
 import 'package:mindnest/features/ai/presentation/assistant_fab.dart';
 import 'package:mindnest/features/ai/presentation/home_ai_assistant_section.dart';
