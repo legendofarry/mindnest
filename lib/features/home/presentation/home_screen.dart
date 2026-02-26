@@ -10,7 +10,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/app/theme_mode_controller.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
-import 'package:mindnest/core/ui/blanket_pull_to_refresh.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/features/ai/models/assistant_models.dart';
 import 'package:mindnest/features/ai/presentation/assistant_fab.dart';
@@ -1262,11 +1261,6 @@ class HomeScreen extends ConsumerWidget {
       }
     }
 
-    Future<void> refreshHome() async {
-      ref.invalidate(currentUserProfileProvider);
-      await Future<void>.delayed(const Duration(milliseconds: 280));
-    }
-
     if (useDesktopShell) {
       return profileAsync.when(
         data: (profile) {
@@ -1310,41 +1304,38 @@ class HomeScreen extends ConsumerWidget {
             children: [
               Align(
                 alignment: Alignment.topCenter,
-                child: BlanketPullToRefresh(
-                  onRefresh: refreshHome,
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 860),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _HeroCarousel(
-                            profile: profile,
-                            firstName: firstName,
-                            roleLabel: profile.role.label,
-                            institutionName: institutionLabel,
-                            hasInstitution: hasInstitution,
-                            canAccessLive: canAccessLive,
-                            isDark: isDark,
-                          ),
-                          if (showJoinInstitutionNudge) ...[
-                            const SizedBox(height: 14),
-                            _InstitutionJoinNudgeCard(
-                              onJoinCode: () =>
-                                  context.go(AppRoute.joinInstitution),
-                              onHowItWorks: () =>
-                                  _showInstitutionJoinGuide(context),
-                            ),
-                          ],
-                          const SizedBox(height: 18),
-                          _WellnessCheckInCard(profile: profile),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 860),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _HeroCarousel(
+                          profile: profile,
+                          firstName: firstName,
+                          roleLabel: profile.role.label,
+                          institutionName: institutionLabel,
+                          hasInstitution: hasInstitution,
+                          canAccessLive: canAccessLive,
+                          isDark: isDark,
+                        ),
+                        if (showJoinInstitutionNudge) ...[
                           const SizedBox(height: 14),
-                          _SosButton(onTap: () => _openCrisisSupport(context)),
-                          const SizedBox(height: 8),
+                          _InstitutionJoinNudgeCard(
+                            onJoinCode: () =>
+                                context.go(AppRoute.joinInstitution),
+                            onHowItWorks: () =>
+                                _showInstitutionJoinGuide(context),
+                          ),
                         ],
-                      ),
+                        const SizedBox(height: 18),
+                        _WellnessCheckInCard(profile: profile),
+                        const SizedBox(height: 14),
+                        _SosButton(onTap: () => _openCrisisSupport(context)),
+                        const SizedBox(height: 8),
+                      ],
                     ),
                   ),
                 ),
@@ -1546,17 +1537,14 @@ class HomeScreen extends ConsumerWidget {
                               ),
                               const SizedBox(width: 22),
                               Expanded(
-                                child: BlanketPullToRefresh(
-                                  onRefresh: refreshHome,
-                                  child: SingleChildScrollView(
-                                    physics: const BouncingScrollPhysics(),
-                                    padding: const EdgeInsets.only(bottom: 20),
-                                    child: ConstrainedBox(
-                                      constraints: const BoxConstraints(
-                                        maxWidth: 860,
-                                      ),
-                                      child: mainContent,
+                                child: SingleChildScrollView(
+                                  physics: const BouncingScrollPhysics(),
+                                  padding: const EdgeInsets.only(bottom: 20),
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 860,
                                     ),
+                                    child: mainContent,
                                   ),
                                 ),
                               ),
@@ -1571,13 +1559,10 @@ class HomeScreen extends ConsumerWidget {
                     alignment: Alignment.topCenter,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 760),
-                      child: BlanketPullToRefresh(
-                        onRefresh: refreshHome,
-                        child: SingleChildScrollView(
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-                          child: mainContent,
-                        ),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+                        child: mainContent,
                       ),
                     ),
                   );

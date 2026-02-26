@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
-import 'package:mindnest/core/ui/blanket_pull_to_refresh.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -35,7 +34,6 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
   bool _allowCounselors = true;
   bool _creating = false;
   bool _autoCreateHandled = false;
-  int _refreshTick = 0;
 
   @override
   void dispose() {
@@ -70,14 +68,6 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
       case LiveSessionStatus.ended:
         return const Color(0xFF64748B);
     }
-  }
-
-  Future<void> _refreshLiveHub() async {
-    if (!mounted) {
-      return;
-    }
-    setState(() => _refreshTick++);
-    await Future<void>.delayed(const Duration(milliseconds: 280));
   }
 
   Future<void> _openCreateLiveDialog(UserProfile profile) async {
@@ -347,7 +337,6 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                                         'Join an institution to access live sessions.',
                                   )
                                 : StreamBuilder<List<LiveSession>>(
-                                    key: ValueKey(_refreshTick),
                                     stream: ref
                                         .read(liveRepositoryProvider)
                                         .watchInstitutionLives(
@@ -408,74 +397,52 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                                           _LiveHubInfoCard(isDark: isDark),
                                           const SizedBox(height: 18),
                                           Expanded(
-                                            child: BlanketPullToRefresh(
-                                              onRefresh: _refreshLiveHub,
-                                              child: sessions.isEmpty
-                                                  ? CustomScrollView(
-                                                      physics:
-                                                          const AlwaysScrollableScrollPhysics(
-                                                            parent:
-                                                                BouncingScrollPhysics(),
-                                                          ),
-                                                      slivers: [
-                                                        SliverFillRemaining(
-                                                          hasScrollBody: false,
-                                                          child: Center(
-                                                            child: FittedBox(
-                                                              fit: BoxFit
-                                                                  .scaleDown,
-                                                              child: SizedBox(
-                                                                width: 420,
-                                                                child:
-                                                                    _LiveHubEmptyState(
-                                                                      isDark:
-                                                                          isDark,
-                                                                    ),
-                                                              ),
+                                            child: sessions.isEmpty
+                                                ? Center(
+                                                    child: FittedBox(
+                                                      fit: BoxFit.scaleDown,
+                                                      child: SizedBox(
+                                                        width: 420,
+                                                        child:
+                                                            _LiveHubEmptyState(
+                                                              isDark: isDark,
                                                             ),
-                                                          ),
+                                                      ),
+                                                    ),
+                                                  )
+                                                : ListView.separated(
+                                                    physics:
+                                                        const BouncingScrollPhysics(),
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          bottom: 6,
                                                         ),
-                                                      ],
-                                                    )
-                                                  : ListView.separated(
-                                                      physics:
-                                                          const AlwaysScrollableScrollPhysics(
-                                                            parent:
-                                                                BouncingScrollPhysics(),
-                                                          ),
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                            bottom: 6,
-                                                          ),
-                                                      itemCount:
-                                                          sessions.length,
-                                                      separatorBuilder:
-                                                          (context, index) =>
-                                                              const SizedBox(
-                                                                height: 12,
-                                                              ),
-                                                      itemBuilder:
-                                                          (context, index) {
-                                                            final session =
-                                                                sessions[index];
-                                                            final statusColor =
-                                                                _statusColor(
+                                                    itemCount: sessions.length,
+                                                    separatorBuilder:
+                                                        (context, index) =>
+                                                            const SizedBox(
+                                                              height: 12,
+                                                            ),
+                                                    itemBuilder:
+                                                        (context, index) {
+                                                          final session =
+                                                              sessions[index];
+                                                          final statusColor =
+                                                              _statusColor(
+                                                                session.status,
+                                                              );
+                                                          return _LiveSessionCard(
+                                                            session: session,
+                                                            statusLabel:
+                                                                _statusLabel(
                                                                   session
                                                                       .status,
-                                                                );
-                                                            return _LiveSessionCard(
-                                                              session: session,
-                                                              statusLabel:
-                                                                  _statusLabel(
-                                                                    session
-                                                                        .status,
-                                                                  ),
-                                                              statusColor:
-                                                                  statusColor,
-                                                            );
-                                                          },
-                                                    ),
-                                            ),
+                                                                ),
+                                                            statusColor:
+                                                                statusColor,
+                                                          );
+                                                        },
+                                                  ),
                                           ),
                                         ],
                                       );

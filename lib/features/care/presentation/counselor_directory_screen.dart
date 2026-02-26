@@ -485,13 +485,6 @@ class _CounselorDirectoryScreenState
       maxWidth: isDesktop ? 1240 : 980,
       backgroundMode: MindNestBackgroundMode.homeStyle,
       appBar: null,
-      onRefresh: () async {
-        if (!mounted) {
-          return;
-        }
-        setState(() => _refreshTick++);
-        await Future<void>.delayed(const Duration(milliseconds: 280));
-      },
       floatingActionButton: profile == null
           ? null
           : AssistantFab(

@@ -57,7 +57,6 @@ class _CounselorProfileScreenState
   late DateTime _weekStart;
   DateTime? _selectedDay;
   _SpotPeriod _period = _SpotPeriod.any;
-  int _refreshTick = 0;
 
   @override
   void initState() {
@@ -843,15 +842,7 @@ class _CounselorProfileScreenState
     return MindNestShell(
       maxWidth: 1080,
       appBar: null,
-      onRefresh: () async {
-        if (!mounted) {
-          return;
-        }
-        setState(() => _refreshTick++);
-        await Future<void>.delayed(const Duration(milliseconds: 280));
-      },
       child: StreamBuilder<CounselorProfile?>(
-        key: ValueKey(_refreshTick),
         stream: ref
             .read(careRepositoryProvider)
             .watchCounselorProfile(widget.counselorId),

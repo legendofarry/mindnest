@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:mindnest/core/ui/blanket_pull_to_refresh.dart';
 
 enum MindNestBackgroundMode { defaultShell, homeStyle }
 
@@ -17,7 +16,6 @@ class MindNestShell extends StatefulWidget {
     this.backgroundMode = MindNestBackgroundMode.defaultShell,
     this.floatingActionButton,
     this.floatingActionButtonLocation,
-    this.onRefresh,
   });
 
   final Widget child;
@@ -27,7 +25,6 @@ class MindNestShell extends StatefulWidget {
   final MindNestBackgroundMode backgroundMode;
   final Widget? floatingActionButton;
   final FloatingActionButtonLocation? floatingActionButtonLocation;
-  final Future<void> Function()? onRefresh;
 
   @override
   State<MindNestShell> createState() => _MindNestShellState();
@@ -127,34 +124,16 @@ class _MindNestShellState extends State<MindNestShell>
                 SafeArea(
                   child: Align(
                     alignment: Alignment.topCenter,
-                    child: (widget.onRefresh == null
-                        ? SingleChildScrollView(
-                            physics: const BouncingScrollPhysics(
-                              parent: AlwaysScrollableScrollPhysics(),
-                            ),
-                            padding: effectivePadding,
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth: widget.maxWidth,
-                              ),
-                              child: FadeSlideIn(child: widget.child),
-                            ),
-                          )
-                        : BlanketPullToRefresh(
-                            onRefresh: widget.onRefresh!,
-                            child: SingleChildScrollView(
-                              physics: const BouncingScrollPhysics(
-                                parent: AlwaysScrollableScrollPhysics(),
-                              ),
-                              padding: effectivePadding,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxWidth: widget.maxWidth,
-                                ),
-                                child: FadeSlideIn(child: widget.child),
-                              ),
-                            ),
-                          )),
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                      padding: effectivePadding,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: widget.maxWidth),
+                        child: FadeSlideIn(child: widget.child),
+                      ),
+                    ),
                   ),
                 ),
               ],

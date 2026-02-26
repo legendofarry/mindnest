@@ -1509,13 +1509,6 @@ class _StudentAppointmentsScreenState
     return MindNestShell(
       maxWidth: isDesktop ? 1240 : 980,
       appBar: null,
-      onRefresh: () async {
-        if (!mounted) {
-          return;
-        }
-        setState(() => _refreshTick++);
-        await Future<void>.delayed(const Duration(milliseconds: 280));
-      },
       floatingActionButton: profile == null
           ? null
           : AssistantFab(
