@@ -243,6 +243,28 @@ class _StudentAppointmentsScreenState
     return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
+  bool _isSameLocalDate(DateTime a, DateTime b) {
+    final first = a.toLocal();
+    final second = b.toLocal();
+    return first.year == second.year &&
+        first.month == second.month &&
+        first.day == second.day;
+  }
+
+  String _formatNextSessionLabel(DateTime? value) {
+    if (value == null) {
+      return 'No upcoming';
+    }
+    final local = value.toLocal();
+    final now = DateTime.now();
+    final clock =
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    if (_isSameLocalDate(local, now)) {
+      return 'Today $clock';
+    }
+    return '${local.month}/${local.day} $clock';
+  }
+
   String _dateKey(DateTime value) {
     final date = value.toLocal();
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -1565,6 +1587,66 @@ class _StudentAppointmentsScreenState
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      Builder(
+                        builder: (context) {
+                          final now = DateTime.now();
+                          final upcoming =
+                              appointments
+                                  .where(
+                                    (appointment) =>
+                                        (appointment.status ==
+                                                AppointmentStatus.pending ||
+                                            appointment.status ==
+                                                AppointmentStatus.confirmed) &&
+                                        appointment.startAt.isAfter(now),
+                                  )
+                                  .toList(growable: false)
+                                ..sort(
+                                  (a, b) => a.startAt.compareTo(b.startAt),
+                                );
+                          final nextSessionAt = upcoming.isEmpty
+                              ? null
+                              : upcoming.first.startAt;
+
+                          final attendanceWindowStart = now.subtract(
+                            const Duration(days: 30),
+                          );
+                          final attendanceWindow = appointments
+                              .where(
+                                (appointment) =>
+                                    appointment.startAt.isAfter(
+                                      attendanceWindowStart,
+                                    ) &&
+                                    (appointment.status ==
+                                            AppointmentStatus.completed ||
+                                        appointment.status ==
+                                            AppointmentStatus.noShow),
+                              )
+                              .toList(growable: false);
+                          final attended = attendanceWindow
+                              .where(
+                                (appointment) =>
+                                    appointment.status ==
+                                    AppointmentStatus.completed,
+                              )
+                              .length;
+                          final attendanceRate = attendanceWindow.isEmpty
+                              ? null
+                              : ((attended * 100) / attendanceWindow.length)
+                                    .round();
+
+                          return _AppointmentsOverviewStrip(
+                            upcomingCount: upcoming.length,
+                            nextSessionLabel: _formatNextSessionLabel(
+                              nextSessionAt,
+                            ),
+                            attendanceValue: attendanceRate == null
+                                ? 'No recent data'
+                                : '$attendanceRate%',
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 10),
                       GlassCard(
                         child: Container(
                           padding: const EdgeInsets.all(16),
@@ -1643,6 +1725,133 @@ class _StudentAppointmentsScreenState
                   );
                 },
               ),
+      ),
+    );
+  }
+}
+
+class _AppointmentsOverviewStrip extends StatelessWidget {
+  const _AppointmentsOverviewStrip({
+    required this.upcomingCount,
+    required this.nextSessionLabel,
+    required this.attendanceValue,
+  });
+
+  final int upcomingCount;
+  final String nextSessionLabel;
+  final String attendanceValue;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _AppointmentOverviewCard(
+            title: 'Upcoming',
+            value: '$upcomingCount',
+            icon: Icons.upcoming_rounded,
+            primary: true,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _AppointmentOverviewCard(
+            title: 'Next session',
+            value: nextSessionLabel,
+            icon: Icons.schedule_rounded,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _AppointmentOverviewCard(
+            title: 'Attendance',
+            value: attendanceValue,
+            icon: Icons.verified_user_rounded,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AppointmentOverviewCard extends StatelessWidget {
+  const _AppointmentOverviewCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    this.primary = false,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) {
+    final titleStyle = TextStyle(
+      fontSize: 11.5,
+      letterSpacing: 0.85,
+      fontWeight: FontWeight.w800,
+      color: primary ? const Color(0xFFEEF2FF) : const Color(0xFF8698B2),
+    );
+    final valueStyle = TextStyle(
+      fontSize: 16.5,
+      fontWeight: FontWeight.w800,
+      color: primary ? Colors.white : const Color(0xFF0F172A),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: primary
+            ? const LinearGradient(
+                colors: [Color(0xFF5146FF), Color(0xFF4639E6)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        color: primary ? null : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: primary ? const Color(0xFF5B4FFF) : const Color(0xFFDCE5EF),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: primary ? const Color(0x4D4338DC) : const Color(0x1A0F172A),
+            blurRadius: 16,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: primary
+                  ? const Color(0x40FFFFFF)
+                  : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(
+              icon,
+              size: 18,
+              color: primary ? Colors.white : const Color(0xFF0E9B90),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(title.toUpperCase(), style: titleStyle),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: valueStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
