@@ -18,7 +18,7 @@ class AssistantFab extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(22),
-        clipBehavior: Clip.antiAlias, // 👈 ADD THIS
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onPressed,
           borderRadius: BorderRadius.circular(22),

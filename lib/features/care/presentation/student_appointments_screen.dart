@@ -1608,41 +1608,11 @@ class _StudentAppointmentsScreenState
                               ? null
                               : upcoming.first.startAt;
 
-                          final attendanceWindowStart = now.subtract(
-                            const Duration(days: 30),
-                          );
-                          final attendanceWindow = appointments
-                              .where(
-                                (appointment) =>
-                                    appointment.startAt.isAfter(
-                                      attendanceWindowStart,
-                                    ) &&
-                                    (appointment.status ==
-                                            AppointmentStatus.completed ||
-                                        appointment.status ==
-                                            AppointmentStatus.noShow),
-                              )
-                              .toList(growable: false);
-                          final attended = attendanceWindow
-                              .where(
-                                (appointment) =>
-                                    appointment.status ==
-                                    AppointmentStatus.completed,
-                              )
-                              .length;
-                          final attendanceRate = attendanceWindow.isEmpty
-                              ? null
-                              : ((attended * 100) / attendanceWindow.length)
-                                    .round();
-
                           return _AppointmentsOverviewStrip(
                             upcomingCount: upcoming.length,
                             nextSessionLabel: _formatNextSessionLabel(
                               nextSessionAt,
                             ),
-                            attendanceValue: attendanceRate == null
-                                ? 'No recent data'
-                                : '$attendanceRate%',
                           );
                         },
                       ),
@@ -1734,12 +1704,10 @@ class _AppointmentsOverviewStrip extends StatelessWidget {
   const _AppointmentsOverviewStrip({
     required this.upcomingCount,
     required this.nextSessionLabel,
-    required this.attendanceValue,
   });
 
   final int upcomingCount;
   final String nextSessionLabel;
-  final String attendanceValue;
 
   @override
   Widget build(BuildContext context) {
@@ -1759,14 +1727,6 @@ class _AppointmentsOverviewStrip extends StatelessWidget {
             title: 'Next session',
             value: nextSessionLabel,
             icon: Icons.schedule_rounded,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _AppointmentOverviewCard(
-            title: 'Attendance',
-            value: attendanceValue,
-            icon: Icons.verified_user_rounded,
           ),
         ),
       ],

@@ -714,17 +714,12 @@ class _CounselorDirectoryScreenState
                                     earliestSlotByCounselor[entry.id] != null,
                               )
                               .length;
-                          final availableTodayCounselorIds = <String>{};
                           DateTime? nextOpenSlot;
-                          final now = DateTime.now();
                           for (final slot in availability) {
                             if (!filteredCounselorIds.contains(
                               slot.counselorId,
                             )) {
                               continue;
-                            }
-                            if (_isSameLocalDate(slot.startAt, now)) {
-                              availableTodayCounselorIds.add(slot.counselorId);
                             }
                             if (nextOpenSlot == null ||
                                 slot.startAt.isBefore(nextOpenSlot)) {
@@ -737,8 +732,6 @@ class _CounselorDirectoryScreenState
                             children: [
                               _CounselorOverviewStrip(
                                 activeNowCount: activeNowCount,
-                                availableTodayCount:
-                                    availableTodayCounselorIds.length,
                                 nextOpenSlotLabel: _formatNextOpenSlotSummary(
                                   nextOpenSlot,
                                 ),
@@ -954,12 +947,10 @@ class _RatingChip extends StatelessWidget {
 class _CounselorOverviewStrip extends StatelessWidget {
   const _CounselorOverviewStrip({
     required this.activeNowCount,
-    required this.availableTodayCount,
     required this.nextOpenSlotLabel,
   });
 
   final int activeNowCount;
-  final int availableTodayCount;
   final String nextOpenSlotLabel;
 
   @override
@@ -972,14 +963,6 @@ class _CounselorOverviewStrip extends StatelessWidget {
             value: '$activeNowCount',
             icon: Icons.bolt_rounded,
             primary: true,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _OverviewCard(
-            title: 'Available today',
-            value: '$availableTodayCount',
-            icon: Icons.calendar_today_rounded,
           ),
         ),
         const SizedBox(width: 10),
