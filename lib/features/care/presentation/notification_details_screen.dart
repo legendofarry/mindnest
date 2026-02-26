@@ -525,7 +525,6 @@ class NotificationDetailsScreen extends ConsumerWidget {
     final role = profile?.role ?? UserRole.other;
     final firestore = ref.watch(firestoreProvider);
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final textTheme = theme.textTheme;
 
     if (notificationId.trim().isEmpty) {
@@ -554,24 +553,6 @@ class NotificationDetailsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => context.go(AppRoute.notifications),
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                        tooltip: 'Back to notifications',
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Back to notifications',
-                        style: textTheme.titleSmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
                   StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                     stream: firestore
                         .collection('notifications')
