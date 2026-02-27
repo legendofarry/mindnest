@@ -18,6 +18,7 @@ class _NotificationCenterScreenState
     extends ConsumerState<NotificationCenterScreen> {
   bool _showUnreadOnly = false;
   final Set<String> _openingNotificationIds = <String>{};
+  final Set<String> _actionNotificationIds = <String>{};
 
   String _formatDate(DateTime value) {
     final local = value.toLocal();
@@ -108,13 +109,139 @@ class _NotificationCenterScreenState
     }
   }
 
+  RelativeRect _menuPosition(Offset globalPosition) {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    return RelativeRect.fromRect(
+      Rect.fromCircle(center: globalPosition, radius: 1),
+      Offset.zero & overlay.size,
+    );
+  }
+
+  Future<void> _showNotificationMenu({
+    required AppNotification notification,
+    required Offset globalPosition,
+  }) async {
+    final selected = await showMenu<_NotificationContextAction>(
+      context: context,
+      position: _menuPosition(globalPosition),
+      items: <PopupMenuEntry<_NotificationContextAction>>[
+        PopupMenuItem<_NotificationContextAction>(
+          value: notification.isPinned
+              ? _NotificationContextAction.unpin
+              : _NotificationContextAction.pin,
+          child: Row(
+            children: [
+              Icon(
+                notification.isPinned
+                    ? Icons.push_pin_outlined
+                    : Icons.push_pin_rounded,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                notification.isPinned
+                    ? 'Unpin notification'
+                    : 'Pin notification',
+              ),
+            ],
+          ),
+        ),
+        if (!notification.isRead)
+          const PopupMenuItem<_NotificationContextAction>(
+            value: _NotificationContextAction.markRead,
+            child: Row(
+              children: [
+                Icon(Icons.mark_email_read_outlined),
+                SizedBox(width: 10),
+                Text('Mark as read'),
+              ],
+            ),
+          ),
+        const PopupMenuItem<_NotificationContextAction>(
+          value: _NotificationContextAction.archive,
+          child: Row(
+            children: [
+              Icon(Icons.archive_outlined),
+              SizedBox(width: 10),
+              Text('Archive'),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<_NotificationContextAction>(
+          value: _NotificationContextAction.delete,
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
+              SizedBox(width: 10),
+              Text('Delete notification'),
+            ],
+          ),
+        ),
+      ],
+    );
+    if (selected == null) {
+      return;
+    }
+    await _runNotificationAction(notification: notification, action: selected);
+  }
+
+  Future<void> _runNotificationAction({
+    required AppNotification notification,
+    required _NotificationContextAction action,
+  }) async {
+    if (_actionNotificationIds.contains(notification.id) ||
+        _openingNotificationIds.contains(notification.id)) {
+      return;
+    }
+    setState(() => _actionNotificationIds.add(notification.id));
+    try {
+      final repo = ref.read(careRepositoryProvider);
+      switch (action) {
+        case _NotificationContextAction.pin:
+          await repo.setNotificationPinned(
+            notificationId: notification.id,
+            pinned: true,
+          );
+        case _NotificationContextAction.unpin:
+          await repo.setNotificationPinned(
+            notificationId: notification.id,
+            pinned: false,
+          );
+        case _NotificationContextAction.markRead:
+          await repo.markNotificationRead(notification.id);
+        case _NotificationContextAction.archive:
+          await repo.setNotificationArchived(
+            notificationId: notification.id,
+            archived: true,
+          );
+        case _NotificationContextAction.delete:
+          await repo.deleteNotification(notification.id);
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _actionNotificationIds.remove(notification.id));
+      }
+    }
+  }
+
   Widget _header({
     required BuildContext context,
     required List<AppNotification> notifications,
   }) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final unreadCount = notifications.where((entry) => !entry.isRead).length;
+    final unreadCount = notifications
+        .where((entry) => !entry.isRead && !entry.isArchived)
+        .length;
 
     return Row(
       children: [
@@ -170,7 +297,8 @@ class _NotificationCenterScreenState
     final activeText = scheme.onSurface;
     final inactiveText = scheme.onSurfaceVariant;
     final canMarkAllRead =
-        userId.isNotEmpty && notifications.any((entry) => !entry.isRead);
+        userId.isNotEmpty &&
+        notifications.any((entry) => !entry.isRead && !entry.isArchived);
 
     return Container(
       padding: const EdgeInsets.all(6),
@@ -332,6 +460,15 @@ class _NotificationCenterScreenState
                             ),
                           ),
                         ),
+                        if (entry.isPinned)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2, right: 8),
+                            child: Icon(
+                              Icons.push_pin_rounded,
+                              size: 16,
+                              color: scheme.primary,
+                            ),
+                          ),
                         if (isBusy)
                           const SizedBox(
                             width: 14,
@@ -430,7 +567,11 @@ class _NotificationCenterScreenState
 
                         final notifications = snapshot.data ?? const [];
                         final filtered = notifications
-                            .where((entry) => !_showUnreadOnly || !entry.isRead)
+                            .where(
+                              (entry) =>
+                                  !entry.isArchived &&
+                                  (!_showUnreadOnly || !entry.isRead),
+                            )
                             .toList(growable: false);
 
                         if (snapshot.connectionState ==
@@ -472,13 +613,37 @@ class _NotificationCenterScreenState
                                           const SizedBox(height: 12),
                                       itemBuilder: (context, index) {
                                         final entry = filtered[index];
-                                        final isBusy = _openingNotificationIds
-                                            .contains(entry.id);
-                                        return _notificationCard(
-                                          context: context,
-                                          entry: entry,
-                                          isBusy: isBusy,
-                                          onTap: () => _openNotification(entry),
+                                        final isBusy =
+                                            _openingNotificationIds.contains(
+                                              entry.id,
+                                            ) ||
+                                            _actionNotificationIds.contains(
+                                              entry.id,
+                                            );
+                                        return GestureDetector(
+                                          onSecondaryTapDown: isBusy
+                                              ? null
+                                              : (details) =>
+                                                    _showNotificationMenu(
+                                                      notification: entry,
+                                                      globalPosition: details
+                                                          .globalPosition,
+                                                    ),
+                                          onLongPressStart: isBusy
+                                              ? null
+                                              : (details) =>
+                                                    _showNotificationMenu(
+                                                      notification: entry,
+                                                      globalPosition: details
+                                                          .globalPosition,
+                                                    ),
+                                          child: _notificationCard(
+                                            context: context,
+                                            entry: entry,
+                                            isBusy: isBusy,
+                                            onTap: () =>
+                                                _openNotification(entry),
+                                          ),
                                         );
                                       },
                                     ),
@@ -494,3 +659,5 @@ class _NotificationCenterScreenState
     );
   }
 }
+
+enum _NotificationContextAction { pin, unpin, markRead, archive, delete }

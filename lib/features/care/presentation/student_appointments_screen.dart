@@ -1508,6 +1508,9 @@ class _StudentAppointmentsScreenState
 
     return MindNestShell(
       maxWidth: isDesktop ? 1240 : 980,
+      backgroundMode: widget.embeddedInDesktopShell && isDesktop
+          ? MindNestBackgroundMode.plainWhite
+          : MindNestBackgroundMode.defaultShell,
       appBar: null,
       floatingActionButton: profile == null
           ? null

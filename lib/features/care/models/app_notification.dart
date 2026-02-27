@@ -10,6 +10,10 @@ class AppNotification {
     required this.body,
     required this.createdAt,
     required this.isRead,
+    required this.isPinned,
+    required this.isArchived,
+    this.pinnedAt,
+    this.archivedAt,
     this.relatedAppointmentId,
     this.relatedId,
   });
@@ -22,6 +26,10 @@ class AppNotification {
   final String body;
   final DateTime createdAt;
   final bool isRead;
+  final bool isPinned;
+  final bool isArchived;
+  final DateTime? pinnedAt;
+  final DateTime? archivedAt;
   final String? relatedAppointmentId;
   final String? relatedId;
 
@@ -36,6 +44,16 @@ class AppNotification {
       return DateTime.fromMillisecondsSinceEpoch(0);
     }
 
+    DateTime? parseOptionalDate(dynamic raw) {
+      if (raw is Timestamp) {
+        return raw.toDate();
+      }
+      if (raw is DateTime) {
+        return raw;
+      }
+      return null;
+    }
+
     return AppNotification(
       id: id,
       userId: (data['userId'] as String?) ?? '',
@@ -45,6 +63,10 @@ class AppNotification {
       body: (data['body'] as String?) ?? '',
       createdAt: parseDate(data['createdAt']),
       isRead: (data['isRead'] as bool?) ?? false,
+      isPinned: (data['isPinned'] as bool?) ?? false,
+      isArchived: (data['isArchived'] as bool?) ?? false,
+      pinnedAt: parseOptionalDate(data['pinnedAt']),
+      archivedAt: parseOptionalDate(data['archivedAt']),
       relatedAppointmentId: data['relatedAppointmentId'] as String?,
       relatedId: data['relatedId'] as String?,
     );

@@ -483,7 +483,9 @@ class _CounselorDirectoryScreenState
 
     return MindNestShell(
       maxWidth: isDesktop ? 1240 : 980,
-      backgroundMode: MindNestBackgroundMode.homeStyle,
+      backgroundMode: widget.embeddedInDesktopShell && isDesktop
+          ? MindNestBackgroundMode.plainWhite
+          : MindNestBackgroundMode.homeStyle,
       appBar: null,
       floatingActionButton: profile == null
           ? null

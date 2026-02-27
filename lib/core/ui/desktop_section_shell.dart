@@ -151,28 +151,21 @@ class DesktopSectionNav extends StatelessWidget {
     ];
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+      padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF101A2A) : Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFD2DCE9),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: (isDark ? Colors.black : const Color(0x120F172A)).withValues(
-              alpha: isDark ? 0.22 : 0.07,
-            ),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+        color: isDark ? const Color(0xFF101A2A) : const Color(0xFFFFFFFF),
+        border: Border(
+          right: BorderSide(
+            color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFD2DCE9),
+            width: 1,
           ),
-        ],
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
             child: Text(
               'Navigation',
               style: TextStyle(
@@ -193,7 +186,7 @@ class DesktopSectionNav extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: InkWell(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(10),
                 onTap: () => _handleTap(context, item.route),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
@@ -207,7 +200,7 @@ class DesktopSectionNav extends StatelessWidget {
                               ? const Color(0xFF143440)
                               : const Color(0xFFE7F3F1))
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     children: [

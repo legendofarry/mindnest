@@ -4,7 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
-enum MindNestBackgroundMode { defaultShell, homeStyle }
+enum MindNestBackgroundMode { defaultShell, homeStyle, plainWhite }
 
 class MindNestShell extends StatefulWidget {
   const MindNestShell({
@@ -47,6 +47,8 @@ class _MindNestShellState extends State<MindNestShell>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasAppBar = widget.appBar != null;
+    final isPlainWhite =
+        widget.backgroundMode == MindNestBackgroundMode.plainWhite;
     final effectivePadding = hasAppBar
         ? widget.padding.copyWith(top: widget.appBar!.preferredSize.height - 30)
         : widget.padding;
@@ -59,8 +61,9 @@ class _MindNestShellState extends State<MindNestShell>
         animation: _controller,
         builder: (context, _) {
           final t = _controller.value * 2 * math.pi;
-          final gradientColors =
-              widget.backgroundMode == MindNestBackgroundMode.homeStyle
+          final gradientColors = isPlainWhite
+              ? const [Colors.white, Colors.white]
+              : widget.backgroundMode == MindNestBackgroundMode.homeStyle
               ? (isDark
                     ? const [Color(0xFF0B1220), Color(0xFF0E1A2E)]
                     : const [Color(0xFFF4F7FB), Color(0xFFF1F5F9)])
@@ -101,7 +104,8 @@ class _MindNestShellState extends State<MindNestShell>
                         ? const Color(0x2E22D3EE)
                         : const Color(0x2418A89D),
                   ),
-                ] else ...[
+                ] else if (widget.backgroundMode ==
+                    MindNestBackgroundMode.defaultShell) ...[
                   _AnimatedBlob(
                     left: -120 + math.sin(t) * 30,
                     top: 20 + math.cos(t * 1.2) * 20,

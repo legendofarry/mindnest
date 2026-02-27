@@ -795,7 +795,20 @@ class CareRepository {
           final items = snapshot.docs
               .map((doc) => AppNotification.fromMap(doc.id, doc.data()))
               .toList(growable: false);
-          items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          items.sort((a, b) {
+            if (a.isPinned != b.isPinned) {
+              return a.isPinned ? -1 : 1;
+            }
+            if (a.isPinned && b.isPinned) {
+              final aPinned = a.pinnedAt ?? a.createdAt;
+              final bPinned = b.pinnedAt ?? b.createdAt;
+              final pinnedCompare = bPinned.compareTo(aPinned);
+              if (pinnedCompare != 0) {
+                return pinnedCompare;
+              }
+            }
+            return b.createdAt.compareTo(a.createdAt);
+          });
           return items;
         });
   }
@@ -823,6 +836,32 @@ class CareRepository {
       });
     }
     await batch.commit();
+  }
+
+  Future<void> setNotificationPinned({
+    required String notificationId,
+    required bool pinned,
+  }) async {
+    await _firestore.collection('notifications').doc(notificationId).update({
+      'isPinned': pinned,
+      'pinnedAt': pinned ? FieldValue.serverTimestamp() : null,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> setNotificationArchived({
+    required String notificationId,
+    required bool archived,
+  }) async {
+    await _firestore.collection('notifications').doc(notificationId).update({
+      'isArchived': archived,
+      'archivedAt': archived ? FieldValue.serverTimestamp() : null,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> deleteNotification(String notificationId) async {
+    await _firestore.collection('notifications').doc(notificationId).delete();
   }
 
   Stream<List<CareGoal>> watchStudentGoals({
@@ -892,6 +931,8 @@ class CareRepository {
       'title': title,
       'body': body,
       'isRead': false,
+      'isPinned': false,
+      'isArchived': false,
       'relatedAppointmentId': relatedAppointmentId,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),

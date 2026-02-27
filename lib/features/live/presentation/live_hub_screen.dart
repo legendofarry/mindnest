@@ -283,183 +283,172 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
       });
     }
 
-    final hubBody = Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? const [Color(0xFF0B1220), Color(0xFF0E1A2E)]
-              : const [Color(0xFFF4F7FB), Color(0xFFF1F5F9)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(child: _LiveHubHomeBlobs(isDark: isDark)),
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: isDesktop ? 1240 : 760,
-                    ),
-                    child: DesktopSectionBody(
-                      isDesktop: isDesktop && !useDesktopShell,
-                      hasInstitution: institutionId.isNotEmpty,
-                      canAccessLive: canUse,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 760),
-                        child: SizedBox(
-                          height: constraints.maxHeight,
-                          child: Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              20,
-                              useDesktopShell ? 12 : kToolbarHeight + 2,
-                              20,
-                              22,
-                            ),
-                            child: profile == null
-                                ? const Center(
-                                    child: CircularProgressIndicator(),
-                                  )
-                                : !canUse
-                                ? _LiveHubInfoMessageCard(
-                                    isDark: isDark,
-                                    message:
-                                        'Live Audio Hub is available for students, staff, and counselors.',
-                                  )
-                                : institutionId.isEmpty
-                                ? _LiveHubInfoMessageCard(
-                                    isDark: isDark,
-                                    message:
-                                        'Join an institution to access live sessions.',
-                                  )
-                                : StreamBuilder<List<LiveSession>>(
-                                    stream: ref
-                                        .read(liveRepositoryProvider)
-                                        .watchInstitutionLives(
-                                          institutionId: institutionId,
-                                        ),
-                                    builder: (context, snapshot) {
-                                      final sessions =
-                                          snapshot.data ??
-                                          const <LiveSession>[];
-                                      if (snapshot.connectionState ==
-                                              ConnectionState.waiting &&
-                                          sessions.isEmpty) {
-                                        return const Center(
-                                          child: CircularProgressIndicator(
-                                            color: Color(0xFF0E9B90),
-                                            strokeWidth: 2.5,
-                                          ),
-                                        );
-                                      }
-
-                                      return Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          Align(
-                                            alignment: Alignment.centerRight,
-                                            child: FilledButton.icon(
-                                              onPressed: () =>
-                                                  _openCreateLiveDialog(
-                                                    profile,
-                                                  ),
-                                              style: FilledButton.styleFrom(
-                                                backgroundColor: const Color(
-                                                  0xFF0E9B90,
-                                                ),
-                                                foregroundColor: Colors.white,
-                                                shape: const StadiumBorder(),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 18,
-                                                      vertical: 12,
-                                                    ),
-                                              ),
-                                              icon: const Icon(
-                                                Icons.podcasts_rounded,
-                                                size: 18,
-                                              ),
-                                              label: const Text(
-                                                'Go Live',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  fontSize: 16,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 14),
-                                          _LiveHubInfoCard(isDark: isDark),
-                                          const SizedBox(height: 18),
-                                          Expanded(
-                                            child: sessions.isEmpty
-                                                ? Center(
-                                                    child: FittedBox(
-                                                      fit: BoxFit.scaleDown,
-                                                      child: SizedBox(
-                                                        width: 420,
-                                                        child:
-                                                            _LiveHubEmptyState(
-                                                              isDark: isDark,
-                                                            ),
-                                                      ),
-                                                    ),
-                                                  )
-                                                : ListView.separated(
-                                                    physics:
-                                                        const BouncingScrollPhysics(),
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                          bottom: 6,
-                                                        ),
-                                                    itemCount: sessions.length,
-                                                    separatorBuilder:
-                                                        (context, index) =>
-                                                            const SizedBox(
-                                                              height: 12,
-                                                            ),
-                                                    itemBuilder:
-                                                        (context, index) {
-                                                          final session =
-                                                              sessions[index];
-                                                          final statusColor =
-                                                              _statusColor(
-                                                                session.status,
-                                                              );
-                                                          return _LiveSessionCard(
-                                                            session: session,
-                                                            statusLabel:
-                                                                _statusLabel(
-                                                                  session
-                                                                      .status,
-                                                                ),
-                                                            statusColor:
-                                                                statusColor,
-                                                          );
-                                                        },
-                                                  ),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  ),
-                          ),
-                        ),
+    final hubContent = SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: isDesktop ? 1240 : 760),
+              child: DesktopSectionBody(
+                isDesktop: isDesktop && !useDesktopShell,
+                hasInstitution: institutionId.isNotEmpty,
+                canAccessLive: canUse,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: SizedBox(
+                    height: constraints.maxHeight,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        useDesktopShell ? 12 : kToolbarHeight + 2,
+                        20,
+                        22,
                       ),
+                      child: profile == null
+                          ? const Center(child: CircularProgressIndicator())
+                          : !canUse
+                          ? _LiveHubInfoMessageCard(
+                              isDark: isDark,
+                              message:
+                                  'Live Audio Hub is available for students, staff, and counselors.',
+                            )
+                          : institutionId.isEmpty
+                          ? _LiveHubInfoMessageCard(
+                              isDark: isDark,
+                              message:
+                                  'Join an institution to access live sessions.',
+                            )
+                          : StreamBuilder<List<LiveSession>>(
+                              stream: ref
+                                  .read(liveRepositoryProvider)
+                                  .watchInstitutionLives(
+                                    institutionId: institutionId,
+                                  ),
+                              builder: (context, snapshot) {
+                                final sessions =
+                                    snapshot.data ?? const <LiveSession>[];
+                                if (snapshot.connectionState ==
+                                        ConnectionState.waiting &&
+                                    sessions.isEmpty) {
+                                  return const Center(
+                                    child: CircularProgressIndicator(
+                                      color: Color(0xFF0E9B90),
+                                      strokeWidth: 2.5,
+                                    ),
+                                  );
+                                }
+
+                                return Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: FilledButton.icon(
+                                        onPressed: () =>
+                                            _openCreateLiveDialog(profile),
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: const Color(
+                                            0xFF0E9B90,
+                                          ),
+                                          foregroundColor: Colors.white,
+                                          shape: const StadiumBorder(),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 18,
+                                            vertical: 12,
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          Icons.podcasts_rounded,
+                                          size: 18,
+                                        ),
+                                        label: const Text(
+                                          'Go Live',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    _LiveHubInfoCard(isDark: isDark),
+                                    const SizedBox(height: 18),
+                                    Expanded(
+                                      child: sessions.isEmpty
+                                          ? Center(
+                                              child: FittedBox(
+                                                fit: BoxFit.scaleDown,
+                                                child: SizedBox(
+                                                  width: 420,
+                                                  child: _LiveHubEmptyState(
+                                                    isDark: isDark,
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                          : ListView.separated(
+                                              physics:
+                                                  const BouncingScrollPhysics(),
+                                              padding: const EdgeInsets.only(
+                                                bottom: 6,
+                                              ),
+                                              itemCount: sessions.length,
+                                              separatorBuilder:
+                                                  (context, index) =>
+                                                      const SizedBox(
+                                                        height: 12,
+                                                      ),
+                                              itemBuilder: (context, index) {
+                                                final session = sessions[index];
+                                                final statusColor =
+                                                    _statusColor(
+                                                      session.status,
+                                                    );
+                                                return _LiveSessionCard(
+                                                  session: session,
+                                                  statusLabel: _statusLabel(
+                                                    session.status,
+                                                  ),
+                                                  statusColor: statusColor,
+                                                );
+                                              },
+                                            ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
                     ),
                   ),
-                );
-              },
+                ),
+              ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
+
+    final hubBody = useDesktopShell
+        ? Container(color: Colors.white, child: hubContent)
+        : Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDark
+                    ? const [Color(0xFF0B1220), Color(0xFF0E1A2E)]
+                    : const [Color(0xFFF4F7FB), Color(0xFFF1F5F9)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(child: _LiveHubHomeBlobs(isDark: isDark)),
+                hubContent,
+              ],
+            ),
+          );
 
     if (useDesktopShell) {
       return hubBody;

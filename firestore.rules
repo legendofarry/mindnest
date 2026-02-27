@@ -330,8 +330,10 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
         request.resource.data.institutionId == currentInstitutionId();
       allow update: if isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == resource.data.userId;
+      allow delete: if isSignedIn() &&
         resource.data.userId == request.auth.uid;
-      allow delete: if false;
     }
 
     match /user_push_tokens/{tokenId} {
