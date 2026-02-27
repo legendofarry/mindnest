@@ -70,6 +70,7 @@ class _CounselorProfileScreenState
   late DateTime _weekStart;
   DateTime? _selectedDay;
   _SpotPeriod _period = _SpotPeriod.any;
+  int? _selectedGridHour;
   String? _freezeCacheOwnerUserId;
   bool _freezeCacheReady = false;
   bool _freezeCacheLoading = false;
@@ -745,65 +746,94 @@ class _CounselorProfileScreenState
               'Tap a highlighted cell to view available spots and book.',
             ),
             const SizedBox(height: 12),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: 100 + (days.length * 132),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        _HeaderCell(label: 'Time', width: 100),
-                        ...days.map(
-                          (day) => _HeaderCell(
-                            label: '${_weekdayLabel(day)} ${day.day}',
-                            width: 132,
-                          ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 100,
+                  child: Column(
+                    children: [
+                      const _HeaderCell(label: 'Time', width: 100),
+                      ..._gridHours.map(
+                        (hour) => _TimeCell(
+                          hour: hour,
+                          isRowHighlighted: _selectedGridHour == hour,
                         ),
-                      ],
-                    ),
-                    ..._gridHours.map((hour) {
-                      return Row(
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: days.length * 132,
+                      child: Column(
                         children: [
-                          _TimeCell(hour: hour),
-                          ...days.map((day) {
-                            final cellSlots = _slotsForCell(
-                              slots: weekSlots,
-                              day: day,
-                              hour: hour,
-                            );
-                            final cellAppointments = _appointmentsForCell(
-                              appointments: weekAppointments,
-                              day: day,
-                              hour: hour,
-                            );
-                            final statusList = cellAppointments
+                          Row(
+                            children: days
                                 .map(
-                                  (entry) => _displayStatusForAppointment(
-                                    entry,
-                                    nowLocal,
+                                  (day) => _HeaderCell(
+                                    label: '${_weekdayLabel(day)} ${day.day}',
+                                    width: 132,
                                   ),
                                 )
-                                .toList(growable: false);
-                            return _ScheduleCell(
-                              width: 132,
-                              slots: cellSlots,
-                              statuses: statusList,
-                              onTap: cellSlots.isEmpty
-                                  ? null
-                                  : () => _showCellSlots(
-                                      counselor: counselor,
-                                      currentProfile: profile,
-                                      cellSlots: cellSlots,
-                                    ),
+                                .toList(growable: false),
+                          ),
+                          ..._gridHours.map((hour) {
+                            final isRowHighlighted = _selectedGridHour == hour;
+                            return Row(
+                              children: days
+                                  .map((day) {
+                                    final cellSlots = _slotsForCell(
+                                      slots: weekSlots,
+                                      day: day,
+                                      hour: hour,
+                                    );
+                                    final cellAppointments =
+                                        _appointmentsForCell(
+                                          appointments: weekAppointments,
+                                          day: day,
+                                          hour: hour,
+                                        );
+                                    final statusList = cellAppointments
+                                        .map(
+                                          (entry) =>
+                                              _displayStatusForAppointment(
+                                                entry,
+                                                nowLocal,
+                                              ),
+                                        )
+                                        .toList(growable: false);
+                                    return _ScheduleCell(
+                                      width: 132,
+                                      slots: cellSlots,
+                                      statuses: statusList,
+                                      isRowHighlighted: isRowHighlighted,
+                                      onTap: () {
+                                        setState(
+                                          () => _selectedGridHour = hour,
+                                        );
+                                        if (cellSlots.isEmpty) {
+                                          return;
+                                        }
+                                        _showCellSlots(
+                                          counselor: counselor,
+                                          currentProfile: profile,
+                                          cellSlots: cellSlots,
+                                        );
+                                      },
+                                    );
+                                  })
+                                  .toList(growable: false),
                             );
                           }),
                         ],
-                      );
-                    }),
-                  ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ],
         ),
@@ -1403,9 +1433,10 @@ class _HeaderCell extends StatelessWidget {
 }
 
 class _TimeCell extends StatelessWidget {
-  const _TimeCell({required this.hour});
+  const _TimeCell({required this.hour, required this.isRowHighlighted});
 
   final int hour;
+  final bool isRowHighlighted;
 
   String _label(int h) {
     final suffix = h >= 12 ? 'PM' : 'AM';
@@ -1419,17 +1450,29 @@ class _TimeCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final background = isRowHighlighted
+        ? const Color(0xFFE7F3FF)
+        : Colors.white;
+    final borderColor = isRowHighlighted
+        ? const Color(0xFF93C5FD)
+        : const Color(0xFFD9E4F0);
     return Container(
       width: 100,
       height: 56,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFD9E4F0)),
+        color: background,
+        border: Border.all(color: borderColor),
       ),
       child: Text(
         _label(hour),
-        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+          color: isRowHighlighted
+              ? const Color(0xFF1E3A8A)
+              : const Color(0xFF0F172A),
+        ),
       ),
     );
   }
@@ -1440,13 +1483,15 @@ class _ScheduleCell extends StatelessWidget {
     required this.width,
     required this.slots,
     required this.statuses,
+    required this.isRowHighlighted,
     required this.onTap,
   });
 
   final double width;
   final List<AvailabilitySlot> slots;
   final List<_WeeklySlotStatus> statuses;
-  final VoidCallback? onTap;
+  final bool isRowHighlighted;
+  final VoidCallback onTap;
 
   int _priority(_WeeklySlotStatus status) {
     switch (status) {
@@ -1510,26 +1555,44 @@ class _ScheduleCell extends StatelessWidget {
 
   Color _background() {
     final top = _topStatus();
+    Color base;
     if (top != null) {
       switch (top) {
         case _WeeklySlotStatus.pending:
-          return const Color(0xFFFFF7E6);
+          base = const Color(0xFFFFF7E6);
+          break;
         case _WeeklySlotStatus.confirmed:
-          return const Color(0xFFE8FFF6);
+          base = const Color(0xFFE8FFF6);
+          break;
         case _WeeklySlotStatus.cancelledByStudent:
-          return const Color(0xFFF1F5F9);
+          base = const Color(0xFFF1F5F9);
+          break;
         case _WeeklySlotStatus.cancelledByCounselor:
-          return const Color(0xFFFFEEF0);
+          base = const Color(0xFFFFEEF0);
+          break;
         case _WeeklySlotStatus.completed:
-          return const Color(0xFFEFF6FF);
+          base = const Color(0xFFEFF6FF);
+          break;
         case _WeeklySlotStatus.noShow:
-          return const Color(0xFFFFE8EC);
+          base = const Color(0xFFFFE8EC);
+          break;
       }
+    } else if (slots.isEmpty) {
+      base = Colors.white;
+    } else {
+      base = const Color(0xFFEFFFFC);
     }
-    if (slots.isEmpty) {
-      return Colors.white;
+    if (!isRowHighlighted) {
+      return base;
     }
-    return const Color(0xFFEFFFFC);
+    return Color.alphaBlend(const Color(0x180EA5E9), base);
+  }
+
+  Color _borderColor() {
+    if (isRowHighlighted) {
+      return const Color(0xFF93C5FD);
+    }
+    return const Color(0xFFD9E4F0);
   }
 
   @override
@@ -1543,7 +1606,7 @@ class _ScheduleCell extends StatelessWidget {
       height: 56,
       decoration: BoxDecoration(
         color: _background(),
-        border: Border.all(color: const Color(0xFFD9E4F0)),
+        border: Border.all(color: _borderColor()),
       ),
       child: Material(
         color: Colors.transparent,
