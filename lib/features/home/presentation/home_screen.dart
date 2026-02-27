@@ -1236,6 +1236,12 @@ class HomeScreen extends ConsumerWidget {
     final loadedProfile = profileAsync.valueOrNull;
     final canOpenNotifications =
         loadedProfile != null && (loadedProfile.institutionId ?? '').isNotEmpty;
+    final unreadCount = canOpenNotifications && loadedProfile != null
+        ? (ref
+                  .watch(unreadNotificationCountProvider(loadedProfile.id))
+                  .valueOrNull ??
+              0)
+        : 0;
     final hasInstitution = (loadedProfile?.institutionId ?? '').isNotEmpty;
     final canAccessLive =
         loadedProfile != null && _canAccessLive(loadedProfile);
@@ -1462,6 +1468,7 @@ class HomeScreen extends ConsumerWidget {
           _AppBarIconBtn(
             icon: Icons.notifications_none_rounded,
             enabled: canOpenNotifications,
+            badgeCount: unreadCount,
             onTap: canOpenNotifications
                 ? () => context.go(AppRoute.notifications)
                 : null,
@@ -2959,10 +2966,16 @@ class _LiveNowPreviewCard extends ConsumerWidget {
 }
 
 class _AppBarIconBtn extends StatelessWidget {
-  const _AppBarIconBtn({required this.icon, required this.enabled, this.onTap});
+  const _AppBarIconBtn({
+    required this.icon,
+    required this.enabled,
+    this.onTap,
+    this.badgeCount = 0,
+  });
   final IconData icon;
   final bool enabled;
   final VoidCallback? onTap;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -2982,10 +2995,52 @@ class _AppBarIconBtn extends StatelessWidget {
               color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFD2DCE9),
             ),
           ),
-          child: Icon(
-            icon,
-            color: isDark ? const Color(0xFFB7C6DA) : const Color(0xFF4A607C),
-            size: 22,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Center(
+                child: Icon(
+                  icon,
+                  color: isDark
+                      ? const Color(0xFFB7C6DA)
+                      : const Color(0xFF4A607C),
+                  size: 22,
+                ),
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  top: 6,
+                  right: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDC2626),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF131F32) : Colors.white,
+                        width: 1.1,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      badgeCount > 99 ? '99+' : '$badgeCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 9,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

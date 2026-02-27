@@ -5,6 +5,7 @@ import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/care/data/care_providers.dart';
 
 class DesktopPrimaryShell extends ConsumerWidget {
   const DesktopPrimaryShell({super.key, required this.child});
@@ -43,6 +44,10 @@ class DesktopPrimaryShell extends ConsumerWidget {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final hasInstitution = (profile?.institutionId ?? '').isNotEmpty;
     final canAccessLive = profile != null && _canAccessLive(profile);
+    final unreadCount = hasInstitution && profile != null
+        ? (ref.watch(unreadNotificationCountProvider(profile.id)).valueOrNull ??
+              0)
+        : 0;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -89,7 +94,7 @@ class DesktopPrimaryShell extends ConsumerWidget {
             onPressed: hasInstitution
                 ? () => context.go(AppRoute.notifications)
                 : null,
-            icon: const Icon(Icons.notifications_none_rounded),
+            icon: _HeaderBellIcon(unreadCount: unreadCount),
           ),
           const SizedBox(width: 8),
           IconButton(
@@ -123,6 +128,46 @@ class DesktopPrimaryShell extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _HeaderBellIcon extends StatelessWidget {
+  const _HeaderBellIcon({required this.unreadCount});
+
+  final int unreadCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        const Icon(Icons.notifications_none_rounded),
+        if (unreadCount > 0)
+          Positioned(
+            top: -6,
+            right: -8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white, width: 1.2),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                unreadCount > 99 ? '99+' : '$unreadCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 9,
+                  height: 1.0,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

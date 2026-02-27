@@ -16,3 +16,22 @@ final careRepositoryProvider = Provider<CareRepository>((ref) {
     httpClient: ref.watch(careHttpClientProvider),
   );
 });
+
+final unreadNotificationCountProvider = StreamProvider.family<int, String>((
+  ref,
+  userId,
+) {
+  final normalized = userId.trim();
+  if (normalized.isEmpty) {
+    return Stream.value(0);
+  }
+
+  return ref
+      .watch(careRepositoryProvider)
+      .watchUserNotifications(normalized)
+      .map(
+        (items) =>
+            items.where((entry) => !entry.isRead && !entry.isArchived).length,
+      )
+      .distinct();
+});

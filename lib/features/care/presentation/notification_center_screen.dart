@@ -16,7 +16,7 @@ class NotificationCenterScreen extends ConsumerStatefulWidget {
 
 class _NotificationCenterScreenState
     extends ConsumerState<NotificationCenterScreen> {
-  bool _showUnreadOnly = false;
+  _NotificationFilter _activeFilter = _NotificationFilter.all;
   bool _clearingAll = false;
   final Set<String> _openingNotificationIds = <String>{};
   final Set<String> _actionNotificationIds = <String>{};
@@ -157,16 +157,28 @@ class _NotificationCenterScreenState
               ],
             ),
           ),
-        const PopupMenuItem<_NotificationContextAction>(
-          value: _NotificationContextAction.archive,
-          child: Row(
-            children: [
-              Icon(Icons.archive_outlined),
-              SizedBox(width: 10),
-              Text('Archive'),
-            ],
+        if (notification.isArchived)
+          const PopupMenuItem<_NotificationContextAction>(
+            value: _NotificationContextAction.unarchive,
+            child: Row(
+              children: [
+                Icon(Icons.unarchive_outlined),
+                SizedBox(width: 10),
+                Text('Unarchive'),
+              ],
+            ),
+          )
+        else
+          const PopupMenuItem<_NotificationContextAction>(
+            value: _NotificationContextAction.archive,
+            child: Row(
+              children: [
+                Icon(Icons.archive_outlined),
+                SizedBox(width: 10),
+                Text('Archive'),
+              ],
+            ),
           ),
-        ),
         const PopupMenuDivider(),
         const PopupMenuItem<_NotificationContextAction>(
           value: _NotificationContextAction.delete,
@@ -214,6 +226,11 @@ class _NotificationCenterScreenState
           await repo.setNotificationArchived(
             notificationId: notification.id,
             archived: true,
+          );
+        case _NotificationContextAction.unarchive:
+          await repo.setNotificationArchived(
+            notificationId: notification.id,
+            archived: false,
           );
         case _NotificationContextAction.delete:
           await repo.deleteNotification(notification.id);
@@ -408,29 +425,44 @@ class _NotificationCenterScreenState
           _segmentChip(
             context: context,
             label: 'All',
-            active: !_showUnreadOnly,
+            active: _activeFilter == _NotificationFilter.all,
             activeBg: activeBg,
             activeText: activeText,
             inactiveText: inactiveText,
-            onTap: () => setState(() => _showUnreadOnly = false),
+            onTap: () =>
+                setState(() => _activeFilter = _NotificationFilter.all),
           ),
           const SizedBox(width: 8),
           _segmentChip(
             context: context,
             label: 'Unread',
-            active: _showUnreadOnly,
+            active: _activeFilter == _NotificationFilter.unread,
             activeBg: activeBg,
             activeText: activeText,
             inactiveText: inactiveText,
-            onTap: () => setState(() => _showUnreadOnly = true),
+            onTap: () =>
+                setState(() => _activeFilter = _NotificationFilter.unread),
+          ),
+          const SizedBox(width: 8),
+          _segmentChip(
+            context: context,
+            label: 'Archived',
+            active: _activeFilter == _NotificationFilter.archived,
+            activeBg: activeBg,
+            activeText: activeText,
+            inactiveText: inactiveText,
+            onTap: () =>
+                setState(() => _activeFilter = _NotificationFilter.archived),
           ),
           const Spacer(),
           TextButton(
-            onPressed: canMarkAllRead
-                ? () => ref
+            onPressed:
+                (_activeFilter == _NotificationFilter.archived ||
+                    !canMarkAllRead)
+                ? null
+                : () => ref
                       .read(careRepositoryProvider)
-                      .markAllNotificationsRead(userId)
-                : null,
+                      .markAllNotificationsRead(userId),
             style: TextButton.styleFrom(
               foregroundColor: scheme.primary,
               textStyle: textTheme.titleSmall?.copyWith(
@@ -627,6 +659,8 @@ class _NotificationCenterScreenState
       child: Text(
         forUnread
             ? 'No unread notifications right now.'
+            : _activeFilter == _NotificationFilter.archived
+            ? 'No archived notifications yet.'
             : 'No notifications yet. Booking, reminders, and cancellations will show here.',
         style: textTheme.titleMedium?.copyWith(
           color: scheme.onSurfaceVariant,
@@ -665,9 +699,13 @@ class _NotificationCenterScreenState
                         final notifications = snapshot.data ?? const [];
                         final filtered = notifications
                             .where(
-                              (entry) =>
-                                  !entry.isArchived &&
-                                  (!_showUnreadOnly || !entry.isRead),
+                              (entry) => switch (_activeFilter) {
+                                _NotificationFilter.all => !entry.isArchived,
+                                _NotificationFilter.unread =>
+                                  !entry.isArchived && !entry.isRead,
+                                _NotificationFilter.archived =>
+                                  entry.isArchived,
+                              },
                             )
                             .toList(growable: false);
 
@@ -700,7 +738,9 @@ class _NotificationCenterScreenState
                                       alignment: Alignment.topCenter,
                                       child: _emptyCard(
                                         context,
-                                        forUnread: _showUnreadOnly,
+                                        forUnread:
+                                            _activeFilter ==
+                                            _NotificationFilter.unread,
                                       ),
                                     )
                                   : ListView.separated(
@@ -758,4 +798,13 @@ class _NotificationCenterScreenState
   }
 }
 
-enum _NotificationContextAction { pin, unpin, markRead, archive, delete }
+enum _NotificationContextAction {
+  pin,
+  unpin,
+  markRead,
+  archive,
+  unarchive,
+  delete,
+}
+
+enum _NotificationFilter { all, unread, archived }
