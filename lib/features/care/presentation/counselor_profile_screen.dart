@@ -90,13 +90,22 @@ class _CounselorProfileScreenState
     return weekdays[day.weekday - 1];
   }
 
-  String _formatDateTime(DateTime value) {
+  String _shortWeekday(DateTime value) {
+    const weekdays = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return weekdays[value.toLocal().weekday - 1];
+  }
+
+  String _friendlyDate(DateTime value) {
     final local = value.toLocal();
-    final twoMonth = local.month.toString().padLeft(2, '0');
-    final twoDay = local.day.toString().padLeft(2, '0');
-    final twoHour = local.hour.toString().padLeft(2, '0');
-    final twoMinute = local.minute.toString().padLeft(2, '0');
-    return '${local.year}-$twoMonth-$twoDay $twoHour:$twoMinute';
+    return '${_shortWeekday(local)}, ${_monthNames[local.month - 1]} ${local.day}';
+  }
+
+  String _friendlyTime(DateTime value) {
+    final local = value.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
   }
 
   String _periodLabel(_SpotPeriod period) {
@@ -243,50 +252,175 @@ class _CounselorProfileScreenState
     }
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FBFF),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFDCE5EF)),
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Available Spots',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD6E4F2),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE7F3F1),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: const Icon(
+                        Icons.event_available_rounded,
+                        color: Color(0xFF0E9B90),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Available Spots',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 20,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${cellSlots.length} slot${cellSlots.length == 1 ? '' : 's'}',
+                        style: const TextStyle(
+                          color: Color(0xFF516784),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 ...cellSlots.map((slot) {
+                  final dateLabel = _friendlyDate(slot.startAt);
+                  final timeLabel =
+                      '${_friendlyTime(slot.startAt)} - ${_friendlyTime(slot.endAt)}';
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${_formatDateTime(slot.startAt)} - ${_formatDateTime(slot.endAt)}',
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFFFFF), Color(0xFFF4F9FF)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFDCE5EF)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  dateLabel,
+                                  style: const TextStyle(
+                                    color: Color(0xFF516784),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  timeLabel,
+                                  style: const TextStyle(
+                                    color: Color(0xFF0F172A),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        ElevatedButton(
-                          onPressed: !canBook || currentProfile == null
-                              ? null
-                              : () async {
-                                  Navigator.of(context).pop();
-                                  await _bookSlot(
-                                    counselor: counselor,
-                                    slot: slot,
-                                    currentProfile: currentProfile,
-                                  );
-                                },
-                          child: const Text('Book'),
-                        ),
-                      ],
+                          const SizedBox(width: 10),
+                          FilledButton.icon(
+                            onPressed: !canBook || currentProfile == null
+                                ? null
+                                : () async {
+                                    Navigator.of(context).pop();
+                                    await _bookSlot(
+                                      counselor: counselor,
+                                      slot: slot,
+                                      currentProfile: currentProfile,
+                                    );
+                                  },
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF0E9B90),
+                              disabledBackgroundColor: const Color(0xFFCBD5E1),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.bolt_rounded, size: 15),
+                            label: const Text(
+                              'Book',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }),
                 if (!canBook)
-                  const Text(
-                    'Only students, staff, and individual users can book sessions.',
-                    style: TextStyle(color: Color(0xFF64748B)),
+                  Container(
+                    margin: const EdgeInsets.only(top: 2),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFECACA)),
+                    ),
+                    child: const Text(
+                      'Only students, staff, and individual users can book sessions.',
+                      style: TextStyle(
+                        color: Color(0xFFB91C1C),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
               ],
             ),
