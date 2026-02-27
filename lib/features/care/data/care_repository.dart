@@ -864,6 +864,35 @@ class CareRepository {
     await _firestore.collection('notifications').doc(notificationId).delete();
   }
 
+  Future<void> clearAllNotifications(String userId) async {
+    final trimmedUserId = userId.trim();
+    if (trimmedUserId.isEmpty) {
+      return;
+    }
+
+    const batchSize = 400;
+    while (true) {
+      final snapshot = await _firestore
+          .collection('notifications')
+          .where('userId', isEqualTo: trimmedUserId)
+          .limit(batchSize)
+          .get();
+      if (snapshot.docs.isEmpty) {
+        break;
+      }
+
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      if (snapshot.docs.length < batchSize) {
+        break;
+      }
+    }
+  }
+
   Stream<List<CareGoal>> watchStudentGoals({
     required String institutionId,
     required String studentId,

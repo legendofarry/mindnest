@@ -17,6 +17,7 @@ class NotificationCenterScreen extends ConsumerStatefulWidget {
 class _NotificationCenterScreenState
     extends ConsumerState<NotificationCenterScreen> {
   bool _showUnreadOnly = false;
+  bool _clearingAll = false;
   final Set<String> _openingNotificationIds = <String>{};
   final Set<String> _actionNotificationIds = <String>{};
 
@@ -233,8 +234,79 @@ class _NotificationCenterScreenState
     }
   }
 
+  Future<void> _confirmAndClearAllNotifications({
+    required String userId,
+    required int totalCount,
+    required int pinnedCount,
+  }) async {
+    if (_clearingAll || userId.trim().isEmpty || totalCount <= 0) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            pinnedCount > 0
+                ? 'Pinned notifications found'
+                : 'Clear all notifications?',
+          ),
+          content: Text(
+            pinnedCount > 0
+                ? 'You have $pinnedCount pinned notification${pinnedCount == 1 ? '' : 's'}. '
+                      'Clearing will permanently delete all $totalCount notifications, including pinned ones.'
+                : 'This will permanently delete $totalCount notification${totalCount == 1 ? '' : 's'}. This cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(pinnedCount > 0 ? 'Terminate' : 'Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+              ),
+              child: Text(pinnedCount > 0 ? 'Proceed' : 'Clear all'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() => _clearingAll = true);
+    try {
+      await ref.read(careRepositoryProvider).clearAllNotifications(userId);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All notifications deleted.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _clearingAll = false);
+      }
+    }
+  }
+
   Widget _header({
     required BuildContext context,
+    required String userId,
     required List<AppNotification> notifications,
   }) {
     final scheme = Theme.of(context).colorScheme;
@@ -242,6 +314,8 @@ class _NotificationCenterScreenState
     final unreadCount = notifications
         .where((entry) => !entry.isRead && !entry.isArchived)
         .length;
+    final canClearAll =
+        !_clearingAll && userId.isNotEmpty && notifications.isNotEmpty;
 
     return Row(
       children: [
@@ -270,13 +344,36 @@ class _NotificationCenterScreenState
             ],
           ),
         ),
-        IconButton(
-          onPressed: null,
-          icon: Icon(
-            Icons.more_horiz_rounded,
-            color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
+        Tooltip(
+          message: 'Permanently delete all notifications',
+          child: TextButton.icon(
+            onPressed: canClearAll
+                ? () => _confirmAndClearAllNotifications(
+                    userId: userId,
+                    totalCount: notifications.length,
+                    pinnedCount: notifications
+                        .where((entry) => entry.isPinned)
+                        .length,
+                  )
+                : null,
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFDC2626),
+              textStyle: textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            icon: _clearingAll
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  )
+                : const Icon(Icons.delete_sweep_rounded, size: 18),
+            label: Text(_clearingAll ? 'Clearing...' : 'Clear'),
           ),
-          tooltip: 'More',
         ),
       ],
     );
@@ -587,6 +684,7 @@ class _NotificationCenterScreenState
                           children: [
                             _header(
                               context: context,
+                              userId: userId,
                               notifications: notifications,
                             ),
                             const SizedBox(height: 16),
