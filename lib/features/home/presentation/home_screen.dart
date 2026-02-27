@@ -1236,9 +1236,10 @@ class HomeScreen extends ConsumerWidget {
     final loadedProfile = profileAsync.valueOrNull;
     final canOpenNotifications =
         loadedProfile != null && (loadedProfile.institutionId ?? '').isNotEmpty;
-    final unreadCount = canOpenNotifications && loadedProfile != null
+    final notificationUserId = loadedProfile?.id ?? '';
+    final unreadCount = canOpenNotifications
         ? (ref
-                  .watch(unreadNotificationCountProvider(loadedProfile.id))
+                  .watch(unreadNotificationCountProvider(notificationUserId))
                   .valueOrNull ??
               0)
         : 0;
