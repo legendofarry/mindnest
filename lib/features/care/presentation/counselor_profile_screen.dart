@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,10 +7,21 @@ import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
+import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum _SpotPeriod { any, morning, afternoon, evening }
+
+enum _WeeklySlotStatus {
+  pending,
+  confirmed,
+  cancelledByStudent,
+  cancelledByCounselor,
+  completed,
+  noShow,
+}
 
 class CounselorProfileScreen extends ConsumerStatefulWidget {
   const CounselorProfileScreen({super.key, required this.counselorId});
@@ -57,11 +70,199 @@ class _CounselorProfileScreenState
   late DateTime _weekStart;
   DateTime? _selectedDay;
   _SpotPeriod _period = _SpotPeriod.any;
+  String? _freezeCacheOwnerUserId;
+  bool _freezeCacheReady = false;
+  bool _freezeCacheLoading = false;
+  final Map<String, String> _frozenStatusByAppointmentId = <String, String>{};
+  final Map<String, String> _pendingFreezeWrites = <String, String>{};
+  bool _freezeApplyScheduled = false;
 
   @override
   void initState() {
     super.initState();
     _weekStart = _startOfWeek(DateTime.now());
+  }
+
+  String _freezeStorageKey(String userId) => 'weekly_status_freeze_$userId';
+
+  _WeeklySlotStatus _statusFromAppointment(AppointmentRecord appointment) {
+    switch (appointment.status) {
+      case AppointmentStatus.pending:
+        return _WeeklySlotStatus.pending;
+      case AppointmentStatus.confirmed:
+        return _WeeklySlotStatus.confirmed;
+      case AppointmentStatus.completed:
+        return _WeeklySlotStatus.completed;
+      case AppointmentStatus.noShow:
+        return _WeeklySlotStatus.noShow;
+      case AppointmentStatus.cancelled:
+        return appointment.cancelledByRole == 'counselor'
+            ? _WeeklySlotStatus.cancelledByCounselor
+            : _WeeklySlotStatus.cancelledByStudent;
+    }
+  }
+
+  String _statusKey(_WeeklySlotStatus status) {
+    switch (status) {
+      case _WeeklySlotStatus.pending:
+        return 'pending';
+      case _WeeklySlotStatus.confirmed:
+        return 'confirmed';
+      case _WeeklySlotStatus.cancelledByStudent:
+        return 'cancelledByStudent';
+      case _WeeklySlotStatus.cancelledByCounselor:
+        return 'cancelledByCounselor';
+      case _WeeklySlotStatus.completed:
+        return 'completed';
+      case _WeeklySlotStatus.noShow:
+        return 'noShow';
+    }
+  }
+
+  _WeeklySlotStatus _statusFromKey(String raw) {
+    switch (raw) {
+      case 'confirmed':
+        return _WeeklySlotStatus.confirmed;
+      case 'cancelledByStudent':
+        return _WeeklySlotStatus.cancelledByStudent;
+      case 'cancelledByCounselor':
+        return _WeeklySlotStatus.cancelledByCounselor;
+      case 'completed':
+        return _WeeklySlotStatus.completed;
+      case 'noShow':
+        return _WeeklySlotStatus.noShow;
+      case 'pending':
+      default:
+        return _WeeklySlotStatus.pending;
+    }
+  }
+
+  _WeeklySlotStatus _displayStatusForAppointment(
+    AppointmentRecord appointment,
+    DateTime nowLocal,
+  ) {
+    final isPast = !appointment.endAt.toLocal().isAfter(nowLocal);
+    if (!isPast) {
+      return _statusFromAppointment(appointment);
+    }
+    final frozen = _frozenStatusByAppointmentId[appointment.id];
+    if (frozen != null) {
+      return _statusFromKey(frozen);
+    }
+    return _statusFromAppointment(appointment);
+  }
+
+  Future<void> _ensureFreezeCacheLoaded(UserProfile? profile) async {
+    final userId = profile?.id ?? '';
+    if (userId.isEmpty) {
+      return;
+    }
+    if (_freezeCacheOwnerUserId == userId &&
+        (_freezeCacheReady || _freezeCacheLoading)) {
+      return;
+    }
+
+    _freezeCacheOwnerUserId = userId;
+    _freezeCacheReady = false;
+    _freezeCacheLoading = true;
+    _frozenStatusByAppointmentId.clear();
+    _pendingFreezeWrites.clear();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_freezeStorageKey(userId));
+      final decoded = <String, String>{};
+      if (raw != null && raw.isNotEmpty) {
+        try {
+          final parsed = jsonDecode(raw);
+          if (parsed is Map) {
+            for (final entry in parsed.entries) {
+              final key = entry.key.toString().trim();
+              final value = entry.value.toString().trim();
+              if (key.isNotEmpty && value.isNotEmpty) {
+                decoded[key] = value;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (!mounted || _freezeCacheOwnerUserId != userId) {
+        _freezeCacheLoading = false;
+        return;
+      }
+      setState(() {
+        _frozenStatusByAppointmentId
+          ..clear()
+          ..addAll(decoded);
+        _freezeCacheReady = true;
+        _freezeCacheLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || _freezeCacheOwnerUserId != userId) {
+        _freezeCacheLoading = false;
+        return;
+      }
+      setState(() {
+        _freezeCacheReady = true;
+        _freezeCacheLoading = false;
+      });
+    }
+  }
+
+  Future<void> _persistFreezeCacheIfReady() async {
+    final userId = _freezeCacheOwnerUserId;
+    if (userId == null || userId.isEmpty || !_freezeCacheReady) {
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _freezeStorageKey(userId),
+      jsonEncode(_frozenStatusByAppointmentId),
+    );
+  }
+
+  void _queueFreezePastStatuses({
+    required List<AppointmentRecord> appointments,
+    required DateTime nowLocal,
+  }) {
+    if (!_freezeCacheReady) {
+      return;
+    }
+    for (final appointment in appointments) {
+      final isPast = !appointment.endAt.toLocal().isAfter(nowLocal);
+      if (!isPast) {
+        continue;
+      }
+      if (_frozenStatusByAppointmentId.containsKey(appointment.id) ||
+          _pendingFreezeWrites.containsKey(appointment.id)) {
+        continue;
+      }
+      _pendingFreezeWrites[appointment.id] = _statusKey(
+        _statusFromAppointment(appointment),
+      );
+    }
+    if (_pendingFreezeWrites.isEmpty || _freezeApplyScheduled) {
+      return;
+    }
+
+    _freezeApplyScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        _freezeApplyScheduled = false;
+        return;
+      }
+      if (_pendingFreezeWrites.isEmpty) {
+        _freezeApplyScheduled = false;
+        return;
+      }
+      setState(() {
+        _frozenStatusByAppointmentId.addAll(_pendingFreezeWrites);
+        _pendingFreezeWrites.clear();
+      });
+      _freezeApplyScheduled = false;
+      _persistFreezeCacheIfReady();
+    });
   }
 
   DateTime _startOfWeek(DateTime date) {
@@ -182,6 +383,33 @@ class _CounselorProfileScreenState
         .where((slot) {
           final start = slot.startAt.toLocal();
           final end = slot.endAt.toLocal();
+          return start.isBefore(cellEnd) && end.isAfter(cellStart);
+        })
+        .toList(growable: false);
+  }
+
+  List<AppointmentRecord> _weekAppointments(List<AppointmentRecord> entries) {
+    final weekEnd = _weekStart.add(const Duration(days: 7));
+    return entries
+        .where((entry) {
+          final start = entry.startAt.toLocal();
+          final end = entry.endAt.toLocal();
+          return start.isBefore(weekEnd) && end.isAfter(_weekStart);
+        })
+        .toList(growable: false);
+  }
+
+  List<AppointmentRecord> _appointmentsForCell({
+    required List<AppointmentRecord> appointments,
+    required DateTime day,
+    required int hour,
+  }) {
+    final cellStart = DateTime(day.year, day.month, day.day, hour);
+    final cellEnd = cellStart.add(const Duration(hours: 1));
+    return appointments
+        .where((entry) {
+          final start = entry.startAt.toLocal();
+          final end = entry.endAt.toLocal();
           return start.isBefore(cellEnd) && end.isAfter(cellStart);
         })
         .toList(growable: false);
@@ -433,9 +661,16 @@ class _CounselorProfileScreenState
   Widget _buildWeeklyGrid({
     required CounselorProfile counselor,
     required List<AvailabilitySlot> slots,
+    required List<AppointmentRecord> appointments,
     required UserProfile? profile,
   }) {
     final weekSlots = _weekSlots(slots);
+    final weekAppointments = _weekAppointments(appointments);
+    final nowLocal = DateTime.now().toLocal();
+    _queueFreezePastStatuses(
+      appointments: weekAppointments,
+      nowLocal: nowLocal,
+    );
     final days = _weekDays();
     final weekControls = Row(
       mainAxisSize: MainAxisSize.min,
@@ -537,9 +772,23 @@ class _CounselorProfileScreenState
                               day: day,
                               hour: hour,
                             );
+                            final cellAppointments = _appointmentsForCell(
+                              appointments: weekAppointments,
+                              day: day,
+                              hour: hour,
+                            );
+                            final statusList = cellAppointments
+                                .map(
+                                  (entry) => _displayStatusForAppointment(
+                                    entry,
+                                    nowLocal,
+                                  ),
+                                )
+                                .toList(growable: false);
                             return _ScheduleCell(
                               width: 132,
                               slots: cellSlots,
+                              statuses: statusList,
                               onTap: cellSlots.isEmpty
                                   ? null
                                   : () => _showCellSlots(
@@ -972,6 +1221,7 @@ class _CounselorProfileScreenState
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final institutionId = profile?.institutionId ?? '';
     final canBook = _canCurrentUserBook(profile);
+    _ensureFreezeCacheLoaded(profile);
 
     return MindNestShell(
       maxWidth: 1080,
@@ -1082,11 +1332,40 @@ class _CounselorProfileScreenState
                           canBook: canBook,
                         ),
                         const SizedBox(height: 12),
-                        _buildWeeklyGrid(
-                          counselor: effectiveCounselor,
-                          slots: slots,
-                          profile: profile,
-                        ),
+                        if (profile != null &&
+                            institutionId.isNotEmpty &&
+                            _canCurrentUserBook(profile))
+                          StreamBuilder<List<AppointmentRecord>>(
+                            stream: ref
+                                .read(careRepositoryProvider)
+                                .watchStudentAppointments(
+                                  institutionId: institutionId,
+                                  studentId: profile.id,
+                                ),
+                            builder: (context, appointmentSnapshot) {
+                              final counselorAppointments =
+                                  (appointmentSnapshot.data ?? const [])
+                                      .where(
+                                        (entry) =>
+                                            entry.counselorId ==
+                                            effectiveCounselor.id,
+                                      )
+                                      .toList(growable: false);
+                              return _buildWeeklyGrid(
+                                counselor: effectiveCounselor,
+                                slots: slots,
+                                appointments: counselorAppointments,
+                                profile: profile,
+                              );
+                            },
+                          )
+                        else
+                          _buildWeeklyGrid(
+                            counselor: effectiveCounselor,
+                            slots: slots,
+                            appointments: const [],
+                            profile: profile,
+                          ),
                       ],
                     );
                   },
@@ -1160,14 +1439,93 @@ class _ScheduleCell extends StatelessWidget {
   const _ScheduleCell({
     required this.width,
     required this.slots,
+    required this.statuses,
     required this.onTap,
   });
 
   final double width;
   final List<AvailabilitySlot> slots;
+  final List<_WeeklySlotStatus> statuses;
   final VoidCallback? onTap;
 
+  int _priority(_WeeklySlotStatus status) {
+    switch (status) {
+      case _WeeklySlotStatus.noShow:
+        return 6;
+      case _WeeklySlotStatus.cancelledByCounselor:
+        return 5;
+      case _WeeklySlotStatus.cancelledByStudent:
+        return 4;
+      case _WeeklySlotStatus.confirmed:
+        return 3;
+      case _WeeklySlotStatus.pending:
+        return 2;
+      case _WeeklySlotStatus.completed:
+        return 1;
+    }
+  }
+
+  _WeeklySlotStatus? _topStatus() {
+    if (statuses.isEmpty) {
+      return null;
+    }
+    final sorted = statuses.toList(growable: false)
+      ..sort((a, b) => _priority(b).compareTo(_priority(a)));
+    return sorted.first;
+  }
+
+  String _statusLabel(_WeeklySlotStatus status) {
+    switch (status) {
+      case _WeeklySlotStatus.pending:
+        return 'Pending';
+      case _WeeklySlotStatus.confirmed:
+        return 'Confirmed';
+      case _WeeklySlotStatus.cancelledByStudent:
+        return 'Cancelled';
+      case _WeeklySlotStatus.cancelledByCounselor:
+        return 'Declined';
+      case _WeeklySlotStatus.completed:
+        return 'Completed';
+      case _WeeklySlotStatus.noShow:
+        return 'No-show';
+    }
+  }
+
+  Color _statusTextColor(_WeeklySlotStatus status) {
+    switch (status) {
+      case _WeeklySlotStatus.pending:
+        return const Color(0xFFB45309);
+      case _WeeklySlotStatus.confirmed:
+        return const Color(0xFF0F766E);
+      case _WeeklySlotStatus.cancelledByStudent:
+        return const Color(0xFF475569);
+      case _WeeklySlotStatus.cancelledByCounselor:
+        return const Color(0xFFB91C1C);
+      case _WeeklySlotStatus.completed:
+        return const Color(0xFF1D4ED8);
+      case _WeeklySlotStatus.noShow:
+        return const Color(0xFFB91C1C);
+    }
+  }
+
   Color _background() {
+    final top = _topStatus();
+    if (top != null) {
+      switch (top) {
+        case _WeeklySlotStatus.pending:
+          return const Color(0xFFFFF7E6);
+        case _WeeklySlotStatus.confirmed:
+          return const Color(0xFFE8FFF6);
+        case _WeeklySlotStatus.cancelledByStudent:
+          return const Color(0xFFF1F5F9);
+        case _WeeklySlotStatus.cancelledByCounselor:
+          return const Color(0xFFFFEEF0);
+        case _WeeklySlotStatus.completed:
+          return const Color(0xFFEFF6FF);
+        case _WeeklySlotStatus.noShow:
+          return const Color(0xFFFFE8EC);
+      }
+    }
     if (slots.isEmpty) {
       return Colors.white;
     }
@@ -1176,7 +1534,10 @@ class _ScheduleCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final topStatus = _topStatus();
     final count = slots.length;
+    final hasStatus = topStatus != null;
+    final statusCount = statuses.length;
     return Container(
       width: width,
       height: 56,
@@ -1189,7 +1550,18 @@ class _ScheduleCell extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Center(
-            child: slots.isEmpty
+            child: hasStatus
+                ? Text(
+                    statusCount > 1
+                        ? '$statusCount ${_statusLabel(topStatus)}'
+                        : _statusLabel(topStatus),
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: _statusTextColor(topStatus),
+                    ),
+                  )
+                : slots.isEmpty
                 ? const Icon(
                     Icons.remove_rounded,
                     color: Color(0xFFB8C3D3),
