@@ -2453,15 +2453,15 @@ class _HeroCardFrame extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: (isDark ? Colors.black : const Color(0x120F172A)).withValues(
-              alpha: isDark ? 0.28 : 0.07,
-            ),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.28),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : const [],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2494,7 +2494,12 @@ class _HeroCardFrame extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Expanded(child: child),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: child,
+            ),
+          ),
         ],
       ),
     );
@@ -3178,15 +3183,15 @@ class _WelcomeHero extends StatelessWidget {
           color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFDDE6F1),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: (isDark ? Colors.black : const Color(0x120F172A)).withValues(
-              alpha: isDark ? 0.30 : 0.07,
-            ),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.30),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : const [],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
