@@ -1227,8 +1227,10 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isDesktop = MediaQuery.sizeOf(context).width >= 900;
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final isDesktop = viewportWidth >= 900;
     final useDesktopShell = embeddedInDesktopShell && isDesktop;
+    final showDesktopRightRailCards = useDesktopShell && viewportWidth >= 1200;
     final uri = GoRouterState.of(context).uri;
     final profileAsync = ref.watch(currentUserProfileProvider);
     final loadedProfile = profileAsync.valueOrNull;
@@ -1303,16 +1305,40 @@ class HomeScreen extends ConsumerWidget {
 
           return Stack(
             children: [
-              Align(
-                alignment: Alignment.topCenter,
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 860),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+              SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 86),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1260),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (showDesktopRightRailCards)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _HeroCarousel(
+                                profile: profile,
+                                firstName: firstName,
+                                roleLabel: profile.role.label,
+                                institutionName: institutionLabel,
+                                hasInstitution: hasInstitution,
+                                canAccessLive: canAccessLive,
+                                isDark: isDark,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            SizedBox(
+                              width: 320,
+                              child: _DesktopNextSessionCard(
+                                profile: profile,
+                                isDark: isDark,
+                              ),
+                            ),
+                          ],
+                        )
+                      else
                         _HeroCarousel(
                           profile: profile,
                           firstName: firstName,
@@ -1322,22 +1348,35 @@ class HomeScreen extends ConsumerWidget {
                           canAccessLive: canAccessLive,
                           isDark: isDark,
                         ),
-                        if (showJoinInstitutionNudge) ...[
-                          const SizedBox(height: 14),
-                          _InstitutionJoinNudgeCard(
-                            onJoinCode: () =>
-                                context.go(AppRoute.joinInstitution),
-                            onHowItWorks: () =>
-                                _showInstitutionJoinGuide(context),
-                          ),
-                        ],
-                        const SizedBox(height: 18),
-                        WellnessCheckInCard(profile: profile),
+                      if (showJoinInstitutionNudge) ...[
                         const SizedBox(height: 14),
-                        _SosButton(onTap: () => _openCrisisSupport(context)),
-                        const SizedBox(height: 8),
+                        _InstitutionJoinNudgeCard(
+                          onJoinCode: () =>
+                              context.go(AppRoute.joinInstitution),
+                          onHowItWorks: () =>
+                              _showInstitutionJoinGuide(context),
+                        ),
                       ],
-                    ),
+                      const SizedBox(height: 16),
+                      if (showDesktopRightRailCards)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: WellnessCheckInCard(profile: profile),
+                            ),
+                            const SizedBox(width: 16),
+                            SizedBox(
+                              width: 320,
+                              child: _DesktopMindfulMinuteCard(isDark: isDark),
+                            ),
+                          ],
+                        )
+                      else
+                        WellnessCheckInCard(profile: profile),
+                      const SizedBox(height: 14),
+                      _SosButton(onTap: () => _openCrisisSupport(context)),
+                    ],
                   ),
                 ),
               ),
@@ -1842,6 +1881,533 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
           },
         ),
       ),
+    );
+  }
+}
+
+class _DesktopNextSessionCard extends ConsumerWidget {
+  const _DesktopNextSessionCard({required this.profile, required this.isDark});
+
+  final UserProfile profile;
+  final bool isDark;
+
+  String _formatStart(DateTime value) {
+    const months = <int, String>{
+      1: 'Jan',
+      2: 'Feb',
+      3: 'Mar',
+      4: 'Apr',
+      5: 'May',
+      6: 'Jun',
+      7: 'Jul',
+      8: 'Aug',
+      9: 'Sep',
+      10: 'Oct',
+      11: 'Nov',
+      12: 'Dec',
+    };
+    final local = value.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour >= 12 ? 'PM' : 'AM';
+    return '${months[local.month]} ${local.day}, $hour:$minute $period';
+  }
+
+  String _daysLabel(DateTime value) {
+    final now = DateTime.now().toLocal();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(value.year, value.month, value.day).toLocal();
+    final days = target.difference(today).inDays;
+    if (days <= 0) {
+      return 'TODAY';
+    }
+    if (days == 1) {
+      return 'IN 1 DAY';
+    }
+    return 'IN $days DAYS';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final institutionId = (profile.institutionId ?? '').trim();
+    final role = profile.role;
+
+    const brandTeal = Color(0xFF0E9B90);
+    const brandIndigo = Color(0xFF5146FF);
+    final borderColor = isDark
+        ? const Color(0xFF2A3A52)
+        : const Color(0xFFDDE6F1);
+    final titleColor = isDark
+        ? const Color(0xFFE2E8F0)
+        : const Color(0xFF0F172A);
+    final mutedColor = isDark
+        ? const Color(0xFF9FB2CC)
+        : const Color(0xFF64748B);
+
+    if (institutionId.isEmpty) {
+      return _DesktopSideCardShell(
+        isDark: isDark,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Next Session',
+              style: TextStyle(
+                color: titleColor,
+                fontWeight: FontWeight.w800,
+                fontSize: 28 / 2,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              'Join an institution to see upcoming sessions.',
+              style: TextStyle(
+                color: mutedColor,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final careRepo = ref.read(careRepositoryProvider);
+    final stream = role == UserRole.counselor
+        ? careRepo.watchCounselorAppointments(
+            institutionId: institutionId,
+            counselorId: profile.id,
+          )
+        : careRepo.watchStudentAppointments(
+            institutionId: institutionId,
+            studentId: profile.id,
+          );
+
+    return _DesktopSideCardShell(
+      isDark: isDark,
+      child: StreamBuilder<List<AppointmentRecord>>(
+        stream: stream,
+        builder: (context, snapshot) {
+          final allSessions = snapshot.data ?? const <AppointmentRecord>[];
+          final now = DateTime.now().toUtc();
+          final upcoming =
+              allSessions
+                  .where(
+                    (entry) =>
+                        (entry.status == AppointmentStatus.pending ||
+                            entry.status == AppointmentStatus.confirmed) &&
+                        entry.startAt.isAfter(now),
+                  )
+                  .toList(growable: false)
+                ..sort((a, b) => a.startAt.compareTo(b.startAt));
+          final nextSession = upcoming.isEmpty ? null : upcoming.first;
+          final otherPartyName = nextSession == null
+              ? '--'
+              : role == UserRole.counselor
+              ? ((nextSession.studentName ?? '').trim().isEmpty
+                    ? 'Student'
+                    : nextSession.studentName!.trim())
+              : ((nextSession.counselorName ?? '').trim().isEmpty
+                    ? 'Counselor'
+                    : nextSession.counselorName!.trim());
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Next Session',
+                    style: TextStyle(
+                      color: titleColor,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 28 / 2,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (nextSession != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: brandIndigo.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        _daysLabel(nextSession.startAt.toLocal()),
+                        style: TextStyle(
+                          color: brandIndigo,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10.5,
+                          letterSpacing: 0.45,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF1B2A42)
+                        : const Color(0xFFF6FAFF),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: nextSession == null
+                      ? Center(
+                          child: Text(
+                            snapshot.connectionState == ConnectionState.waiting
+                                ? 'Checking your sessions...'
+                                : 'No upcoming sessions.',
+                            style: TextStyle(
+                              color: mutedColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      : Row(
+                          children: [
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF253754)
+                                    : brandTeal.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.person_outline_rounded,
+                                color: isDark ? brandIndigo : brandTeal,
+                                size: 23,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    otherPartyName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: titleColor,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _formatStart(nextSession.startAt),
+                                    style: TextStyle(
+                                      color: mutedColor,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: nextSession == null
+                      ? null
+                      : () => context.go(
+                          '${AppRoute.sessionDetails}?appointmentId=${nextSession.id}',
+                        ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: brandIndigo,
+                    disabledBackgroundColor: const Color(0xFFD5DEEA),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    nextSession == null ? 'No Session' : 'Join Room',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DesktopMindfulMinuteCard extends StatefulWidget {
+  const _DesktopMindfulMinuteCard({required this.isDark});
+
+  final bool isDark;
+
+  @override
+  State<_DesktopMindfulMinuteCard> createState() =>
+      _DesktopMindfulMinuteCardState();
+}
+
+class _DesktopMindfulMinuteCardState extends State<_DesktopMindfulMinuteCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat(reverse: true);
+
+  Timer? _timer;
+  bool _running = false;
+  bool _inhale = true;
+  int _secondsLeft = 60;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  void _toggleExercise() {
+    if (_running) {
+      _timer?.cancel();
+      setState(() => _running = false);
+      return;
+    }
+
+    setState(() {
+      _running = true;
+      _inhale = true;
+      _secondsLeft = 60;
+    });
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _secondsLeft -= 1;
+        if (_secondsLeft % 4 == 0) {
+          _inhale = !_inhale;
+        }
+        if (_secondsLeft <= 0) {
+          _secondsLeft = 0;
+          _running = false;
+          timer.cancel();
+        }
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const brandTeal = Color(0xFF0E9B90);
+    const brandIndigo = Color(0xFF5146FF);
+    final cardGradient = widget.isDark
+        ? const [Color(0xFF0D1C34), Color(0xFF101B2E)]
+        : const [Color(0xFF0E1A34), Color(0xFF0F172A)];
+
+    return _DesktopSideCardShell(
+      isDark: widget.isDark,
+      padding: EdgeInsets.zero,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: cardGradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxHeight <= 204;
+            final orbSize = compact ? 72.0 : 96.0;
+            final innerOrbSize = compact ? 30.0 : 40.0;
+            final titleFont = compact ? 14.0 : 16.0;
+            final actionFont = compact ? 13.0 : 14.0;
+            final actionPadding = compact ? 10.0 : 13.0;
+            final breathGap = compact ? 8.0 : 14.0;
+            final secondsGap = compact ? 2.0 : 6.0;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: brandTeal.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: const Icon(
+                        Icons.air_rounded,
+                        color: Color(0xFF5EEAD4),
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Mindful Minute',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: titleFont,
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Center(
+                  child: ScaleTransition(
+                    scale: Tween<double>(begin: 0.86, end: 1.08).animate(
+                      CurvedAnimation(
+                        parent: _pulseController,
+                        curve: Curves.easeInOutCubic,
+                      ),
+                    ),
+                    child: Container(
+                      width: orbSize,
+                      height: orbSize,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: brandIndigo.withValues(alpha: 0.18),
+                        border: Border.all(color: brandIndigo, width: 3),
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: innerOrbSize,
+                          height: innerOrbSize,
+                          decoration: BoxDecoration(
+                            color: brandIndigo,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: breathGap),
+                Center(
+                  child: Text(
+                    _running
+                        ? 'BREATHE ${_inhale ? 'IN' : 'OUT'}'
+                        : _secondsLeft == 0
+                        ? 'COMPLETE'
+                        : 'BREATHE IN... OUT',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFFBFDBFE),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11.5,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                SizedBox(height: secondsGap),
+                if (!compact)
+                  Center(
+                    child: Text(
+                      '${_secondsLeft}s',
+                      style: const TextStyle(
+                        color: Color(0xFF93C5FD),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                const Spacer(),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _toggleExercise,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: brandIndigo,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: actionPadding),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      _running
+                          ? 'Stop Exercise'
+                          : _secondsLeft == 0
+                          ? 'Restart Exercise'
+                          : 'Start Exercise',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: actionFont,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopSideCardShell extends StatelessWidget {
+  const _DesktopSideCardShell({
+    required this.isDark,
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
+
+  final bool isDark;
+  final EdgeInsets padding;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = isDark
+        ? const Color(0xFF2A3A52)
+        : const Color(0xFFDDE6F1);
+    return Container(
+      height: 230,
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF151F31) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? Colors.black : const Color(0x120F172A)).withValues(
+              alpha: isDark ? 0.22 : 0.07,
+            ),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 }
