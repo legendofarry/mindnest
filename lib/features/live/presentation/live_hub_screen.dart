@@ -301,7 +301,7 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(
                         20,
-                        useDesktopShell ? 12 : kToolbarHeight + 2,
+                        useDesktopShell ? 2 : kToolbarHeight - 20,
                         20,
                         22,
                       ),
@@ -344,7 +344,7 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                                       CrossAxisAlignment.stretch,
                                   children: [
                                     Align(
-                                      alignment: Alignment.centerRight,
+                                      alignment: Alignment.topRight,
                                       child: FilledButton.icon(
                                         onPressed: () =>
                                             _openCreateLiveDialog(profile),
