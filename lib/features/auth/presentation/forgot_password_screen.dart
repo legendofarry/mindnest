@@ -140,7 +140,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           ),
           const SizedBox(height: 24),
           Container(
-            width: 60,
+            width: 10,
             height: 60,
             decoration: BoxDecoration(
               color: const Color(0xFFE6F3F1),
