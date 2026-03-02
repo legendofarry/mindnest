@@ -650,7 +650,7 @@ class _RegisterInstitutionScreenState
                     ),
                   ),
                   child: Text(
-                    _activeStep == 0 ? 'Back to Login' : 'Back',
+                    _activeStep == 0 ? 'to Login' : 'Back',
                     style: const TextStyle(
                       color: Color(0xFF4E627A),
                       fontWeight: FontWeight.w700,
