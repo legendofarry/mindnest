@@ -1,9 +1,13 @@
 // features/auth/presentation/login_screen.dart
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/features/ai/data/assistant_providers.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,6 +31,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   bool _rememberMe = true;
   bool _isSubmitting = false;
   bool _submittedAttempt = false;
+  bool _isPasswordVisible = false;
   String? _lastEmail;
   String? _formError;
 
@@ -375,16 +380,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             _RoundedInput(
               child: TextFormField(
                 controller: _passwordController,
-                obscureText: true,
+                obscureText: !_isPasswordVisible,
                 onChanged: (_) {
                   if (_formError != null) {
                     setState(() => _formError = null);
                   }
                 },
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   border: InputBorder.none,
                   hintText: '********',
-                  prefixIcon: Icon(Icons.lock_outline_rounded),
+                  prefixIcon: const Icon(Icons.lock_outline_rounded),
+                  suffixIcon: IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _isPasswordVisible = !_isPasswordVisible;
+                      });
+                    },
+                    icon: Icon(
+                      _isPasswordVisible
+                          ? Icons.visibility_off_rounded
+                          : Icons.visibility_rounded,
+                    ),
+                  ),
                 ),
                 validator: (value) {
                   if ((value ?? '').isEmpty) {
@@ -497,19 +514,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.center,
-              child: TextButton(
-                onPressed: _isSubmitting
-                    ? null
-                    : () => context.go(AppRoute.registerInstitution),
-                child: const Text(
-                  'Institution Admin? Register Institution',
-                  style: TextStyle(color: Color(0xFF6A7D96)),
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -517,8 +521,289 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 }
 
-class _DesktopMarketingPanel extends StatelessWidget {
+class _DesktopMarketingPanel extends ConsumerStatefulWidget {
   const _DesktopMarketingPanel();
+
+  @override
+  ConsumerState<_DesktopMarketingPanel> createState() =>
+      _DesktopMarketingPanelState();
+}
+
+class _DesktopMarketingPanelState
+    extends ConsumerState<_DesktopMarketingPanel> {
+  // Temporary quota guard. Set to false to resume AI fact generation.
+  static const _pauseAiFactGeneration = true;
+  static const _seenFactIdsKey = 'login.did_you_know.seen_ids';
+  static const _recentFactsKey = 'login.did_you_know.recent_facts';
+  static const _reactionCountKey = 'login.did_you_know.reaction_count';
+
+  static const List<String> _topics = <String>[
+    'Sleep',
+    'Stress',
+    'Focus',
+    'Mood',
+    'Energy',
+    'Connection',
+  ];
+
+  static const Map<String, List<String>>
+  _fallbackFacts = <String, List<String>>{
+    'Sleep': <String>[
+      'Did you know? Getting morning sunlight can help your brain set a stronger sleep rhythm at night.',
+      'Did you know? Deep sleep helps lock in emotional memories so stressful days feel less heavy later.',
+      'Did you know? A consistent sleep window often improves mood more than sleeping very long on weekends.',
+      'Did you know? A cooler bedroom can help your body start melatonin release sooner.',
+    ],
+    'Stress': <String>[
+      'Did you know? Slow exhaling for longer than inhaling can signal your nervous system to downshift.',
+      'Did you know? Naming your feeling out loud can reduce emotional intensity in the moment.',
+      'Did you know? Brief movement breaks can lower stress hormones faster than passive scrolling.',
+      'Did you know? Social laughter can reduce stress tension even before a problem is solved.',
+    ],
+    'Focus': <String>[
+      'Did you know? Your focus often improves when you single-task in short blocks with clear stop points.',
+      'Did you know? Decision fatigue can start early, so doing hardest tasks first protects mental energy.',
+      'Did you know? Hydration affects attention; even mild dehydration can reduce concentration.',
+      'Did you know? Writing one next action can reduce mental overload better than replaying the whole task.',
+    ],
+    'Mood': <String>[
+      'Did you know? A 10-minute walk can lift mood by increasing blood flow and neurotransmitter activity.',
+      'Did you know? Gratitude journaling can train attention toward positive cues over time.',
+      'Did you know? Music you enjoy can reduce perceived effort and improve emotional resilience.',
+      'Did you know? Helping someone else can activate reward circuits that improve mood.',
+    ],
+    'Energy': <String>[
+      'Did you know? Large blood sugar spikes can be followed by energy crashes that feel like low motivation.',
+      'Did you know? Light stretching can improve alertness during afternoon slumps.',
+      'Did you know? Short outdoor breaks can raise perceived energy more than staying under indoor lighting.',
+      'Did you know? Protein and fiber at breakfast can support steadier energy through the morning.',
+    ],
+    'Connection': <String>[
+      'Did you know? Meaningful social contact can buffer stress responses in the brain.',
+      'Did you know? Eye contact and warm tone can increase feelings of safety in conversations.',
+      'Did you know? Feeling listened to reduces cognitive load and can improve emotional regulation.',
+      'Did you know? Small daily check-ins often strengthen relationships more than occasional long talks.',
+    ],
+  };
+
+  final math.Random _random = math.Random();
+  Timer? _autoFactTimer;
+
+  Set<String> _seenFactIds = <String>{};
+  List<String> _recentFactTexts = <String>[];
+  String _selectedTopic = _topics.first;
+  _DidYouKnowFact? _currentFact;
+
+  bool _isFactLoading = true;
+  bool _showMindBlownState = false;
+  int _reactionCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreFactState();
+  }
+
+  @override
+  void dispose() {
+    _autoFactTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _restoreFactState() async {
+    final preferences = await SharedPreferences.getInstance();
+    final seenIds = preferences.getStringList(_seenFactIdsKey) ?? const [];
+    final recentFacts = preferences.getStringList(_recentFactsKey) ?? const [];
+    final reactionCount = preferences.getInt(_reactionCountKey) ?? 0;
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _seenFactIds = seenIds.toSet();
+      _recentFactTexts = recentFacts;
+      _reactionCount = reactionCount;
+      _isFactLoading = false;
+    });
+    _startAutoRotation();
+    await _loadNextFact();
+  }
+
+  void _startAutoRotation() {
+    _autoFactTimer?.cancel();
+    _autoFactTimer = Timer.periodic(const Duration(seconds: 22), (_) {
+      if (!mounted || _isFactLoading || _showMindBlownState) {
+        return;
+      }
+      _loadNextFact();
+    });
+  }
+
+  Future<void> _loadNextFact() async {
+    if (_isFactLoading) {
+      return;
+    }
+
+    setState(() => _isFactLoading = true);
+    final generated = await _generateUniqueFact();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (generated != null) {
+      await _persistFactMemory(generated);
+    }
+
+    setState(() {
+      _currentFact = generated ?? _buildFallbackFact();
+      _isFactLoading = false;
+    });
+  }
+
+  Future<_DidYouKnowFact?> _generateUniqueFact() async {
+    if (_pauseAiFactGeneration) {
+      return _buildFallbackFact();
+    }
+
+    final avoidFacts = <String>[
+      ..._recentFactTexts.take(18),
+      if (_currentFact != null) _currentFact!.text,
+    ];
+
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final aiText = await ref
+          .read(assistantRepositoryProvider)
+          .generateWellnessDidYouKnowFact(
+            topic: _selectedTopic,
+            avoidFacts: avoidFacts,
+          );
+      if (aiText == null || aiText.trim().isEmpty) {
+        continue;
+      }
+
+      final candidate = _DidYouKnowFact(
+        id: _stableFactId(aiText),
+        text: aiText.trim(),
+        topic: _selectedTopic,
+        source: 'AI',
+      );
+      if (_seenFactIds.contains(candidate.id)) {
+        avoidFacts.add(candidate.text);
+        continue;
+      }
+      return candidate;
+    }
+
+    final fallback = _buildFallbackFact();
+    if (_seenFactIds.contains(fallback.id)) {
+      return fallback;
+    }
+    return fallback;
+  }
+
+  _DidYouKnowFact _buildFallbackFact() {
+    final selectedTopicFacts = _fallbackFacts[_selectedTopic] ?? const [];
+    final pool = <String>[
+      ...selectedTopicFacts,
+      for (final entry in _fallbackFacts.entries)
+        if (entry.key != _selectedTopic) ...entry.value,
+    ];
+    if (pool.isEmpty) {
+      const text =
+          'Did you know? Tiny daily habits, repeated consistently, often create the biggest wellness gains over time.';
+      return _DidYouKnowFact(
+        id: _stableFactId(text),
+        text: text,
+        topic: _selectedTopic,
+        source: 'Fallback',
+      );
+    }
+
+    final unseen = pool
+        .where((fact) => !_seenFactIds.contains(_stableFactId(fact)))
+        .toList(growable: false);
+    final candidatePool = unseen.isNotEmpty ? unseen : pool;
+
+    String picked = candidatePool[_random.nextInt(candidatePool.length)];
+    if (_currentFact != null && candidatePool.length > 1) {
+      var guard = 0;
+      while (picked == _currentFact!.text && guard < 8) {
+        picked = candidatePool[_random.nextInt(candidatePool.length)];
+        guard++;
+      }
+    }
+
+    return _DidYouKnowFact(
+      id: _stableFactId(picked),
+      text: picked,
+      topic: _selectedTopic,
+      source: 'Fallback',
+    );
+  }
+
+  String _stableFactId(String text) {
+    final normalized = text.trim().toLowerCase().replaceAll(
+      RegExp(r'\s+'),
+      ' ',
+    );
+    var hash = 0x811C9DC5;
+    for (final codeUnit in normalized.codeUnits) {
+      hash ^= codeUnit;
+      hash = (hash * 0x01000193) & 0xFFFFFFFF;
+    }
+    return hash.toRadixString(16).padLeft(8, '0');
+  }
+
+  Future<void> _persistFactMemory(_DidYouKnowFact fact) async {
+    _seenFactIds.add(fact.id);
+    _recentFactTexts = <String>[
+      fact.text,
+      ..._recentFactTexts.where((entry) => entry != fact.text),
+    ].take(32).toList(growable: false);
+
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList(
+      _seenFactIdsKey,
+      _seenFactIds.toList(growable: false),
+    );
+    await preferences.setStringList(_recentFactsKey, _recentFactTexts);
+  }
+
+  Future<void> _onMindBlownPressed() async {
+    if (_isFactLoading || _currentFact == null) {
+      return;
+    }
+
+    final nextCount = _reactionCount + 1;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setInt(_reactionCountKey, nextCount);
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _reactionCount = nextCount;
+      _showMindBlownState = true;
+    });
+
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _showMindBlownState = false);
+    await _loadNextFact();
+  }
+
+  Future<void> _onTopicTap(String topic) async {
+    if (topic == _selectedTopic) {
+      return;
+    }
+    setState(() => _selectedTopic = topic);
+    await _loadNextFact();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -571,33 +856,269 @@ class _DesktopMarketingPanel extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: 26),
           ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: 700),
-            child: Text(
-              'Join thousands of individuals and institutions committed to better '
-              'mental health outcomes through empathy and expert care.',
-              style: TextStyle(
-                color: Color(0xFF4C607A),
-                fontSize: 31,
-                height: 1.38,
-                fontWeight: FontWeight.w500,
-                letterSpacing: -0.3,
-              ),
-            ),
-          ),
-          const SizedBox(height: 54),
-          const Row(
-            children: [
-              _MetricItem(value: '3+', label: 'USERS HELPED'),
-              SizedBox(width: 54),
-              _MetricItem(value: '1+', label: 'INSTITUTIONS'),
-            ],
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: _buildDidYouKnowCard(context),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildDidYouKnowCard(BuildContext context) {
+    final fact = _currentFact;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF7FFFE), Color(0xFFF3FCFA)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: const Color(0xFFD0F0EB), width: 1.4),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x190F172A),
+            blurRadius: 24,
+            offset: Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF062E43),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 15,
+                      color: Color(0xFF7CF4E8),
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'Did You Know',
+                      style: TextStyle(
+                        color: Color(0xFFF4FFFE),
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'MindNest AI feed',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: const Color(0xFF315A74),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              if (_isFactLoading) const _TypingDots(),
+            ],
+          ),
+          const SizedBox(height: 18),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 340),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              final offsetAnimation = Tween<Offset>(
+                begin: const Offset(0.0, 0.1),
+                end: Offset.zero,
+              ).animate(animation);
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(position: offsetAnimation, child: child),
+              );
+            },
+            child: Container(
+              key: ValueKey(fact?.id ?? 'loading'),
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                color: Colors.white.withValues(alpha: 0.88),
+                border: Border.all(color: const Color(0xFFDBEEE9)),
+              ),
+              child: Text(
+                fact?.text ?? 'Curating a fresh fact for you...',
+                style: const TextStyle(
+                  color: Color(0xFF14324D),
+                  fontSize: 27,
+                  height: 1.28,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.4,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5F7F4),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  fact == null ? _selectedTopic : fact.topic,
+                  style: const TextStyle(
+                    color: Color(0xFF0F6C68),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF4FF),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  fact?.source == 'AI' ? 'AI generated' : 'MindNest picks',
+                  style: const TextStyle(
+                    color: Color(0xFF315A74),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _topics
+                .map((topic) {
+                  final selected = topic == _selectedTopic;
+                  return ChoiceChip(
+                    label: Text(topic),
+                    selected: selected,
+                    onSelected: (_) => _onTopicTap(topic),
+                    labelStyle: TextStyle(
+                      color: selected
+                          ? const Color(0xFF063B52)
+                          : const Color(0xFF48637B),
+                      fontWeight: FontWeight.w700,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                      side: BorderSide(
+                        color: selected
+                            ? const Color(0xFF6DE4D9)
+                            : const Color(0xFFD3E5E8),
+                      ),
+                    ),
+                    backgroundColor: Colors.white,
+                    selectedColor: const Color(0xFFBDF5EE),
+                  );
+                })
+                .toList(growable: false),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              ElevatedButton.icon(
+                onPressed: _isFactLoading ? null : _onMindBlownPressed,
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  backgroundColor: const Color(0xFF073B4C),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.emoji_objects_rounded, size: 18),
+                label: Text(
+                  _showMindBlownState
+                      ? 'Mind blown unlocked'
+                      : 'That was mind-blowing 🤯',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: _isFactLoading ? null : _loadNextFact,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF0E9B90),
+                  side: const BorderSide(color: Color(0xFF8ADFD7)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text(
+                  'Give me another',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          AnimatedOpacity(
+            opacity: _showMindBlownState ? 1 : 0,
+            duration: const Duration(milliseconds: 220),
+            child: const Text(
+              'MindNest AI is finding your next one...',
+              style: TextStyle(
+                color: Color(0xFF0E9B90),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DidYouKnowFact {
+  const _DidYouKnowFact({
+    required this.id,
+    required this.text,
+    required this.topic,
+    required this.source,
+  });
+
+  final String id;
+  final String text;
+  final String topic;
+  final String source;
 }
 
 class _DesktopBrandIcon extends StatelessWidget {
@@ -621,37 +1142,51 @@ class _DesktopBrandIcon extends StatelessWidget {
   }
 }
 
-class _MetricItem extends StatelessWidget {
-  const _MetricItem({required this.value, required this.label});
+class _TypingDots extends StatefulWidget {
+  const _TypingDots();
 
-  final String value;
-  final String label;
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: Color(0xFF0F172A),
-            fontSize: 49,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1.2,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF0E9B90),
-            fontSize: 15,
-            letterSpacing: 1.8,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final progress = _controller.value;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (index) {
+            final wave = (progress - index * 0.18) * math.pi * 2;
+            final opacity = (0.4 + (math.sin(wave) + 1) * 0.3)
+                .clamp(0.2, 1.0)
+                .toDouble();
+            return Container(
+              width: 7,
+              height: 7,
+              margin: EdgeInsets.only(right: index == 2 ? 0 : 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0E9B90).withValues(alpha: opacity),
+                shape: BoxShape.circle,
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }

@@ -436,170 +436,258 @@ class HomeScreen extends ConsumerWidget {
 
   void _openCrisisSupport(BuildContext context) {
     final homeContext = context;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return Container(
-          decoration: const BoxDecoration(
+    final isDesktopPanel = MediaQuery.sizeOf(context).width >= 900;
+
+    Widget panelFor(BuildContext panelContext, {required bool desktopPanel}) {
+      final radius = desktopPanel
+          ? const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              bottomLeft: Radius.circular(24),
+            )
+          : const BorderRadius.vertical(top: Radius.circular(36));
+
+      final panelContent = ClipRRect(
+        borderRadius: radius,
+        child: Container(
+          decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
+            borderRadius: radius,
+            border: desktopPanel
+                ? const Border(
+                    left: BorderSide(color: Color(0xFFDDE6F1), width: 1),
+                  )
+                : null,
+            boxShadow: desktopPanel
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.12),
+                      blurRadius: 30,
+                      offset: const Offset(-8, 0),
+                    ),
+                  ]
+                : null,
           ),
-          padding: const EdgeInsets.fromLTRB(24, 14, 24, 36),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE2E8F0),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 28),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFFF1F2), Color(0xFFFFE4E6)],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE11D48),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(
-                        Icons.favorite_rounded,
-                        color: Colors.white,
-                        size: 22,
+          child: SafeArea(
+            top: desktopPanel,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(24, desktopPanel ? 20 : 14, 24, 36),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!desktopPanel) ...[
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 14),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Immediate Support',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF1E293B),
-                              letterSpacing: -0.4,
-                            ),
+                    const SizedBox(height: 28),
+                  ],
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFF1F2), Color(0xFFFFE4E6)],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE11D48),
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                          SizedBox(height: 2),
+                          child: const Icon(
+                            Icons.favorite_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Immediate Support',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF1E293B),
+                                  letterSpacing: -0.4,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'You are not alone. Reach out now.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _crisisContactTile(
+                    'US & Canada',
+                    '988',
+                    'Suicide & Crisis Lifeline',
+                  ),
+                  _crisisContactTile('UK & ROI', '116 123', 'Samaritans'),
+                  _crisisContactTile(
+                    'Kenya',
+                    '999 / 112',
+                    'Emergency Services',
+                    onTap: () => _openDialerForNumber(
+                      context: homeContext,
+                      number: '999',
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.of(panelContext).pop();
+                      homeContext.push(AppRoute.crisisCounselorSupport);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0E9B90),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFF0E9B90,
+                            ).withValues(alpha: 0.30),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.support_agent_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
                           Text(
-                            'You are not alone. Reach out now.',
+                            'Talk to a counselor',
                             style: TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF64748B),
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              _crisisContactTile(
-                'US & Canada',
-                '988',
-                'Suicide & Crisis Lifeline',
-              ),
-              _crisisContactTile('UK & ROI', '116 123', 'Samaritans'),
-              _crisisContactTile(
-                'Kenya',
-                '999 / 112',
-                'Emergency Services',
-                onTap: () =>
-                    _openDialerForNumber(context: homeContext, number: '999'),
-              ),
-              const SizedBox(height: 6),
-              GestureDetector(
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  homeContext.push(AppRoute.crisisCounselorSupport);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0E9B90),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0E9B90).withValues(alpha: 0.30),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
                   ),
-                  alignment: Alignment.center,
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.support_agent_rounded,
-                        color: Colors.white,
-                        size: 18,
+                  const SizedBox(height: 24),
+                  GestureDetector(
+                    onTap: () => Navigator.of(panelContext).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF0D9488), Color(0xFF0EA5E9)],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFF0D9488,
+                            ).withValues(alpha: 0.35),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Talk to a counselor',
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'I understand, close',
                         style: TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              GestureDetector(
-                onTap: () => Navigator.of(sheetContext).pop(),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF0D9488), Color(0xFF0EA5E9)],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0D9488).withValues(alpha: 0.35),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'I understand, close',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        );
-      },
+        ),
+      );
+
+      if (!desktopPanel) {
+        return panelContent;
+      }
+      final viewportWidth = MediaQuery.sizeOf(panelContext).width;
+      final panelWidth = viewportWidth >= 1400
+          ? 430.0
+          : viewportWidth >= 1100
+          ? 400.0
+          : 360.0;
+      return Align(
+        alignment: Alignment.centerRight,
+        child: SizedBox(
+          width: panelWidth,
+          height: double.infinity,
+          child: Material(color: Colors.transparent, child: panelContent),
+        ),
+      );
+    }
+
+    if (isDesktopPanel) {
+      showGeneralDialog<void>(
+        context: context,
+        barrierLabel: 'Crisis Support',
+        barrierDismissible: true,
+        barrierColor: Colors.transparent,
+        transitionDuration: const Duration(milliseconds: 170),
+        pageBuilder: (dialogContext, animation, secondaryAnimation) =>
+            panelFor(dialogContext, desktopPanel: true),
+        transitionBuilder:
+            (dialogContext, animation, secondaryAnimation, child) {
+              final curved = CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              );
+              return FadeTransition(
+                opacity: curved,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.10, 0),
+                    end: Offset.zero,
+                  ).animate(curved),
+                  child: child,
+                ),
+              );
+            },
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => panelFor(sheetContext, desktopPanel: false),
     );
   }
 
@@ -653,43 +741,68 @@ class HomeScreen extends ConsumerWidget {
   ) {
     final parentContext = context;
     final hasInstitution = (profile.institutionId ?? '').isNotEmpty;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return Consumer(
-          builder: (context, modalRef, _) {
-            final mode = modalRef.watch(themeModeControllerProvider);
-            final isDark = mode == ThemeMode.dark;
-            final textPrimary = isDark
-                ? const Color(0xFFE2E8F0)
-                : const Color(0xFF0F172A);
-            final textSecondary = isDark
-                ? const Color(0xFF94A3B8)
-                : const Color(0xFF64748B);
-            final sheetBg = isDark ? const Color(0xFF101A2A) : Colors.white;
-            final sectionBg = isDark
-                ? const Color(0xFF131F32)
-                : const Color(0xFFF8FBFF);
-            final sectionBorder = isDark
-                ? const Color(0xFF2A3A52)
-                : const Color(0xFFDDE6F1);
+    final isDesktopModal = MediaQuery.sizeOf(context).width >= 900;
 
-            return FractionallySizedBox(
-              heightFactor: 0.95,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: sheetBg,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(36),
-                  ),
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+    Widget panelFor(BuildContext sheetContext, {required bool desktopModal}) {
+      return Consumer(
+        builder: (context, modalRef, _) {
+          final mode = modalRef.watch(themeModeControllerProvider);
+          final isDark = mode == ThemeMode.dark;
+          final textPrimary = isDark
+              ? const Color(0xFFE2E8F0)
+              : const Color(0xFF0F172A);
+          final textSecondary = isDark
+              ? const Color(0xFF94A3B8)
+              : const Color(0xFF64748B);
+          final sheetBg = isDark ? const Color(0xFF101A2A) : Colors.white;
+          final sectionBg = isDark
+              ? const Color(0xFF131F32)
+              : const Color(0xFFF8FBFF);
+          final sectionBorder = isDark
+              ? const Color(0xFF2A3A52)
+              : const Color(0xFFDDE6F1);
+
+          final radius = desktopModal
+              ? const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  bottomLeft: Radius.circular(24),
+                )
+              : const BorderRadius.vertical(top: Radius.circular(36));
+
+          final panelContent = ClipRRect(
+            borderRadius: radius,
+            child: Container(
+              decoration: BoxDecoration(
+                color: sheetBg,
+                borderRadius: radius,
+                border: desktopModal
+                    ? Border(
+                        left: BorderSide(
+                          color: isDark
+                              ? const Color(0xFF2A3A52)
+                              : const Color(0xFFDDE6F1),
+                          width: 1,
+                        ),
+                      )
+                    : null,
+                boxShadow: desktopModal
+                    ? [
+                        BoxShadow(
+                          color:
+                              (isDark ? Colors.black : const Color(0xFF0F172A))
+                                  .withValues(alpha: isDark ? 0.34 : 0.12),
+                          blurRadius: 30,
+                          offset: const Offset(-8, 0),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: SafeArea(
+                top: desktopModal,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!desktopModal) ...[
                       const SizedBox(height: 14),
                       Center(
                         child: Container(
@@ -704,242 +817,66 @@ class HomeScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            gradient: isDark
-                                ? const LinearGradient(
-                                    colors: [
-                                      Color(0xFF153043),
-                                      Color(0xFF1A3951),
-                                    ],
-                                  )
-                                : const LinearGradient(
-                                    colors: [
-                                      Color(0xFFE6FFFA),
-                                      Color(0xFFEFF6FF),
-                                    ],
-                                  ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 52,
-                                height: 52,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [_teal, Color(0xFF0EA5E9)],
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: const Icon(
-                                  Icons.person_rounded,
-                                  color: Colors.white,
-                                  size: 28,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      profile.name,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 17,
-                                        color: textPrimary,
-                                        letterSpacing: -0.3,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      profile.email,
-                                      style: TextStyle(
-                                        color: textSecondary,
-                                        fontSize: 13,
-                                      ),
-                                    ),
+                    ] else
+                      const SizedBox(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: isDark
+                              ? const LinearGradient(
+                                  colors: [
+                                    Color(0xFF153043),
+                                    Color(0xFF1A3951),
+                                  ],
+                                )
+                              : const LinearGradient(
+                                  colors: [
+                                    Color(0xFFE6FFFA),
+                                    Color(0xFFEFF6FF),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        child: Row(
                           children: [
-                            Text(
-                              'App Settings',
-                              style: TextStyle(
-                                color: textPrimary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [_teal, Color(0xFF0EA5E9)],
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Icon(
+                                Icons.person_rounded,
+                                color: Colors.white,
+                                size: 28,
                               ),
                             ),
-                            const SizedBox(height: 10),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: sectionBg,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: sectionBorder),
-                              ),
+                            const SizedBox(width: 14),
+                            Expanded(
                               child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  SwitchListTile(
-                                    value: isDark,
-                                    onChanged: (value) {
-                                      modalRef
-                                          .read(
-                                            themeModeControllerProvider
-                                                .notifier,
-                                          )
-                                          .setMode(
-                                            value
-                                                ? ThemeMode.dark
-                                                : ThemeMode.light,
-                                          );
-                                    },
-                                    title: Text(
-                                      'Dark Theme',
-                                      style: TextStyle(
-                                        color: textPrimary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      isDark
-                                          ? 'Dark mode enabled'
-                                          : 'Light mode enabled',
-                                      style: TextStyle(color: textSecondary),
-                                    ),
-                                    secondary: Icon(
-                                      isDark
-                                          ? Icons.dark_mode_rounded
-                                          : Icons.light_mode_rounded,
-                                      color: const Color(0xFF0E9B90),
+                                  Text(
+                                    profile.name,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 17,
+                                      color: textPrimary,
+                                      letterSpacing: -0.3,
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            Text(
-                              'Account Settings',
-                              style: TextStyle(
-                                color: textPrimary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: sectionBg,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: sectionBorder),
-                              ),
-                              child: Column(
-                                children: [
-                                  _sheetTile(
-                                    context: context,
-                                    icon: Icons.shield_moon_rounded,
-                                    label: 'Privacy & Data',
-                                    subtitle: 'Security and privacy controls',
-                                    onTap: () {
-                                      Navigator.of(sheetContext).pop();
-                                      parentContext.go(
-                                        _withProfileSource(
-                                          AppRoute.privacyControls,
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                  if (hasInstitution)
-                                    _sheetTile(
-                                      context: context,
-                                      icon: Icons.favorite_border_rounded,
-                                      label: 'Care Plan',
-                                      subtitle: 'Your care goals and progress',
-                                      onTap: () {
-                                        Navigator.of(sheetContext).pop();
-                                        parentContext.go(
-                                          _withProfileSource(AppRoute.carePlan),
-                                        );
-                                      },
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    profile.email,
+                                    style: TextStyle(
+                                      color: textSecondary,
+                                      fontSize: 13,
                                     ),
-                                  if (!hasInstitution)
-                                    _sheetTile(
-                                      context: context,
-                                      icon: Icons.add_business_rounded,
-                                      label: 'Join Institution',
-                                      subtitle:
-                                          'Connect to your school/organization',
-                                      onTap: () {
-                                        Navigator.of(sheetContext).pop();
-                                        parentContext.go(
-                                          _withProfileSource(
-                                            AppRoute.joinInstitution,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  if (profile.role == UserRole.institutionAdmin)
-                                    _sheetTile(
-                                      context: context,
-                                      icon: Icons.admin_panel_settings_rounded,
-                                      label: 'Admin Dashboard',
-                                      subtitle: 'Manage your institution',
-                                      iconColor: _teal,
-                                      onTap: () {
-                                        Navigator.of(sheetContext).pop();
-                                        parentContext.go(
-                                          _withProfileSource(
-                                            AppRoute.institutionAdmin,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  if (hasInstitution)
-                                    _sheetTile(
-                                      context: context,
-                                      icon: Icons.exit_to_app_rounded,
-                                      label: 'Leave Institution',
-                                      subtitle:
-                                          'Switch your account role back to Individual',
-                                      iconColor: const Color(0xFFE11D48),
-                                      labelColor: const Color(0xFFE11D48),
-                                      onTap: () {
-                                        Navigator.of(sheetContext).pop();
-                                        _confirmLeaveInstitution(
-                                          parentContext,
-                                          ref,
-                                        );
-                                      },
-                                    ),
-                                  _sheetTile(
-                                    context: context,
-                                    icon: Icons.logout_rounded,
-                                    label: 'Logout',
-                                    subtitle: 'Sign out on this device',
-                                    onTap: () {
-                                      Navigator.of(sheetContext).pop();
-                                      Future<void>.delayed(Duration.zero, () {
-                                        if (!parentContext.mounted) {
-                                          return;
-                                        }
-                                        confirmAndLogout(
-                                          context: parentContext,
-                                          ref: ref,
-                                        );
-                                      });
-                                    },
                                   ),
                                 ],
                               ),
@@ -947,14 +884,249 @@ class HomeScreen extends ConsumerWidget {
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 14),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        children: [
+                          Text(
+                            'App Settings',
+                            style: TextStyle(
+                              color: textPrimary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: sectionBg,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: sectionBorder),
+                            ),
+                            child: Column(
+                              children: [
+                                SwitchListTile(
+                                  value: isDark,
+                                  onChanged: (value) {
+                                    modalRef
+                                        .read(
+                                          themeModeControllerProvider.notifier,
+                                        )
+                                        .setMode(
+                                          value
+                                              ? ThemeMode.dark
+                                              : ThemeMode.light,
+                                        );
+                                  },
+                                  title: Text(
+                                    'Dark Theme',
+                                    style: TextStyle(
+                                      color: textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    isDark
+                                        ? 'Dark mode enabled'
+                                        : 'Light mode enabled',
+                                    style: TextStyle(color: textSecondary),
+                                  ),
+                                  secondary: Icon(
+                                    isDark
+                                        ? Icons.dark_mode_rounded
+                                        : Icons.light_mode_rounded,
+                                    color: const Color(0xFF0E9B90),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            'Account Settings',
+                            style: TextStyle(
+                              color: textPrimary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: sectionBg,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: sectionBorder),
+                            ),
+                            child: Column(
+                              children: [
+                                _sheetTile(
+                                  context: context,
+                                  icon: Icons.shield_moon_rounded,
+                                  label: 'Privacy & Data',
+                                  subtitle: 'Security and privacy controls',
+                                  onTap: () {
+                                    Navigator.of(sheetContext).pop();
+                                    parentContext.go(
+                                      _withProfileSource(
+                                        AppRoute.privacyControls,
+                                      ),
+                                    );
+                                  },
+                                ),
+                                if (hasInstitution)
+                                  _sheetTile(
+                                    context: context,
+                                    icon: Icons.favorite_border_rounded,
+                                    label: 'Care Plan',
+                                    subtitle: 'Your care goals and progress',
+                                    onTap: () {
+                                      Navigator.of(sheetContext).pop();
+                                      parentContext.go(
+                                        _withProfileSource(AppRoute.carePlan),
+                                      );
+                                    },
+                                  ),
+                                if (!hasInstitution)
+                                  _sheetTile(
+                                    context: context,
+                                    icon: Icons.add_business_rounded,
+                                    label: 'Join Institution',
+                                    subtitle:
+                                        'Connect to your school/organization',
+                                    onTap: () {
+                                      Navigator.of(sheetContext).pop();
+                                      parentContext.go(
+                                        _withProfileSource(
+                                          AppRoute.joinInstitution,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                if (profile.role == UserRole.institutionAdmin)
+                                  _sheetTile(
+                                    context: context,
+                                    icon: Icons.admin_panel_settings_rounded,
+                                    label: 'Admin Dashboard',
+                                    subtitle: 'Manage your institution',
+                                    iconColor: _teal,
+                                    onTap: () {
+                                      Navigator.of(sheetContext).pop();
+                                      parentContext.go(
+                                        _withProfileSource(
+                                          AppRoute.institutionAdmin,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                if (hasInstitution)
+                                  _sheetTile(
+                                    context: context,
+                                    icon: Icons.exit_to_app_rounded,
+                                    label: 'Leave Institution',
+                                    subtitle:
+                                        'Switch your account role back to Individual',
+                                    iconColor: const Color(0xFFE11D48),
+                                    labelColor: const Color(0xFFE11D48),
+                                    onTap: () {
+                                      Navigator.of(sheetContext).pop();
+                                      _confirmLeaveInstitution(
+                                        parentContext,
+                                        ref,
+                                      );
+                                    },
+                                  ),
+                                _sheetTile(
+                                  context: context,
+                                  icon: Icons.logout_rounded,
+                                  label: 'Logout',
+                                  subtitle: 'Sign out on this device',
+                                  onTap: () {
+                                    Navigator.of(sheetContext).pop();
+                                    Future<void>.delayed(Duration.zero, () {
+                                      if (!parentContext.mounted) {
+                                        return;
+                                      }
+                                      confirmAndLogout(
+                                        context: parentContext,
+                                        ref: ref,
+                                      );
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            ),
+          );
+
+          if (!desktopModal) {
+            return FractionallySizedBox(
+              heightFactor: 0.95,
+              child: panelContent,
             );
-          },
-        );
-      },
+          }
+
+          final viewportWidth = MediaQuery.sizeOf(sheetContext).width;
+          final panelWidth = viewportWidth >= 1400
+              ? 430.0
+              : viewportWidth >= 1100
+              ? 400.0
+              : 360.0;
+          return Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: panelWidth,
+              height: double.infinity,
+              child: Material(color: Colors.transparent, child: panelContent),
+            ),
+          );
+        },
+      );
+    }
+
+    if (isDesktopModal) {
+      showGeneralDialog<void>(
+        context: context,
+        barrierLabel: 'Profile',
+        barrierDismissible: true,
+        barrierColor: Colors.transparent,
+        transitionDuration: const Duration(milliseconds: 170),
+        pageBuilder: (dialogContext, primaryAnimation, secondaryAnimation) =>
+            panelFor(dialogContext, desktopModal: true),
+        transitionBuilder:
+            (dialogContext, animation, secondaryAnimation, child) {
+              final curved = CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              );
+              return FadeTransition(
+                opacity: curved,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.10, 0),
+                    end: Offset.zero,
+                  ).animate(curved),
+                  child: child,
+                ),
+              );
+            },
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => panelFor(sheetContext, desktopModal: false),
     );
   }
 
@@ -2149,7 +2321,7 @@ class _DesktopNextSessionCard extends ConsumerWidget {
                     ),
                   ),
                   child: Text(
-                    nextSession == null ? 'No Session' : 'Join Room',
+                    nextSession == null ? 'No Session' : 'View Session',
                     style: const TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 14,

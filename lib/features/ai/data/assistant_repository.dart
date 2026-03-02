@@ -308,6 +308,115 @@ class AssistantRepository {
     );
   }
 
+  Future<String?> generateWellnessDidYouKnowFact({
+    required String topic,
+    List<String> avoidFacts = const [],
+  }) async {
+    final hasOpenAi = _openAiConfigured;
+    final hasGemini = _geminiConfigured;
+    final hasGroq = _groqConfigured;
+    final hasOpenRouter = _openRouterConfigured;
+    final providerOrder = _providerSequence(
+      hasOpenAi: hasOpenAi,
+      hasGemini: hasGemini,
+      hasGroq: hasGroq,
+      hasOpenRouter: hasOpenRouter,
+    );
+    if (providerOrder.isEmpty) {
+      return null;
+    }
+
+    final normalizedTopic = topic.trim().isEmpty ? 'wellness' : topic.trim();
+    final trimmedAvoid = avoidFacts
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .take(14)
+        .toList(growable: false);
+    final avoidBlock = trimmedAvoid.isEmpty
+        ? ''
+        : '\nAvoid repeating these examples:\n- ${trimmedAvoid.join('\n- ')}';
+    final prompt =
+        'Generate exactly one short did-you-know fact about human $normalizedTopic and mental wellness. '
+        'Keep it factual, warm, and practical. '
+        'Output plain text only, no markdown, no numbering, and no quotes. '
+        'Maximum 170 characters.$avoidBlock';
+
+    const guestProfile = UserProfile(
+      id: 'guest',
+      email: '',
+      name: 'Guest',
+      role: UserRole.other,
+    );
+
+    for (final provider in providerOrder) {
+      final result = switch (provider) {
+        _ProviderType.openAi => await _callOpenAi(
+          prompt: prompt,
+          profile: guestProfile,
+          history: const <AssistantConversationMessage>[],
+          memorySummary: '',
+        ),
+        _ProviderType.gemini => await _callGemini(
+          prompt: prompt,
+          profile: guestProfile,
+          history: const <AssistantConversationMessage>[],
+          memorySummary: '',
+        ),
+        _ProviderType.groq => await _callGroq(
+          prompt: prompt,
+          profile: guestProfile,
+          history: const <AssistantConversationMessage>[],
+          memorySummary: '',
+        ),
+        _ProviderType.openRouter => await _callOpenRouter(
+          prompt: prompt,
+          profile: guestProfile,
+          history: const <AssistantConversationMessage>[],
+          memorySummary: '',
+        ),
+      };
+      if (!result.isSuccess) {
+        continue;
+      }
+
+      final cleaned = _cleanWellnessFact(result.text!);
+      if (cleaned.isEmpty) {
+        continue;
+      }
+      return cleaned;
+    }
+    return null;
+  }
+
+  String _cleanWellnessFact(String raw) {
+    var text = raw.trim();
+    if (text.isEmpty) {
+      return '';
+    }
+
+    final lines = text
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+    text = lines.isEmpty ? text : lines.first;
+    text = text.replaceAll(RegExp(r'^[-*0-9.\s]+'), '').trim();
+
+    if ((text.startsWith('"') && text.endsWith('"')) ||
+        (text.startsWith("'") && text.endsWith("'"))) {
+      text = text.substring(1, text.length - 1).trim();
+    }
+
+    if (text.length > 190) {
+      text = '${text.substring(0, 187).trimRight()}...';
+    }
+
+    if (!text.toLowerCase().startsWith('did you know')) {
+      text = 'Did you know? $text';
+    }
+    return text;
+  }
+
   bool _isInAppRequest(String text) {
     const appKeywords = <String>[
       'app',

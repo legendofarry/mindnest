@@ -103,6 +103,17 @@ class _RegisterContent extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.center,
+          child: TextButton(
+            onPressed: () => context.go(AppRoute.registerInstitution),
+            child: const Text(
+              'Institution Admin? Register Institution',
+              style: TextStyle(color: Color(0xFF6A7D96)),
+            ),
+          ),
+        ),
       ],
     );
   }
