@@ -75,6 +75,17 @@ service cloud.firestore {
       ];
     }
 
+    function institutionResubmitEditableKeys() {
+      return [
+        'name',
+        'nameNormalized',
+        'institutionCatalogId',
+        'status',
+        'updatedAt',
+        'review'
+      ];
+    }
+
     function sameInstitutionAdmin(institutionId) {
       return isSignedIn() &&
         currentUserRole() == 'institutionAdmin' &&
@@ -125,6 +136,26 @@ service cloud.firestore {
         );
     }
 
+    function canAdminResubmitInstitutionRequest(institutionId) {
+      return sameInstitutionAdmin(institutionId) &&
+        resource.data.createdBy == request.auth.uid &&
+        !institutionStatusIsApproved(resource.data) &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(institutionResubmitEditableKeys()) &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() >= 2 &&
+        request.resource.data.nameNormalized is string &&
+        request.resource.data.nameNormalized.size() >= 2 &&
+        request.resource.data.institutionCatalogId is string &&
+        request.resource.data.institutionCatalogId.size() > 0 &&
+        request.resource.data.review is map &&
+        request.resource.data.review.reviewedBy == null &&
+        request.resource.data.review.reviewedAt == null &&
+        request.resource.data.review.decision == null &&
+        request.resource.data.review.declineReason == null &&
+        request.resource.data.createdBy == resource.data.createdBy;
+    }
+
     function sharesInstitutionWithUser(targetUid) {
       return isSignedIn() &&
         currentInstitutionId() != null &&
@@ -167,11 +198,58 @@ service cloud.firestore {
     match /institutions/{institutionId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() &&
-        request.resource.data.createdBy == request.auth.uid;
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.institutionCatalogId is string &&
+        request.resource.data.institutionCatalogId.size() > 0;
       allow update: if canAdminRegenerateInstitutionCode(institutionId) ||
+        canAdminResubmitInstitutionRequest(institutionId) ||
         canJoinFlowIncrementUsage(institutionId) ||
         canAutoRotateExpiredOrCappedCode();
       allow delete: if false;
+    }
+
+    match /institution_name_registry/{nameKey} {
+      allow read: if true;
+      allow create, update: if isSignedIn() &&
+        request.resource.data.institutionId is string &&
+        request.resource.data.institutionId.size() > 0 &&
+        existsAfter(/databases/$(database)/documents/institutions/$(request.resource.data.institutionId)) &&
+        (
+          getAfter(/databases/$(database)/documents/institutions/$(request.resource.data.institutionId)).data.createdBy == request.auth.uid ||
+          isOwnerAccount()
+        );
+      allow delete: if isSignedIn() &&
+        resource.data.institutionId is string &&
+        resource.data.institutionId.size() > 0 &&
+        exists(/databases/$(database)/documents/institutions/$(resource.data.institutionId)) &&
+        (
+          get(/databases/$(database)/documents/institutions/$(resource.data.institutionId)).data.createdBy == request.auth.uid ||
+          isOwnerAccount()
+        );
+    }
+
+    match /institution_catalog_registry/{catalogId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() &&
+        request.resource.data.institutionCatalogId is string &&
+        request.resource.data.institutionCatalogId == catalogId &&
+        request.resource.data.institutionId is string &&
+        request.resource.data.institutionId.size() > 0 &&
+        existsAfter(/databases/$(database)/documents/institutions/$(request.resource.data.institutionId)) &&
+        (
+          getAfter(/databases/$(database)/documents/institutions/$(request.resource.data.institutionId)).data.createdBy == request.auth.uid ||
+          isOwnerAccount()
+        );
+      allow delete: if isSignedIn() &&
+        resource.data.institutionCatalogId is string &&
+        resource.data.institutionCatalogId == catalogId &&
+        resource.data.institutionId is string &&
+        resource.data.institutionId.size() > 0 &&
+        exists(/databases/$(database)/documents/institutions/$(resource.data.institutionId)) &&
+        (
+          get(/databases/$(database)/documents/institutions/$(resource.data.institutionId)).data.createdBy == request.auth.uid ||
+          isOwnerAccount()
+        );
     }
 
     match /institution_members/{membershipId} {

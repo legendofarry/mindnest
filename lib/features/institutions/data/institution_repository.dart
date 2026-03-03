@@ -54,78 +54,152 @@ class InstitutionRepository {
         });
   }
 
+  Future<bool> isInstitutionCatalogIdAvailable(
+    String institutionCatalogId,
+  ) async {
+    final normalizedCatalogId = institutionCatalogId.trim();
+    if (normalizedCatalogId.isEmpty) {
+      return false;
+    }
+
+    final registrySnapshot = await _institutionCatalogRegistryRef(
+      normalizedCatalogId,
+    ).get();
+    return !registrySnapshot.exists;
+  }
+
   Future<void> createInstitutionAdminAccount({
     required String adminName,
     required String adminEmail,
     required String adminPhoneNumber,
     required String password,
+    required String institutionCatalogId,
     required String institutionName,
   }) async {
     final trimmedName = adminName.trim();
+    final trimmedInstitutionCatalogId = institutionCatalogId.trim();
     final trimmedInstitutionName = institutionName.trim();
     final trimmedAdminPhone = adminPhoneNumber.trim();
     final normalizedEmail = adminEmail.trim().toLowerCase();
+    final normalizedInstitutionName = _normalizeInstitutionName(
+      trimmedInstitutionName,
+    );
     if (trimmedName.length < 2 ||
+        trimmedInstitutionCatalogId.isEmpty ||
         trimmedInstitutionName.length < 2 ||
         trimmedAdminPhone.length < 6) {
       throw Exception('Name, institution name, and phone number are required.');
     }
 
+    await _assertInstitutionCatalogIdAvailable(trimmedInstitutionCatalogId);
+
     final institutionRef = _firestore.collection('institutions').doc();
-
-    final credential = await _auth.createUserWithEmailAndPassword(
-      email: normalizedEmail,
-      password: password,
+    final catalogRegistryRef = _institutionCatalogRegistryRef(
+      trimmedInstitutionCatalogId,
     );
-    final user = credential.user;
-    if (user == null) {
-      throw Exception('Unable to create admin account.');
+
+    User? user;
+    try {
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: normalizedEmail,
+        password: password,
+      );
+      user = credential.user;
+      if (user == null) {
+        throw Exception('Unable to create admin account.');
+      }
+      final createdUser = user;
+
+      await createdUser.updateDisplayName(trimmedName);
+      await createdUser.sendEmailVerification();
+
+      final membershipRef = _firestore
+          .collection('institution_members')
+          .doc('${institutionRef.id}_${createdUser.uid}');
+
+      await _firestore.runTransaction((transaction) async {
+        final registrySnapshot = await transaction.get(catalogRegistryRef);
+        if (registrySnapshot.exists) {
+          final claimedInstitutionId =
+              (registrySnapshot.data()?['institutionId'] as String?) ?? '';
+          if (claimedInstitutionId != institutionRef.id) {
+            throw const _InstitutionDuplicationException(
+              'This institution already exists or is pending approval.',
+            );
+          }
+        }
+
+        transaction.set(institutionRef, {
+          'name': trimmedInstitutionName,
+          'nameNormalized': normalizedInstitutionName,
+          'institutionCatalogId': trimmedInstitutionCatalogId,
+          'status': 'pending',
+          'createdBy': createdUser.uid,
+          'adminPhoneNumber': trimmedAdminPhone,
+          'contactPhone': trimmedAdminPhone,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'review': <String, dynamic>{
+            'reviewedBy': null,
+            'reviewedAt': null,
+            'decision': null,
+            'declineReason': null,
+          },
+        });
+        transaction.set(_firestore.collection('users').doc(createdUser.uid), {
+          'email': createdUser.email ?? normalizedEmail,
+          'name': trimmedName,
+          'role': UserRole.institutionAdmin.name,
+          'onboardingCompletedRoles': <String, int>{},
+          'institutionId': institutionRef.id,
+          'institutionName': trimmedInstitutionName,
+          'institutionCatalogId': trimmedInstitutionCatalogId,
+          'phoneNumber': trimmedAdminPhone,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        transaction.set(membershipRef, {
+          'institutionId': institutionRef.id,
+          'userId': createdUser.uid,
+          'role': UserRole.institutionAdmin.name,
+          'userName': trimmedName,
+          'email': createdUser.email ?? normalizedEmail,
+          'phoneNumber': trimmedAdminPhone,
+          'joinedAt': FieldValue.serverTimestamp(),
+          'status': 'active',
+        });
+        transaction.set(catalogRegistryRef, {
+          'institutionId': institutionRef.id,
+          'institutionCatalogId': trimmedInstitutionCatalogId,
+          'institutionName': trimmedInstitutionName,
+          'status': 'pending',
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        transaction.set(
+          _institutionNameRegistryRef(normalizedInstitutionName),
+          {
+            'institutionId': institutionRef.id,
+            'institutionName': trimmedInstitutionName,
+            'normalizedName': normalizedInstitutionName,
+            'status': 'pending',
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      });
+    } on _InstitutionDuplicationException {
+      if (user != null) {
+        try {
+          await user.delete();
+        } catch (_) {
+          // Keep error handling resilient if user cleanup fails.
+        }
+      }
+      throw Exception(
+        'This institution already exists or is pending approval.',
+      );
     }
-
-    await user.updateDisplayName(trimmedName);
-    await user.sendEmailVerification();
-
-    final membershipRef = _firestore
-        .collection('institution_members')
-        .doc('${institutionRef.id}_${user.uid}');
-
-    final batch = _firestore.batch();
-    batch.set(institutionRef, {
-      'name': trimmedInstitutionName,
-      'status': 'pending',
-      'createdBy': user.uid,
-      'adminPhoneNumber': trimmedAdminPhone,
-      'contactPhone': trimmedAdminPhone,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'review': <String, dynamic>{
-        'reviewedBy': null,
-        'reviewedAt': null,
-        'decision': null,
-        'declineReason': null,
-      },
-    });
-    batch.set(_firestore.collection('users').doc(user.uid), {
-      'email': user.email ?? normalizedEmail,
-      'name': trimmedName,
-      'role': UserRole.institutionAdmin.name,
-      'onboardingCompletedRoles': <String, int>{},
-      'institutionId': institutionRef.id,
-      'institutionName': trimmedInstitutionName,
-      'phoneNumber': trimmedAdminPhone,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    batch.set(membershipRef, {
-      'institutionId': institutionRef.id,
-      'userId': user.uid,
-      'role': UserRole.institutionAdmin.name,
-      'userName': trimmedName,
-      'email': user.email ?? normalizedEmail,
-      'phoneNumber': trimmedAdminPhone,
-      'joinedAt': FieldValue.serverTimestamp(),
-      'status': 'active',
-    });
-    await batch.commit();
 
     final ownerUserId = await _resolveOwnerUserId();
     if (ownerUserId != null) {
@@ -140,9 +214,11 @@ class InstitutionRepository {
       ]);
     }
 
+    final createdUserId = user.uid;
+
     await _createNotifications([
       _notificationPayload(
-        userId: user.uid,
+        userId: createdUserId,
         institutionId: institutionRef.id,
         type: 'institution_request_pending',
         title: 'Institution submitted',
@@ -632,9 +708,16 @@ class InstitutionRepository {
       if (status == 'approved') {
         throw Exception('Institution is already approved.');
       }
+      final institutionName = ((data['name'] as String?) ?? '').trim();
+      final institutionCatalogId =
+          ((data['institutionCatalogId'] as String?) ?? '').trim();
+      final normalizedName = _normalizeInstitutionName(
+        ((data['nameNormalized'] as String?) ?? institutionName).trim(),
+      );
       createdBy = data['createdBy'] as String?;
       transaction.update(institutionRef, {
         'status': 'approved',
+        'nameNormalized': normalizedName,
         'approvedAt': FieldValue.serverTimestamp(),
         'review': <String, dynamic>{
           'reviewedBy': owner.uid,
@@ -648,6 +731,28 @@ class InstitutionRepository {
           usageCount: 0,
         ),
       });
+      if (institutionCatalogId.isNotEmpty) {
+        transaction.set(
+          _institutionCatalogRegistryRef(institutionCatalogId),
+          {
+            'institutionId': institutionId,
+            'institutionCatalogId': institutionCatalogId,
+            'institutionName': institutionName,
+            'status': 'approved',
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+      if (normalizedName.isNotEmpty) {
+        transaction.set(_institutionNameRegistryRef(normalizedName), {
+          'institutionId': institutionId,
+          'institutionName': institutionName,
+          'normalizedName': normalizedName,
+          'status': 'approved',
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
     });
 
     if (createdBy != null && createdBy!.isNotEmpty) {
@@ -687,9 +792,16 @@ class InstitutionRepository {
       throw Exception('Institution request not found.');
     }
     final createdBy = data['createdBy'] as String?;
+    final institutionName = ((data['name'] as String?) ?? '').trim();
+    final institutionCatalogId =
+        ((data['institutionCatalogId'] as String?) ?? '').trim();
+    final normalizedName = _normalizeInstitutionName(
+      ((data['nameNormalized'] as String?) ?? institutionName).trim(),
+    );
 
     await institutionRef.update({
       'status': 'declined',
+      'nameNormalized': normalizedName,
       'updatedAt': FieldValue.serverTimestamp(),
       'review': <String, dynamic>{
         'reviewedBy': owner.uid,
@@ -698,6 +810,24 @@ class InstitutionRepository {
         'declineReason': reason,
       },
     });
+    if (institutionCatalogId.isNotEmpty) {
+      await _institutionCatalogRegistryRef(institutionCatalogId).set({
+        'institutionId': institutionId,
+        'institutionCatalogId': institutionCatalogId,
+        'institutionName': institutionName,
+        'status': 'declined',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    if (normalizedName.isNotEmpty) {
+      await _institutionNameRegistryRef(normalizedName).set({
+        'institutionId': institutionId,
+        'institutionName': institutionName,
+        'normalizedName': normalizedName,
+        'status': 'declined',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
 
     if (createdBy != null && createdBy.isNotEmpty) {
       await _createNotifications([
@@ -714,6 +844,7 @@ class InstitutionRepository {
   }
 
   Future<void> resubmitCurrentAdminInstitutionRequest({
+    required String institutionCatalogId,
     required String institutionName,
   }) async {
     final currentUser = _auth.currentUser;
@@ -749,22 +880,99 @@ class InstitutionRepository {
       throw Exception('Institution is already approved.');
     }
 
-    final normalizedName = institutionName.trim();
-    if (normalizedName.length < 2) {
+    final trimmedInstitutionCatalogId = institutionCatalogId.trim();
+    final trimmedInstitutionName = institutionName.trim();
+    if (trimmedInstitutionCatalogId.isEmpty ||
+        trimmedInstitutionName.length < 2) {
       throw Exception('Select a valid institution name.');
     }
+    final normalizedNameKey = _normalizeInstitutionName(trimmedInstitutionName);
+    final userRef = _firestore.collection('users').doc(currentUser.uid);
+    await _assertInstitutionCatalogIdAvailable(
+      trimmedInstitutionCatalogId,
+      excludeInstitutionId: institutionId,
+    );
 
-    await institutionRef.update({
-      'name': normalizedName,
-      'status': 'pending',
-      'updatedAt': FieldValue.serverTimestamp(),
-      'review': <String, dynamic>{
-        'reviewedBy': null,
-        'reviewedAt': null,
-        'decision': null,
-        'declineReason': null,
-      },
-    });
+    try {
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(institutionRef);
+        final data = snapshot.data();
+        if (data == null) {
+          throw Exception('Institution request not found.');
+        }
+        final currentStatus = (data['status'] as String?) ?? 'pending';
+        if (currentStatus == 'approved') {
+          throw Exception('Institution is already approved.');
+        }
+
+        final currentCatalogId =
+            ((data['institutionCatalogId'] as String?) ?? '').trim();
+        final currentCatalogRegistryRef = currentCatalogId.isEmpty
+            ? null
+            : _institutionCatalogRegistryRef(currentCatalogId);
+        final nextCatalogRegistryRef = _institutionCatalogRegistryRef(
+          trimmedInstitutionCatalogId,
+        );
+
+        if (currentCatalogId != trimmedInstitutionCatalogId) {
+          final conflict = await transaction.get(nextCatalogRegistryRef);
+          if (conflict.exists) {
+            final claimedInstitutionId =
+                (conflict.data()?['institutionId'] as String?) ?? '';
+            if (claimedInstitutionId != institutionId) {
+              throw const _InstitutionDuplicationException(
+                'This institution already exists or is pending approval.',
+              );
+            }
+          }
+          if (currentCatalogRegistryRef != null) {
+            final currentRegistrySnapshot = await transaction.get(
+              currentCatalogRegistryRef,
+            );
+            if (currentRegistrySnapshot.exists) {
+              transaction.delete(currentCatalogRegistryRef);
+            }
+          }
+        }
+
+        transaction.update(institutionRef, {
+          'name': trimmedInstitutionName,
+          'nameNormalized': normalizedNameKey,
+          'institutionCatalogId': trimmedInstitutionCatalogId,
+          'status': 'pending',
+          'updatedAt': FieldValue.serverTimestamp(),
+          'review': <String, dynamic>{
+            'reviewedBy': null,
+            'reviewedAt': null,
+            'decision': null,
+            'declineReason': null,
+          },
+        });
+        transaction.update(userRef, {
+          'institutionName': trimmedInstitutionName,
+          'institutionCatalogId': trimmedInstitutionCatalogId,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        transaction.set(nextCatalogRegistryRef, {
+          'institutionId': institutionId,
+          'institutionCatalogId': trimmedInstitutionCatalogId,
+          'institutionName': trimmedInstitutionName,
+          'status': 'pending',
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        transaction.set(_institutionNameRegistryRef(normalizedNameKey), {
+          'institutionId': institutionId,
+          'institutionName': trimmedInstitutionName,
+          'normalizedName': normalizedNameKey,
+          'status': 'pending',
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      });
+    } on _InstitutionDuplicationException {
+      throw Exception(
+        'This institution already exists or is pending approval.',
+      );
+    }
 
     final ownerUserId = await _resolveOwnerUserId();
     if (ownerUserId != null) {
@@ -774,7 +982,7 @@ class InstitutionRepository {
           institutionId: institutionId,
           type: 'institution_request_resubmitted',
           title: 'Institution request resubmitted',
-          body: '$normalizedName was resubmitted for approval.',
+          body: '$trimmedInstitutionName was resubmitted for approval.',
         ),
       ]);
     }
@@ -822,7 +1030,9 @@ class InstitutionRepository {
       'counselor_profiles',
       'counselor_public_ratings',
       'counselor_ratings',
+      'institution_catalog_registry',
       'institution_members',
+      'institution_name_registry',
       'institutions',
       'live_sessions',
       'notifications',
@@ -835,6 +1045,48 @@ class InstitutionRepository {
       'users',
     ]) {
       await _deleteCollectionPath(collectionPath);
+    }
+  }
+
+  String _normalizeInstitutionName(String raw) {
+    return raw.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  DocumentReference<Map<String, dynamic>> _institutionNameRegistryRef(
+    String normalizedName,
+  ) {
+    final key = base64Url.encode(utf8.encode(normalizedName));
+    return _firestore.collection('institution_name_registry').doc(key);
+  }
+
+  DocumentReference<Map<String, dynamic>> _institutionCatalogRegistryRef(
+    String institutionCatalogId,
+  ) {
+    return _firestore
+        .collection('institution_catalog_registry')
+        .doc(institutionCatalogId);
+  }
+
+  Future<void> _assertInstitutionCatalogIdAvailable(
+    String institutionCatalogId, {
+    String? excludeInstitutionId,
+  }) async {
+    final normalizedCatalogId = institutionCatalogId.trim();
+    if (normalizedCatalogId.isEmpty) {
+      return;
+    }
+
+    final registryRef = _institutionCatalogRegistryRef(normalizedCatalogId);
+    final registrySnapshot = await registryRef.get();
+    if (registrySnapshot.exists) {
+      final claimedInstitutionId =
+          (registrySnapshot.data()?['institutionId'] as String?) ?? '';
+      if (excludeInstitutionId == null ||
+          claimedInstitutionId != excludeInstitutionId) {
+        throw const _InstitutionDuplicationException(
+          'This institution already exists or is pending approval.',
+        );
+      }
     }
   }
 
@@ -1163,6 +1415,12 @@ class InstitutionRepository {
 
 class _JoinCodeFlowException implements Exception {
   const _JoinCodeFlowException(this.message);
+
+  final String message;
+}
+
+class _InstitutionDuplicationException implements Exception {
+  const _InstitutionDuplicationException(this.message);
 
   final String message;
 }

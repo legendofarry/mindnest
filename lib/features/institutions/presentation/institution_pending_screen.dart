@@ -20,7 +20,7 @@ class _InstitutionPendingScreenState
     with SingleTickerProviderStateMixin {
   bool _isResubmitting = false;
   bool _isSubmittingSchoolRequest = false;
-  String? _selectedSchool;
+  String? _selectedSchoolId;
   final _schoolRequestNameController = TextEditingController();
   final _schoolRequestMobileController = TextEditingController();
   late final AnimationController _pulseController = AnimationController(
@@ -37,8 +37,9 @@ class _InstitutionPendingScreenState
   }
 
   Future<void> _resubmit() async {
-    final school = _selectedSchool?.trim() ?? '';
-    if (school.isEmpty) {
+    final schoolId = _selectedSchoolId?.trim() ?? '';
+    final selectedSchool = catalogSchoolById(schoolId);
+    if (selectedSchool == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Select your school to resubmit.')),
       );
@@ -48,7 +49,10 @@ class _InstitutionPendingScreenState
     try {
       await ref
           .read(institutionRepositoryProvider)
-          .resubmitCurrentAdminInstitutionRequest(institutionName: school);
+          .resubmitCurrentAdminInstitutionRequest(
+            institutionCatalogId: selectedSchool.id,
+            institutionName: selectedSchool.name,
+          );
       if (!mounted) {
         return;
       }
@@ -503,23 +507,23 @@ class _InstitutionPendingScreenState
                                   ),
                                 ),
                               DropdownButtonFormField<String>(
-                                initialValue: _selectedSchool,
+                                initialValue: _selectedSchoolId,
                                 decoration: const InputDecoration(
                                   hintText: 'Select school from approved list',
                                   prefixIcon: Icon(Icons.apartment_rounded),
                                 ),
-                                items: kHardcodedSchools
+                                items: kCatalogSchools
                                     .map(
                                       (school) => DropdownMenuItem<String>(
-                                        value: school,
-                                        child: Text(school),
+                                        value: school.id,
+                                        child: Text(school.name),
                                       ),
                                     )
                                     .toList(growable: false),
                                 onChanged: _isResubmitting
                                     ? null
                                     : (value) => setState(
-                                        () => _selectedSchool = value,
+                                        () => _selectedSchoolId = value,
                                       ),
                               ),
                               const SizedBox(height: 12),

@@ -24,14 +24,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   static const _lastEmailKey = 'auth.last_email';
   static const _desktopBreakpoint = 1100.0;
 
-  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _rememberMe = true;
   bool _isSubmitting = false;
-  bool _submittedAttempt = false;
   bool _isPasswordVisible = false;
+  bool _emailFieldError = false;
+  bool _passwordFieldError = false;
   String? _lastEmail;
   String? _formError;
 
@@ -71,21 +71,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Future<void> _submit() async {
-    setState(() {
-      _submittedAttempt = true;
-      _formError = null;
-    });
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final emailInvalid = email.isEmpty || !email.contains('@');
+    final passwordInvalid = password.isEmpty;
 
-    if (!_formKey.currentState!.validate()) {
+    if (emailInvalid || passwordInvalid) {
       setState(() {
+        _emailFieldError = emailInvalid;
+        _passwordFieldError = passwordInvalid;
         _formError = 'Please correct the highlighted fields.';
       });
       await _triggerShake();
       return;
     }
 
-    final normalizedEmail = _emailController.text.trim().toLowerCase();
-    setState(() => _isSubmitting = true);
+    final normalizedEmail = email.toLowerCase();
+    setState(() {
+      _emailFieldError = false;
+      _passwordFieldError = false;
+      _formError = null;
+      _isSubmitting = true;
+    });
 
     try {
       await ref
@@ -234,10 +241,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         );
       },
       child: Form(
-        key: _formKey,
-        autovalidateMode: _submittedAttempt
-            ? AutovalidateMode.onUserInteraction
-            : AutovalidateMode.disabled,
+        key: const ValueKey('login-form'),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -306,24 +310,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             const _FieldLabel(text: 'EMAIL ADDRESS'),
             const SizedBox(height: 8),
             _RoundedInput(
+              hasError: _emailFieldError,
               child: TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                onChanged: (_) => setState(() {
-                  _formError = null;
-                }),
+                onChanged: (_) {
+                  if (_emailFieldError || _formError != null) {
+                    setState(() {
+                      _emailFieldError = false;
+                      _formError = null;
+                    });
+                  }
+                },
                 decoration: const InputDecoration(
                   border: InputBorder.none,
                   hintText: 'alex@example.com',
                   prefixIcon: Icon(Icons.mail_outline_rounded),
                 ),
-                validator: (value) {
-                  final trimmed = value?.trim() ?? '';
-                  if (trimmed.isEmpty || !trimmed.contains('@')) {
-                    return 'Enter a valid email address.';
-                  }
-                  return null;
-                },
               ),
             ),
             if ((_lastEmail ?? '').isNotEmpty &&
@@ -343,6 +346,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         _emailController.selection = TextSelection.collapsed(
                           offset: lastEmail.length,
                         );
+                        _emailFieldError = false;
                         _formError = null;
                       });
                     },
@@ -378,12 +382,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
             const SizedBox(height: 4),
             _RoundedInput(
+              hasError: _passwordFieldError,
               child: TextFormField(
                 controller: _passwordController,
                 obscureText: !_isPasswordVisible,
                 onChanged: (_) {
-                  if (_formError != null) {
-                    setState(() => _formError = null);
+                  if (_passwordFieldError || _formError != null) {
+                    setState(() {
+                      _passwordFieldError = false;
+                      _formError = null;
+                    });
                   }
                 },
                 decoration: InputDecoration(
@@ -403,12 +411,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     ),
                   ),
                 ),
-                validator: (value) {
-                  if ((value ?? '').isEmpty) {
-                    return 'Password is required.';
-                  }
-                  return null;
-                },
               ),
             ),
             const SizedBox(height: 10),
@@ -1290,9 +1292,10 @@ class _FieldLabel extends StatelessWidget {
 }
 
 class _RoundedInput extends StatelessWidget {
-  const _RoundedInput({required this.child});
+  const _RoundedInput({required this.child, this.hasError = false});
 
   final Widget child;
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) {
@@ -1300,7 +1303,10 @@ class _RoundedInput extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFD2DCE9)),
+        border: Border.all(
+          color: hasError ? const Color(0xFFFECDD3) : const Color(0xFFD2DCE9),
+          width: hasError ? 1.2 : 1.0,
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x120F172A),

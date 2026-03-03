@@ -18,7 +18,8 @@ class RegisterInstitutionScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterInstitutionScreenState
-    extends ConsumerState<RegisterInstitutionScreen> {
+    extends ConsumerState<RegisterInstitutionScreen>
+    with SingleTickerProviderStateMixin {
   static const _desktopBreakpoint = 1100.0;
   static const _stepCount = 3;
   final _formKey = GlobalKey<FormState>();
@@ -29,12 +30,33 @@ class _RegisterInstitutionScreenState
   final _confirmPasswordController = TextEditingController();
   final _schoolRequestNameController = TextEditingController();
   final _schoolRequestMobileController = TextEditingController();
-  String? _selectedSchoolName;
+  String? _selectedSchoolId;
   int? _currentStep = 0;
   bool _isSubmitting = false;
   bool _isSubmittingSchoolRequest = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+  bool _schoolFieldError = false;
+  bool _adminNameFieldError = false;
+  bool _adminEmailFieldError = false;
+  bool _adminPhoneFieldError = false;
+  bool _passwordFieldError = false;
+  bool _confirmPasswordFieldError = false;
+  String? _formError;
+
+  late final AnimationController _shakeController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 360),
+  );
+  late final Animation<double> _shakeOffset = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 0, end: -12), weight: 1),
+    TweenSequenceItem(tween: Tween(begin: -12, end: 12), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: 12, end: -8), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: -8, end: 8), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: 8, end: -4), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: -4, end: 4), weight: 2),
+    TweenSequenceItem(tween: Tween(begin: 4, end: 0), weight: 2),
+  ]).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
 
   int get _activeStep {
     final current = _currentStep ?? 0;
@@ -49,6 +71,7 @@ class _RegisterInstitutionScreenState
 
   @override
   void dispose() {
+    _shakeController.dispose();
     _adminNameController.dispose();
     _emailController.dispose();
     _adminPhoneController.dispose();
@@ -60,19 +83,17 @@ class _RegisterInstitutionScreenState
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) {
+    final stepError = _validateCurrentStep();
+    if (stepError != null) {
+      await _showFormError(stepError);
       return;
     }
-
-    final payloadError = _validateSubmissionPayload();
-    if (payloadError != null) {
-      _showMessage(payloadError.message);
-      if (mounted && _activeStep != payloadError.step) {
-        setState(() => _currentStep = payloadError.step);
-      }
+    final selectedSchool = catalogSchoolById(_selectedSchoolId);
+    if (selectedSchool == null) {
+      setState(() => _schoolFieldError = true);
+      await _showFormError('Please select your institution first.');
       return;
     }
-
     setState(() => _isSubmitting = true);
     try {
       await ref
@@ -82,7 +103,8 @@ class _RegisterInstitutionScreenState
             adminEmail: _emailController.text.trim(),
             adminPhoneNumber: _adminPhoneController.text.trim(),
             password: _passwordController.text,
-            institutionName: (_selectedSchoolName ?? '').trim(),
+            institutionCatalogId: selectedSchool.id,
+            institutionName: selectedSchool.name,
           );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -98,9 +120,17 @@ class _RegisterInstitutionScreenState
         context.go(AppRoute.verifyEmail);
       }
     } on FirebaseAuthException catch (error) {
-      _showMessage(error.message ?? 'Institution registration failed.');
+      await _showFormError(error.message ?? 'Institution registration failed.');
     } catch (error) {
-      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+      final message = error.toString().replaceFirst('Exception: ', '');
+      if (message.toLowerCase().contains('already exists') ||
+          message.toLowerCase().contains('pending approval')) {
+        setState(() {
+          _currentStep = 0;
+          _schoolFieldError = true;
+        });
+      }
+      await _showFormError(message);
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -108,42 +138,61 @@ class _RegisterInstitutionScreenState
     }
   }
 
-  _StepValidationError? _validateSubmissionPayload() {
-    if ((_selectedSchoolName ?? '').trim().isEmpty) {
-      return const _StepValidationError(
-        step: 0,
-        message: 'Select your school from the list.',
-      );
+  Future<void> _showFormError(String message) async {
+    if (!mounted) {
+      return;
     }
-    if (_adminNameController.text.trim().length < 2) {
-      return const _StepValidationError(step: 1, message: 'Enter admin name.');
+    setState(() => _formError = message);
+    await _triggerShake();
+  }
+
+  Future<void> _triggerShake() async {
+    if (!mounted) {
+      return;
     }
-    final email = _emailController.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
-      return const _StepValidationError(
-        step: 1,
-        message: 'Enter a valid email.',
-      );
+    await _shakeController.forward(from: 0);
+  }
+
+  String? _validateCurrentStep() {
+    switch (_activeStep) {
+      case 0:
+        final hasSchool = (_selectedSchoolId ?? '').trim().isNotEmpty;
+        setState(() => _schoolFieldError = !hasSchool);
+        if (!hasSchool) {
+          return 'Please select your institution first.';
+        }
+        return null;
+      case 1:
+        final hasName = _adminNameController.text.trim().length >= 2;
+        final email = _emailController.text.trim();
+        final hasEmail = email.isNotEmpty && email.contains('@');
+        final hasPhone = _adminPhoneController.text.trim().length >= 6;
+        setState(() {
+          _adminNameFieldError = !hasName;
+          _adminEmailFieldError = !hasEmail;
+          _adminPhoneFieldError = !hasPhone;
+        });
+        if (!hasName || !hasEmail || !hasPhone) {
+          return 'Please correct the highlighted fields.';
+        }
+        return null;
+      default:
+        final hasPassword = _passwordController.text.length >= 8;
+        final hasConfirm = _confirmPasswordController.text.isNotEmpty;
+        final matches =
+            _confirmPasswordController.text == _passwordController.text;
+        setState(() {
+          _passwordFieldError = !hasPassword;
+          _confirmPasswordFieldError = !hasConfirm || !matches;
+        });
+        if (!hasPassword || !hasConfirm) {
+          return 'Please correct the highlighted fields.';
+        }
+        if (!matches) {
+          return 'Passwords do not match.';
+        }
+        return null;
     }
-    if (_adminPhoneController.text.trim().length < 6) {
-      return const _StepValidationError(
-        step: 1,
-        message: 'Enter a valid phone number.',
-      );
-    }
-    if (_passwordController.text.length < 8) {
-      return const _StepValidationError(
-        step: 2,
-        message: 'Use at least 8 characters.',
-      );
-    }
-    if (_confirmPasswordController.text != _passwordController.text) {
-      return const _StepValidationError(
-        step: 2,
-        message: 'Passwords do not match.',
-      );
-    }
-    return null;
   }
 
   void _showMessage(String message) {
@@ -271,11 +320,41 @@ class _RegisterInstitutionScreenState
     if (_isSubmitting) {
       return;
     }
-    if (!_formKey.currentState!.validate()) {
+    final stepError = _validateCurrentStep();
+    if (stepError != null) {
+      await _showFormError(stepError);
       return;
     }
+
+    if (_activeStep == 0) {
+      try {
+        final schoolId = (_selectedSchoolId ?? '').trim();
+        final isAvailable = await ref
+            .read(institutionRepositoryProvider)
+            .isInstitutionCatalogIdAvailable(schoolId);
+        if (!mounted) {
+          return;
+        }
+        if (!isAvailable) {
+          setState(() => _schoolFieldError = true);
+          await _showFormError(
+            'This institution already exists or is pending approval.',
+          );
+          return;
+        }
+      } catch (_) {
+        await _showFormError(
+          'We could not validate institution availability right now. Please try again.',
+        );
+        return;
+      }
+    }
+
     if (_activeStep < _stepCount - 1) {
-      setState(() => _currentStep = _activeStep + 1);
+      setState(() {
+        _currentStep = _activeStep + 1;
+        _formError = null;
+      });
       return;
     }
     await _submit();
@@ -289,7 +368,10 @@ class _RegisterInstitutionScreenState
       context.go(AppRoute.login);
       return;
     }
-    setState(() => _currentStep = _activeStep - 1);
+    setState(() {
+      _currentStep = _activeStep - 1;
+      _formError = null;
+    });
   }
 
   Widget _buildStepIndicator() {
@@ -383,29 +465,46 @@ class _RegisterInstitutionScreenState
         const _FieldLabel(text: 'INSTITUTION NAME'),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          initialValue: _selectedSchoolName,
-          decoration: const InputDecoration(
+          initialValue: _selectedSchoolId,
+          decoration: InputDecoration(
             hintText: 'Select school',
-            prefixIcon: Icon(Icons.apartment_rounded),
+            prefixIcon: const Icon(Icons.apartment_rounded),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide(
+                color: _schoolFieldError
+                    ? const Color(0xFFFECDD3)
+                    : const Color(0xFF0E9B90),
+                width: _schoolFieldError ? 1.2 : 1.0,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide(
+                color: _schoolFieldError
+                    ? const Color(0xFFE11D48)
+                    : const Color(0xFF0E9B90),
+                width: 1.4,
+              ),
+            ),
+            errorStyle: const TextStyle(height: 0, fontSize: 0),
           ),
           isExpanded: true,
-          items: kHardcodedSchools
+          items: kCatalogSchools
               .map(
                 (school) => DropdownMenuItem<String>(
-                  value: school,
-                  child: Text(school, overflow: TextOverflow.ellipsis),
+                  value: school.id,
+                  child: Text(school.name, overflow: TextOverflow.ellipsis),
                 ),
               )
               .toList(growable: false),
           onChanged: _isSubmitting
               ? null
-              : (value) => setState(() => _selectedSchoolName = value),
-          validator: (value) {
-            if ((value ?? '').trim().isEmpty) {
-              return 'Select your school from the list.';
-            }
-            return null;
-          },
+              : (value) => setState(() {
+                  _selectedSchoolId = value;
+                  _schoolFieldError = false;
+                  _formError = null;
+                }),
         ),
         const SizedBox(height: 8),
         Align(
@@ -428,64 +527,59 @@ class _RegisterInstitutionScreenState
         const _FieldLabel(text: 'ADMIN FULL NAME'),
         const SizedBox(height: 8),
         _RoundedInput(
+          hasError: _adminNameFieldError,
           child: TextFormField(
             controller: _adminNameController,
             textInputAction: TextInputAction.next,
+            onChanged: (_) => setState(() {
+              _adminNameFieldError = false;
+              _formError = null;
+            }),
             decoration: const InputDecoration(
               border: InputBorder.none,
               hintText: 'Alex Rivera',
               prefixIcon: Icon(Icons.person_outline_rounded),
             ),
-            validator: (value) {
-              if ((value ?? '').trim().length < 2) {
-                return 'Enter admin name.';
-              }
-              return null;
-            },
           ),
         ),
         const SizedBox(height: 16),
         const _FieldLabel(text: 'ADMIN EMAIL ADDRESS'),
         const SizedBox(height: 8),
         _RoundedInput(
+          hasError: _adminEmailFieldError,
           child: TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
+            onChanged: (_) => setState(() {
+              _adminEmailFieldError = false;
+              _formError = null;
+            }),
             decoration: const InputDecoration(
               border: InputBorder.none,
               hintText: 'alex@example.com',
               prefixIcon: Icon(Icons.mail_outline_rounded),
             ),
-            validator: (value) {
-              final trimmed = value?.trim() ?? '';
-              if (trimmed.isEmpty || !trimmed.contains('@')) {
-                return 'Enter a valid email.';
-              }
-              return null;
-            },
           ),
         ),
         const SizedBox(height: 16),
         const _FieldLabel(text: 'ADMIN PHONE NUMBER'),
         const SizedBox(height: 8),
         _RoundedInput(
+          hasError: _adminPhoneFieldError,
           child: TextFormField(
             controller: _adminPhoneController,
             keyboardType: TextInputType.phone,
             textInputAction: TextInputAction.done,
+            onChanged: (_) => setState(() {
+              _adminPhoneFieldError = false;
+              _formError = null;
+            }),
             decoration: const InputDecoration(
               border: InputBorder.none,
               hintText: '+254...',
               prefixIcon: Icon(Icons.phone_rounded),
             ),
-            validator: (value) {
-              final trimmed = value?.trim() ?? '';
-              if (trimmed.length < 6) {
-                return 'Enter a valid phone number.';
-              }
-              return null;
-            },
           ),
         ),
         const SizedBox(height: 8),
@@ -509,14 +603,23 @@ class _RegisterInstitutionScreenState
         const _FieldLabel(text: 'PASSWORD'),
         const SizedBox(height: 8),
         _RoundedInput(
+          hasError: _passwordFieldError,
           child: TextFormField(
             controller: _passwordController,
             obscureText: !_isPasswordVisible,
             textInputAction: TextInputAction.next,
             onChanged: (_) {
-              if (_confirmPasswordController.text.isNotEmpty) {
-                _formKey.currentState?.validate();
-              }
+              setState(() {
+                _passwordFieldError = false;
+                _formError = null;
+                if (_confirmPasswordController.text.isNotEmpty &&
+                    _confirmPasswordController.text !=
+                        _passwordController.text) {
+                  _confirmPasswordFieldError = true;
+                } else {
+                  _confirmPasswordFieldError = false;
+                }
+              });
             },
             decoration: InputDecoration(
               border: InputBorder.none,
@@ -535,22 +638,21 @@ class _RegisterInstitutionScreenState
                 ),
               ),
             ),
-            validator: (value) {
-              if ((value ?? '').length < 8) {
-                return 'Use at least 8 characters.';
-              }
-              return null;
-            },
           ),
         ),
         const SizedBox(height: 16),
         const _FieldLabel(text: 'CONFIRM PASSWORD'),
         const SizedBox(height: 8),
         _RoundedInput(
+          hasError: _confirmPasswordFieldError,
           child: TextFormField(
             controller: _confirmPasswordController,
             obscureText: !_isConfirmPasswordVisible,
             textInputAction: TextInputAction.done,
+            onChanged: (_) => setState(() {
+              _confirmPasswordFieldError = false;
+              _formError = null;
+            }),
             onFieldSubmitted: (_) => _handlePrimaryAction(),
             decoration: InputDecoration(
               border: InputBorder.none,
@@ -569,15 +671,6 @@ class _RegisterInstitutionScreenState
                 ),
               ),
             ),
-            validator: (value) {
-              if ((value ?? '').isEmpty) {
-                return 'Confirm your password.';
-              }
-              if (value != _passwordController.text) {
-                return 'Passwords do not match.';
-              }
-              return null;
-            },
           ),
         ),
         const SizedBox(height: 10),
@@ -594,122 +687,167 @@ class _RegisterInstitutionScreenState
   }
 
   Widget _buildFormContent(BuildContext context) {
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Register Institution',
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF071937),
-              fontSize: 24,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _stepTitle(),
-            style: const TextStyle(
-              color: Color(0xFF0E9B90),
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.1,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _stepDescription(),
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: const Color(0xFF516784),
-              height: 1.35,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 18),
-          _buildStepIndicator(),
-          const SizedBox(height: 20),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            child: _buildStepFields(),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _isSubmitting ? null : _handleBackAction,
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(58),
-                    side: const BorderSide(color: Color(0xFFBED0E4)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                  child: Text(
-                    _activeStep == 0 ? 'to Login' : 'Back',
-                    style: const TextStyle(
-                      color: Color(0xFF4E627A),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
+    return AnimatedBuilder(
+      animation: _shakeController,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(_shakeOffset.value, 0),
+          child: child,
+        );
+      },
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Register Institution',
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF071937),
+                fontSize: 24,
+                letterSpacing: -0.5,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: Container(
-                  height: 58,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF0E9B90), Color(0xFF18A89D)],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x3C72ECDC),
-                        blurRadius: 22,
-                        offset: Offset(0, 12),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _stepTitle(),
+              style: const TextStyle(
+                color: Color(0xFF0E9B90),
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _stepDescription(),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF516784),
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: (_formError == null || _formError!.trim().isEmpty)
+                  ? const SizedBox(height: 18)
+                  : Container(
+                      key: ValueKey(_formError),
+                      margin: const EdgeInsets.only(top: 14, bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                    ],
-                  ),
-                  child: ElevatedButton(
-                    onPressed: _isSubmitting ? null : _handlePrimaryAction,
-                    style: ElevatedButton.styleFrom(
-                      shadowColor: Colors.transparent,
-                      backgroundColor: Colors.transparent,
-                      disabledBackgroundColor: Colors.transparent,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFECDD3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: Color(0xFFBE123C),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _formError!,
+                              style: const TextStyle(
+                                color: Color(0xFF9F1239),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+            _buildStepIndicator(),
+            const SizedBox(height: 20),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              child: _buildStepFields(),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isSubmitting ? null : _handleBackAction,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(58),
+                      side: const BorderSide(color: Color(0xFFBED0E4)),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(18),
                       ),
                     ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      child: Text(
-                        _isSubmitting
-                            ? 'Creating institution...'
-                            : (_activeStep < _stepCount - 1
-                                  ? 'Continue  ->'
-                                  : 'Create Institution  ->'),
-                        key: ValueKey('$_isSubmitting-$_activeStep'),
-                        style: const TextStyle(
-                          fontSize: 16.5,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                    child: Text(
+                      _activeStep == 0 ? 'Back to Login' : 'Back',
+                      style: const TextStyle(
+                        color: Color(0xFF4E627A),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: Container(
+                    height: 58,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0E9B90), Color(0xFF18A89D)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x3C72ECDC),
+                          blurRadius: 22,
+                          offset: Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting ? null : _handlePrimaryAction,
+                      style: ElevatedButton.styleFrom(
+                        shadowColor: Colors.transparent,
+                        backgroundColor: Colors.transparent,
+                        disabledBackgroundColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        child: Text(
+                          _isSubmitting
+                              ? 'Creating institution...'
+                              : (_activeStep < _stepCount - 1
+                                    ? 'Continue  ->'
+                                    : 'Create Institution  ->'),
+                          key: ValueKey('$_isSubmitting-$_activeStep'),
+                          style: const TextStyle(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -733,13 +871,6 @@ class _RegisterInstitutionScreenState
   }
 }
 
-class _StepValidationError {
-  const _StepValidationError({required this.step, required this.message});
-
-  final int step;
-  final String message;
-}
-
 class _FieldLabel extends StatelessWidget {
   const _FieldLabel({required this.text});
 
@@ -760,9 +891,10 @@ class _FieldLabel extends StatelessWidget {
 }
 
 class _RoundedInput extends StatelessWidget {
-  const _RoundedInput({required this.child});
+  const _RoundedInput({required this.child, this.hasError = false});
 
   final Widget child;
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) {
@@ -770,7 +902,10 @@ class _RoundedInput extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFD2DCE9)),
+        border: Border.all(
+          color: hasError ? const Color(0xFFFECDD3) : const Color(0xFFD2DCE9),
+          width: hasError ? 1.2 : 1.0,
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x120F172A),
