@@ -60,7 +60,7 @@ class InstitutionRepository {
     defaultValue: '',
   );
   static const String _inviteAcceptLinkBaseFromSource =
-      'https://mindnest.netlify.app/invite-accept';
+      'https://mindnestke.netlify.app/invite-accept';
   static String get _pushDispatchEndpoint =>
       _pushDispatchEndpointFromDefine.isNotEmpty
       ? _pushDispatchEndpointFromDefine
