@@ -40,6 +40,15 @@ class OnboardingRepository {
     final responseDocId =
         '${user.uid}_${role.name}_v${OnboardingQuestionBank.version}';
     final batch = _firestore.batch();
+    final supportRaw = answers['support_preference'];
+    final supportPreferences = supportRaw is List
+        ? supportRaw.whereType<String>().toSet()
+        : <String>{};
+    final aiEnabled =
+        supportPreferences.contains('ai_guidance') ||
+        answers['ai_assist_enabled'] == true;
+    final aiStyle = answers['ai_coach_style'] as String?;
+    final aiCadence = answers['ai_checkin_cadence'] as String?;
 
     batch
         .set(_firestore.collection('onboarding_responses').doc(responseDocId), {
@@ -53,6 +62,12 @@ class OnboardingRepository {
       'onboardingCompletedRoles.${role.name}': OnboardingQuestionBank.version,
       'onboardingLastCompletedRole': role.name,
       'onboardingUpdatedAt': FieldValue.serverTimestamp(),
+      'aiAssistantPreferences': {
+        'enabled': aiEnabled,
+        'style': aiStyle,
+        'checkInCadence': aiCadence,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
       'updatedAt': FieldValue.serverTimestamp(),
     });
 

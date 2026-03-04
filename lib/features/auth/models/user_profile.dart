@@ -31,6 +31,7 @@ class UserProfile {
     this.counselorSetupCompleted = false,
     this.counselorSetupData = const {},
     this.counselorPreferences = const {},
+    this.aiAssistantPreferences = const {},
     this.institutionId,
     this.institutionName,
   });
@@ -43,6 +44,7 @@ class UserProfile {
   final bool counselorSetupCompleted;
   final Map<String, dynamic> counselorSetupData;
   final Map<String, dynamic> counselorPreferences;
+  final Map<String, dynamic> aiAssistantPreferences;
   final String? institutionId;
   final String? institutionName;
 
@@ -55,6 +57,7 @@ class UserProfile {
       'counselorSetupCompleted': counselorSetupCompleted,
       'counselorSetupData': counselorSetupData,
       'counselorPreferences': counselorPreferences,
+      'aiAssistantPreferences': aiAssistantPreferences,
       'institutionId': institutionId,
       'institutionName': institutionName,
     };
@@ -96,6 +99,14 @@ class UserProfile {
       }
     }
 
+    final aiAssistantPreferencesRaw = data['aiAssistantPreferences'];
+    final aiAssistantPreferences = <String, dynamic>{};
+    if (aiAssistantPreferencesRaw is Map) {
+      for (final entry in aiAssistantPreferencesRaw.entries) {
+        aiAssistantPreferences[entry.key.toString()] = entry.value;
+      }
+    }
+
     final mappedRole = UserRole.values.firstWhere(
       (role) => role.name == normalizedRole,
       orElse: () => UserRole.other,
@@ -121,6 +132,7 @@ class UserProfile {
           (data['counselorSetupCompleted'] as bool?) ?? false,
       counselorSetupData: counselorSetup,
       counselorPreferences: counselorPreferences,
+      aiAssistantPreferences: aiAssistantPreferences,
       institutionId: data['institutionId'] as String?,
       institutionName: data['institutionName'] as String?,
     );

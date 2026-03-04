@@ -1869,10 +1869,17 @@ class AssistantRepository {
     final summaryText = summary.isEmpty
         ? ''
         : ' Conversation memory summary: $summary';
+    final aiPrefs = profile.aiAssistantPreferences;
+    final aiEnabled = aiPrefs['enabled'] == true;
+    final aiStyle = (aiPrefs['style'] as String?) ?? '';
+    final aiCadence = (aiPrefs['checkInCadence'] as String?) ?? '';
+    final aiContext = aiEnabled
+        ? ' AI preference: enabled=true, style=$aiStyle, checkInCadence=$aiCadence.'
+        : ' AI preference: enabled=false or not configured.';
     return 'You are MindNest assistant. Provide supportive, calm responses. '
         'For emergency self-harm/violence risk, advise immediate local emergency/crisis support. '
         'Do not claim to be a licensed therapist. '
-        'User context: role=${profile.role.name}, institutionId=${profile.institutionId ?? ''}.$summaryText';
+        'User context: role=${profile.role.name}, institutionId=${profile.institutionId ?? ''}.$aiContext$summaryText';
   }
 
   List<_ProviderType> _providerSequence({

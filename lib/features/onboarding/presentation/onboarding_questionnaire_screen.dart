@@ -23,12 +23,32 @@ class _OnboardingQuestionnaireScreenState
   int _currentStep = 0;
   bool _isSubmitting = false;
 
-  Future<void> _submit(UserRole role) async {
+  Map<String, dynamic> _submissionPayload(List<OnboardingQuestion> questions) {
+    final visibleIds = questions.map((q) => q.id).toSet();
+    final payload = <String, dynamic>{};
+    for (final entry in _answers.entries) {
+      if (visibleIds.contains(entry.key)) {
+        payload[entry.key] = entry.value;
+      }
+    }
+    final support = payload['support_preference'];
+    final supportValues = support is List
+        ? support.whereType<String>()
+        : const <String>[];
+    payload['ai_assist_enabled'] = supportValues.contains('ai_guidance');
+    payload['adaptive_question_count'] = questions.length;
+    return payload;
+  }
+
+  Future<void> _submit(
+    UserRole role,
+    List<OnboardingQuestion> questions,
+  ) async {
     setState(() => _isSubmitting = true);
     try {
       await ref
           .read(onboardingRepositoryProvider)
-          .submitResponses(role: role, answers: _answers);
+          .submitResponses(role: role, answers: _submissionPayload(questions));
       if (!mounted) {
         return;
       }
@@ -63,7 +83,7 @@ class _OnboardingQuestionnaireScreenState
     }
 
     if (_currentStep == questions.length - 1) {
-      await _submit(role);
+      await _submit(role, questions);
       return;
     }
 
@@ -197,7 +217,10 @@ class _OnboardingQuestionnaireScreenState
           }
 
           final role = profile.role;
-          final questions = OnboardingQuestionBank.forRole(role);
+          final questions = OnboardingQuestionBank.forRole(
+            role,
+            answers: _answers,
+          );
           if (questions.isEmpty) {
             return _StateCard(
               message:
