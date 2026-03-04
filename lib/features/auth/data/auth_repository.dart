@@ -57,14 +57,16 @@ class AuthRepository {
     );
   }
 
-  Future<void> setCurrentUserRole(UserRole role) async {
+  Future<void> setCurrentUserAsIndividual() async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('You must be logged in.');
     }
 
     await _firestore.collection('users').doc(user.uid).update({
-      'role': role.name,
+      'role': UserRole.individual.name,
+      'institutionId': null,
+      'institutionName': null,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }

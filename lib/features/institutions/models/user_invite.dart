@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 
 enum UserInviteStatus { pending, accepted, declined, revoked, unknown }
@@ -20,6 +21,9 @@ class UserInvite {
     required this.invitedName,
     required this.intendedRole,
     required this.status,
+    this.expiresAt,
+    this.revokedAt,
+    this.invitedBy,
   });
 
   final String id;
@@ -29,8 +33,29 @@ class UserInvite {
   final String invitedName;
   final UserRole intendedRole;
   final UserInviteStatus status;
+  final DateTime? expiresAt;
+  final DateTime? revokedAt;
+  final String? invitedBy;
 
-  bool get isPending => status == UserInviteStatus.pending;
+  bool get isExpired {
+    final expires = expiresAt;
+    if (expires == null) {
+      return false;
+    }
+    return !expires.toUtc().isAfter(DateTime.now().toUtc());
+  }
+
+  bool get isPending => status == UserInviteStatus.pending && !isExpired;
+
+  static DateTime? _asDateTime(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate().toUtc();
+    }
+    if (value is DateTime) {
+      return value.toUtc();
+    }
+    return null;
+  }
 
   factory UserInvite.fromMap(String id, Map<String, dynamic> data) {
     final intendedRole = UserRole.values.firstWhere(
@@ -46,6 +71,9 @@ class UserInvite {
       invitedName: (data['invitedName'] as String?) ?? '',
       intendedRole: intendedRole,
       status: UserInviteStatusX.fromString(data['status'] as String?),
+      expiresAt: _asDateTime(data['expiresAt']),
+      revokedAt: _asDateTime(data['revokedAt']),
+      invitedBy: data['invitedBy'] as String?,
     );
   }
 }

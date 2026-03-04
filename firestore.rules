@@ -38,6 +38,27 @@ service cloud.firestore {
       return currentUserDoc().institutionId;
     }
 
+    function currentMembershipDoc() {
+      return get(
+        /databases/$(database)/documents/institution_members/$(currentInstitutionId() + '_' + request.auth.uid)
+      ).data;
+    }
+
+    function currentMembershipIsActiveForRole(role) {
+      return isSignedIn() &&
+        currentInstitutionId() != null &&
+        exists(
+          /databases/$(database)/documents/institution_members/$(currentInstitutionId() + '_' + request.auth.uid)
+        ) &&
+        currentMembershipDoc().role == role &&
+        currentMembershipDoc().status == 'active';
+    }
+
+    function isApprovedCounselor() {
+      return currentUserRole() == 'counselor' &&
+        currentMembershipIsActiveForRole('counselor');
+    }
+
     function isOwnerAccount() {
       return isSignedIn() &&
         request.auth.token.email == 'karimiarrison@gmail.com';
@@ -112,10 +133,13 @@ service cloud.firestore {
         request.resource.data.joinCodeUsageCount == resource.data.joinCodeUsageCount + 1 &&
         existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.institutionId == institutionId &&
-        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['student', 'staff'] &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student' &&
         existsAfter(/databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)) &&
         getAfter(/databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)).data.userId == request.auth.uid &&
-        getAfter(/databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)).data.institutionId == institutionId;
+        getAfter(/databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)).data.institutionId == institutionId &&
+        getAfter(/databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)).data.role == 'student' &&
+        getAfter(/databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)).data.joinedVia == 'code' &&
+        getAfter(/databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)).data.status == 'active';
     }
 
     function canAutoRotateExpiredOrCappedCode() {
@@ -156,6 +180,234 @@ service cloud.firestore {
         request.resource.data.createdBy == resource.data.createdBy;
     }
 
+    function membershipDocId(institutionId, userId) {
+      return institutionId + '_' + userId;
+    }
+
+    function requestMembershipDocId() {
+      return membershipDocId(request.resource.data.institutionId, request.auth.uid);
+    }
+
+    function afterRequestedMembershipDoc() {
+      return getAfter(
+        /databases/$(database)/documents/institution_members/$(requestMembershipDocId())
+      ).data;
+    }
+
+    function inviteDocAfter(inviteId) {
+      return getAfter(/databases/$(database)/documents/user_invites/$(inviteId)).data;
+    }
+
+    function canSelfCodeJoinMembershipWrite(membershipId) {
+      return isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.institutionId is string &&
+        membershipId == requestMembershipDocId() &&
+        request.resource.data.role == 'student' &&
+        request.resource.data.status == 'active' &&
+        request.resource.data.joinedVia == 'code' &&
+        existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.institutionId == request.resource.data.institutionId &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+
+    function canSelfInviteMembershipWrite(membershipId) {
+      return isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.institutionId is string &&
+        membershipId == requestMembershipDocId() &&
+        request.resource.data.role in ['staff', 'counselor'] &&
+        request.resource.data.joinedVia == 'invite' &&
+        request.resource.data.inviteId is string &&
+        request.resource.data.inviteId.size() > 0 &&
+        (
+          (request.resource.data.role == 'staff' &&
+            request.resource.data.status == 'active') ||
+          (request.resource.data.role == 'counselor' &&
+            request.resource.data.status == 'pending')
+        ) &&
+        existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.institutionId == request.resource.data.institutionId &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == request.resource.data.role &&
+        (
+          request.resource.data.role != 'counselor' ||
+          getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.counselorApprovalStatus == 'pending'
+        ) &&
+        existsAfter(/databases/$(database)/documents/user_invites/$(request.resource.data.inviteId)) &&
+        inviteDocAfter(request.resource.data.inviteId).status == 'accepted' &&
+        inviteDocAfter(request.resource.data.inviteId).acceptedByUid == request.auth.uid &&
+        authEmail() != null &&
+        inviteDocAfter(request.resource.data.inviteId).invitedEmail == authEmail() &&
+        inviteDocAfter(request.resource.data.inviteId).institutionId == request.resource.data.institutionId &&
+        inviteDocAfter(request.resource.data.inviteId).intendedRole == request.resource.data.role;
+    }
+
+    function canBootstrapInstitutionAdminMembership(membershipId) {
+      return isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.institutionId is string &&
+        membershipId == requestMembershipDocId() &&
+        request.resource.data.role == 'institutionAdmin' &&
+        request.resource.data.status == 'active' &&
+        existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.institutionId == request.resource.data.institutionId &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'institutionAdmin';
+    }
+
+    function canSelfSetStudentRoleFromMembership() {
+      return request.resource.data.role == 'student' &&
+        request.resource.data.institutionId is string &&
+        request.resource.data.institutionId.size() > 0 &&
+        existsAfter(/databases/$(database)/documents/institution_members/$(requestMembershipDocId())) &&
+        afterRequestedMembershipDoc().userId == request.auth.uid &&
+        afterRequestedMembershipDoc().institutionId == request.resource.data.institutionId &&
+        afterRequestedMembershipDoc().role == 'student' &&
+        afterRequestedMembershipDoc().status == 'active' &&
+        afterRequestedMembershipDoc().joinedVia == 'code';
+    }
+
+    function canSelfSetInviteRoleFromMembership() {
+      return request.resource.data.role in ['staff', 'counselor'] &&
+        request.resource.data.institutionId is string &&
+        request.resource.data.institutionId.size() > 0 &&
+        existsAfter(/databases/$(database)/documents/institution_members/$(requestMembershipDocId())) &&
+        afterRequestedMembershipDoc().userId == request.auth.uid &&
+        afterRequestedMembershipDoc().institutionId == request.resource.data.institutionId &&
+        afterRequestedMembershipDoc().role == request.resource.data.role &&
+        afterRequestedMembershipDoc().joinedVia == 'invite' &&
+        afterRequestedMembershipDoc().inviteId is string &&
+        afterRequestedMembershipDoc().inviteId.size() > 0 &&
+        (
+          (request.resource.data.role == 'staff' &&
+            afterRequestedMembershipDoc().status == 'active') ||
+          (request.resource.data.role == 'counselor' &&
+            afterRequestedMembershipDoc().status == 'pending')
+        ) &&
+        existsAfter(/databases/$(database)/documents/user_invites/$(afterRequestedMembershipDoc().inviteId)) &&
+        inviteDocAfter(afterRequestedMembershipDoc().inviteId).status == 'accepted' &&
+        inviteDocAfter(afterRequestedMembershipDoc().inviteId).acceptedByUid == request.auth.uid &&
+        authEmail() != null &&
+        inviteDocAfter(afterRequestedMembershipDoc().inviteId).invitedEmail == authEmail() &&
+        inviteDocAfter(afterRequestedMembershipDoc().inviteId).institutionId == request.resource.data.institutionId &&
+        inviteDocAfter(afterRequestedMembershipDoc().inviteId).intendedRole == request.resource.data.role &&
+        (
+          request.resource.data.role != 'counselor' ||
+          request.resource.data.counselorApprovalStatus == 'pending'
+        );
+    }
+
+    function canAdminUpdateMembershipLifecycle() {
+      return isSignedIn() &&
+        sameInstitutionAdmin(resource.data.institutionId) &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.institutionId == resource.data.institutionId &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.status in ['active', 'suspended', 'removed'] &&
+        request.resource.data.lifecycleUpdatedBy == request.auth.uid &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'status',
+          'lifecycleReason',
+          'lifecycleUpdatedBy',
+          'lifecycleUpdatedAt',
+          'updatedAt'
+        ]) &&
+        !(resource.data.role == 'institutionAdmin' &&
+          resource.data.userId == request.auth.uid);
+    }
+
+    function inviteCoreFieldsUnchanged() {
+      return request.resource.data.institutionId == resource.data.institutionId &&
+        request.resource.data.institutionName == resource.data.institutionName &&
+        request.resource.data.invitedName == resource.data.invitedName &&
+        request.resource.data.invitedEmail == resource.data.invitedEmail &&
+        request.resource.data.intendedRole == resource.data.intendedRole &&
+        request.resource.data.invitedBy == resource.data.invitedBy &&
+        request.resource.data.oneTimeUse == resource.data.oneTimeUse &&
+        request.resource.data.expiresAt == resource.data.expiresAt &&
+        request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function canInviteeRespondToInvite(inviteId) {
+      return isSignedIn() &&
+        authEmail() != null &&
+        resource.data.invitedEmail == authEmail() &&
+        resource.data.status == 'pending' &&
+        (
+          !('expiresAt' in resource.data) ||
+          request.time < resource.data.expiresAt
+        ) &&
+        inviteCoreFieldsUnchanged() &&
+        (
+          (
+            request.resource.data.status == 'accepted' &&
+            request.resource.data.acceptedByUid == request.auth.uid &&
+            existsAfter(
+              /databases/$(database)/documents/institution_members/$(resource.data.institutionId + '_' + request.auth.uid)
+            ) &&
+            getAfter(
+              /databases/$(database)/documents/institution_members/$(resource.data.institutionId + '_' + request.auth.uid)
+            ).data.userId == request.auth.uid &&
+            getAfter(
+              /databases/$(database)/documents/institution_members/$(resource.data.institutionId + '_' + request.auth.uid)
+            ).data.institutionId == resource.data.institutionId &&
+            getAfter(
+              /databases/$(database)/documents/institution_members/$(resource.data.institutionId + '_' + request.auth.uid)
+            ).data.role == resource.data.intendedRole &&
+            getAfter(
+              /databases/$(database)/documents/institution_members/$(resource.data.institutionId + '_' + request.auth.uid)
+            ).data.joinedVia == 'invite' &&
+            getAfter(
+              /databases/$(database)/documents/institution_members/$(resource.data.institutionId + '_' + request.auth.uid)
+            ).data.inviteId == inviteId &&
+            (
+              (
+                resource.data.intendedRole == 'staff' &&
+                getAfter(
+                  /databases/$(database)/documents/institution_members/$(resource.data.institutionId + '_' + request.auth.uid)
+                ).data.status == 'active'
+              ) ||
+              (
+                resource.data.intendedRole == 'counselor' &&
+                getAfter(
+                  /databases/$(database)/documents/institution_members/$(resource.data.institutionId + '_' + request.auth.uid)
+                ).data.status == 'pending'
+              )
+            ) &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              'status',
+              'acceptedAt',
+              'acceptedByUid',
+              'updatedAt'
+            ])
+          ) ||
+          (
+            request.resource.data.status == 'declined' &&
+            request.resource.data.declinedByUid == request.auth.uid &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              'status',
+              'declinedAt',
+              'declinedByUid',
+              'updatedAt'
+            ])
+          )
+        );
+    }
+
+    function canAdminRevokeInvite() {
+      return isSignedIn() &&
+        sameInstitutionAdmin(resource.data.institutionId) &&
+        resource.data.status == 'pending' &&
+        inviteCoreFieldsUnchanged() &&
+        request.resource.data.status == 'revoked' &&
+        request.resource.data.revokedByUid == request.auth.uid &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'status',
+          'revokedAt',
+          'revokedByUid',
+          'updatedAt'
+        ]);
+    }
+
     function sharesInstitutionWithUser(targetUid) {
       return isSignedIn() &&
         currentInstitutionId() != null &&
@@ -163,7 +415,8 @@ service cloud.firestore {
     }
 
     function isLiveRole() {
-      return currentUserRole() in ['student', 'staff', 'counselor'];
+      return currentUserRole() in ['student', 'staff'] ||
+        isApprovedCounselor();
     }
 
     function liveSessionDoc(sessionId) {
@@ -189,8 +442,16 @@ service cloud.firestore {
       allow update: if isOwner(uid) &&
         isAllowedRole(request.resource.data.role) &&
         (
-          request.resource.data.role in ['individual', 'student', 'staff', 'counselor'] ||
-          request.resource.data.role == resource.data.role
+          (
+            request.resource.data.role == resource.data.role &&
+            request.resource.data.institutionId == resource.data.institutionId
+          ) ||
+          (
+            request.resource.data.role == 'individual' &&
+            request.resource.data.institutionId == null
+          ) ||
+          canSelfSetStudentRoleFromMembership() ||
+          canSelfSetInviteRoleFromMembership()
         );
       allow delete: if isOwner(uid);
     }
@@ -254,9 +515,12 @@ service cloud.firestore {
 
     match /institution_members/{membershipId} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn() &&
-        request.resource.data.userId == request.auth.uid &&
-        request.resource.data.role in ['student', 'staff', 'counselor', 'institutionAdmin'];
+      allow create: if canSelfCodeJoinMembershipWrite(membershipId) ||
+        canSelfInviteMembershipWrite(membershipId) ||
+        canBootstrapInstitutionAdminMembership(membershipId);
+      allow update: if canSelfCodeJoinMembershipWrite(membershipId) ||
+        canSelfInviteMembershipWrite(membershipId) ||
+        canAdminUpdateMembershipLifecycle();
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
@@ -265,33 +529,43 @@ service cloud.firestore {
         currentUserRole() == 'institutionAdmin' &&
         currentInstitutionApproved() &&
         request.resource.data.institutionId == currentInstitutionId() &&
-        request.resource.data.intendedRole in ['student', 'staff', 'counselor'] &&
-        request.resource.data.status == 'pending';
+        request.resource.data.institutionName is string &&
+        request.resource.data.institutionName.size() >= 2 &&
+        request.resource.data.invitedName is string &&
+        request.resource.data.invitedName.size() >= 2 &&
+        request.resource.data.intendedRole in ['staff', 'counselor'] &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.invitedEmail is string &&
+        request.resource.data.invitedEmail.size() > 3 &&
+        request.resource.data.invitedBy == request.auth.uid &&
+        request.resource.data.oneTimeUse == true &&
+        request.resource.data.expiresAt is timestamp;
       allow read: if isSignedIn() && (
         (currentUserRole() == 'institutionAdmin' &&
           resource.data.institutionId == currentInstitutionId()) ||
         (authEmail() != null && resource.data.invitedEmail == authEmail())
       );
-      allow update: if isSignedIn() &&
-        authEmail() != null &&
-        resource.data.invitedEmail == authEmail() &&
-        resource.data.status == 'pending' &&
-        request.resource.data.status in ['accepted', 'declined'] &&
-        request.resource.data.invitedEmail == resource.data.invitedEmail &&
-        request.resource.data.intendedRole == resource.data.intendedRole &&
-        request.resource.data.institutionId == resource.data.institutionId;
+      allow update: if canInviteeRespondToInvite(inviteId) ||
+        canAdminRevokeInvite();
       allow delete: if false;
     }
 
-    match /counselor_invites/{inviteId} {
+    match /institution_membership_audit/{auditId} {
+      allow read: if isSignedIn() && (
+        (
+          currentUserRole() == 'institutionAdmin' &&
+          resource.data.institutionId == currentInstitutionId()
+        ) ||
+        isOwnerAccount()
+      );
       allow create: if isSignedIn() &&
-        currentUserRole() == 'institutionAdmin' &&
-        currentInstitutionApproved() &&
-        request.resource.data.institutionId == currentInstitutionId() &&
-        request.resource.data.role == 'counselor';
-      allow read: if isSignedIn() &&
-        currentUserRole() == 'institutionAdmin' &&
-        resource.data.institutionId == currentInstitutionId();
+        request.resource.data.actorUid == request.auth.uid &&
+        request.resource.data.institutionId is string &&
+        request.resource.data.institutionId.size() > 0 &&
+        request.resource.data.targetUserId is string &&
+        request.resource.data.targetUserId.size() > 0 &&
+        request.resource.data.action is string &&
+        request.resource.data.action.size() > 0;
       allow update, delete: if false;
     }
 
@@ -328,7 +602,7 @@ service cloud.firestore {
       allow read: if isSignedIn() &&
         resource.data.institutionId == currentInstitutionId();
       allow create: if isSignedIn() &&
-        currentUserRole() == 'counselor' &&
+        isApprovedCounselor() &&
         request.resource.data.counselorId == request.auth.uid &&
         request.resource.data.institutionId == currentInstitutionId() &&
         request.resource.data.status == 'available';
@@ -337,7 +611,7 @@ service cloud.firestore {
         request.resource.data.institutionId == resource.data.institutionId &&
         (
           (
-            currentUserRole() == 'counselor' &&
+            isApprovedCounselor() &&
             resource.data.counselorId == request.auth.uid
           ) ||
           (
@@ -353,7 +627,7 @@ service cloud.firestore {
           )
         );
       allow delete: if isSignedIn() &&
-        currentUserRole() == 'counselor' &&
+        isApprovedCounselor() &&
         resource.data.counselorId == request.auth.uid &&
         resource.data.status == 'available';
     }
@@ -393,6 +667,7 @@ service cloud.firestore {
           ) ||
           (
             resource.data.counselorId == request.auth.uid &&
+            currentMembershipIsActiveForRole('counselor') &&
             request.resource.data.status in ['confirmed', 'completed', 'cancelled', 'noShow']
           ) ||
           (
@@ -505,7 +780,7 @@ service cloud.firestore {
         )
       );
       allow create: if isSignedIn() &&
-        currentUserRole() == 'counselor' &&
+        isApprovedCounselor() &&
         request.resource.data.counselorId == request.auth.uid &&
         request.resource.data.institutionId == currentInstitutionId();
       allow update: if isSignedIn() && (

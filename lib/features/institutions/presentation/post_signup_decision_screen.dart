@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
-import 'package:mindnest/features/auth/models/user_profile.dart';
 
 class PostSignupDecisionScreen extends ConsumerStatefulWidget {
   const PostSignupDecisionScreen({super.key});
@@ -21,9 +20,7 @@ class _PostSignupDecisionScreenState
   Future<void> _chooseIndividual() async {
     setState(() => _isSubmitting = true);
     try {
-      await ref
-          .read(authRepositoryProvider)
-          .setCurrentUserRole(UserRole.individual);
+      await ref.read(authRepositoryProvider).setCurrentUserAsIndividual();
       if (mounted) {
         context.go(AppRoute.verifyEmail);
       }
@@ -71,7 +68,7 @@ class _PostSignupDecisionScreenState
               _ActionTile(
                 title: 'Yes, I have a join code',
                 subtitle:
-                    'Join your school/university and pick Student or Staff.',
+                    'Join your school/university as Student. Staff and counselors are added by admin invite.',
                 icon: Icons.apartment_rounded,
                 onTap: _isSubmitting ? null : _chooseInstitutionJoin,
               ),

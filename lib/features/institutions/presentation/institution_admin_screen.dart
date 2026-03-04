@@ -238,6 +238,98 @@ class _InstitutionAdminScreenState
     return null;
   }
 
+  bool _isPendingInviteData(Map<String, dynamic> data) {
+    final status = (data['status'] as String?) ?? '';
+    if (status != 'pending') {
+      return false;
+    }
+    final expiresAt = _parseDate(data['expiresAt']);
+    if (expiresAt == null) {
+      return true;
+    }
+    return expiresAt.toUtc().isAfter(DateTime.now().toUtc());
+  }
+
+  String _inviteStatusLabel(Map<String, dynamic> data) {
+    final status = (data['status'] as String?) ?? 'pending';
+    if (status != 'pending') {
+      return status;
+    }
+    final expiresAt = _parseDate(data['expiresAt']);
+    if (expiresAt != null &&
+        !expiresAt.toUtc().isAfter(DateTime.now().toUtc())) {
+      return 'expired';
+    }
+    return status;
+  }
+
+  Future<void> _revokeInvite(_WorkspaceEntry entry) async {
+    final inviteId = entry.recordId;
+    if (inviteId.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invite id missing.')));
+      return;
+    }
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .revokeInvite(inviteId: inviteId);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invite revoked.')));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  Future<void> _updateMemberStatus(
+    _WorkspaceEntry entry,
+    String nextStatus,
+  ) async {
+    final userId = (entry.raw['userId'] as String?) ?? '';
+    if (userId.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Member user id missing.')));
+      return;
+    }
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .updateMemberLifecycleStatus(
+            memberUserId: userId,
+            status: nextStatus,
+            reason: 'admin_dashboard',
+          );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Member marked as $nextStatus.')));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
   List<_WorkspaceEntry> _entriesForView({
     required AdminWorkspaceView view,
     required List<QueryDocumentSnapshot<Map<String, dynamic>>> members,
@@ -264,10 +356,11 @@ class _InstitutionAdminScreenState
                 (data['userId'] as String?) ??
                 '--';
             return _WorkspaceEntry(
+              recordId: doc.id,
               primary: displayName,
               secondary: secondary,
               type: roleName,
-              status: 'active',
+              status: (data['status'] as String?) ?? 'active',
               source: 'member',
               createdAt: _parseDate(data['joinedAt'] ?? data['createdAt']),
               raw: data,
@@ -282,15 +375,16 @@ class _InstitutionAdminScreenState
             if (!pendingOnly) {
               return true;
             }
-            return (doc.data()['status'] as String? ?? '') == 'pending';
+            return _isPendingInviteData(doc.data());
           })
           .map((doc) {
             final data = doc.data();
             return _WorkspaceEntry(
+              recordId: doc.id,
               primary: (data['invitedName'] as String?) ?? '--',
               secondary: (data['invitedEmail'] as String?) ?? '--',
               type: (data['intendedRole'] as String?) ?? 'invite',
-              status: (data['status'] as String?) ?? 'pending',
+              status: _inviteStatusLabel(data),
               source: 'invite',
               createdAt: _parseDate(data['createdAt']),
               raw: data,
@@ -318,7 +412,31 @@ class _InstitutionAdminScreenState
   }
 
   void _openEntryDetails(_WorkspaceEntry entry) {
-    showDialog<void>(
+    final currentUid = ref.read(firebaseAuthProvider).currentUser?.uid;
+    final isOwnAdminMember =
+        entry.source == 'member' &&
+        entry.type == UserRole.institutionAdmin.name &&
+        ((entry.raw['userId'] as String?) ?? '') == (currentUid ?? '');
+    final canRevokeInvite =
+        entry.source == 'invite' && entry.status == 'pending';
+    final canActivateMember =
+        entry.source == 'member' &&
+        entry.type != UserRole.institutionAdmin.name &&
+        entry.status != 'active' &&
+        entry.status != 'removed' &&
+        !isOwnAdminMember;
+    final canSuspendMember =
+        entry.source == 'member' &&
+        entry.type != UserRole.institutionAdmin.name &&
+        entry.status == 'active' &&
+        !isOwnAdminMember;
+    final canRemoveMember =
+        entry.source == 'member' &&
+        entry.type != UserRole.institutionAdmin.name &&
+        entry.status != 'removed' &&
+        !isOwnAdminMember;
+
+    showDialog<String>(
       context: context,
       builder: (context) {
         final keys = entry.raw.keys.toList()..sort();
@@ -357,6 +475,26 @@ class _InstitutionAdminScreenState
             ),
           ),
           actions: [
+            if (canRevokeInvite)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop('revoke_invite'),
+                child: const Text('Revoke Invite'),
+              ),
+            if (canActivateMember)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop('activate_member'),
+                child: const Text('Activate'),
+              ),
+            if (canSuspendMember)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop('suspend_member'),
+                child: const Text('Suspend'),
+              ),
+            if (canRemoveMember)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop('remove_member'),
+                child: const Text('Remove'),
+              ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Close'),
@@ -364,7 +502,25 @@ class _InstitutionAdminScreenState
           ],
         );
       },
-    );
+    ).then((action) {
+      if (action == null) {
+        return;
+      }
+      switch (action) {
+        case 'revoke_invite':
+          _revokeInvite(entry);
+          break;
+        case 'activate_member':
+          _updateMemberStatus(entry, 'active');
+          break;
+        case 'suspend_member':
+          _updateMemberStatus(entry, 'suspended');
+          break;
+        case 'remove_member':
+          _updateMemberStatus(entry, 'removed');
+          break;
+      }
+    });
   }
 
   @override
@@ -437,9 +593,7 @@ class _InstitutionAdminScreenState
                       )
                       .length;
                   final pendingCount = invites
-                      .where(
-                        (doc) => (doc.data()['status'] as String?) == 'pending',
-                      )
+                      .where((doc) => _isPendingInviteData(doc.data()))
                       .length;
 
                   final stats = [
@@ -1145,6 +1299,7 @@ class _StatTile extends StatelessWidget {
 
 class _WorkspaceEntry {
   const _WorkspaceEntry({
+    required this.recordId,
     required this.primary,
     required this.secondary,
     required this.type,
@@ -1154,6 +1309,7 @@ class _WorkspaceEntry {
     required this.raw,
   });
 
+  final String recordId;
   final String primary;
   final String secondary;
   final String type;
@@ -1534,11 +1690,6 @@ class _InviteComposer extends StatelessWidget {
             Wrap(
               spacing: 8,
               children: [
-                _RoleChip(
-                  label: 'Student',
-                  selected: selectedRole == UserRole.student,
-                  onTap: () => onRoleChanged(UserRole.student),
-                ),
                 _RoleChip(
                   label: 'Staff',
                   selected: selectedRole == UserRole.staff,

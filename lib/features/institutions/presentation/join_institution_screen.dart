@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
-import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
 class JoinInstitutionScreen extends ConsumerStatefulWidget {
@@ -18,7 +17,6 @@ class JoinInstitutionScreen extends ConsumerStatefulWidget {
 class _JoinInstitutionScreenState extends ConsumerState<JoinInstitutionScreen> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
-  UserRole _selectedRole = UserRole.student;
   bool _isSubmitting = false;
 
   @override
@@ -36,10 +34,7 @@ class _JoinInstitutionScreenState extends ConsumerState<JoinInstitutionScreen> {
     try {
       await ref
           .read(institutionRepositoryProvider)
-          .joinInstitutionByCode(
-            code: _codeController.text,
-            role: _selectedRole,
-          );
+          .joinInstitutionByCode(code: _codeController.text);
       if (!mounted) {
         return;
       }
@@ -84,9 +79,7 @@ class _JoinInstitutionScreenState extends ConsumerState<JoinInstitutionScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Use the join code from your institution admin and select your role.',
-                ),
+                const Text('Use the join code from your institution admin.'),
                 const SizedBox(height: 18),
                 TextFormField(
                   controller: _codeController,
@@ -100,23 +93,8 @@ class _JoinInstitutionScreenState extends ConsumerState<JoinInstitutionScreen> {
                   },
                 ),
                 const SizedBox(height: 12),
-                SegmentedButton<UserRole>(
-                  selected: {_selectedRole},
-                  showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(
-                      value: UserRole.student,
-                      label: Text('Student'),
-                    ),
-                    ButtonSegment(value: UserRole.staff, label: Text('Staff')),
-                  ],
-                  onSelectionChanged: (value) {
-                    setState(() => _selectedRole = value.first);
-                  },
-                ),
-                const SizedBox(height: 6),
                 Text(
-                  'Counselor role is created by Institution Admin invite only.',
+                  'Only students can join with code. Staff and counselors are added by invite from Institution Admin.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: const Color(0xFF334155),
                   ),
