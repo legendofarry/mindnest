@@ -1,3 +1,4 @@
+// features/institutions/data/institution_repository.dart
 import 'dart:math';
 import 'dart:async';
 import 'dart:convert';
@@ -59,7 +60,7 @@ class InstitutionRepository {
     defaultValue: '',
   );
   static const String _inviteAcceptLinkBaseFromSource =
-      'https://mindnest.app/invite-accept';
+      'https://mindnest.netlify.app/invite-accept';
   static String get _pushDispatchEndpoint =>
       _pushDispatchEndpointFromDefine.isNotEmpty
       ? _pushDispatchEndpointFromDefine

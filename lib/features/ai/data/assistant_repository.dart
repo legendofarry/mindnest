@@ -40,7 +40,7 @@ const _openRouterApiKeySource =
 const _openRouterBaseUrlSource = 'https://openrouter.ai/api/v1';
 const _openRouterModelSource = 'nvidia/nemotron-3-nano-30b-a3b:free';
 const _openRouterChatPathSource = '/chat/completions';
-const _openRouterHttpRefererSource = 'https://mindnest.app';
+const _openRouterHttpRefererSource = 'https://mindnest.netlify.app';
 const _openRouterTitleSource = 'MindNest';
 
 class AssistantRepository {
