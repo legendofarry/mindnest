@@ -7,6 +7,8 @@ import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/features/institutions/data/institution_repository.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 enum AdminWorkspaceView {
   overview,
@@ -61,7 +63,7 @@ class _InstitutionAdminScreenState
 
     setState(() => _isSubmitting = true);
     try {
-      await ref
+      final inviteDraft = await ref
           .read(institutionRepositoryProvider)
           .createRoleInvite(
             invitedName: name,
@@ -74,8 +76,13 @@ class _InstitutionAdminScreenState
       _nameController.clear();
       _emailController.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${_inviteRole.label} invite created.')),
+        SnackBar(
+          content: Text(
+            '${_inviteRole.label} invite created. Send the invite link now.',
+          ),
+        ),
       );
+      await _showInviteDeliveryDialog(inviteDraft);
     } catch (error) {
       if (!mounted) {
         return;
@@ -90,6 +97,145 @@ class _InstitutionAdminScreenState
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  Future<void> _copyTextWithFeedback({
+    required String text,
+    required String successMessage,
+  }) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(successMessage)));
+  }
+
+  Future<void> _openInviteMailDraft({
+    required InviteDeliveryDraft inviteDraft,
+    required bool useAiAssistMessage,
+  }) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: inviteDraft.invitedEmail,
+      queryParameters: <String, String>{
+        'subject': inviteDraft.emailSubject,
+        'body': useAiAssistMessage
+            ? inviteDraft.aiEmailText
+            : inviteDraft.emailText,
+      },
+    );
+    final launched = await launchUrl(uri);
+    if (!mounted) {
+      return;
+    }
+    if (launched) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Could not open email app. Copy the invite message manually.',
+        ),
+      ),
+    );
+  }
+
+  InviteDeliveryDraft? _buildInviteDraftFromEntry(_WorkspaceEntry entry) {
+    if (entry.source != 'invite') {
+      return null;
+    }
+    final data = entry.raw;
+    final inviteId = entry.recordId.trim();
+    final invitedEmail = ((data['invitedEmail'] as String?) ?? '').trim();
+    final invitedName = ((data['invitedName'] as String?) ?? '').trim();
+    final institutionName = ((data['institutionName'] as String?) ?? '').trim();
+    final intendedRoleRaw = ((data['intendedRole'] as String?) ?? '').trim();
+    final role = UserRole.values.firstWhere(
+      (candidate) => candidate.name == intendedRoleRaw,
+      orElse: () => UserRole.other,
+    );
+    final expiresAt = _parseDate(data['expiresAt'])?.toUtc();
+    if (inviteId.isEmpty ||
+        invitedEmail.length < 4 ||
+        invitedName.length < 2 ||
+        institutionName.length < 2 ||
+        expiresAt == null ||
+        (role != UserRole.staff && role != UserRole.counselor)) {
+      return null;
+    }
+    return ref
+        .read(institutionRepositoryProvider)
+        .buildInviteDeliveryDraft(
+          inviteId: inviteId,
+          invitedEmail: invitedEmail,
+          invitedName: invitedName,
+          institutionName: institutionName,
+          role: role,
+          expiresAtUtc: expiresAt,
+        );
+  }
+
+  Future<void> _showInviteDeliveryDialog(InviteDeliveryDraft inviteDraft) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Invite Ready to Send'),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Send this invite to ${inviteDraft.invitedEmail} (${inviteDraft.role.label}).',
+              ),
+              const SizedBox(height: 10),
+              SelectableText(inviteDraft.acceptLink),
+              const SizedBox(height: 6),
+              const Text(
+                'Use the same email address for registration before accepting.',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => _copyTextWithFeedback(
+              text: inviteDraft.acceptLink,
+              successMessage: 'Invite link copied.',
+            ),
+            child: const Text('Copy Link'),
+          ),
+          TextButton(
+            onPressed: () => _copyTextWithFeedback(
+              text: inviteDraft.emailText,
+              successMessage: 'Invite message copied.',
+            ),
+            child: const Text('Copy Message'),
+          ),
+          TextButton(
+            onPressed: () => _copyTextWithFeedback(
+              text: inviteDraft.aiEmailText,
+              successMessage: 'AI-assisted invite message copied.',
+            ),
+            child: const Text('Copy AI Message'),
+          ),
+          TextButton(
+            onPressed: () => _openInviteMailDraft(
+              inviteDraft: inviteDraft,
+              useAiAssistMessage: true,
+            ),
+            child: const Text('Open Email Draft'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _regenerateJoinCode({bool silent = false}) async {
@@ -419,6 +565,11 @@ class _InstitutionAdminScreenState
         ((entry.raw['userId'] as String?) ?? '') == (currentUid ?? '');
     final canRevokeInvite =
         entry.source == 'invite' && entry.status == 'pending';
+    final inviteDraft = _buildInviteDraftFromEntry(entry);
+    final canCopyInviteDelivery =
+        entry.source == 'invite' &&
+        entry.status == 'pending' &&
+        inviteDraft != null;
     final canActivateMember =
         entry.source == 'member' &&
         entry.type != UserRole.institutionAdmin.name &&
@@ -475,6 +626,28 @@ class _InstitutionAdminScreenState
             ),
           ),
           actions: [
+            if (canCopyInviteDelivery)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop('copy_invite_link'),
+                child: const Text('Copy Link'),
+              ),
+            if (canCopyInviteDelivery)
+              TextButton(
+                onPressed: () =>
+                    Navigator.of(context).pop('copy_invite_message'),
+                child: const Text('Copy Message'),
+              ),
+            if (canCopyInviteDelivery)
+              TextButton(
+                onPressed: () =>
+                    Navigator.of(context).pop('copy_invite_ai_message'),
+                child: const Text('Copy AI Message'),
+              ),
+            if (canCopyInviteDelivery)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop('open_mail_draft'),
+                child: const Text('Open Email Draft'),
+              ),
             if (canRevokeInvite)
               TextButton(
                 onPressed: () => Navigator.of(context).pop('revoke_invite'),
@@ -507,6 +680,42 @@ class _InstitutionAdminScreenState
         return;
       }
       switch (action) {
+        case 'copy_invite_link':
+          if (inviteDraft == null) {
+            return;
+          }
+          _copyTextWithFeedback(
+            text: inviteDraft.acceptLink,
+            successMessage: 'Invite link copied.',
+          );
+          break;
+        case 'copy_invite_message':
+          if (inviteDraft == null) {
+            return;
+          }
+          _copyTextWithFeedback(
+            text: inviteDraft.emailText,
+            successMessage: 'Invite message copied.',
+          );
+          break;
+        case 'copy_invite_ai_message':
+          if (inviteDraft == null) {
+            return;
+          }
+          _copyTextWithFeedback(
+            text: inviteDraft.aiEmailText,
+            successMessage: 'AI-assisted invite message copied.',
+          );
+          break;
+        case 'open_mail_draft':
+          if (inviteDraft == null) {
+            return;
+          }
+          _openInviteMailDraft(
+            inviteDraft: inviteDraft,
+            useAiAssistMessage: true,
+          );
+          break;
         case 'revoke_invite':
           _revokeInvite(entry);
           break;
@@ -1685,7 +1894,9 @@ class _InviteComposer extends StatelessWidget {
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 6),
-            const Text('Choose role, then send invite by email.'),
+            const Text(
+              'Choose role, create invite, then copy/share the link or AI-assisted email message.',
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,

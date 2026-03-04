@@ -9,6 +9,32 @@ import 'package:mindnest/core/config/owner_config.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/institutions/models/user_invite.dart';
 
+class InviteDeliveryDraft {
+  const InviteDeliveryDraft({
+    required this.inviteId,
+    required this.invitedEmail,
+    required this.invitedName,
+    required this.institutionName,
+    required this.role,
+    required this.expiresAtUtc,
+    required this.acceptLink,
+    required this.emailSubject,
+    required this.emailText,
+    required this.aiEmailText,
+  });
+
+  final String inviteId;
+  final String invitedEmail;
+  final String invitedName;
+  final String institutionName;
+  final UserRole role;
+  final DateTime expiresAtUtc;
+  final String acceptLink;
+  final String emailSubject;
+  final String emailText;
+  final String aiEmailText;
+}
+
 class InstitutionRepository {
   InstitutionRepository({
     required FirebaseFirestore firestore,
@@ -28,10 +54,20 @@ class InstitutionRepository {
   );
   static const String _pushDispatchEndpointFromSource =
       'https://mindnest-0o6x.onrender.com/push/dispatch';
+  static const String _inviteAcceptLinkBaseFromDefine = String.fromEnvironment(
+    'INVITE_ACCEPT_LINK_BASE',
+    defaultValue: '',
+  );
+  static const String _inviteAcceptLinkBaseFromSource =
+      'https://mindnest.app/invite-accept';
   static String get _pushDispatchEndpoint =>
       _pushDispatchEndpointFromDefine.isNotEmpty
       ? _pushDispatchEndpointFromDefine
       : _pushDispatchEndpointFromSource;
+  static String get _inviteAcceptLinkBase =>
+      _inviteAcceptLinkBaseFromDefine.isNotEmpty
+      ? _inviteAcceptLinkBaseFromDefine
+      : _inviteAcceptLinkBaseFromSource;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
@@ -62,6 +98,33 @@ class InstitutionRepository {
           }
           return null;
         });
+  }
+
+  Stream<UserInvite?> pendingInviteByIdForEmail({
+    required String inviteId,
+    required String email,
+  }) {
+    final normalizedEmail = email.trim().toLowerCase();
+    return _firestore.collection('user_invites').doc(inviteId).snapshots().map((
+      snapshot,
+    ) {
+      final data = snapshot.data();
+      if (data == null) {
+        return null;
+      }
+      final invite = UserInvite.fromMap(snapshot.id, data);
+      if (!invite.isPending) {
+        return null;
+      }
+      if (invite.invitedEmail.trim().toLowerCase() != normalizedEmail) {
+        return null;
+      }
+      final revokedAt = _asUtcDate(data['revokedAt']);
+      if (revokedAt != null) {
+        return null;
+      }
+      return invite;
+    });
   }
 
   Future<bool> isInstitutionCatalogIdAvailable(
@@ -238,7 +301,7 @@ class InstitutionRepository {
     ]);
   }
 
-  Future<void> createRoleInvite({
+  Future<InviteDeliveryDraft> createRoleInvite({
     required String invitedName,
     required String invitedEmail,
     required UserRole role,
@@ -264,13 +327,33 @@ class InstitutionRepository {
 
     final institutionId = profile['institutionId'] as String?;
     final institutionName = profile['institutionName'] as String?;
+    final inviterName =
+        (profile['name'] as String?) ??
+        (currentUser.displayName?.trim().isNotEmpty == true
+            ? currentUser.displayName!.trim()
+            : 'Institution Admin');
     if (institutionId == null || institutionName == null) {
       throw Exception('Admin profile is not linked to an institution.');
     }
     final normalizedInviteeEmail = invitedEmail.trim().toLowerCase();
+    await _assertNoActivePendingInvite(
+      institutionId: institutionId,
+      invitedEmail: normalizedInviteeEmail,
+      role: role,
+    );
     final nowUtc = DateTime.now().toUtc();
     final expiresAtUtc = nowUtc.add(_inviteValidity);
     final inviteRef = _firestore.collection('user_invites').doc();
+    final inviteDraft = buildInviteDeliveryDraft(
+      inviteId: inviteRef.id,
+      invitedEmail: normalizedInviteeEmail,
+      invitedName: invitedName.trim(),
+      institutionName: institutionName,
+      role: role,
+      inviterName: inviterName,
+      expiresAtUtc: expiresAtUtc,
+    );
+
     await inviteRef.set({
       'institutionId': institutionId,
       'institutionName': institutionName,
@@ -294,6 +377,48 @@ class InstitutionRepository {
         'intendedRole': role.name,
         'expiresAt': Timestamp.fromDate(expiresAtUtc),
       },
+    );
+    return inviteDraft;
+  }
+
+  InviteDeliveryDraft buildInviteDeliveryDraft({
+    required String inviteId,
+    required String invitedEmail,
+    required String invitedName,
+    required String institutionName,
+    required UserRole role,
+    required DateTime expiresAtUtc,
+    String? inviterName,
+  }) {
+    final safeInviterName = (inviterName?.trim().isNotEmpty == true)
+        ? inviterName!.trim()
+        : 'Institution Admin';
+    final acceptLink = _buildInviteAcceptLink(inviteId: inviteId);
+    return InviteDeliveryDraft(
+      inviteId: inviteId,
+      invitedEmail: invitedEmail.trim().toLowerCase(),
+      invitedName: invitedName.trim(),
+      institutionName: institutionName.trim(),
+      role: role,
+      expiresAtUtc: expiresAtUtc.toUtc(),
+      acceptLink: acceptLink,
+      emailSubject: _buildInviteEmailSubject(institutionName: institutionName),
+      emailText: _buildInviteEmailText(
+        institutionName: institutionName,
+        role: role.label,
+        acceptLink: acceptLink,
+        inviterName: safeInviterName,
+        expiresAtUtc: expiresAtUtc,
+        includeAiNote: false,
+      ),
+      aiEmailText: _buildInviteEmailText(
+        institutionName: institutionName,
+        role: role.label,
+        acceptLink: acceptLink,
+        inviterName: safeInviterName,
+        expiresAtUtc: expiresAtUtc,
+        includeAiNote: true,
+      ),
     );
   }
 
@@ -1285,6 +1410,75 @@ class InstitutionRepository {
       return raw.toUtc();
     }
     return null;
+  }
+
+  Future<void> _assertNoActivePendingInvite({
+    required String institutionId,
+    required String invitedEmail,
+    required UserRole role,
+  }) async {
+    final snapshot = await _firestore
+        .collection('user_invites')
+        .where('institutionId', isEqualTo: institutionId)
+        .where('invitedEmail', isEqualTo: invitedEmail)
+        .where('intendedRole', isEqualTo: role.name)
+        .where('status', isEqualTo: UserInviteStatus.pending.name)
+        .limit(8)
+        .get();
+    if (snapshot.docs.isEmpty) {
+      return;
+    }
+    final nowUtc = DateTime.now().toUtc();
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final expiresAt = _asUtcDate(data['expiresAt']);
+      final revokedAt = _asUtcDate(data['revokedAt']);
+      if (revokedAt != null) {
+        continue;
+      }
+      if (expiresAt == null || expiresAt.isAfter(nowUtc)) {
+        throw Exception(
+          'A pending invite already exists for this email and role.',
+        );
+      }
+    }
+  }
+
+  String _buildInviteAcceptLink({required String inviteId}) {
+    final base = _inviteAcceptLinkBase;
+    final uri = Uri.tryParse(base);
+    if (uri == null) {
+      final separator = base.contains('?') ? '&' : '?';
+      return '$base${separator}inviteId=$inviteId';
+    }
+    final nextQuery = <String, String>{...uri.queryParameters};
+    nextQuery['inviteId'] = inviteId;
+    return uri.replace(queryParameters: nextQuery).toString();
+  }
+
+  String _buildInviteEmailSubject({required String institutionName}) {
+    return 'Invitation to join $institutionName on MindNest';
+  }
+
+  String _buildInviteEmailText({
+    required String institutionName,
+    required String role,
+    required String acceptLink,
+    required String inviterName,
+    required DateTime expiresAtUtc,
+    required bool includeAiNote,
+  }) {
+    final core =
+        'Hi,\n\n'
+        '$inviterName invited you to join $institutionName on MindNest as $role.\n\n'
+        'Accept invite: $acceptLink\n\n'
+        'This one-time invite expires on ${expiresAtUtc.toIso8601String()}.\n'
+        'If you do not have an account yet, register first using this same email address.';
+    if (!includeAiNote) {
+      return core;
+    }
+    return '$core\n\n'
+        'MindNest AI can support guided check-ins and personalized wellness steps after onboarding.';
   }
 
   Future<int> _cancelFutureAppointmentsBeforeLeave({

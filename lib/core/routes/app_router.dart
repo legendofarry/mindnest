@@ -303,7 +303,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoute.inviteAccept,
-        builder: (context, state) => const InviteAcceptScreen(),
+        builder: (context, state) =>
+            InviteAcceptScreen(inviteId: state.uri.queryParameters['inviteId']),
       ),
       GoRoute(
         path: AppRoute.onboarding,

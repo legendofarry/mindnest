@@ -10,7 +10,9 @@ import 'package:mindnest/features/institutions/models/user_invite.dart';
 import 'package:mindnest/features/onboarding/data/onboarding_providers.dart';
 
 class InviteAcceptScreen extends ConsumerStatefulWidget {
-  const InviteAcceptScreen({super.key});
+  const InviteAcceptScreen({super.key, this.inviteId});
+
+  final String? inviteId;
 
   @override
   ConsumerState<InviteAcceptScreen> createState() => _InviteAcceptScreenState();
@@ -76,7 +78,10 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
-    final inviteAsync = ref.watch(pendingUserInviteProvider);
+    final inviteId = widget.inviteId?.trim();
+    final inviteAsync = inviteId == null || inviteId.isEmpty
+        ? ref.watch(pendingUserInviteProvider)
+        : ref.watch(pendingUserInviteByIdProvider(inviteId));
 
     return MindNestShell(
       child: inviteAsync.when(
