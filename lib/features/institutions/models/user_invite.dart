@@ -17,6 +17,8 @@ class UserInvite {
     required this.id,
     required this.institutionId,
     required this.institutionName,
+    required this.inviteeUid,
+    required this.inviteePhoneE164,
     required this.invitedEmail,
     required this.invitedName,
     required this.intendedRole,
@@ -29,6 +31,8 @@ class UserInvite {
   final String id;
   final String institutionId;
   final String institutionName;
+  final String inviteeUid;
+  final String inviteePhoneE164;
   final String invitedEmail;
   final String invitedName;
   final UserRole intendedRole;
@@ -67,6 +71,8 @@ class UserInvite {
       id: id,
       institutionId: (data['institutionId'] as String?) ?? '',
       institutionName: (data['institutionName'] as String?) ?? '',
+      inviteeUid: (data['inviteeUid'] as String?) ?? '',
+      inviteePhoneE164: (data['inviteePhoneE164'] as String?) ?? '',
       invitedEmail: (data['invitedEmail'] as String?) ?? '',
       invitedName: (data['invitedName'] as String?) ?? '',
       intendedRole: intendedRole,

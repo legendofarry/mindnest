@@ -33,6 +33,9 @@ class _NotificationCenterScreenState
 
   IconData _typeIcon(String type) {
     final normalized = type.toLowerCase();
+    if (normalized == 'institution_invite') {
+      return Icons.mark_email_unread_rounded;
+    }
     if (normalized.contains('confirm')) {
       return Icons.check_circle_outline_rounded;
     }
@@ -56,6 +59,9 @@ class _NotificationCenterScreenState
 
   Color _typeAccent(ColorScheme scheme, String type) {
     final normalized = type.toLowerCase();
+    if (normalized == 'institution_invite') {
+      return const Color(0xFF0E9B90);
+    }
     if (normalized.contains('confirm') || normalized.contains('completed')) {
       return const Color(0xFF059669);
     }
@@ -78,6 +84,23 @@ class _NotificationCenterScreenState
     ).toString();
   }
 
+  String _notificationTargetRoute(AppNotification notification) {
+    final rawRoute = (notification.route ?? '').trim();
+    if (rawRoute.isNotEmpty) {
+      return rawRoute;
+    }
+    if (notification.type.toLowerCase() == 'institution_invite' &&
+        (notification.relatedId ?? '').trim().isNotEmpty) {
+      return Uri(
+        path: AppRoute.inviteAccept,
+        queryParameters: <String, String>{
+          'inviteId': (notification.relatedId ?? '').trim(),
+        },
+      ).toString();
+    }
+    return _notificationDetailsRoute(notification.id);
+  }
+
   Future<void> _openNotification(AppNotification notification) async {
     if (_openingNotificationIds.contains(notification.id)) {
       return;
@@ -93,7 +116,7 @@ class _NotificationCenterScreenState
       if (!mounted) {
         return;
       }
-      context.go(_notificationDetailsRoute(notification.id));
+      context.go(_notificationTargetRoute(notification));
     } catch (error) {
       if (!mounted) {
         return;
@@ -533,9 +556,14 @@ class _NotificationCenterScreenState
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final accent = _typeAccent(scheme, entry.type);
+    final isInviteAction =
+        entry.type.toLowerCase() == 'institution_invite' ||
+        entry.actionRequired;
     final iconBg = accent.withValues(alpha: 0.12);
     final cardBg = scheme.surface;
-    final borderColor = entry.isRead
+    final borderColor = isInviteAction
+        ? accent.withValues(alpha: 0.45)
+        : entry.isRead
         ? scheme.outlineVariant.withValues(alpha: 0.45)
         : scheme.primary.withValues(alpha: 0.26);
 
@@ -616,6 +644,26 @@ class _NotificationCenterScreenState
                           ),
                       ],
                     ),
+                    if (isInviteAction) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Action required',
+                          style: textTheme.labelLarge?.copyWith(
+                            color: accent,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     Text(
                       entry.body,

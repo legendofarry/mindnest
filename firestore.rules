@@ -142,6 +142,47 @@ service cloud.firestore {
         getAfter(/databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)).data.status == 'active';
     }
 
+    function inviteMembershipAfter(institutionId) {
+      return getAfter(
+        /databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)
+      ).data;
+    }
+
+    function canInviteFlowIncrementUsage(institutionId) {
+      return isSignedIn() &&
+        institutionStatusIsApproved(resource.data) &&
+        institutionJoinCodeChangedKeys().hasOnly(['joinCodeUsageCount', 'updatedAt']) &&
+        request.resource.data.joinCode == resource.data.joinCode &&
+        request.resource.data.joinCodeCreatedAt == resource.data.joinCodeCreatedAt &&
+        request.resource.data.joinCodeExpiresAt == resource.data.joinCodeExpiresAt &&
+        request.resource.data.joinCodeUsageCount == resource.data.joinCodeUsageCount + 1 &&
+        existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.institutionId == institutionId &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['student', 'staff', 'counselor'] &&
+        existsAfter(/databases/$(database)/documents/institution_members/$(institutionId + '_' + request.auth.uid)) &&
+        inviteMembershipAfter(institutionId).userId == request.auth.uid &&
+        inviteMembershipAfter(institutionId).institutionId == institutionId &&
+        inviteMembershipAfter(institutionId).role == getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.role &&
+        inviteMembershipAfter(institutionId).joinedVia == 'invite' &&
+        inviteMembershipAfter(institutionId).inviteId is string &&
+        (
+          (
+            inviteMembershipAfter(institutionId).role in ['student', 'staff'] &&
+            inviteMembershipAfter(institutionId).status == 'active'
+          ) ||
+          (
+            inviteMembershipAfter(institutionId).role == 'counselor' &&
+            inviteMembershipAfter(institutionId).status == 'pending'
+          )
+        ) &&
+        existsAfter(/databases/$(database)/documents/user_invites/$(inviteMembershipAfter(institutionId).inviteId)) &&
+        inviteDocAfter(inviteMembershipAfter(institutionId).inviteId).status == 'accepted' &&
+        inviteDocAfter(inviteMembershipAfter(institutionId).inviteId).acceptedByUid == request.auth.uid &&
+        inviteDocAfter(inviteMembershipAfter(institutionId).inviteId).inviteeUid == request.auth.uid &&
+        inviteDocAfter(inviteMembershipAfter(institutionId).inviteId).institutionId == institutionId &&
+        inviteDocAfter(inviteMembershipAfter(institutionId).inviteId).intendedRole == inviteMembershipAfter(institutionId).role;
+    }
+
     function canAutoRotateExpiredOrCappedCode() {
       return isSignedIn() &&
         institutionStatusIsApproved(resource.data) &&
@@ -216,12 +257,12 @@ service cloud.firestore {
         request.resource.data.userId == request.auth.uid &&
         request.resource.data.institutionId is string &&
         membershipId == requestMembershipDocId() &&
-        request.resource.data.role in ['staff', 'counselor'] &&
+        request.resource.data.role in ['student', 'staff', 'counselor'] &&
         request.resource.data.joinedVia == 'invite' &&
         request.resource.data.inviteId is string &&
         request.resource.data.inviteId.size() > 0 &&
         (
-          (request.resource.data.role == 'staff' &&
+          (request.resource.data.role in ['student', 'staff'] &&
             request.resource.data.status == 'active') ||
           (request.resource.data.role == 'counselor' &&
             request.resource.data.status == 'pending')
@@ -236,8 +277,7 @@ service cloud.firestore {
         existsAfter(/databases/$(database)/documents/user_invites/$(request.resource.data.inviteId)) &&
         inviteDocAfter(request.resource.data.inviteId).status == 'accepted' &&
         inviteDocAfter(request.resource.data.inviteId).acceptedByUid == request.auth.uid &&
-        authEmail() != null &&
-        inviteDocAfter(request.resource.data.inviteId).invitedEmail == authEmail() &&
+        inviteDocAfter(request.resource.data.inviteId).inviteeUid == request.auth.uid &&
         inviteDocAfter(request.resource.data.inviteId).institutionId == request.resource.data.institutionId &&
         inviteDocAfter(request.resource.data.inviteId).intendedRole == request.resource.data.role;
     }
@@ -267,7 +307,7 @@ service cloud.firestore {
     }
 
     function canSelfSetInviteRoleFromMembership() {
-      return request.resource.data.role in ['staff', 'counselor'] &&
+      return request.resource.data.role in ['student', 'staff', 'counselor'] &&
         request.resource.data.institutionId is string &&
         request.resource.data.institutionId.size() > 0 &&
         existsAfter(/databases/$(database)/documents/institution_members/$(requestMembershipDocId())) &&
@@ -278,7 +318,7 @@ service cloud.firestore {
         afterRequestedMembershipDoc().inviteId is string &&
         afterRequestedMembershipDoc().inviteId.size() > 0 &&
         (
-          (request.resource.data.role == 'staff' &&
+          (request.resource.data.role in ['student', 'staff'] &&
             afterRequestedMembershipDoc().status == 'active') ||
           (request.resource.data.role == 'counselor' &&
             afterRequestedMembershipDoc().status == 'pending')
@@ -286,8 +326,7 @@ service cloud.firestore {
         existsAfter(/databases/$(database)/documents/user_invites/$(afterRequestedMembershipDoc().inviteId)) &&
         inviteDocAfter(afterRequestedMembershipDoc().inviteId).status == 'accepted' &&
         inviteDocAfter(afterRequestedMembershipDoc().inviteId).acceptedByUid == request.auth.uid &&
-        authEmail() != null &&
-        inviteDocAfter(afterRequestedMembershipDoc().inviteId).invitedEmail == authEmail() &&
+        inviteDocAfter(afterRequestedMembershipDoc().inviteId).inviteeUid == request.auth.uid &&
         inviteDocAfter(afterRequestedMembershipDoc().inviteId).institutionId == request.resource.data.institutionId &&
         inviteDocAfter(afterRequestedMembershipDoc().inviteId).intendedRole == request.resource.data.role &&
         (
@@ -318,10 +357,13 @@ service cloud.firestore {
     function inviteCoreFieldsUnchanged() {
       return request.resource.data.institutionId == resource.data.institutionId &&
         request.resource.data.institutionName == resource.data.institutionName &&
+        request.resource.data.inviteeUid == resource.data.inviteeUid &&
+        request.resource.data.inviteePhoneE164 == resource.data.inviteePhoneE164 &&
         request.resource.data.invitedName == resource.data.invitedName &&
         request.resource.data.invitedEmail == resource.data.invitedEmail &&
         request.resource.data.intendedRole == resource.data.intendedRole &&
         request.resource.data.invitedBy == resource.data.invitedBy &&
+        request.resource.data.deliveryChannel == resource.data.deliveryChannel &&
         request.resource.data.oneTimeUse == resource.data.oneTimeUse &&
         request.resource.data.expiresAt == resource.data.expiresAt &&
         request.resource.data.createdAt == resource.data.createdAt;
@@ -329,8 +371,7 @@ service cloud.firestore {
 
     function canInviteeRespondToInvite(inviteId) {
       return isSignedIn() &&
-        authEmail() != null &&
-        resource.data.invitedEmail == authEmail() &&
+        resource.data.inviteeUid == request.auth.uid &&
         resource.data.status == 'pending' &&
         (
           !('expiresAt' in resource.data) ||
@@ -361,7 +402,7 @@ service cloud.firestore {
             ).data.inviteId == inviteId &&
             (
               (
-                resource.data.intendedRole == 'staff' &&
+                resource.data.intendedRole in ['student', 'staff'] &&
                 getAfter(
                   /databases/$(database)/documents/institution_members/$(resource.data.institutionId + '_' + request.auth.uid)
                 ).data.status == 'active'
@@ -377,6 +418,7 @@ service cloud.firestore {
               'status',
               'acceptedAt',
               'acceptedByUid',
+              'acceptedWithCode',
               'updatedAt'
             ])
           ) ||
@@ -465,6 +507,7 @@ service cloud.firestore {
       allow update: if canAdminRegenerateInstitutionCode(institutionId) ||
         canAdminResubmitInstitutionRequest(institutionId) ||
         canJoinFlowIncrementUsage(institutionId) ||
+        canInviteFlowIncrementUsage(institutionId) ||
         canAutoRotateExpiredOrCappedCode();
       allow delete: if false;
     }
@@ -531,19 +574,23 @@ service cloud.firestore {
         request.resource.data.institutionId == currentInstitutionId() &&
         request.resource.data.institutionName is string &&
         request.resource.data.institutionName.size() >= 2 &&
+        request.resource.data.inviteeUid is string &&
+        request.resource.data.inviteeUid.size() > 0 &&
+        request.resource.data.inviteePhoneE164 is string &&
+        request.resource.data.inviteePhoneE164.size() >= 8 &&
         request.resource.data.invitedName is string &&
         request.resource.data.invitedName.size() >= 2 &&
-        request.resource.data.intendedRole in ['staff', 'counselor'] &&
+        request.resource.data.intendedRole in ['student', 'staff', 'counselor'] &&
         request.resource.data.status == 'pending' &&
         request.resource.data.invitedEmail is string &&
-        request.resource.data.invitedEmail.size() > 3 &&
+        request.resource.data.deliveryChannel == 'in_app' &&
         request.resource.data.invitedBy == request.auth.uid &&
         request.resource.data.oneTimeUse == true &&
         request.resource.data.expiresAt is timestamp;
       allow read: if isSignedIn() && (
         (currentUserRole() == 'institutionAdmin' &&
           resource.data.institutionId == currentInstitutionId()) ||
-        (authEmail() != null && resource.data.invitedEmail == authEmail())
+        resource.data.inviteeUid == request.auth.uid
       );
       allow update: if canInviteeRespondToInvite(inviteId) ||
         canAdminRevokeInvite();

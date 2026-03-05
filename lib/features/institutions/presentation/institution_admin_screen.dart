@@ -30,8 +30,7 @@ class InstitutionAdminScreen extends ConsumerStatefulWidget {
 
 class _InstitutionAdminScreenState
     extends ConsumerState<InstitutionAdminScreen> {
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _searchController = TextEditingController();
 
   UserRole _inviteRole = UserRole.counselor;
@@ -45,18 +44,18 @@ class _InstitutionAdminScreenState
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
+    _phoneController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _createInvite() async {
-    final name = _nameController.text.trim();
-    final email = _emailController.text.trim();
-    if (name.length < 2 || !email.contains('@')) {
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid name and email.')),
+        const SnackBar(
+          content: Text('Enter invitee phone number in E.164 format.'),
+        ),
       );
       return;
     }
@@ -65,20 +64,15 @@ class _InstitutionAdminScreenState
     try {
       final inviteDraft = await ref
           .read(institutionRepositoryProvider)
-          .createRoleInvite(
-            invitedName: name,
-            invitedEmail: email,
-            role: _inviteRole,
-          );
+          .createRoleInvite(inviteePhoneNumber: phone, role: _inviteRole);
       if (!mounted) {
         return;
       }
-      _nameController.clear();
-      _emailController.clear();
+      _phoneController.clear();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${_inviteRole.label} invite created. Send the invite link now.',
+            '${_inviteRole.label} invite created. Invite notification sent in-app.',
           ),
         ),
       );
@@ -112,19 +106,14 @@ class _InstitutionAdminScreenState
     ).showSnackBar(SnackBar(content: Text(successMessage)));
   }
 
-  Future<void> _openInviteMailDraft({
-    required InviteDeliveryDraft inviteDraft,
-    required bool useAiAssistMessage,
-  }) async {
-    final bodyText = useAiAssistMessage
-        ? inviteDraft.aiEmailText
-        : inviteDraft.emailText;
-    final subjectEncoded = Uri.encodeComponent(inviteDraft.emailSubject);
-    final bodyEncoded = Uri.encodeComponent(bodyText);
-    final recipientEncoded = Uri.encodeComponent(inviteDraft.invitedEmail);
-    final uri = Uri.parse(
-      'mailto:$recipientEncoded?subject=$subjectEncoded&body=$bodyEncoded',
-    );
+  Future<void> _openWhatsAppDraft(String deepLink) async {
+    final uri = Uri.tryParse(deepLink);
+    if (uri == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid WhatsApp link.')));
+      return;
+    }
     final launched = await launchUrl(uri);
     if (!mounted) {
       return;
@@ -135,52 +124,17 @@ class _InstitutionAdminScreenState
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'Could not open email app. Copy the invite message manually.',
+          'Could not open WhatsApp. Copy message and send manually.',
         ),
       ),
     );
   }
 
-  InviteDeliveryDraft? _buildInviteDraftFromEntry(_WorkspaceEntry entry) {
-    if (entry.source != 'invite') {
-      return null;
-    }
-    final data = entry.raw;
-    final inviteId = entry.recordId.trim();
-    final invitedEmail = ((data['invitedEmail'] as String?) ?? '').trim();
-    final invitedName = ((data['invitedName'] as String?) ?? '').trim();
-    final institutionName = ((data['institutionName'] as String?) ?? '').trim();
-    final intendedRoleRaw = ((data['intendedRole'] as String?) ?? '').trim();
-    final role = UserRole.values.firstWhere(
-      (candidate) => candidate.name == intendedRoleRaw,
-      orElse: () => UserRole.other,
-    );
-    final expiresAt = _parseDate(data['expiresAt'])?.toUtc();
-    if (inviteId.isEmpty ||
-        invitedEmail.length < 4 ||
-        invitedName.length < 2 ||
-        institutionName.length < 2 ||
-        expiresAt == null ||
-        (role != UserRole.staff && role != UserRole.counselor)) {
-      return null;
-    }
-    return ref
-        .read(institutionRepositoryProvider)
-        .buildInviteDeliveryDraft(
-          inviteId: inviteId,
-          invitedEmail: invitedEmail,
-          invitedName: invitedName,
-          institutionName: institutionName,
-          role: role,
-          expiresAtUtc: expiresAt,
-        );
-  }
-
-  Future<void> _showInviteDeliveryDialog(InviteDeliveryDraft inviteDraft) {
+  Future<void> _showInviteDeliveryDialog(InAppInviteDraft inviteDraft) {
     return showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Invite Ready to Send'),
+        title: const Text('Invite Created'),
         content: SizedBox(
           width: 520,
           child: Column(
@@ -188,45 +142,35 @@ class _InstitutionAdminScreenState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Send this invite to ${inviteDraft.invitedEmail} (${inviteDraft.role.label}).',
+                '${inviteDraft.invitedName} was invited as ${inviteDraft.role.label}.',
               ),
-              const SizedBox(height: 10),
-              SelectableText(inviteDraft.acceptLink),
               const SizedBox(height: 6),
-              const Text(
-                'Use the same email address for registration before accepting.',
-              ),
+              Text('Phone: ${inviteDraft.inviteePhoneE164}'),
+              const SizedBox(height: 10),
+              SelectableText('Institution code: ${inviteDraft.joinCode}'),
+              const SizedBox(height: 6),
+              const Text('Invite is highlighted in-app for the target user.'),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => _copyTextWithFeedback(
-              text: inviteDraft.acceptLink,
-              successMessage: 'Invite link copied.',
+              text: inviteDraft.joinCode,
+              successMessage: 'Institution code copied.',
             ),
-            child: const Text('Copy Link'),
+            child: const Text('Copy Code'),
           ),
           TextButton(
             onPressed: () => _copyTextWithFeedback(
-              text: inviteDraft.emailText,
-              successMessage: 'Invite message copied.',
+              text: inviteDraft.whatsAppMessage,
+              successMessage: 'WhatsApp message copied.',
             ),
-            child: const Text('Copy Message'),
+            child: const Text('Copy WhatsApp Message'),
           ),
           TextButton(
-            onPressed: () => _copyTextWithFeedback(
-              text: inviteDraft.aiEmailText,
-              successMessage: 'AI-assisted invite message copied.',
-            ),
-            child: const Text('Copy AI Message'),
-          ),
-          TextButton(
-            onPressed: () => _openInviteMailDraft(
-              inviteDraft: inviteDraft,
-              useAiAssistMessage: true,
-            ),
-            child: const Text('Open Email Draft'),
+            onPressed: () => _openWhatsAppDraft(inviteDraft.whatsAppDeepLink),
+            child: const Text('Open WhatsApp'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -524,10 +468,20 @@ class _InstitutionAdminScreenState
           })
           .map((doc) {
             final data = doc.data();
+            final invitedName =
+                ((data['invitedName'] as String?) ?? '').trim().isNotEmpty
+                ? ((data['invitedName'] as String?) ?? '').trim()
+                : ((data['inviteeUid'] as String?) ?? '--');
+            final invitePhone = ((data['inviteePhoneE164'] as String?) ?? '')
+                .trim();
+            final inviteEmail = ((data['invitedEmail'] as String?) ?? '')
+                .trim();
             return _WorkspaceEntry(
               recordId: doc.id,
-              primary: (data['invitedName'] as String?) ?? '--',
-              secondary: (data['invitedEmail'] as String?) ?? '--',
+              primary: invitedName,
+              secondary: invitePhone.isNotEmpty
+                  ? invitePhone
+                  : (inviteEmail.isNotEmpty ? inviteEmail : '--'),
               type: (data['intendedRole'] as String?) ?? 'invite',
               status: _inviteStatusLabel(data),
               source: 'invite',
@@ -564,11 +518,6 @@ class _InstitutionAdminScreenState
         ((entry.raw['userId'] as String?) ?? '') == (currentUid ?? '');
     final canRevokeInvite =
         entry.source == 'invite' && entry.status == 'pending';
-    final inviteDraft = _buildInviteDraftFromEntry(entry);
-    final canCopyInviteDelivery =
-        entry.source == 'invite' &&
-        entry.status == 'pending' &&
-        inviteDraft != null;
     final canActivateMember =
         entry.source == 'member' &&
         entry.type != UserRole.institutionAdmin.name &&
@@ -625,28 +574,6 @@ class _InstitutionAdminScreenState
             ),
           ),
           actions: [
-            if (canCopyInviteDelivery)
-              TextButton(
-                onPressed: () => Navigator.of(context).pop('copy_invite_link'),
-                child: const Text('Copy Link'),
-              ),
-            if (canCopyInviteDelivery)
-              TextButton(
-                onPressed: () =>
-                    Navigator.of(context).pop('copy_invite_message'),
-                child: const Text('Copy Message'),
-              ),
-            if (canCopyInviteDelivery)
-              TextButton(
-                onPressed: () =>
-                    Navigator.of(context).pop('copy_invite_ai_message'),
-                child: const Text('Copy AI Message'),
-              ),
-            if (canCopyInviteDelivery)
-              TextButton(
-                onPressed: () => Navigator.of(context).pop('open_mail_draft'),
-                child: const Text('Open Email Draft'),
-              ),
             if (canRevokeInvite)
               TextButton(
                 onPressed: () => Navigator.of(context).pop('revoke_invite'),
@@ -679,42 +606,6 @@ class _InstitutionAdminScreenState
         return;
       }
       switch (action) {
-        case 'copy_invite_link':
-          if (inviteDraft == null) {
-            return;
-          }
-          _copyTextWithFeedback(
-            text: inviteDraft.acceptLink,
-            successMessage: 'Invite link copied.',
-          );
-          break;
-        case 'copy_invite_message':
-          if (inviteDraft == null) {
-            return;
-          }
-          _copyTextWithFeedback(
-            text: inviteDraft.emailText,
-            successMessage: 'Invite message copied.',
-          );
-          break;
-        case 'copy_invite_ai_message':
-          if (inviteDraft == null) {
-            return;
-          }
-          _copyTextWithFeedback(
-            text: inviteDraft.aiEmailText,
-            successMessage: 'AI-assisted invite message copied.',
-          );
-          break;
-        case 'open_mail_draft':
-          if (inviteDraft == null) {
-            return;
-          }
-          _openInviteMailDraft(
-            inviteDraft: inviteDraft,
-            useAiAssistMessage: true,
-          );
-          break;
         case 'revoke_invite':
           _revokeInvite(entry);
           break;
@@ -929,8 +820,7 @@ class _InstitutionAdminScreenState
                                       CrossAxisAlignment.stretch,
                                   children: [
                                     _InviteComposer(
-                                      nameController: _nameController,
-                                      emailController: _emailController,
+                                      phoneController: _phoneController,
                                       selectedRole: _inviteRole,
                                       isSubmitting: _isSubmitting,
                                       onRoleChanged: (role) {
@@ -961,8 +851,7 @@ class _InstitutionAdminScreenState
                                   Expanded(
                                     flex: 5,
                                     child: _InviteComposer(
-                                      nameController: _nameController,
-                                      emailController: _emailController,
+                                      phoneController: _phoneController,
                                       selectedRole: _inviteRole,
                                       isSubmitting: _isSubmitting,
                                       onRoleChanged: (role) {
@@ -1863,16 +1752,14 @@ class _WorkspaceDataSource extends DataTableSource {
 
 class _InviteComposer extends StatelessWidget {
   const _InviteComposer({
-    required this.nameController,
-    required this.emailController,
+    required this.phoneController,
     required this.selectedRole,
     required this.isSubmitting,
     required this.onRoleChanged,
     required this.onCreateInvite,
   });
 
-  final TextEditingController nameController;
-  final TextEditingController emailController;
+  final TextEditingController phoneController;
   final UserRole selectedRole;
   final bool isSubmitting;
   final ValueChanged<UserRole> onRoleChanged;
@@ -1894,12 +1781,17 @@ class _InviteComposer extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Choose role, create invite, then copy/share the link or AI-assisted email message.',
+              'Choose role and invite by phone number. The target user gets a highlighted in-app notification.',
             ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               children: [
+                _RoleChip(
+                  label: 'Student',
+                  selected: selectedRole == UserRole.student,
+                  onTap: () => onRoleChanged(UserRole.student),
+                ),
                 _RoleChip(
                   label: 'Staff',
                   selected: selectedRole == UserRole.staff,
@@ -1914,19 +1806,11 @@ class _InviteComposer extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             TextFormField(
-              controller: nameController,
+              controller: phoneController,
+              keyboardType: TextInputType.phone,
               decoration: const InputDecoration(
-                labelText: 'Invitee full name',
-                prefixIcon: Icon(Icons.person_outline_rounded),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextFormField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Invitee email',
-                prefixIcon: Icon(Icons.alternate_email_rounded),
+                labelText: 'Invitee phone (+254...)',
+                prefixIcon: Icon(Icons.phone_rounded),
               ),
             ),
             const SizedBox(height: 14),

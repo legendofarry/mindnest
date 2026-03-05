@@ -20,23 +20,23 @@ final institutionRepositoryProvider = Provider<InstitutionRepository>((ref) {
 
 final pendingUserInviteProvider = StreamProvider<UserInvite?>((ref) {
   final authUser = ref.watch(authStateChangesProvider).valueOrNull;
-  final email = authUser?.email;
-  if (email == null || email.isEmpty) {
+  final uid = authUser?.uid;
+  if (uid == null || uid.isEmpty) {
     return Stream<UserInvite?>.value(null);
   }
-  return ref.watch(institutionRepositoryProvider).pendingInviteForEmail(email);
+  return ref.watch(institutionRepositoryProvider).pendingInviteForUid(uid);
 });
 
 final pendingUserInviteByIdProvider =
     StreamProvider.family<UserInvite?, String>((ref, inviteId) {
       final authUser = ref.watch(authStateChangesProvider).valueOrNull;
-      final email = authUser?.email;
-      if (email == null || email.isEmpty || inviteId.trim().isEmpty) {
+      final uid = authUser?.uid;
+      if (uid == null || uid.isEmpty || inviteId.trim().isEmpty) {
         return Stream<UserInvite?>.value(null);
       }
       return ref
           .watch(institutionRepositoryProvider)
-          .pendingInviteByIdForEmail(inviteId: inviteId, email: email);
+          .pendingInviteByIdForUid(inviteId: inviteId, uid: uid);
     });
 
 final currentAdminInstitutionRequestProvider =

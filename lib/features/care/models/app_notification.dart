@@ -12,8 +12,12 @@ class AppNotification {
     required this.isRead,
     required this.isPinned,
     required this.isArchived,
+    this.priority = 'normal',
+    this.actionRequired = false,
+    this.route,
     this.pinnedAt,
     this.archivedAt,
+    this.resolvedAt,
     this.relatedAppointmentId,
     this.relatedId,
   });
@@ -28,8 +32,12 @@ class AppNotification {
   final bool isRead;
   final bool isPinned;
   final bool isArchived;
+  final String priority;
+  final bool actionRequired;
+  final String? route;
   final DateTime? pinnedAt;
   final DateTime? archivedAt;
+  final DateTime? resolvedAt;
   final String? relatedAppointmentId;
   final String? relatedId;
 
@@ -65,8 +73,12 @@ class AppNotification {
       isRead: (data['isRead'] as bool?) ?? false,
       isPinned: (data['isPinned'] as bool?) ?? false,
       isArchived: (data['isArchived'] as bool?) ?? false,
+      priority: (data['priority'] as String?) ?? 'normal',
+      actionRequired: (data['actionRequired'] as bool?) ?? false,
+      route: data['route'] as String?,
       pinnedAt: parseOptionalDate(data['pinnedAt']),
       archivedAt: parseOptionalDate(data['archivedAt']),
+      resolvedAt: parseOptionalDate(data['resolvedAt']),
       relatedAppointmentId: data['relatedAppointmentId'] as String?,
       relatedId: data['relatedId'] as String?,
     );

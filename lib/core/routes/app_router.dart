@@ -488,10 +488,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             });
             return InviteAcceptScreen(
               inviteId: inviteQuery[AppRoute.inviteIdQuery],
-              invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
-              invitedName: inviteQuery[AppRoute.invitedNameQuery],
-              institutionName: inviteQuery[AppRoute.institutionNameQuery],
-              intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
             );
           } catch (e, st) {
             trackInviteRouting({

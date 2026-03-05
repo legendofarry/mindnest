@@ -10,30 +10,34 @@ import 'package:mindnest/core/config/owner_config.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/institutions/models/user_invite.dart';
 
-class InviteDeliveryDraft {
-  const InviteDeliveryDraft({
+class InAppInviteDraft {
+  const InAppInviteDraft({
     required this.inviteId,
+    required this.inviteeUid,
+    required this.inviteePhoneE164,
     required this.invitedEmail,
     required this.invitedName,
+    required this.institutionId,
     required this.institutionName,
     required this.role,
     required this.expiresAtUtc,
-    required this.acceptLink,
-    required this.emailSubject,
-    required this.emailText,
-    required this.aiEmailText,
+    required this.joinCode,
+    required this.whatsAppDeepLink,
+    required this.whatsAppMessage,
   });
 
   final String inviteId;
+  final String inviteeUid;
+  final String inviteePhoneE164;
   final String invitedEmail;
   final String invitedName;
+  final String institutionId;
   final String institutionName;
   final UserRole role;
   final DateTime expiresAtUtc;
-  final String acceptLink;
-  final String emailSubject;
-  final String emailText;
-  final String aiEmailText;
+  final String joinCode;
+  final String whatsAppDeepLink;
+  final String whatsAppMessage;
 }
 
 class InstitutionRepository {
@@ -55,31 +59,24 @@ class InstitutionRepository {
   );
   static const String _pushDispatchEndpointFromSource =
       'https://mindnest-0o6x.onrender.com/push/dispatch';
-  static const String _inviteAcceptLinkBaseFromDefine = String.fromEnvironment(
-    'INVITE_ACCEPT_LINK_BASE',
-    defaultValue: '',
-  );
-  static const String _inviteAcceptLinkBaseFromSource =
-      'https://mindnestke.netlify.app/invite-accept';
   static String get _pushDispatchEndpoint =>
       _pushDispatchEndpointFromDefine.isNotEmpty
       ? _pushDispatchEndpointFromDefine
       : _pushDispatchEndpointFromSource;
-  static String get _inviteAcceptLinkBase =>
-      _inviteAcceptLinkBaseFromDefine.isNotEmpty
-      ? _inviteAcceptLinkBaseFromDefine
-      : _inviteAcceptLinkBaseFromSource;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
   final http.Client _httpClient;
   final Random _random = Random.secure();
 
-  Stream<UserInvite?> pendingInviteForEmail(String email) {
-    final normalizedEmail = email.trim().toLowerCase();
+  Stream<UserInvite?> pendingInviteForUid(String uid) {
+    final normalizedUid = uid.trim();
+    if (normalizedUid.isEmpty) {
+      return Stream<UserInvite?>.value(null);
+    }
     return _firestore
         .collection('user_invites')
-        .where('invitedEmail', isEqualTo: normalizedEmail)
+        .where('inviteeUid', isEqualTo: normalizedUid)
         .where('status', isEqualTo: UserInviteStatus.pending.name)
         .snapshots()
         .map((snapshot) {
@@ -101,11 +98,11 @@ class InstitutionRepository {
         });
   }
 
-  Stream<UserInvite?> pendingInviteByIdForEmail({
+  Stream<UserInvite?> pendingInviteByIdForUid({
     required String inviteId,
-    required String email,
+    required String uid,
   }) {
-    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedUid = uid.trim();
     return _firestore.collection('user_invites').doc(inviteId).snapshots().map((
       snapshot,
     ) {
@@ -117,7 +114,7 @@ class InstitutionRepository {
       if (!invite.isPending) {
         return null;
       }
-      if (invite.invitedEmail.trim().toLowerCase() != normalizedEmail) {
+      if (invite.inviteeUid != normalizedUid) {
         return null;
       }
       final revokedAt = _asUtcDate(data['revokedAt']);
@@ -302,13 +299,14 @@ class InstitutionRepository {
     ]);
   }
 
-  Future<InviteDeliveryDraft> createRoleInvite({
-    required String invitedName,
-    required String invitedEmail,
+  Future<InAppInviteDraft> createRoleInvite({
+    required String inviteePhoneNumber,
     required UserRole role,
   }) async {
-    if (role != UserRole.staff && role != UserRole.counselor) {
-      throw Exception('Invite role must be Staff or Counselor.');
+    if (role != UserRole.student &&
+        role != UserRole.staff &&
+        role != UserRole.counselor) {
+      throw Exception('Invite role must be Student, Staff, or Counselor.');
     }
 
     final currentUser = _auth.currentUser;
@@ -326,105 +324,128 @@ class InstitutionRepository {
       throw Exception('Only institution admins can create invites.');
     }
 
-    final institutionId = profile['institutionId'] as String?;
-    final institutionName = profile['institutionName'] as String?;
+    final institutionId = (profile['institutionId'] as String?) ?? '';
+    final institutionName = (profile['institutionName'] as String?) ?? '';
     final inviterName =
-        (profile['name'] as String?) ??
+        (profile['name'] as String?)?.trim() ??
         (currentUser.displayName?.trim().isNotEmpty == true
             ? currentUser.displayName!.trim()
             : 'Institution Admin');
-    if (institutionId == null || institutionName == null) {
+    if (institutionId.isEmpty || institutionName.isEmpty) {
       throw Exception('Admin profile is not linked to an institution.');
     }
-    final normalizedInviteeEmail = invitedEmail.trim().toLowerCase();
+
+    final normalizedPhone = _normalizePhoneE164(inviteePhoneNumber);
+    final inviteeUser = await _resolveInviteeByPhone(normalizedPhone);
+    if (inviteeUser.id == currentUser.uid) {
+      throw Exception('You cannot invite your own account.');
+    }
+    final inviteeData = inviteeUser.data();
+    final invitedName =
+        ((inviteeData['name'] as String?) ?? '').trim().isNotEmpty
+        ? ((inviteeData['name'] as String?) ?? '').trim()
+        : 'MindNest user';
+    final invitedEmail = ((inviteeData['email'] as String?) ?? '')
+        .trim()
+        .toLowerCase();
+
     await _assertNoActivePendingInvite(
       institutionId: institutionId,
-      invitedEmail: normalizedInviteeEmail,
+      inviteeUid: inviteeUser.id,
       role: role,
     );
+
+    final institutionDoc = await _firestore
+        .collection('institutions')
+        .doc(institutionId)
+        .get();
+    final institutionData = institutionDoc.data();
+    final activeJoinCode = (institutionData?['joinCode'] as String? ?? '')
+        .trim()
+        .toUpperCase();
+    if (activeJoinCode.isEmpty) {
+      throw Exception(
+        'No active institution code is available. Regenerate code and retry.',
+      );
+    }
+
     final nowUtc = DateTime.now().toUtc();
     final expiresAtUtc = nowUtc.add(_inviteValidity);
     final inviteRef = _firestore.collection('user_invites').doc();
-    final inviteDraft = buildInviteDeliveryDraft(
-      inviteId: inviteRef.id,
-      invitedEmail: normalizedInviteeEmail,
-      invitedName: invitedName.trim(),
-      institutionName: institutionName,
-      role: role,
-      inviterName: inviterName,
-      expiresAtUtc: expiresAtUtc,
-    );
 
     await inviteRef.set({
       'institutionId': institutionId,
       'institutionName': institutionName,
-      'invitedName': invitedName.trim(),
-      'invitedEmail': normalizedInviteeEmail,
+      'inviteeUid': inviteeUser.id,
+      'inviteePhoneE164': normalizedPhone,
+      'invitedName': invitedName,
+      'invitedEmail': invitedEmail,
       'intendedRole': role.name,
-      'status': 'pending',
+      'status': UserInviteStatus.pending.name,
       'invitedBy': currentUser.uid,
       'oneTimeUse': true,
+      'deliveryChannel': 'in_app',
       'expiresAt': Timestamp.fromDate(expiresAtUtc),
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    final inviteRoute = Uri(
+      path: '/invite-accept',
+      queryParameters: <String, String>{'inviteId': inviteRef.id},
+    ).toString();
+    final waMessage = _buildWhatsAppInviteText(
+      institutionName: institutionName,
+      inviterName: inviterName,
+      role: role,
+      joinCode: activeJoinCode,
+      expiresAtUtc: expiresAtUtc,
+    );
+
+    await _createNotifications([
+      _notificationPayload(
+        userId: inviteeUser.id,
+        institutionId: institutionId,
+        type: 'institution_invite',
+        title: 'Invitation to join $institutionName',
+        body:
+            'You were invited as ${role.label}. Open this alert and enter your institution code to accept.',
+        relatedId: inviteRef.id,
+        priority: 'high',
+        actionRequired: true,
+        route: inviteRoute,
+        isPinned: true,
+      ),
+    ]);
+
     await _appendMembershipAudit(
       institutionId: institutionId,
       actorUid: currentUser.uid,
-      targetUserId: normalizedInviteeEmail,
+      targetUserId: inviteeUser.id,
       action: 'invite_created',
       details: <String, dynamic>{
         'inviteId': inviteRef.id,
         'intendedRole': role.name,
+        'inviteePhoneE164': normalizedPhone,
         'expiresAt': Timestamp.fromDate(expiresAtUtc),
       },
     );
-    return inviteDraft;
-  }
 
-  InviteDeliveryDraft buildInviteDeliveryDraft({
-    required String inviteId,
-    required String invitedEmail,
-    required String invitedName,
-    required String institutionName,
-    required UserRole role,
-    required DateTime expiresAtUtc,
-    String? inviterName,
-  }) {
-    final safeInviterName = (inviterName?.trim().isNotEmpty == true)
-        ? inviterName!.trim()
-        : 'Institution Admin';
-    final acceptLink = _buildInviteAcceptLink(
-      inviteId: inviteId,
+    return InAppInviteDraft(
+      inviteId: inviteRef.id,
+      inviteeUid: inviteeUser.id,
+      inviteePhoneE164: normalizedPhone,
       invitedEmail: invitedEmail,
       invitedName: invitedName,
+      institutionId: institutionId,
       institutionName: institutionName,
-      intendedRole: role.name,
-    );
-    return InviteDeliveryDraft(
-      inviteId: inviteId,
-      invitedEmail: invitedEmail.trim().toLowerCase(),
-      invitedName: invitedName.trim(),
-      institutionName: institutionName.trim(),
       role: role,
-      expiresAtUtc: expiresAtUtc.toUtc(),
-      acceptLink: acceptLink,
-      emailSubject: _buildInviteEmailSubject(institutionName: institutionName),
-      emailText: _buildInviteEmailText(
-        institutionName: institutionName,
-        role: role.label,
-        acceptLink: acceptLink,
-        inviterName: safeInviterName,
-        expiresAtUtc: expiresAtUtc,
-        includeAiNote: false,
-      ),
-      aiEmailText: _buildInviteEmailText(
-        institutionName: institutionName,
-        role: role.label,
-        acceptLink: acceptLink,
-        inviterName: safeInviterName,
-        expiresAtUtc: expiresAtUtc,
-        includeAiNote: true,
+      expiresAtUtc: expiresAtUtc,
+      joinCode: activeJoinCode,
+      whatsAppMessage: waMessage,
+      whatsAppDeepLink: _buildWhatsAppDeepLink(
+        phoneE164: normalizedPhone,
+        message: waMessage,
       ),
     );
   }
@@ -437,9 +458,8 @@ class InstitutionRepository {
     if (currentUser == null) {
       throw Exception('You must be logged in.');
     }
-    final currentEmail = (currentUser.email ?? '').toLowerCase();
-    if (currentEmail != invite.invitedEmail.toLowerCase()) {
-      throw Exception('This invite is not linked to your account email.');
+    if (currentUser.uid != invite.inviteeUid) {
+      throw Exception('This invite is not linked to your account.');
     }
     final inviteRef = _firestore.collection('user_invites').doc(invite.id);
     final snapshot = await inviteRef.get();
@@ -448,16 +468,41 @@ class InstitutionRepository {
         (data['status'] as String?) != UserInviteStatus.pending.name) {
       throw Exception('Only pending invites can be declined.');
     }
+    final inviteeUid = (data['inviteeUid'] as String?) ?? '';
+    if (inviteeUid != currentUser.uid) {
+      throw Exception('This invite is not linked to your account.');
+    }
     final expiresAt = _asUtcDate(data['expiresAt']);
     if (expiresAt != null && !expiresAt.isAfter(DateTime.now().toUtc())) {
       throw Exception('This invite has expired.');
     }
-    await inviteRef.update({
+    final notifications = await _firestore
+        .collection('notifications')
+        .where('userId', isEqualTo: currentUser.uid)
+        .where('type', isEqualTo: 'institution_invite')
+        .where('relatedId', isEqualTo: invite.id)
+        .limit(20)
+        .get();
+
+    final batch = _firestore.batch();
+    batch.update(inviteRef, {
       'status': UserInviteStatus.declined.name,
       'declinedAt': FieldValue.serverTimestamp(),
       'declinedByUid': currentUser.uid,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    for (final doc in notifications.docs) {
+      batch.update(doc.reference, {
+        'isRead': true,
+        'readAt': FieldValue.serverTimestamp(),
+        'isPinned': false,
+        'isArchived': true,
+        'archivedAt': FieldValue.serverTimestamp(),
+        'resolvedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
     await _appendMembershipAudit(
       institutionId: invite.institutionId,
       actorUid: currentUser.uid,
@@ -467,7 +512,10 @@ class InstitutionRepository {
     );
   }
 
-  Future<void> acceptInvite(UserInvite invite) async {
+  Future<void> acceptInvite({
+    required UserInvite invite,
+    required String institutionCode,
+  }) async {
     if (!invite.isPending) {
       throw Exception('Only pending invites can be accepted.');
     }
@@ -475,105 +523,183 @@ class InstitutionRepository {
     if (currentUser == null) {
       throw Exception('You must be logged in.');
     }
-    final currentEmail = (currentUser.email ?? '').toLowerCase();
-    if (currentEmail != invite.invitedEmail.toLowerCase()) {
-      throw Exception('This invite is not linked to your account email.');
+    if (currentUser.uid != invite.inviteeUid) {
+      throw Exception('This invite is not linked to your account.');
+    }
+    final normalizedCode = institutionCode.trim().toUpperCase();
+    if (normalizedCode.isEmpty) {
+      throw Exception('Institution code is required.');
     }
 
-    if (invite.intendedRole != UserRole.staff &&
-        invite.intendedRole != UserRole.counselor) {
-      throw Exception('Invite has unsupported role.');
-    }
-
-    final userRef = _firestore.collection('users').doc(currentUser.uid);
-    final userDoc = await userRef.get();
-    if (!userDoc.exists) {
-      throw Exception('User profile not found.');
-    }
-
-    final previousInstitutionId = userDoc.data()?['institutionId'] as String?;
-    final newMembershipRef = _firestore
-        .collection('institution_members')
-        .doc('${invite.institutionId}_${currentUser.uid}');
+    final nowUtc = DateTime.now().toUtc();
     final inviteRef = _firestore.collection('user_invites').doc(invite.id);
-    final latestInviteSnapshot = await inviteRef.get();
-    final latestInviteData = latestInviteSnapshot.data();
-    if (latestInviteData == null) {
-      throw Exception('Invite was not found.');
-    }
-    final latestStatus = (latestInviteData['status'] as String?) ?? '';
-    if (latestStatus != UserInviteStatus.pending.name) {
-      throw Exception('Invite is no longer available.');
-    }
-    final latestInviteEmail =
-        ((latestInviteData['invitedEmail'] as String?) ?? '')
-            .trim()
-            .toLowerCase();
-    if (latestInviteEmail != currentEmail) {
-      throw Exception('This invite is not linked to your account email.');
-    }
-    final expiresAt = _asUtcDate(latestInviteData['expiresAt']);
-    if (expiresAt != null && !expiresAt.isAfter(DateTime.now().toUtc())) {
-      throw Exception('This invite has expired.');
-    }
+    final userRef = _firestore.collection('users').doc(currentUser.uid);
+    final institutionRef = _firestore
+        .collection('institutions')
+        .doc(invite.institutionId);
+    final notificationSnapshot = await _firestore
+        .collection('notifications')
+        .where('userId', isEqualTo: currentUser.uid)
+        .where('type', isEqualTo: 'institution_invite')
+        .where('relatedId', isEqualTo: invite.id)
+        .limit(20)
+        .get();
+    final notificationRefs = notificationSnapshot.docs
+        .map((doc) => doc.reference)
+        .toList(growable: false);
+    final auditRef = _firestore
+        .collection('institution_membership_audit')
+        .doc();
 
-    final batch = _firestore.batch();
-    final userUpdatePayload = <String, dynamic>{
-      'institutionId': invite.institutionId,
-      'institutionName': invite.institutionName,
-      'role': invite.intendedRole.name,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-    if (invite.intendedRole == UserRole.counselor) {
-      userUpdatePayload['counselorSetupCompleted'] = false;
-      userUpdatePayload['counselorSetupData'] = <String, dynamic>{};
-      userUpdatePayload['counselorApprovalStatus'] = 'pending';
-    }
-    batch.update(userRef, {...userUpdatePayload});
-    batch.set(newMembershipRef, {
-      'institutionId': invite.institutionId,
-      'userId': currentUser.uid,
-      'role': invite.intendedRole.name,
-      'userName': currentUser.displayName ?? invite.invitedName,
-      'email': currentEmail,
-      'joinedAt': FieldValue.serverTimestamp(),
-      'status': invite.intendedRole == UserRole.counselor
+    await _firestore.runTransaction((transaction) async {
+      final latestInviteSnapshot = await transaction.get(inviteRef);
+      final latestInviteData = latestInviteSnapshot.data();
+      if (latestInviteData == null) {
+        throw Exception('Invite was not found.');
+      }
+      final latestStatus = (latestInviteData['status'] as String?) ?? '';
+      if (latestStatus != UserInviteStatus.pending.name) {
+        throw Exception('Invite is no longer available.');
+      }
+      final inviteeUid = (latestInviteData['inviteeUid'] as String?) ?? '';
+      if (inviteeUid != currentUser.uid) {
+        throw Exception('This invite is not linked to your account.');
+      }
+      final intendedRoleRaw =
+          (latestInviteData['intendedRole'] as String?) ?? UserRole.other.name;
+      final intendedRole = UserRole.values.firstWhere(
+        (value) => value.name == intendedRoleRaw,
+        orElse: () => UserRole.other,
+      );
+      if (intendedRole != UserRole.student &&
+          intendedRole != UserRole.staff &&
+          intendedRole != UserRole.counselor) {
+        throw Exception('Invite has unsupported role.');
+      }
+      final expiresAt = _asUtcDate(latestInviteData['expiresAt']);
+      if (expiresAt != null && !expiresAt.isAfter(nowUtc)) {
+        throw Exception('This invite has expired.');
+      }
+
+      final institutionSnapshot = await transaction.get(institutionRef);
+      final institutionData = institutionSnapshot.data();
+      if (institutionData == null) {
+        throw Exception('Institution not found.');
+      }
+      final institutionStatus =
+          (institutionData['status'] as String?) ?? 'approved';
+      if (institutionStatus != 'approved') {
+        throw Exception('Institution is not approved for joins.');
+      }
+      final activeJoinCode = (institutionData['joinCode'] as String? ?? '')
+          .trim()
+          .toUpperCase();
+      if (activeJoinCode != normalizedCode) {
+        throw Exception('Invalid institution code.');
+      }
+      final usageCount =
+          (institutionData['joinCodeUsageCount'] as num?)?.toInt() ?? 0;
+      final expiresAtUtc = _asUtcDate(institutionData['joinCodeExpiresAt']);
+      final isCodeExpired =
+          expiresAtUtc == null || !expiresAtUtc.isAfter(nowUtc);
+      if (isCodeExpired) {
+        throw Exception('This institution code has expired.');
+      }
+      if (usageCount >= _joinCodeMaxUses) {
+        throw Exception('This institution code reached its maximum usage.');
+      }
+
+      final userSnapshot = await transaction.get(userRef);
+      if (!userSnapshot.exists || userSnapshot.data() == null) {
+        throw Exception('User profile not found.');
+      }
+      final previousInstitutionId =
+          userSnapshot.data()!['institutionId'] as String?;
+
+      final memberStatus = intendedRole == UserRole.counselor
           ? 'pending'
-          : 'active',
-      'joinedVia': 'invite',
-      'inviteId': invite.id,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    batch.update(inviteRef, {
-      'status': UserInviteStatus.accepted.name,
-      'acceptedAt': FieldValue.serverTimestamp(),
-      'acceptedByUid': currentUser.uid,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    if (previousInstitutionId != null &&
-        previousInstitutionId.isNotEmpty &&
-        previousInstitutionId != invite.institutionId) {
-      final previousMembershipRef = _firestore
+          : 'active';
+      final membershipRef = _firestore
           .collection('institution_members')
-          .doc('${previousInstitutionId}_${currentUser.uid}');
-      batch.delete(previousMembershipRef);
-    }
+          .doc('${invite.institutionId}_${currentUser.uid}');
 
-    await batch.commit();
-    await _appendMembershipAudit(
-      institutionId: invite.institutionId,
-      actorUid: currentUser.uid,
-      targetUserId: currentUser.uid,
-      action: 'invite_accepted',
-      details: <String, dynamic>{
+      transaction.update(userRef, {
+        'institutionId': invite.institutionId,
+        'institutionName':
+            ((latestInviteData['institutionName'] as String?) ?? '')
+                .trim()
+                .isNotEmpty
+            ? (latestInviteData['institutionName'] as String)
+            : invite.institutionName,
+        'role': intendedRole.name,
+        if (intendedRole == UserRole.counselor) ...{
+          'counselorSetupCompleted': false,
+          'counselorSetupData': <String, dynamic>{},
+          'counselorApprovalStatus': 'pending',
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.set(membershipRef, {
+        'institutionId': invite.institutionId,
+        'userId': currentUser.uid,
+        'role': intendedRole.name,
+        'userName':
+            (userSnapshot.data()!['name'] as String?) ??
+            (latestInviteData['invitedName'] as String?) ??
+            '',
+        'email': (userSnapshot.data()!['email'] as String?) ?? '',
+        'phoneNumber': (latestInviteData['inviteePhoneE164'] as String?) ?? '',
+        'joinedAt': FieldValue.serverTimestamp(),
+        'status': memberStatus,
+        'joinedVia': 'invite',
         'inviteId': invite.id,
-        'intendedRole': invite.intendedRole.name,
-        'memberStatus': invite.intendedRole == UserRole.counselor
-            ? 'pending'
-            : 'active',
-      },
-    );
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.update(institutionRef, {
+        'joinCodeUsageCount': usageCount + 1,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      transaction.update(inviteRef, {
+        'status': UserInviteStatus.accepted.name,
+        'acceptedAt': FieldValue.serverTimestamp(),
+        'acceptedByUid': currentUser.uid,
+        'acceptedWithCode': normalizedCode,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      for (final notificationRef in notificationRefs) {
+        transaction.update(notificationRef, {
+          'isRead': true,
+          'readAt': FieldValue.serverTimestamp(),
+          'isPinned': false,
+          'isArchived': true,
+          'archivedAt': FieldValue.serverTimestamp(),
+          'resolvedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      transaction.set(auditRef, {
+        'institutionId': invite.institutionId,
+        'actorUid': currentUser.uid,
+        'targetUserId': currentUser.uid,
+        'action': 'invite_accepted',
+        'details': <String, dynamic>{
+          'inviteId': invite.id,
+          'intendedRole': intendedRole.name,
+          'memberStatus': memberStatus,
+          'codeVerified': true,
+        },
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (previousInstitutionId != null &&
+          previousInstitutionId.isNotEmpty &&
+          previousInstitutionId != invite.institutionId) {
+        final previousMembershipRef = _firestore
+            .collection('institution_members')
+            .doc('${previousInstitutionId}_${currentUser.uid}');
+        transaction.delete(previousMembershipRef);
+      }
+    });
   }
 
   Future<void> revokeInvite({required String inviteId}) async {
@@ -609,18 +735,30 @@ class InstitutionRepository {
     if (status != UserInviteStatus.pending.name) {
       throw Exception('Only pending invites can be revoked.');
     }
+    final inviteeUid = (data['inviteeUid'] as String?) ?? '';
     await inviteRef.update({
       'status': UserInviteStatus.revoked.name,
       'revokedAt': FieldValue.serverTimestamp(),
       'revokedByUid': currentUser.uid,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    if (inviteeUid.isNotEmpty) {
+      await _createNotifications([
+        _notificationPayload(
+          userId: inviteeUid,
+          institutionId: institutionId,
+          type: 'institution_invite_revoked',
+          title: 'Invite revoked',
+          body:
+              'An invitation for ${(data['intendedRole'] as String?) ?? 'a role'} was revoked by your admin.',
+          relatedId: inviteId,
+        ),
+      ]);
+    }
     await _appendMembershipAudit(
       institutionId: institutionId,
       actorUid: currentUser.uid,
-      targetUserId: ((data['invitedEmail'] as String?) ?? '')
-          .trim()
-          .toLowerCase(),
+      targetUserId: inviteeUid,
       action: 'invite_revoked',
       details: <String, dynamic>{'inviteId': inviteId},
     );
@@ -1421,13 +1559,13 @@ class InstitutionRepository {
 
   Future<void> _assertNoActivePendingInvite({
     required String institutionId,
-    required String invitedEmail,
+    required String inviteeUid,
     required UserRole role,
   }) async {
     final snapshot = await _firestore
         .collection('user_invites')
         .where('institutionId', isEqualTo: institutionId)
-        .where('invitedEmail', isEqualTo: invitedEmail)
+        .where('inviteeUid', isEqualTo: inviteeUid)
         .where('intendedRole', isEqualTo: role.name)
         .where('status', isEqualTo: UserInviteStatus.pending.name)
         .limit(8)
@@ -1445,80 +1583,79 @@ class InstitutionRepository {
       }
       if (expiresAt == null || expiresAt.isAfter(nowUtc)) {
         throw Exception(
-          'A pending invite already exists for this email and role.',
+          'A pending invite already exists for this account and role.',
         );
       }
     }
   }
 
-  String _buildInviteAcceptLink({
-    required String inviteId,
-    String? invitedEmail,
-    String? invitedName,
-    String? institutionName,
-    String? intendedRole,
-  }) {
-    final base = _inviteAcceptLinkBase;
-    final uri = Uri.tryParse(base);
-    final nextQuery = <String, String>{};
-    final safeInviteId = inviteId.trim();
-    if (safeInviteId.isNotEmpty) {
-      nextQuery['inviteId'] = safeInviteId;
-    }
-    final safeInvitedEmail = (invitedEmail ?? '').trim().toLowerCase();
-    if (safeInvitedEmail.isNotEmpty) {
-      nextQuery['invitedEmail'] = safeInvitedEmail;
-    }
-    final safeInvitedName = (invitedName ?? '').trim();
-    if (safeInvitedName.isNotEmpty) {
-      nextQuery['invitedName'] = safeInvitedName;
-    }
-    final safeInstitutionName = (institutionName ?? '').trim();
-    if (safeInstitutionName.isNotEmpty) {
-      nextQuery['institutionName'] = safeInstitutionName;
-    }
-    final safeIntendedRole = (intendedRole ?? '').trim();
-    if (safeIntendedRole.isNotEmpty) {
-      nextQuery['intendedRole'] = safeIntendedRole;
-    }
-    if (uri == null) {
-      final separator = base.contains('?') ? '&' : '?';
-      final queryString = Uri(queryParameters: nextQuery).query;
-      return '$base$separator$queryString';
-    }
-    return uri
-        .replace(
-          queryParameters: <String, String>{
-            ...uri.queryParameters,
-            ...nextQuery,
-          },
-        )
-        .toString();
-  }
-
-  String _buildInviteEmailSubject({required String institutionName}) {
-    return 'Invitation to join $institutionName on MindNest';
-  }
-
-  String _buildInviteEmailText({
+  String _buildWhatsAppInviteText({
     required String institutionName,
-    required String role,
-    required String acceptLink,
     required String inviterName,
+    required UserRole role,
+    required String joinCode,
     required DateTime expiresAtUtc,
-    required bool includeAiNote,
   }) {
-    final core =
-        'Hi,\n\n'
-        '$inviterName invited you to join $institutionName on MindNest as $role.\n\n'
-        'Accept invite: $acceptLink\n\n'
-        'This one-time invite expires on ${expiresAtUtc.toIso8601String()}.\n'
-        'If you do not have an account yet, register first using this same email address.';
-    if (!includeAiNote) {
-      return core;
+    return 'MindNest invite\n'
+        '$inviterName invited you to join $institutionName as ${role.label}.\n'
+        'Institution code: $joinCode\n'
+        'Open the MindNest app, go to Notifications, and accept the invite.\n'
+        'Invite expires: ${expiresAtUtc.toIso8601String()}';
+  }
+
+  String _buildWhatsAppDeepLink({
+    required String phoneE164,
+    required String message,
+  }) {
+    final destination = phoneE164.replaceAll(RegExp(r'[^0-9]'), '');
+    return Uri(
+      scheme: 'https',
+      host: 'wa.me',
+      path: destination,
+      queryParameters: <String, String>{'text': message},
+    ).toString();
+  }
+
+  String _normalizePhoneE164(String rawPhone) {
+    var normalized = rawPhone.trim().replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    if (normalized.startsWith('00')) {
+      normalized = '+${normalized.substring(2)}';
     }
-    return '$core\n\n'
-        'MindNest AI can support guided check-ins and personalized wellness steps after onboarding.';
+    if (!normalized.startsWith('+')) {
+      throw Exception('Use E.164 format for phone number, e.g. +2547...');
+    }
+    if (!RegExp(r'^\+[1-9][0-9]{7,14}$').hasMatch(normalized)) {
+      throw Exception('Phone number must be a valid E.164 number.');
+    }
+    return normalized;
+  }
+
+  Future<QueryDocumentSnapshot<Map<String, dynamic>>> _resolveInviteeByPhone(
+    String phoneE164,
+  ) async {
+    final candidates = <String>{phoneE164};
+    if (phoneE164.startsWith('+') && phoneE164.length > 1) {
+      candidates.add(phoneE164.substring(1));
+    }
+
+    QueryDocumentSnapshot<Map<String, dynamic>>? found;
+    for (final candidate in candidates) {
+      final snapshot = await _firestore
+          .collection('users')
+          .where('phoneNumber', isEqualTo: candidate)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isNotEmpty) {
+        found = snapshot.docs.first;
+        break;
+      }
+    }
+    if (found == null) {
+      throw Exception(
+        'No user account found for this phone number. Ask the user to register first.',
+      );
+    }
+    return found;
   }
 
   Future<int> _cancelFutureAppointmentsBeforeLeave({
@@ -1693,6 +1830,10 @@ class InstitutionRepository {
     required String title,
     required String body,
     String? relatedId,
+    String? route,
+    String priority = 'normal',
+    bool actionRequired = false,
+    bool isPinned = false,
   }) {
     return <String, dynamic>{
       'userId': userId,
@@ -1701,6 +1842,11 @@ class InstitutionRepository {
       'title': title,
       'body': body,
       'isRead': false,
+      'isPinned': isPinned,
+      'isArchived': false,
+      'priority': priority,
+      'actionRequired': actionRequired,
+      if (route != null && route.trim().isNotEmpty) 'route': route.trim(),
       'relatedId': relatedId,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -1750,6 +1896,9 @@ class InstitutionRepository {
               'body': payload['body'],
               'type': payload['type'],
               'relatedId': payload['relatedId'],
+              'route': payload['route'],
+              'priority': payload['priority'],
+              'actionRequired': payload['actionRequired'],
             },
           )
           .toList(growable: false);
