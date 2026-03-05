@@ -104,6 +104,24 @@ class AppRoute {
     return cleaned;
   }
 
+  static Map<String, String> inviteQueryFromUri(Uri uri) {
+    final fromQuery = inviteQueryFromRaw(uri.queryParameters);
+    if (fromQuery.isNotEmpty) {
+      return fromQuery;
+    }
+    final fragment = uri.fragment;
+    if (fragment.isEmpty) {
+      return const <String, String>{};
+    }
+    final queryIndex = fragment.indexOf('?');
+    if (queryIndex < 0 || queryIndex == fragment.length - 1) {
+      return const <String, String>{};
+    }
+    final fragmentQuery = fragment.substring(queryIndex + 1);
+    final parsed = Uri(query: fragmentQuery).queryParameters;
+    return inviteQueryFromRaw(parsed);
+  }
+
   static Map<String, String> inviteQuery({
     required String inviteId,
     String? invitedEmail,
@@ -147,9 +165,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final authState = firebaseAuth.currentUser;
       final isEmailVerified = authState?.emailVerified ?? false;
       final location = state.matchedLocation;
-      final inviteQuery = AppRoute.inviteQueryFromRaw(
-        state.uri.queryParameters,
-      );
+      final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
       final hasInviteContext = inviteQuery.isNotEmpty;
       final isAuthRoute =
           location == AppRoute.login ||
@@ -348,47 +364,55 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: AppRoute.login,
-        builder: (context, state) => LoginScreen(
-          inviteId: state.uri.queryParameters[AppRoute.inviteIdQuery],
-          invitedEmail: state.uri.queryParameters[AppRoute.invitedEmailQuery],
-          invitedName: state.uri.queryParameters[AppRoute.invitedNameQuery],
-          institutionName:
-              state.uri.queryParameters[AppRoute.institutionNameQuery],
-          intendedRole: state.uri.queryParameters[AppRoute.intendedRoleQuery],
-        ),
+        builder: (context, state) {
+          final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
+          return LoginScreen(
+            inviteId: inviteQuery[AppRoute.inviteIdQuery],
+            invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
+            invitedName: inviteQuery[AppRoute.invitedNameQuery],
+            institutionName: inviteQuery[AppRoute.institutionNameQuery],
+            intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
+          );
+        },
       ),
       GoRoute(
         path: AppRoute.register,
-        builder: (context, state) => RegisterScreen(
-          inviteId: state.uri.queryParameters[AppRoute.inviteIdQuery],
-          invitedEmail: state.uri.queryParameters[AppRoute.invitedEmailQuery],
-          invitedName: state.uri.queryParameters[AppRoute.invitedNameQuery],
-          institutionName:
-              state.uri.queryParameters[AppRoute.institutionNameQuery],
-          intendedRole: state.uri.queryParameters[AppRoute.intendedRoleQuery],
-        ),
+        builder: (context, state) {
+          final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
+          return RegisterScreen(
+            inviteId: inviteQuery[AppRoute.inviteIdQuery],
+            invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
+            invitedName: inviteQuery[AppRoute.invitedNameQuery],
+            institutionName: inviteQuery[AppRoute.institutionNameQuery],
+            intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
+          );
+        },
       ),
       GoRoute(
         path: AppRoute.registerDetails,
-        builder: (context, state) => RegisterDetailsScreen(
-          inviteId: state.uri.queryParameters[AppRoute.inviteIdQuery],
-          invitedEmail: state.uri.queryParameters[AppRoute.invitedEmailQuery],
-          invitedName: state.uri.queryParameters[AppRoute.invitedNameQuery],
-          institutionName:
-              state.uri.queryParameters[AppRoute.institutionNameQuery],
-          intendedRole: state.uri.queryParameters[AppRoute.intendedRoleQuery],
-        ),
+        builder: (context, state) {
+          final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
+          return RegisterDetailsScreen(
+            inviteId: inviteQuery[AppRoute.inviteIdQuery],
+            invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
+            invitedName: inviteQuery[AppRoute.invitedNameQuery],
+            institutionName: inviteQuery[AppRoute.institutionNameQuery],
+            intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
+          );
+        },
       ),
       GoRoute(
         path: AppRoute.forgotPassword,
-        builder: (context, state) => ForgotPasswordScreen(
-          inviteId: state.uri.queryParameters[AppRoute.inviteIdQuery],
-          invitedEmail: state.uri.queryParameters[AppRoute.invitedEmailQuery],
-          invitedName: state.uri.queryParameters[AppRoute.invitedNameQuery],
-          institutionName:
-              state.uri.queryParameters[AppRoute.institutionNameQuery],
-          intendedRole: state.uri.queryParameters[AppRoute.intendedRoleQuery],
-        ),
+        builder: (context, state) {
+          final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
+          return ForgotPasswordScreen(
+            inviteId: inviteQuery[AppRoute.inviteIdQuery],
+            invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
+            invitedName: inviteQuery[AppRoute.invitedNameQuery],
+            institutionName: inviteQuery[AppRoute.institutionNameQuery],
+            intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
+          );
+        },
       ),
       GoRoute(
         path: AppRoute.registerInstitution,
@@ -400,25 +424,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoute.verifyEmail,
-        builder: (context, state) => VerifyEmailScreen(
-          inviteId: state.uri.queryParameters[AppRoute.inviteIdQuery],
-          invitedEmail: state.uri.queryParameters[AppRoute.invitedEmailQuery],
-          invitedName: state.uri.queryParameters[AppRoute.invitedNameQuery],
-          institutionName:
-              state.uri.queryParameters[AppRoute.institutionNameQuery],
-          intendedRole: state.uri.queryParameters[AppRoute.intendedRoleQuery],
-        ),
+        builder: (context, state) {
+          final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
+          return VerifyEmailScreen(
+            inviteId: inviteQuery[AppRoute.inviteIdQuery],
+            invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
+            invitedName: inviteQuery[AppRoute.invitedNameQuery],
+            institutionName: inviteQuery[AppRoute.institutionNameQuery],
+            intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
+          );
+        },
       ),
       GoRoute(
         path: AppRoute.inviteAccept,
-        builder: (context, state) => InviteAcceptScreen(
-          inviteId: state.uri.queryParameters[AppRoute.inviteIdQuery],
-          invitedEmail: state.uri.queryParameters[AppRoute.invitedEmailQuery],
-          invitedName: state.uri.queryParameters[AppRoute.invitedNameQuery],
-          institutionName:
-              state.uri.queryParameters[AppRoute.institutionNameQuery],
-          intendedRole: state.uri.queryParameters[AppRoute.intendedRoleQuery],
-        ),
+        builder: (context, state) {
+          final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
+          return InviteAcceptScreen(
+            inviteId: inviteQuery[AppRoute.inviteIdQuery],
+            invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
+            invitedName: inviteQuery[AppRoute.invitedNameQuery],
+            institutionName: inviteQuery[AppRoute.institutionNameQuery],
+            intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
+          );
+        },
       ),
       GoRoute(
         path: AppRoute.onboarding,
