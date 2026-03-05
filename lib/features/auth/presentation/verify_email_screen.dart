@@ -8,7 +8,20 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 
 class VerifyEmailScreen extends ConsumerStatefulWidget {
-  const VerifyEmailScreen({super.key});
+  const VerifyEmailScreen({
+    super.key,
+    this.inviteId,
+    this.invitedEmail,
+    this.invitedName,
+    this.institutionName,
+    this.intendedRole,
+  });
+
+  final String? inviteId;
+  final String? invitedEmail;
+  final String? invitedName;
+  final String? institutionName;
+  final String? intendedRole;
 
   @override
   ConsumerState<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
@@ -17,6 +30,16 @@ class VerifyEmailScreen extends ConsumerStatefulWidget {
 class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   bool _isChecking = false;
   bool _isResending = false;
+
+  Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
+    inviteId: widget.inviteId ?? '',
+    invitedEmail: widget.invitedEmail,
+    invitedName: widget.invitedName,
+    institutionName: widget.institutionName,
+    intendedRole: widget.intendedRole,
+  );
+
+  bool get _hasInviteContext => _inviteQuery.isNotEmpty;
 
   Future<void> _refreshVerificationStatus(UserRole? role) async {
     setState(() => _isChecking = true);
@@ -46,6 +69,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   }
 
   String _resolveNextRouteForRole(UserRole? role) {
+    if (_hasInviteContext) {
+      return AppRoute.withInviteQuery(AppRoute.inviteAccept, _inviteQuery);
+    }
     if (role == UserRole.institutionAdmin) {
       return AppRoute.institutionAdmin;
     }
@@ -189,6 +215,24 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 fontWeight: FontWeight.w500,
               ),
             ),
+            if (_hasInviteContext) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFFFFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFB3ECDD)),
+                ),
+                child: Text(
+                  'After verification, you will continue to your invite${(widget.institutionName ?? '').trim().isNotEmpty ? ' for ${widget.institutionName!.trim()}' : ''}.',
+                  style: const TextStyle(
+                    color: Color(0xFF0D6F69),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             Container(
               height: 62,
@@ -241,21 +285,13 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            if (profile?.role == UserRole.institutionAdmin)
-              TextButton(
-                onPressed: () => context.go(AppRoute.institutionAdmin),
-                child: const Text('Go to institution admin setup'),
-              )
-            else if (profile?.role == UserRole.counselor)
-              TextButton(
-                onPressed: () => context.go(AppRoute.counselorSetup),
-                child: const Text('Go to counselor setup'),
-              )
-            else
-              TextButton(
-                onPressed: () => context.go(AppRoute.home),
-                child: const Text('Continue to Home'),
+            TextButton(
+              onPressed: () =>
+                  context.go(_resolveNextRouteForRole(profile?.role)),
+              child: Text(
+                _hasInviteContext ? 'Continue to Invite' : 'Continue',
               ),
+            ),
           ],
         ),
       ),

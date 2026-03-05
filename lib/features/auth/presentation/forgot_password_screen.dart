@@ -9,7 +9,20 @@ import 'package:mindnest/core/ui/auth_desktop_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  const ForgotPasswordScreen({
+    super.key,
+    this.inviteId,
+    this.invitedEmail,
+    this.invitedName,
+    this.institutionName,
+    this.intendedRole,
+  });
+
+  final String? inviteId;
+  final String? invitedEmail;
+  final String? invitedName;
+  final String? institutionName;
+  final String? intendedRole;
 
   @override
   ConsumerState<ForgotPasswordScreen> createState() =>
@@ -21,6 +34,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   bool _isSubmitting = false;
+
+  Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
+    inviteId: widget.inviteId ?? '',
+    invitedEmail: widget.invitedEmail,
+    invitedName: widget.invitedName,
+    institutionName: widget.institutionName,
+    intendedRole: widget.intendedRole,
+  );
 
   @override
   void dispose() {
@@ -42,7 +63,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Password reset email sent.')),
         );
-        context.go(AppRoute.login);
+        context.go(AppRoute.withInviteQuery(AppRoute.login, _inviteQuery));
       }
     } on FirebaseAuthException catch (error) {
       _showMessage(error.message ?? 'Unable to send reset email.');
@@ -113,7 +134,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             alignment: Alignment.centerLeft,
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
-              onTap: _isSubmitting ? null : () => context.go(AppRoute.login),
+              onTap: _isSubmitting
+                  ? null
+                  : () => context.go(
+                      AppRoute.withInviteQuery(AppRoute.login, _inviteQuery),
+                    ),
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 2, vertical: 4),
                 child: Row(

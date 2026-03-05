@@ -72,6 +72,61 @@ class AppRoute {
   static const institutionAdmin = '/institution-admin';
   static const institutionPending = '/institution-pending';
   static const ownerDashboard = '/owner-dashboard';
+
+  static const inviteIdQuery = 'inviteId';
+  static const invitedEmailQuery = 'invitedEmail';
+  static const invitedNameQuery = 'invitedName';
+  static const institutionNameQuery = 'institutionName';
+  static const intendedRoleQuery = 'intendedRole';
+
+  static Map<String, String> inviteQueryFromRaw(Map<String, String> raw) {
+    final inviteId = (raw[inviteIdQuery] ?? '').trim();
+    if (inviteId.isEmpty) {
+      return const <String, String>{};
+    }
+    final cleaned = <String, String>{inviteIdQuery: inviteId};
+    final invitedEmail = (raw[invitedEmailQuery] ?? '').trim().toLowerCase();
+    if (invitedEmail.isNotEmpty) {
+      cleaned[invitedEmailQuery] = invitedEmail;
+    }
+    final invitedName = (raw[invitedNameQuery] ?? '').trim();
+    if (invitedName.isNotEmpty) {
+      cleaned[invitedNameQuery] = invitedName;
+    }
+    final institutionName = (raw[institutionNameQuery] ?? '').trim();
+    if (institutionName.isNotEmpty) {
+      cleaned[institutionNameQuery] = institutionName;
+    }
+    final intendedRole = (raw[intendedRoleQuery] ?? '').trim();
+    if (intendedRole.isNotEmpty) {
+      cleaned[intendedRoleQuery] = intendedRole;
+    }
+    return cleaned;
+  }
+
+  static Map<String, String> inviteQuery({
+    required String inviteId,
+    String? invitedEmail,
+    String? invitedName,
+    String? institutionName,
+    String? intendedRole,
+  }) {
+    return inviteQueryFromRaw(<String, String>{
+      inviteIdQuery: inviteId,
+      invitedEmailQuery: invitedEmail ?? '',
+      invitedNameQuery: invitedName ?? '',
+      institutionNameQuery: institutionName ?? '',
+      intendedRoleQuery: intendedRole ?? '',
+    });
+  }
+
+  static String withInviteQuery(String path, Map<String, String> rawQuery) {
+    final inviteQuery = inviteQueryFromRaw(rawQuery);
+    if (inviteQuery.isEmpty) {
+      return path;
+    }
+    return Uri(path: path, queryParameters: inviteQuery).toString();
+  }
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -92,6 +147,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final authState = firebaseAuth.currentUser;
       final isEmailVerified = authState?.emailVerified ?? false;
       final location = state.matchedLocation;
+      final inviteQuery = AppRoute.inviteQueryFromRaw(
+        state.uri.queryParameters,
+      );
+      final hasInviteContext = inviteQuery.isNotEmpty;
       final isAuthRoute =
           location == AppRoute.login ||
           location == AppRoute.register ||
@@ -119,11 +178,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isOwnerRoute = location == AppRoute.ownerDashboard;
 
       if (authState == null) {
+        if (location == AppRoute.inviteAccept && hasInviteContext) {
+          return AppRoute.withInviteQuery(
+            AppRoute.registerDetails,
+            inviteQuery,
+          );
+        }
         return isAuthRoute ? null : AppRoute.login;
       }
 
       if (!isEmailVerified && !isPreVerificationOnboardingRoute) {
-        return AppRoute.verifyEmail;
+        return AppRoute.withInviteQuery(AppRoute.verifyEmail, inviteQuery);
       }
 
       if (!isEmailVerified) {
@@ -140,6 +205,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
+      if (hasInviteContext && location != AppRoute.inviteAccept) {
+        return AppRoute.withInviteQuery(AppRoute.inviteAccept, inviteQuery);
+      }
+
       final profile = profileAsync.valueOrNull;
       final pendingInvite = pendingInviteAsync.valueOrNull;
       final role = profile?.role ?? UserRole.other;
@@ -150,7 +219,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // 3. Verified but invite pending -> invite accept screen.
       if (pendingInvite != null) {
         if (location != AppRoute.inviteAccept) {
-          return AppRoute.inviteAccept;
+          return AppRoute.withInviteQuery(AppRoute.inviteAccept, inviteQuery);
         }
         return null;
       }
@@ -275,19 +344,47 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: AppRoute.login,
-        builder: (context, state) => const LoginScreen(),
+        builder: (context, state) => LoginScreen(
+          inviteId: state.uri.queryParameters[AppRoute.inviteIdQuery],
+          invitedEmail: state.uri.queryParameters[AppRoute.invitedEmailQuery],
+          invitedName: state.uri.queryParameters[AppRoute.invitedNameQuery],
+          institutionName:
+              state.uri.queryParameters[AppRoute.institutionNameQuery],
+          intendedRole: state.uri.queryParameters[AppRoute.intendedRoleQuery],
+        ),
       ),
       GoRoute(
         path: AppRoute.register,
-        builder: (context, state) => const RegisterScreen(),
+        builder: (context, state) => RegisterScreen(
+          inviteId: state.uri.queryParameters[AppRoute.inviteIdQuery],
+          invitedEmail: state.uri.queryParameters[AppRoute.invitedEmailQuery],
+          invitedName: state.uri.queryParameters[AppRoute.invitedNameQuery],
+          institutionName:
+              state.uri.queryParameters[AppRoute.institutionNameQuery],
+          intendedRole: state.uri.queryParameters[AppRoute.intendedRoleQuery],
+        ),
       ),
       GoRoute(
         path: AppRoute.registerDetails,
-        builder: (context, state) => const RegisterDetailsScreen(),
+        builder: (context, state) => RegisterDetailsScreen(
+          inviteId: state.uri.queryParameters[AppRoute.inviteIdQuery],
+          invitedEmail: state.uri.queryParameters[AppRoute.invitedEmailQuery],
+          invitedName: state.uri.queryParameters[AppRoute.invitedNameQuery],
+          institutionName:
+              state.uri.queryParameters[AppRoute.institutionNameQuery],
+          intendedRole: state.uri.queryParameters[AppRoute.intendedRoleQuery],
+        ),
       ),
       GoRoute(
         path: AppRoute.forgotPassword,
-        builder: (context, state) => const ForgotPasswordScreen(),
+        builder: (context, state) => ForgotPasswordScreen(
+          inviteId: state.uri.queryParameters[AppRoute.inviteIdQuery],
+          invitedEmail: state.uri.queryParameters[AppRoute.invitedEmailQuery],
+          invitedName: state.uri.queryParameters[AppRoute.invitedNameQuery],
+          institutionName:
+              state.uri.queryParameters[AppRoute.institutionNameQuery],
+          intendedRole: state.uri.queryParameters[AppRoute.intendedRoleQuery],
+        ),
       ),
       GoRoute(
         path: AppRoute.registerInstitution,
@@ -299,12 +396,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoute.verifyEmail,
-        builder: (context, state) => const VerifyEmailScreen(),
+        builder: (context, state) => VerifyEmailScreen(
+          inviteId: state.uri.queryParameters[AppRoute.inviteIdQuery],
+          invitedEmail: state.uri.queryParameters[AppRoute.invitedEmailQuery],
+          invitedName: state.uri.queryParameters[AppRoute.invitedNameQuery],
+          institutionName:
+              state.uri.queryParameters[AppRoute.institutionNameQuery],
+          intendedRole: state.uri.queryParameters[AppRoute.intendedRoleQuery],
+        ),
       ),
       GoRoute(
         path: AppRoute.inviteAccept,
-        builder: (context, state) =>
-            InviteAcceptScreen(inviteId: state.uri.queryParameters['inviteId']),
+        builder: (context, state) => InviteAcceptScreen(
+          inviteId: state.uri.queryParameters[AppRoute.inviteIdQuery],
+          invitedEmail: state.uri.queryParameters[AppRoute.invitedEmailQuery],
+          invitedName: state.uri.queryParameters[AppRoute.invitedNameQuery],
+          institutionName:
+              state.uri.queryParameters[AppRoute.institutionNameQuery],
+          intendedRole: state.uri.queryParameters[AppRoute.intendedRoleQuery],
+        ),
       ),
       GoRoute(
         path: AppRoute.onboarding,

@@ -6,15 +6,28 @@ import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/core/ui/auth_desktop_shell.dart';
 
 class RegisterScreen extends StatelessWidget {
-  const RegisterScreen({super.key});
+  const RegisterScreen({
+    super.key,
+    this.inviteId,
+    this.invitedEmail,
+    this.invitedName,
+    this.institutionName,
+    this.intendedRole,
+  });
   static const _desktopBreakpoint = 1100.0;
+
+  final String? inviteId;
+  final String? invitedEmail;
+  final String? invitedName;
+  final String? institutionName;
+  final String? intendedRole;
 
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= _desktopBreakpoint;
 
     if (isDesktop) {
-      return const AuthDesktopShell(
+      return AuthDesktopShell(
         heroHighlightText: 'Start your journey',
         heroBaseText: 'to better mental wellness.',
         heroDescription:
@@ -24,23 +37,60 @@ class RegisterScreen extends StatelessWidget {
           AuthDesktopMetric(value: '3+', label: 'USERS HELPED'),
           AuthDesktopMetric(value: '1+', label: 'INSTITUTIONS'),
         ],
-        formChild: _RegisterContent(showBrand: false, isDesktop: true),
+        formChild: _RegisterContent(
+          showBrand: false,
+          isDesktop: true,
+          inviteId: inviteId,
+          invitedEmail: invitedEmail,
+          invitedName: invitedName,
+          institutionName: institutionName,
+          intendedRole: intendedRole,
+        ),
       );
     }
 
-    return const AuthBackgroundScaffold(
+    return AuthBackgroundScaffold(
       fallingSnow: true,
       maxWidth: 460,
-      child: _RegisterContent(showBrand: true, isDesktop: false),
+      child: _RegisterContent(
+        showBrand: true,
+        isDesktop: false,
+        inviteId: inviteId,
+        invitedEmail: invitedEmail,
+        invitedName: invitedName,
+        institutionName: institutionName,
+        intendedRole: intendedRole,
+      ),
     );
   }
 }
 
 class _RegisterContent extends StatelessWidget {
-  const _RegisterContent({required this.showBrand, required this.isDesktop});
+  const _RegisterContent({
+    required this.showBrand,
+    required this.isDesktop,
+    this.inviteId,
+    this.invitedEmail,
+    this.invitedName,
+    this.institutionName,
+    this.intendedRole,
+  });
 
   final bool showBrand;
   final bool isDesktop;
+  final String? inviteId;
+  final String? invitedEmail;
+  final String? invitedName;
+  final String? institutionName;
+  final String? intendedRole;
+
+  Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
+    inviteId: inviteId ?? '',
+    invitedEmail: invitedEmail,
+    invitedName: invitedName,
+    institutionName: institutionName,
+    intendedRole: intendedRole,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +115,9 @@ class _RegisterContent extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Create your MindNest account first, then join your institution from Home if you have a join code.',
+          _inviteQuery.isNotEmpty
+              ? 'Finish registration to accept your invitation${(institutionName ?? '').trim().isNotEmpty ? ' to ${(institutionName ?? '').trim()}' : ''}.'
+              : 'Create your MindNest account first, then join your institution from Home if you have a join code.',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: const Color(0xFF516784),
             height: 1.35,
@@ -73,12 +125,26 @@ class _RegisterContent extends StatelessWidget {
           textAlign: isDesktop ? TextAlign.left : TextAlign.center,
         ),
         const SizedBox(height: 26),
+        if (_inviteQuery.isNotEmpty) ...[
+          _AccountTypeCard(
+            icon: Icons.mark_email_unread_rounded,
+            title: 'Continue Invite Registration',
+            description:
+                'Create your account with the invited email, then accept the invite instantly.',
+            onTap: () => context.go(
+              AppRoute.withInviteQuery(AppRoute.registerDetails, _inviteQuery),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         _AccountTypeCard(
           icon: Icons.account_circle_outlined,
           title: 'Create Account',
           description:
               'Use wellness tools, track your mood, and access resources. You can connect to an institution after sign-up.',
-          onTap: () => context.go(AppRoute.registerDetails),
+          onTap: () => context.go(
+            AppRoute.withInviteQuery(AppRoute.registerDetails, _inviteQuery),
+          ),
         ),
         const SizedBox(height: 24),
         Row(
@@ -91,7 +157,9 @@ class _RegisterContent extends StatelessWidget {
               ).textTheme.titleMedium?.copyWith(color: const Color(0xFF4A607C)),
             ),
             GestureDetector(
-              onTap: () => context.go(AppRoute.login),
+              onTap: () => context.go(
+                AppRoute.withInviteQuery(AppRoute.login, _inviteQuery),
+              ),
               child: const Text(
                 'Log In',
                 style: TextStyle(

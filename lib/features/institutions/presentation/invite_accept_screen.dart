@@ -10,9 +10,20 @@ import 'package:mindnest/features/institutions/models/user_invite.dart';
 import 'package:mindnest/features/onboarding/data/onboarding_providers.dart';
 
 class InviteAcceptScreen extends ConsumerStatefulWidget {
-  const InviteAcceptScreen({super.key, this.inviteId});
+  const InviteAcceptScreen({
+    super.key,
+    this.inviteId,
+    this.invitedEmail,
+    this.invitedName,
+    this.institutionName,
+    this.intendedRole,
+  });
 
   final String? inviteId;
+  final String? invitedEmail;
+  final String? invitedName;
+  final String? institutionName;
+  final String? intendedRole;
 
   @override
   ConsumerState<InviteAcceptScreen> createState() => _InviteAcceptScreenState();
@@ -20,6 +31,14 @@ class InviteAcceptScreen extends ConsumerStatefulWidget {
 
 class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
   bool _isSubmitting = false;
+
+  Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
+    inviteId: widget.inviteId ?? '',
+    invitedEmail: widget.invitedEmail,
+    invitedName: widget.invitedName,
+    institutionName: widget.institutionName,
+    intendedRole: widget.intendedRole,
+  );
 
   Future<void> _accept(UserInvite invite) async {
     setState(() => _isSubmitting = true);
@@ -78,6 +97,7 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
+    final authUser = ref.watch(authStateChangesProvider).valueOrNull;
     final inviteId = widget.inviteId?.trim();
     final inviteAsync = inviteId == null || inviteId.isEmpty
         ? ref.watch(pendingUserInviteProvider)
@@ -90,6 +110,14 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
             final onboardingNeeded = ref
                 .watch(onboardingRepositoryProvider)
                 .requiresQuestionnaire(profile);
+            final currentEmail = (authUser?.email ?? '').trim().toLowerCase();
+            final invitedEmail = (widget.invitedEmail ?? '')
+                .trim()
+                .toLowerCase();
+            final emailMismatch =
+                invitedEmail.isNotEmpty &&
+                currentEmail.isNotEmpty &&
+                invitedEmail != currentEmail;
             return GlassCard(
               child: Padding(
                 padding: const EdgeInsets.all(20),
@@ -97,12 +125,37 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'No pending invite found.',
+                      inviteId == null || inviteId.isEmpty
+                          ? 'No pending invite found.'
+                          : 'This invite is not available for your current account.',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 8),
+                    if (emailMismatch)
+                      Text(
+                        'You are signed in as $currentEmail, but this invite is for $invitedEmail.',
+                      ),
+                    if (emailMismatch) const SizedBox(height: 8),
+                    if (inviteId != null && inviteId.isNotEmpty)
+                      OutlinedButton(
+                        onPressed: () async {
+                          await ref.read(authRepositoryProvider).signOut();
+                          if (!context.mounted) {
+                            return;
+                          }
+                          context.go(
+                            AppRoute.withInviteQuery(
+                              AppRoute.login,
+                              _inviteQuery,
+                            ),
+                          );
+                        },
+                        child: const Text('Use a different account'),
+                      ),
+                    if (inviteId != null && inviteId.isNotEmpty)
+                      const SizedBox(height: 8),
                     ElevatedButton(
                       onPressed: () => context.go(
                         onboardingNeeded ? AppRoute.onboarding : AppRoute.home,

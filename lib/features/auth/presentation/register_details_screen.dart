@@ -7,7 +7,20 @@ import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 
 class RegisterDetailsScreen extends ConsumerStatefulWidget {
-  const RegisterDetailsScreen({super.key});
+  const RegisterDetailsScreen({
+    super.key,
+    this.inviteId,
+    this.invitedEmail,
+    this.invitedName,
+    this.institutionName,
+    this.intendedRole,
+  });
+
+  final String? inviteId;
+  final String? invitedEmail;
+  final String? invitedName;
+  final String? institutionName;
+  final String? intendedRole;
 
   @override
   ConsumerState<RegisterDetailsScreen> createState() =>
@@ -20,6 +33,29 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isSubmitting = false;
+
+  Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
+    inviteId: widget.inviteId ?? '',
+    invitedEmail: widget.invitedEmail,
+    invitedName: widget.invitedName,
+    institutionName: widget.institutionName,
+    intendedRole: widget.intendedRole,
+  );
+
+  bool get _hasInviteContext => _inviteQuery.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    final invitedName = (widget.invitedName ?? '').trim();
+    if (invitedName.isNotEmpty) {
+      _nameController.text = invitedName;
+    }
+    final invitedEmail = (widget.invitedEmail ?? '').trim().toLowerCase();
+    if (invitedEmail.isNotEmpty) {
+      _emailController.text = invitedEmail;
+    }
+  }
 
   @override
   void dispose() {
@@ -46,7 +82,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
       if (!mounted) {
         return;
       }
-      context.go(AppRoute.verifyEmail);
+      context.go(AppRoute.withInviteQuery(AppRoute.verifyEmail, _inviteQuery));
     } on FirebaseAuthException catch (error) {
       _showMessage(error.message ?? 'Registration failed.');
     } catch (error) {
@@ -79,7 +115,14 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                 borderRadius: BorderRadius.circular(20),
                 onTap: _isSubmitting
                     ? null
-                    : () => context.go(AppRoute.register),
+                    : () => context.go(
+                        _hasInviteContext
+                            ? AppRoute.withInviteQuery(
+                                AppRoute.login,
+                                _inviteQuery,
+                              )
+                            : AppRoute.register,
+                      ),
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 2, vertical: 4),
                   child: Row(
@@ -116,12 +159,35 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'You can join your institution later from Home using a join code.',
+              _hasInviteContext
+                  ? 'Register with the invited email, then accept your invite instantly.'
+                  : 'You can join your institution later from Home using a join code.',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: const Color(0xFF516784),
                 fontWeight: FontWeight.w500,
               ),
             ),
+            if (_hasInviteContext) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFFFFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFB3ECDD)),
+                ),
+                child: Text(
+                  'Invite: ${(widget.intendedRole ?? '').trim().isNotEmpty ? widget.intendedRole!.trim() : 'member'}${(widget.institutionName ?? '').trim().isNotEmpty ? ' at ${widget.institutionName!.trim()}' : ''}',
+                  style: const TextStyle(
+                    color: Color(0xFF0D6F69),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 28),
             const _FieldLabel(text: 'FULL NAME'),
             const SizedBox(height: 8),
@@ -257,6 +323,21 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
               ),
             ),
             const SizedBox(height: 8),
+            if (_hasInviteContext)
+              Align(
+                alignment: Alignment.center,
+                child: TextButton(
+                  onPressed: _isSubmitting
+                      ? null
+                      : () => context.go(
+                          AppRoute.withInviteQuery(
+                            AppRoute.login,
+                            _inviteQuery,
+                          ),
+                        ),
+                  child: const Text('Already have an account? Log in instead'),
+                ),
+              ),
           ],
         ),
       ),

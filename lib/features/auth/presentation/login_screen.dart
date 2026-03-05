@@ -13,7 +13,20 @@ import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({
+    super.key,
+    this.inviteId,
+    this.invitedEmail,
+    this.invitedName,
+    this.institutionName,
+    this.intendedRole,
+  });
+
+  final String? inviteId;
+  final String? invitedEmail;
+  final String? invitedName;
+  final String? institutionName;
+  final String? intendedRole;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -52,6 +65,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   @override
   void initState() {
     super.initState();
+    final invitedEmail = (widget.invitedEmail ?? '').trim().toLowerCase();
+    if (invitedEmail.isNotEmpty) {
+      _emailController.text = invitedEmail;
+    }
     _restoreLastEmail();
   }
 
@@ -148,6 +165,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     setState(() => _lastEmail = email);
   }
+
+  Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
+    inviteId: widget.inviteId ?? '',
+    invitedEmail: widget.invitedEmail,
+    invitedName: widget.invitedName,
+    institutionName: widget.institutionName,
+    intendedRole: widget.intendedRole,
+  );
+
+  bool get _hasInviteContext => _inviteQuery.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -270,6 +297,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
               textAlign: TextAlign.center,
             ),
+            if (_hasInviteContext) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFFFFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFB3ECDD)),
+                ),
+                child: Text(
+                  'Invite detected${(widget.institutionName ?? '').trim().isNotEmpty ? ' for ${widget.institutionName!.trim()}' : ''}. Log in with the invited email to continue.',
+                  style: const TextStyle(
+                    color: Color(0xFF0D6F69),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 180),
               child: (_formError == null || _formError!.trim().isEmpty)
@@ -369,7 +414,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 TextButton(
                   onPressed: _isSubmitting
                       ? null
-                      : () => context.go(AppRoute.forgotPassword),
+                      : () => context.go(
+                          AppRoute.withInviteQuery(
+                            AppRoute.forgotPassword,
+                            _inviteQuery,
+                          ),
+                        ),
                   child: const Text(
                     'Forgot Password?',
                     style: TextStyle(
@@ -504,7 +554,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 GestureDetector(
                   onTap: _isSubmitting
                       ? null
-                      : () => context.go(AppRoute.register),
+                      : () => context.go(
+                          _hasInviteContext
+                              ? AppRoute.withInviteQuery(
+                                  AppRoute.registerDetails,
+                                  _inviteQuery,
+                                )
+                              : AppRoute.register,
+                        ),
                   child: const Text(
                     'Create Account',
                     style: TextStyle(

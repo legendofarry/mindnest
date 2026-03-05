@@ -394,7 +394,13 @@ class InstitutionRepository {
     final safeInviterName = (inviterName?.trim().isNotEmpty == true)
         ? inviterName!.trim()
         : 'Institution Admin';
-    final acceptLink = _buildInviteAcceptLink(inviteId: inviteId);
+    final acceptLink = _buildInviteAcceptLink(
+      inviteId: inviteId,
+      invitedEmail: invitedEmail,
+      invitedName: invitedName,
+      institutionName: institutionName,
+      intendedRole: role.name,
+    );
     return InviteDeliveryDraft(
       inviteId: inviteId,
       invitedEmail: invitedEmail.trim().toLowerCase(),
@@ -1445,16 +1451,49 @@ class InstitutionRepository {
     }
   }
 
-  String _buildInviteAcceptLink({required String inviteId}) {
+  String _buildInviteAcceptLink({
+    required String inviteId,
+    String? invitedEmail,
+    String? invitedName,
+    String? institutionName,
+    String? intendedRole,
+  }) {
     final base = _inviteAcceptLinkBase;
     final uri = Uri.tryParse(base);
+    final nextQuery = <String, String>{};
+    final safeInviteId = inviteId.trim();
+    if (safeInviteId.isNotEmpty) {
+      nextQuery['inviteId'] = safeInviteId;
+    }
+    final safeInvitedEmail = (invitedEmail ?? '').trim().toLowerCase();
+    if (safeInvitedEmail.isNotEmpty) {
+      nextQuery['invitedEmail'] = safeInvitedEmail;
+    }
+    final safeInvitedName = (invitedName ?? '').trim();
+    if (safeInvitedName.isNotEmpty) {
+      nextQuery['invitedName'] = safeInvitedName;
+    }
+    final safeInstitutionName = (institutionName ?? '').trim();
+    if (safeInstitutionName.isNotEmpty) {
+      nextQuery['institutionName'] = safeInstitutionName;
+    }
+    final safeIntendedRole = (intendedRole ?? '').trim();
+    if (safeIntendedRole.isNotEmpty) {
+      nextQuery['intendedRole'] = safeIntendedRole;
+    }
     if (uri == null) {
       final separator = base.contains('?') ? '&' : '?';
-      return '$base${separator}inviteId=$inviteId';
+      final queryString = Uri(queryParameters: nextQuery).query;
+      return '$base$separator$queryString';
     }
-    final nextQuery = <String, String>{...uri.queryParameters};
-    nextQuery['inviteId'] = inviteId;
-    return uri.replace(queryParameters: nextQuery).toString();
+    return uri
+        .replace(
+          queryParameters: <String, String>{
+            ...uri.queryParameters,
+            ...nextQuery,
+          },
+        )
+        .toString();
   }
 
   String _buildInviteEmailSubject({required String institutionName}) {
