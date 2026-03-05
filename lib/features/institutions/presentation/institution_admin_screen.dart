@@ -30,6 +30,7 @@ class InstitutionAdminScreen extends ConsumerStatefulWidget {
 
 class _InstitutionAdminScreenState
     extends ConsumerState<InstitutionAdminScreen> {
+  static const _kenyaPrefix = '+254';
   final _phoneController = TextEditingController();
   final _searchController = TextEditingController();
 
@@ -43,18 +44,54 @@ class _InstitutionAdminScreenState
   bool _sortAscending = true;
 
   @override
+  void initState() {
+    super.initState();
+    _phoneController.text = _kenyaPrefix;
+    _phoneController.addListener(_enforceInvitePhonePrefix);
+  }
+
+  @override
   void dispose() {
+    _phoneController.removeListener(_enforceInvitePhonePrefix);
     _phoneController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
+  void _enforceInvitePhonePrefix() {
+    final normalized = _normalizeKenyaPhoneInput(_phoneController.text);
+    if (_phoneController.text == normalized) {
+      return;
+    }
+    _phoneController.value = TextEditingValue(
+      text: normalized,
+      selection: TextSelection.collapsed(offset: normalized.length),
+    );
+  }
+
+  String _normalizeKenyaPhoneInput(String input) {
+    var digits = input.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.startsWith('254')) {
+      digits = digits.substring(3);
+    }
+    if (digits.startsWith('0')) {
+      digits = digits.substring(1);
+    }
+    return '$_kenyaPrefix$digits';
+  }
+
+  bool _isValidKenyaPhone(String value) {
+    return RegExp(r'^\+254\d{9}$').hasMatch(value);
+  }
+
   Future<void> _createInvite() async {
     final phone = _phoneController.text.trim();
-    if (phone.isEmpty) {
+    if (!_isValidKenyaPhone(phone)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Enter invitee phone number in E.164 format.'),
+          content: Text(
+            'Enter a valid phone number after +254 (example: +254712345678).',
+          ),
         ),
       );
       return;
@@ -68,7 +105,7 @@ class _InstitutionAdminScreenState
       if (!mounted) {
         return;
       }
-      _phoneController.clear();
+      _phoneController.text = _kenyaPrefix;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

@@ -18,6 +18,7 @@ class InstitutionPendingScreen extends ConsumerStatefulWidget {
 class _InstitutionPendingScreenState
     extends ConsumerState<InstitutionPendingScreen>
     with SingleTickerProviderStateMixin {
+  static const _kenyaPrefix = '+254';
   bool _isResubmitting = false;
   bool _isSubmittingSchoolRequest = false;
   String? _selectedSchoolId;
@@ -29,11 +30,47 @@ class _InstitutionPendingScreenState
   )..repeat(reverse: true);
 
   @override
+  void initState() {
+    super.initState();
+    _schoolRequestMobileController.text = _kenyaPrefix;
+    _schoolRequestMobileController.addListener(_enforceSchoolMobilePrefix);
+  }
+
+  @override
   void dispose() {
     _pulseController.dispose();
+    _schoolRequestMobileController.removeListener(_enforceSchoolMobilePrefix);
     _schoolRequestNameController.dispose();
     _schoolRequestMobileController.dispose();
     super.dispose();
+  }
+
+  void _enforceSchoolMobilePrefix() {
+    final normalized = _normalizeKenyaPhoneInput(
+      _schoolRequestMobileController.text,
+    );
+    if (_schoolRequestMobileController.text == normalized) {
+      return;
+    }
+    _schoolRequestMobileController.value = TextEditingValue(
+      text: normalized,
+      selection: TextSelection.collapsed(offset: normalized.length),
+    );
+  }
+
+  String _normalizeKenyaPhoneInput(String input) {
+    var digits = input.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.startsWith('254')) {
+      digits = digits.substring(3);
+    }
+    if (digits.startsWith('0')) {
+      digits = digits.substring(1);
+    }
+    return '$_kenyaPrefix$digits';
+  }
+
+  bool _isValidKenyaPhone(String value) {
+    return RegExp(r'^\+254\d{9}$').hasMatch(value);
   }
 
   Future<void> _resubmit() async {
@@ -81,10 +118,17 @@ class _InstitutionPendingScreenState
 
   Future<void> _requestSchool() async {
     final schoolName = _schoolRequestNameController.text.trim();
-    final mobile = _schoolRequestMobileController.text.trim();
-    if (schoolName.length < 2 || mobile.length < 6) {
+    final mobile = _normalizeKenyaPhoneInput(
+      _schoolRequestMobileController.text.trim(),
+    );
+    _schoolRequestMobileController.text = mobile;
+    if (schoolName.length < 2 || !_isValidKenyaPhone(mobile)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter school name and mobile number.')),
+        const SnackBar(
+          content: Text(
+            'Enter school name and a valid mobile number (example: +254712345678).',
+          ),
+        ),
       );
       return;
     }
@@ -101,7 +145,7 @@ class _InstitutionPendingScreenState
         const SnackBar(content: Text('School request sent to owner.')),
       );
       _schoolRequestNameController.clear();
-      _schoolRequestMobileController.clear();
+      _schoolRequestMobileController.text = _kenyaPrefix;
     } catch (error) {
       if (!mounted) {
         return;
@@ -120,7 +164,7 @@ class _InstitutionPendingScreenState
 
   Future<void> _openSchoolRequestSheet() async {
     _schoolRequestNameController.clear();
-    _schoolRequestMobileController.clear();
+    _schoolRequestMobileController.text = _kenyaPrefix;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,

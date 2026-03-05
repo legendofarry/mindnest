@@ -20,6 +20,7 @@ class RegisterInstitutionScreen extends ConsumerStatefulWidget {
 class _RegisterInstitutionScreenState
     extends ConsumerState<RegisterInstitutionScreen>
     with SingleTickerProviderStateMixin {
+  static const _kenyaPrefix = '+254';
   static const _desktopBreakpoint = 1100.0;
   static const _stepCount = 3;
   final _formKey = GlobalKey<FormState>();
@@ -70,8 +71,19 @@ class _RegisterInstitutionScreenState
   }
 
   @override
+  void initState() {
+    super.initState();
+    _adminPhoneController.text = _kenyaPrefix;
+    _schoolRequestMobileController.text = _kenyaPrefix;
+    _adminPhoneController.addListener(_enforceAdminPhonePrefix);
+    _schoolRequestMobileController.addListener(_enforceSchoolMobilePrefix);
+  }
+
+  @override
   void dispose() {
     _shakeController.dispose();
+    _adminPhoneController.removeListener(_enforceAdminPhonePrefix);
+    _schoolRequestMobileController.removeListener(_enforceSchoolMobilePrefix);
     _adminNameController.dispose();
     _emailController.dispose();
     _adminPhoneController.dispose();
@@ -80,6 +92,40 @@ class _RegisterInstitutionScreenState
     _schoolRequestNameController.dispose();
     _schoolRequestMobileController.dispose();
     super.dispose();
+  }
+
+  void _enforceAdminPhonePrefix() {
+    _enforceKenyaPrefix(_adminPhoneController);
+  }
+
+  void _enforceSchoolMobilePrefix() {
+    _enforceKenyaPrefix(_schoolRequestMobileController);
+  }
+
+  void _enforceKenyaPrefix(TextEditingController controller) {
+    final normalized = _normalizeKenyaPhoneInput(controller.text);
+    if (controller.text == normalized) {
+      return;
+    }
+    controller.value = TextEditingValue(
+      text: normalized,
+      selection: TextSelection.collapsed(offset: normalized.length),
+    );
+  }
+
+  String _normalizeKenyaPhoneInput(String input) {
+    var digits = input.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.startsWith('254')) {
+      digits = digits.substring(3);
+    }
+    if (digits.startsWith('0')) {
+      digits = digits.substring(1);
+    }
+    return '$_kenyaPrefix$digits';
+  }
+
+  bool _isValidKenyaPhone(String value) {
+    return RegExp(r'^\+254\d{9}$').hasMatch(value);
   }
 
   Future<void> _submit() async {
@@ -166,7 +212,7 @@ class _RegisterInstitutionScreenState
         final hasName = _adminNameController.text.trim().length >= 2;
         final email = _emailController.text.trim();
         final hasEmail = email.isNotEmpty && email.contains('@');
-        final hasPhone = _adminPhoneController.text.trim().length >= 6;
+        final hasPhone = _isValidKenyaPhone(_adminPhoneController.text.trim());
         setState(() {
           _adminNameFieldError = !hasName;
           _adminEmailFieldError = !hasEmail;
@@ -207,8 +253,9 @@ class _RegisterInstitutionScreenState
     }
     _schoolRequestNameController.text = _schoolRequestNameController.text
         .trim();
-    _schoolRequestMobileController.text = _schoolRequestMobileController.text
-        .trim();
+    _schoolRequestMobileController.text = _normalizeKenyaPhoneInput(
+      _schoolRequestMobileController.text,
+    );
     await showDialog<void>(
       context: context,
       builder: (context) {
@@ -258,9 +305,14 @@ class _RegisterInstitutionScreenState
 
   Future<void> _submitSchoolRequest() async {
     final schoolName = _schoolRequestNameController.text.trim();
-    final mobileNumber = _schoolRequestMobileController.text.trim();
-    if (schoolName.length < 2 || mobileNumber.length < 6) {
-      _showMessage('Enter school name and mobile number.');
+    final mobileNumber = _normalizeKenyaPhoneInput(
+      _schoolRequestMobileController.text.trim(),
+    );
+    _schoolRequestMobileController.text = mobileNumber;
+    if (schoolName.length < 2 || !_isValidKenyaPhone(mobileNumber)) {
+      _showMessage(
+        'Enter school name and a valid mobile number (example: +254712345678).',
+      );
       return;
     }
     setState(() => _isSubmittingSchoolRequest = true);
@@ -279,7 +331,7 @@ class _RegisterInstitutionScreenState
           'School request sent. We will review and contact you shortly.',
         );
         _schoolRequestNameController.clear();
-        _schoolRequestMobileController.clear();
+        _schoolRequestMobileController.text = _kenyaPrefix;
       }
     } catch (error) {
       if (mounted) {
