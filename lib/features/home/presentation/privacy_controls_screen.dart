@@ -1,12 +1,14 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/core/ui/back_to_home_button.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/models/user_profile.dart';
 
 class PrivacyControlsScreen extends ConsumerStatefulWidget {
   const PrivacyControlsScreen({super.key});
@@ -24,6 +26,13 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final userId = profile?.id ?? '';
+    final role = profile?.role;
+    final canDeleteInDevelopment =
+        kDebugMode &&
+        (role == UserRole.student ||
+            role == UserRole.individual ||
+            role == UserRole.counselor ||
+            role == UserRole.institutionAdmin);
     final firestore = ref.watch(firestoreProvider);
 
     return MindNestShell(
@@ -204,52 +213,63 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFDC2626),
+                            if (canDeleteInDevelopment) ...[
+                              const Text(
+                                'Development only',
+                                style: TextStyle(
+                                  color: Color(0xFFB45309),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                              onPressed: _isDeleting
-                                  ? null
-                                  : () async {
-                                      final confirmation =
-                                          await _confirmDeleteDialog(context);
-                                      if (!mounted || !confirmation) {
-                                        return;
-                                      }
-                                      setState(() => _isDeleting = true);
-                                      try {
-                                        await ref
-                                            .read(authRepositoryProvider)
-                                            .deleteCurrentAccount();
-                                      } catch (error) {
-                                        if (!mounted) {
+                              const SizedBox(height: 6),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFDC2626),
+                                ),
+                                onPressed: _isDeleting
+                                    ? null
+                                    : () async {
+                                        final confirmation =
+                                            await _confirmDeleteDialog(context);
+                                        if (!mounted || !confirmation) {
                                           return;
                                         }
-                                        ScaffoldMessenger.of(
-                                          this.context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              error.toString().replaceFirst(
-                                                'Exception: ',
-                                                '',
+                                        setState(() => _isDeleting = true);
+                                        try {
+                                          await ref
+                                              .read(authRepositoryProvider)
+                                              .deleteCurrentAccount();
+                                        } catch (error) {
+                                          if (!mounted) {
+                                            return;
+                                          }
+                                          ScaffoldMessenger.of(
+                                            this.context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                error.toString().replaceFirst(
+                                                  'Exception: ',
+                                                  '',
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        );
-                                      } finally {
-                                        if (mounted) {
-                                          setState(() => _isDeleting = false);
+                                          );
+                                        } finally {
+                                          if (mounted) {
+                                            setState(() => _isDeleting = false);
+                                          }
                                         }
-                                      }
-                                    },
-                              icon: const Icon(Icons.delete_forever_rounded),
-                              label: Text(
-                                _isDeleting
-                                    ? 'Deleting account...'
-                                    : 'Delete Account',
+                                      },
+                                icon: const Icon(Icons.delete_forever_rounded),
+                                label: Text(
+                                  _isDeleting
+                                      ? 'Deleting account...'
+                                      : 'Delete Account',
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       ),

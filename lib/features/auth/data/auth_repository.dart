@@ -211,25 +211,169 @@ class AuthRepository {
   }
 
   Future<void> deleteCurrentAccount() async {
+    if (!kDebugMode) {
+      throw Exception('Delete account is enabled for development only.');
+    }
+
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('You must be logged in.');
     }
 
     final uid = user.uid;
-    final batch = _firestore.batch();
-    batch.delete(_firestore.collection('users').doc(uid));
-    batch.delete(_firestore.collection('user_privacy_settings').doc(uid));
-    batch.delete(_firestore.collection('user_notification_settings').doc(uid));
+    final userDoc = await _firestore.collection('users').doc(uid).get();
+    final institutionId = (userDoc.data()?['institutionId'] as String?)?.trim();
 
-    final memberships = await _firestore
-        .collection('institution_members')
-        .where('userId', isEqualTo: uid)
+    await _deleteWhere(
+      collectionPath: 'notifications',
+      field: 'userId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'user_push_tokens',
+      field: 'userId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'onboarding_responses',
+      field: 'userId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'institution_members',
+      field: 'userId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'mood_entries',
+      field: 'userId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'mood_events',
+      field: 'userId',
+      value: uid,
+    );
+
+    await _deleteWhere(
+      collectionPath: 'appointments',
+      field: 'studentId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'appointments',
+      field: 'counselorId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'care_goals',
+      field: 'studentId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'care_goals',
+      field: 'counselorId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'counselor_ratings',
+      field: 'studentId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'counselor_ratings',
+      field: 'counselorId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'counselor_public_ratings',
+      field: 'studentId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'counselor_public_ratings',
+      field: 'counselorId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'counselor_availability',
+      field: 'counselorId',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'user_invites',
+      field: 'inviteeUid',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'user_invites',
+      field: 'invitedBy',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'institution_membership_audit',
+      field: 'actorUid',
+      value: uid,
+    );
+    await _deleteWhere(
+      collectionPath: 'institution_membership_audit',
+      field: 'targetUserId',
+      value: uid,
+    );
+
+    await _deleteCollectionGroupWhere(
+      groupPath: 'participants',
+      field: 'userId',
+      value: uid,
+    );
+    await _deleteCollectionGroupWhere(
+      groupPath: 'mic_requests',
+      field: 'userId',
+      value: uid,
+    );
+    await _deleteCollectionGroupWhere(
+      groupPath: 'comments',
+      field: 'userId',
+      value: uid,
+    );
+    await _deleteCollectionGroupWhere(
+      groupPath: 'reactions',
+      field: 'userId',
+      value: uid,
+    );
+    await _deleteCollectionGroupWhere(
+      groupPath: 'comment_reports',
+      field: 'userId',
+      value: uid,
+    );
+
+    final hostedSessions = await _firestore
+        .collection('live_sessions')
+        .where('createdBy', isEqualTo: uid)
         .get();
-    for (final doc in memberships.docs) {
-      batch.delete(doc.reference);
+    for (final session in hostedSessions.docs) {
+      for (final subCollection in const <String>[
+        'participants',
+        'mic_requests',
+        'comments',
+        'reactions',
+        'comment_reports',
+      ]) {
+        await _deleteCollectionPath(
+          'live_sessions/${session.id}/$subCollection',
+        );
+      }
+      await session.reference.delete();
     }
-    await batch.commit();
+
+    if (institutionId != null && institutionId.isNotEmpty) {
+      await _deleteDocIfExists('institution_members', '${institutionId}_$uid');
+    }
+
+    await _deleteDocIfExists('counselor_profiles', uid);
+    await _deleteDocIfExists('user_privacy_settings', uid);
+    await _deleteDocIfExists('user_notification_settings', uid);
+    await _deleteDocIfExists('users', uid);
 
     try {
       await user.delete();
@@ -241,6 +385,90 @@ class AuthRepository {
         );
       }
       rethrow;
+    }
+  }
+
+  Future<void> _deleteDocIfExists(String collectionPath, String docId) async {
+    final ref = _firestore.collection(collectionPath).doc(docId);
+    final snapshot = await ref.get();
+    if (!snapshot.exists) {
+      return;
+    }
+    await ref.delete();
+  }
+
+  Future<void> _deleteWhere({
+    required String collectionPath,
+    required String field,
+    required Object value,
+    int batchSize = 200,
+  }) async {
+    while (true) {
+      final snapshot = await _firestore
+          .collection(collectionPath)
+          .where(field, isEqualTo: value)
+          .limit(batchSize)
+          .get();
+      if (snapshot.docs.isEmpty) {
+        break;
+      }
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      if (snapshot.docs.length < batchSize) {
+        break;
+      }
+    }
+  }
+
+  Future<void> _deleteCollectionGroupWhere({
+    required String groupPath,
+    required String field,
+    required Object value,
+    int batchSize = 200,
+  }) async {
+    while (true) {
+      final snapshot = await _firestore
+          .collectionGroup(groupPath)
+          .where(field, isEqualTo: value)
+          .limit(batchSize)
+          .get();
+      if (snapshot.docs.isEmpty) {
+        break;
+      }
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      if (snapshot.docs.length < batchSize) {
+        break;
+      }
+    }
+  }
+
+  Future<void> _deleteCollectionPath(
+    String collectionPath, {
+    int batchSize = 200,
+  }) async {
+    while (true) {
+      final snapshot = await _firestore
+          .collection(collectionPath)
+          .limit(batchSize)
+          .get();
+      if (snapshot.docs.isEmpty) {
+        break;
+      }
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      if (snapshot.docs.length < batchSize) {
+        break;
+      }
     }
   }
 
