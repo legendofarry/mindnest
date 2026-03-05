@@ -178,7 +178,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isOwnerRoute = location == AppRoute.ownerDashboard;
 
       if (authState == null) {
-        if (location == AppRoute.inviteAccept && hasInviteContext) {
+        if (hasInviteContext) {
+          if (location == AppRoute.registerDetails ||
+              location == AppRoute.forgotPassword) {
+            return null;
+          }
           return AppRoute.withInviteQuery(
             AppRoute.registerDetails,
             inviteQuery,

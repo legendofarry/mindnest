@@ -15,6 +15,7 @@
       --dart-define=LIVEKIT_API_KEY=$LIVEKIT_API_KEY \
       --dart-define=LIVEKIT_API_SECRET=$LIVEKIT_API_SECRET \
       --dart-define=PUSH_DISPATCH_ENDPOINT=$PUSH_DISPATCH_ENDPOINT \
+      --dart-define=INVITE_ACCEPT_LINK_BASE=${INVITE_ACCEPT_LINK_BASE:-https://mindnestke.netlify.app/invite-accept} \
       --dart-define=FIREBASE_WEB_VAPID_KEY=$FIREBASE_WEB_VAPID_KEY
   """
 
