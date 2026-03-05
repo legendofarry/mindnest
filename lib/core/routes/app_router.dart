@@ -1,3 +1,4 @@
+// core/routes/app_router.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/config/owner_config.dart';
@@ -113,11 +114,17 @@ class AppRoute {
     if (fragment.isEmpty) {
       return const <String, String>{};
     }
+    // Fragment may be either "?a=1&b=2" or "a=1&b=2". Handle both.
+    String fragmentQuery;
     final queryIndex = fragment.indexOf('?');
-    if (queryIndex < 0 || queryIndex == fragment.length - 1) {
+    if (queryIndex >= 0 && queryIndex < fragment.length - 1) {
+      fragmentQuery = fragment.substring(queryIndex + 1);
+    } else {
+      fragmentQuery = fragment;
+    }
+    if (fragmentQuery.trim().isEmpty) {
       return const <String, String>{};
     }
-    final fragmentQuery = fragment.substring(queryIndex + 1);
     final parsed = Uri(query: fragmentQuery).queryParameters;
     return inviteQueryFromRaw(parsed);
   }
