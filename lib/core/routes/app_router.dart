@@ -194,17 +194,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isOwnerRoute = location == AppRoute.ownerDashboard;
 
       if (authState == null) {
-        if (hasInviteContext) {
-          if (location == AppRoute.registerDetails ||
-              location == AppRoute.forgotPassword) {
-            return null;
-          }
-          return AppRoute.withInviteQuery(
-            AppRoute.registerDetails,
-            inviteQuery,
-          );
+        if (location == AppRoute.inviteAccept) {
+          return null;
         }
-        return isAuthRoute ? null : AppRoute.login;
+        if (isAuthRoute) {
+          return null;
+        }
+        if (hasInviteContext) {
+          return AppRoute.withInviteQuery(AppRoute.inviteAccept, inviteQuery);
+        }
+        return AppRoute.login;
       }
 
       if (!isEmailVerified && !isPreVerificationOnboardingRoute) {

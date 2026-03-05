@@ -96,12 +96,97 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final authUser = ref.watch(authStateChangesProvider).valueOrNull;
     final inviteId = widget.inviteId?.trim();
-    final inviteAsync = inviteId == null || inviteId.isEmpty
-        ? ref.watch(pendingUserInviteProvider)
-        : ref.watch(pendingUserInviteByIdProvider(inviteId));
+
+    if (inviteId == null || inviteId.isEmpty) {
+      return MindNestShell(
+        child: GlassCard(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Invalid invite link.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'The invitation ID is missing. Ask your institution admin to resend the invite.',
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () => context.go(AppRoute.login),
+                  child: const Text('Go to Login'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (authUser == null) {
+      final institutionName = (widget.institutionName ?? '').trim();
+      final invitedEmail = (widget.invitedEmail ?? '').trim();
+      final invitedName = (widget.invitedName ?? '').trim();
+      final intendedRole = (widget.intendedRole ?? '').trim();
+      return MindNestShell(
+        child: GlassCard(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'You have an invitation',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                if (institutionName.isNotEmpty)
+                  Text('Institution: $institutionName'),
+                if (intendedRole.isNotEmpty) Text('Role: $intendedRole'),
+                if (invitedName.isNotEmpty) Text('Invited name: $invitedName'),
+                if (invitedEmail.isNotEmpty)
+                  Text('Invited email: $invitedEmail'),
+                if (institutionName.isEmpty &&
+                    intendedRole.isEmpty &&
+                    invitedName.isEmpty &&
+                    invitedEmail.isEmpty)
+                  const Text(
+                    'Sign in or create an account to continue with this invite.',
+                  ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => context.go(
+                    AppRoute.withInviteQuery(AppRoute.login, _inviteQuery),
+                  ),
+                  child: const Text('Log In to Continue'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: () => context.go(
+                    AppRoute.withInviteQuery(
+                      AppRoute.registerDetails,
+                      _inviteQuery,
+                    ),
+                  ),
+                  child: const Text('Create Account to Continue'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final profile = ref.watch(currentUserProfileProvider).valueOrNull;
+    final inviteAsync = ref.watch(pendingUserInviteByIdProvider(inviteId));
 
     return MindNestShell(
       child: inviteAsync.when(
@@ -110,7 +195,7 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
             final onboardingNeeded = ref
                 .watch(onboardingRepositoryProvider)
                 .requiresQuestionnaire(profile);
-            final currentEmail = (authUser?.email ?? '').trim().toLowerCase();
+            final currentEmail = (authUser.email ?? '').trim().toLowerCase();
             final invitedEmail = (widget.invitedEmail ?? '')
                 .trim()
                 .toLowerCase();
@@ -125,9 +210,7 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      inviteId == null || inviteId.isEmpty
-                          ? 'No pending invite found.'
-                          : 'This invite is not available for your current account.',
+                      'This invite is not available for your current account.',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -138,24 +221,22 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
                         'You are signed in as $currentEmail, but this invite is for $invitedEmail.',
                       ),
                     if (emailMismatch) const SizedBox(height: 8),
-                    if (inviteId != null && inviteId.isNotEmpty)
-                      OutlinedButton(
-                        onPressed: () async {
-                          await ref.read(authRepositoryProvider).signOut();
-                          if (!context.mounted) {
-                            return;
-                          }
-                          context.go(
-                            AppRoute.withInviteQuery(
-                              AppRoute.login,
-                              _inviteQuery,
-                            ),
-                          );
-                        },
-                        child: const Text('Use a different account'),
-                      ),
-                    if (inviteId != null && inviteId.isNotEmpty)
-                      const SizedBox(height: 8),
+                    OutlinedButton(
+                      onPressed: () async {
+                        await ref.read(authRepositoryProvider).signOut();
+                        if (!context.mounted) {
+                          return;
+                        }
+                        context.go(
+                          AppRoute.withInviteQuery(
+                            AppRoute.login,
+                            _inviteQuery,
+                          ),
+                        );
+                      },
+                      child: const Text('Use a different account'),
+                    ),
+                    const SizedBox(height: 8),
                     ElevatedButton(
                       onPressed: () => context.go(
                         onboardingNeeded ? AppRoute.onboarding : AppRoute.home,
