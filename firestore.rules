@@ -113,6 +113,12 @@ service cloud.firestore {
         currentInstitutionId() == institutionId;
     }
 
+    function canInstitutionAdminLookupUsers() {
+      return isSignedIn() &&
+        currentUserRole() == 'institutionAdmin' &&
+        currentInstitutionApproved();
+    }
+
     function canAdminRegenerateInstitutionCode(institutionId) {
       return sameInstitutionAdmin(institutionId) &&
         institutionStatusIsApproved(resource.data) &&
@@ -477,7 +483,8 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if isOwner(uid) ||
-        resource.data.email == 'karimiarrison@gmail.com';
+        resource.data.email == 'karimiarrison@gmail.com' ||
+        canInstitutionAdminLookupUsers();
       allow create: if isOwner(uid) &&
         isAllowedRole(request.resource.data.role) &&
         request.resource.data.role in ['individual', 'institutionAdmin'];

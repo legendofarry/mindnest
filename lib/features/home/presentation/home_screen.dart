@@ -30,204 +30,10 @@ import 'package:url_launcher/url_launcher.dart';
 // Constants & theme helpers
 // ---------------------------------------------------------------------------
 const _teal = Color(0xFF0D9488);
-const _tealLight = Color(0xFF14B8A6);
-const _navy = Color(0xFF0F172A);
 const _slate = Color(0xFF1E293B);
 const _muted = Color(0xFF64748B);
-const _surface = Color(0xFFF8FAFC);
-const _cardBg = Colors.white;
 
 final _homeProfileAutoOpenTokenProvider = StateProvider<String?>((_) => null);
-
-// Action card data
-const _cardGradients = [
-  [Color(0xFF0D9488), Color(0xFF0EA5E9)], // Counselors – teal → sky
-  [Color(0xFF6366F1), Color(0xFF8B5CF6)], // Sessions   – indigo → violet
-  [Color(0xFF8B5CF6), Color(0xFFEC4899)], // Care Plan  – violet → pink
-  [Color(0xFF0EA5E9), Color(0xFF06B6D4)], // Live Hub   – sky → cyan
-];
-
-// ---------------------------------------------------------------------------
-// Animated fade+slide wrapper used on page load
-// ---------------------------------------------------------------------------
-class _Reveal extends StatefulWidget {
-  const _Reveal({required this.child, this.delay = Duration.zero});
-  final Widget child;
-  final Duration delay;
-
-  @override
-  State<_Reveal> createState() => _RevealState();
-}
-
-class _RevealState extends State<_Reveal> with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _fade;
-  late Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 520),
-    );
-    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _slide = Tween<Offset>(
-      begin: const Offset(0, 0.12),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-
-    Future.delayed(widget.delay, () {
-      if (mounted) _ctrl.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fade,
-      child: SlideTransition(position: _slide, child: widget.child),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Animated action card with press scale
-// ---------------------------------------------------------------------------
-class _ActionCard extends StatefulWidget {
-  const _ActionCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.gradientColors,
-    required this.onTap,
-    this.isDisabled = false,
-  });
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final List<Color> gradientColors;
-  final VoidCallback? onTap;
-  final bool isDisabled;
-
-  @override
-  State<_ActionCard> createState() => _ActionCardState();
-}
-
-class _ActionCardState extends State<_ActionCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 120),
-      lowerBound: 0.93,
-      upperBound: 1.0,
-      value: 1.0,
-    );
-    _scale = _ctrl;
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  void _onTapDown(_) => _ctrl.reverse();
-  void _onTapUp(_) => _ctrl.forward();
-  void _onTapCancel() => _ctrl.forward();
-
-  @override
-  Widget build(BuildContext context) {
-    final disabled = widget.isDisabled;
-    return AnimatedBuilder(
-      animation: _scale,
-      builder: (context, child) =>
-          Transform.scale(scale: _scale.value, child: child),
-      child: GestureDetector(
-        onTapDown: disabled ? null : _onTapDown,
-        onTapUp: disabled ? null : _onTapUp,
-        onTapCancel: disabled ? null : _onTapCancel,
-        onTap: widget.onTap,
-        child: AnimatedOpacity(
-          opacity: disabled ? 0.42 : 1.0,
-          duration: const Duration(milliseconds: 200),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: widget.gradientColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: disabled
-                  ? []
-                  : [
-                      BoxShadow(
-                        color: widget.gradientColors.first.withValues(
-                          alpha: 0.38,
-                        ),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-            ),
-            padding: const EdgeInsets.all(22),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.22),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(widget.icon, color: Colors.white, size: 22),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 17,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.subtitle,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.72),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -384,54 +190,6 @@ class HomeScreen extends ConsumerWidget {
         ),
       );
     }
-  }
-
-  Future<bool> _hasElevatedRisk({
-    required FirebaseFirestore firestore,
-    required String userId,
-  }) async {
-    final onboardingSnapshot = await firestore
-        .collection('onboarding_responses')
-        .where('userId', isEqualTo: userId)
-        .get();
-
-    bool severeOnboardingSignal = false;
-    if (onboardingSnapshot.docs.isNotEmpty) {
-      onboardingSnapshot.docs.sort((a, b) {
-        final aTs =
-            (a.data()['submittedAt'] as Timestamp?)?.millisecondsSinceEpoch ??
-            0;
-        final bTs =
-            (b.data()['submittedAt'] as Timestamp?)?.millisecondsSinceEpoch ??
-            0;
-        return bTs.compareTo(aTs);
-      });
-      final answers = onboardingSnapshot.docs.first.data()['answers'];
-      if (answers is Map<String, dynamic>) {
-        final intensity = (answers['intensity_recent'] as String?) ?? '';
-        final mood = (answers['today_mood'] as String?) ?? '';
-        severeOnboardingSignal =
-            intensity == 'severe' || mood == 'low' || mood == 'stressed';
-      }
-    }
-
-    int negativeCount = 0;
-    try {
-      final moodSnapshot = await firestore
-          .collection('mood_entries')
-          .where('userId', isEqualTo: userId)
-          .get();
-      for (final doc in moodSnapshot.docs) {
-        final mood = ((doc.data()['mood'] as String?) ?? '').toLowerCase();
-        if (mood == 'stressed' || mood == 'low' || mood == 'sad') {
-          negativeCount++;
-        }
-      }
-    } catch (_) {
-      negativeCount = 0;
-    }
-
-    return severeOnboardingSignal || negativeCount >= 3;
   }
 
   void _openCrisisSupport(BuildContext context) {
@@ -3657,117 +3415,6 @@ class _BottomNavItem {
   final String route;
 }
 
-class _RiskAlert extends StatelessWidget {
-  const _RiskAlert({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 28),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFFBEB), Color(0xFFFEF3C7)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFFBBF24).withValues(alpha: 0.18),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFDE68A),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.auto_awesome_rounded,
-                    color: Color(0xFFB45309),
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Checking in on you',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFFB45309),
-                    fontSize: 16,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              "We've noticed some heavy moods lately. Remember that professional support is just a click away.",
-              style: TextStyle(
-                color: Color(0xFF92400E),
-                height: 1.5,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: onTap,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFB45309),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFB45309).withValues(alpha: 0.35),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.headset_mic_rounded,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'Talk to someone now',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _WellnessCheckInCard extends ConsumerStatefulWidget {
   const _WellnessCheckInCard({required this.profile});
 
@@ -3784,31 +3431,31 @@ class _WellnessCheckInCardState extends ConsumerState<_WellnessCheckInCard> {
   static const List<_MoodChoice> _moods = <_MoodChoice>[
     _MoodChoice(
       key: 'great',
-      emoji: '😀',
+      emoji: 'ðŸ˜€',
       label: 'Great',
       color: Color(0xFF10B981),
     ),
     _MoodChoice(
       key: 'good',
-      emoji: '🙂',
+      emoji: 'ðŸ™‚',
       label: 'Good',
       color: Color(0xFF22C55E),
     ),
     _MoodChoice(
       key: 'okay',
-      emoji: '😐',
+      emoji: 'ðŸ˜',
       label: 'Okay',
       color: Color(0xFFF59E0B),
     ),
     _MoodChoice(
       key: 'low',
-      emoji: '😔',
+      emoji: 'ðŸ˜”',
       label: 'Low',
       color: Color(0xFFF97316),
     ),
     _MoodChoice(
       key: 'stressed',
-      emoji: '😣',
+      emoji: 'ðŸ˜£',
       label: 'Stressed',
       color: Color(0xFFEF4444),
     ),
@@ -4145,7 +3792,7 @@ class _WellnessCheckInCardState extends ConsumerState<_WellnessCheckInCard> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              point == null ? '•' : mood.emoji,
+                              point == null ? 'â€¢' : mood.emoji,
                               style: TextStyle(
                                 fontSize: point == null ? 15 : 16,
                                 color: point == null ? mutedColor : null,
