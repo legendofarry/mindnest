@@ -197,11 +197,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         if (location == AppRoute.inviteAccept) {
           return null;
         }
-        if (isAuthRoute) {
-          return null;
-        }
         if (hasInviteContext) {
           return AppRoute.withInviteQuery(AppRoute.inviteAccept, inviteQuery);
+        }
+        if (isAuthRoute) {
+          return null;
         }
         return AppRoute.login;
       }
