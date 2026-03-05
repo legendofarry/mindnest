@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/config/owner_config.dart';
 import 'package:mindnest/core/routes/go_router_refresh_stream.dart';
+import 'package:mindnest/core/diagnostics/invite_debug.dart';
 import 'package:mindnest/core/ui/desktop_primary_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -200,172 +201,204 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.liveHub || location == AppRoute.liveRoom;
       final isOwnerRoute = location == AppRoute.ownerDashboard;
 
-      if (authState == null) {
-        if (location == AppRoute.inviteAccept) {
+      try {
+        if (authState == null) {
+          if (location == AppRoute.inviteAccept) {
+            return null;
+          }
+          if (hasInviteContext) {
+            return AppRoute.withInviteQuery(AppRoute.inviteAccept, inviteQuery);
+          }
+          if (isAuthRoute) {
+            return null;
+          }
+          // Log routing decision when unauthenticated user sent to login.
+          trackInviteRouting({
+            'event': 'redirect_to_login',
+            'location': location,
+            'uri': state.uri.toString(),
+            'inviteQuery': inviteQuery,
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+          return AppRoute.login;
+        }
+
+        if (!isEmailVerified && !isPreVerificationOnboardingRoute) {
+          return AppRoute.withInviteQuery(AppRoute.verifyEmail, inviteQuery);
+        }
+
+        if (!isEmailVerified) {
           return null;
         }
-        if (hasInviteContext) {
-          return AppRoute.withInviteQuery(AppRoute.inviteAccept, inviteQuery);
+
+        if (isOwnerEmail(authState.email)) {
+          return isOwnerRoute ? null : AppRoute.ownerDashboard;
         }
-        if (isAuthRoute) {
+
+        if (profileAsync.isLoading ||
+            pendingInviteAsync.isLoading ||
+            currentAdminInstitutionAsync.isLoading) {
           return null;
         }
-        return AppRoute.login;
-      }
 
-      if (!isEmailVerified && !isPreVerificationOnboardingRoute) {
-        return AppRoute.withInviteQuery(AppRoute.verifyEmail, inviteQuery);
-      }
-
-      if (!isEmailVerified) {
-        return null;
-      }
-
-      if (isOwnerEmail(authState.email)) {
-        return isOwnerRoute ? null : AppRoute.ownerDashboard;
-      }
-
-      if (profileAsync.isLoading ||
-          pendingInviteAsync.isLoading ||
-          currentAdminInstitutionAsync.isLoading) {
-        return null;
-      }
-
-      if (hasInviteContext && location != AppRoute.inviteAccept) {
-        return AppRoute.withInviteQuery(AppRoute.inviteAccept, inviteQuery);
-      }
-
-      final profile = profileAsync.valueOrNull;
-      final pendingInvite = pendingInviteAsync.valueOrNull;
-      final role = profile?.role ?? UserRole.other;
-      final roleResolved = role != UserRole.other;
-      final needsCounselorSetup = counselorRepository.requiresSetup(profile);
-      final institutionRequest = currentAdminInstitutionAsync.valueOrNull;
-
-      // 3. Verified but invite pending -> invite accept screen.
-      if (pendingInvite != null) {
-        if (location != AppRoute.inviteAccept) {
+        if (hasInviteContext && location != AppRoute.inviteAccept) {
+          // Log when we redirect a logged-in user to invite accept.
+          trackInviteRouting({
+            'event': 'redirect_to_inviteAccept',
+            'location': location,
+            'uri': state.uri.toString(),
+            'inviteQuery': inviteQuery,
+            'timestamp': DateTime.now().toIso8601String(),
+          });
           return AppRoute.withInviteQuery(AppRoute.inviteAccept, inviteQuery);
         }
-        return null;
-      }
 
-      // 4. Verified, role unresolved -> post-signup role selection.
-      if (!roleResolved) {
-        if (location != AppRoute.postSignup &&
-            location != AppRoute.joinInstitution) {
-          return AppRoute.postSignup;
-        }
-        return null;
-      }
+        final profile = profileAsync.valueOrNull;
+        final pendingInvite = pendingInviteAsync.valueOrNull;
+        final role = profile?.role ?? UserRole.other;
+        final roleResolved = role != UserRole.other;
+        final needsCounselorSetup = counselorRepository.requiresSetup(profile);
+        final institutionRequest = currentAdminInstitutionAsync.valueOrNull;
 
-      if (isOwnerRoute) {
-        return AppRoute.home;
-      }
+        // 3. Verified but invite pending -> invite accept screen.
+        if (pendingInvite != null) {
+          if (location != AppRoute.inviteAccept) {
+            return AppRoute.withInviteQuery(AppRoute.inviteAccept, inviteQuery);
+          }
+          return null;
+        }
 
-      if (role == UserRole.institutionAdmin) {
-        final institutionStatus =
-            (institutionRequest?['status'] as String?) ?? 'approved';
-        final isInstitutionBlocked = institutionStatus != 'approved';
-        if (isInstitutionBlocked && location != AppRoute.institutionPending) {
-          return AppRoute.institutionPending;
+        // 4. Verified, role unresolved -> post-signup role selection.
+        if (!roleResolved) {
+          if (location != AppRoute.postSignup &&
+              location != AppRoute.joinInstitution) {
+            return AppRoute.postSignup;
+          }
+          return null;
         }
-        if (!isInstitutionBlocked && location == AppRoute.institutionPending) {
-          return AppRoute.institutionAdmin;
-        }
-      }
 
-      // 5. Counselor setup gate (counselors do not run wellness onboarding).
-      if (role == UserRole.counselor) {
-        if (needsCounselorSetup && location != AppRoute.counselorSetup) {
-          return AppRoute.counselorSetup;
+        if (isOwnerRoute) {
+          return AppRoute.home;
         }
-        if (!needsCounselorSetup && location == AppRoute.counselorSetup) {
-          return AppRoute.counselorDashboard;
-        }
-        if (!needsCounselorSetup &&
-            (isAuthRoute || location == AppRoute.verifyEmail)) {
-          return AppRoute.counselorDashboard;
-        }
-      }
 
-      // 6. Verified role set, questionnaire incomplete -> onboarding questionnaire.
-      final needsOnboarding = onboardingRepository.requiresQuestionnaire(
-        profile,
-      );
-      if (needsOnboarding && location != AppRoute.onboarding) {
-        return AppRoute.onboarding;
-      }
-
-      // When onboarding is done, keep users off onboarding route.
-      if (!needsOnboarding && location == AppRoute.onboarding) {
         if (role == UserRole.institutionAdmin) {
+          final institutionStatus =
+              (institutionRequest?['status'] as String?) ?? 'approved';
+          final isInstitutionBlocked = institutionStatus != 'approved';
+          if (isInstitutionBlocked && location != AppRoute.institutionPending) {
+            return AppRoute.institutionPending;
+          }
+          if (!isInstitutionBlocked &&
+              location == AppRoute.institutionPending) {
+            return AppRoute.institutionAdmin;
+          }
+        }
+
+        // 5. Counselor setup gate (counselors do not run wellness onboarding).
+        if (role == UserRole.counselor) {
+          if (needsCounselorSetup && location != AppRoute.counselorSetup) {
+            return AppRoute.counselorSetup;
+          }
+          if (!needsCounselorSetup && location == AppRoute.counselorSetup) {
+            return AppRoute.counselorDashboard;
+          }
+          if (!needsCounselorSetup &&
+              (isAuthRoute || location == AppRoute.verifyEmail)) {
+            return AppRoute.counselorDashboard;
+          }
+        }
+
+        // 6. Verified role set, questionnaire incomplete -> onboarding questionnaire.
+        final needsOnboarding = onboardingRepository.requiresQuestionnaire(
+          profile,
+        );
+        if (needsOnboarding && location != AppRoute.onboarding) {
+          return AppRoute.onboarding;
+        }
+
+        // When onboarding is done, keep users off onboarding route.
+        if (!needsOnboarding && location == AppRoute.onboarding) {
+          if (role == UserRole.institutionAdmin) {
+            return AppRoute.institutionAdmin;
+          }
+          if (role == UserRole.counselor) {
+            return needsCounselorSetup
+                ? AppRoute.counselorSetup
+                : AppRoute.counselorDashboard;
+          }
+          return AppRoute.home;
+        }
+
+        // 7. Normal dashboard by role.
+        if (role == UserRole.institutionAdmin && location == AppRoute.home) {
           return AppRoute.institutionAdmin;
         }
-        if (role == UserRole.counselor) {
+
+        if (role == UserRole.counselor && location == AppRoute.home) {
           return needsCounselorSetup
               ? AppRoute.counselorSetup
               : AppRoute.counselorDashboard;
         }
-        return AppRoute.home;
-      }
 
-      // 7. Normal dashboard by role.
-      if (role == UserRole.institutionAdmin && location == AppRoute.home) {
-        return AppRoute.institutionAdmin;
-      }
+        if (role != UserRole.institutionAdmin &&
+            location == AppRoute.institutionAdmin) {
+          if (role == UserRole.counselor) {
+            return needsCounselorSetup
+                ? AppRoute.counselorSetup
+                : AppRoute.counselorDashboard;
+          }
+          return AppRoute.home;
+        }
 
-      if (role == UserRole.counselor && location == AppRoute.home) {
-        return needsCounselorSetup
-            ? AppRoute.counselorSetup
-            : AppRoute.counselorDashboard;
-      }
+        if (role != UserRole.counselor && isCounselorOpsRoute) {
+          return role == UserRole.institutionAdmin
+              ? AppRoute.institutionAdmin
+              : AppRoute.home;
+        }
 
-      if (role != UserRole.institutionAdmin &&
-          location == AppRoute.institutionAdmin) {
-        if (role == UserRole.counselor) {
+        if (role == UserRole.counselor && isStudentCareRoute) {
           return needsCounselorSetup
               ? AppRoute.counselorSetup
               : AppRoute.counselorDashboard;
         }
-        return AppRoute.home;
-      }
 
-      if (role != UserRole.counselor && isCounselorOpsRoute) {
-        return role == UserRole.institutionAdmin
-            ? AppRoute.institutionAdmin
-            : AppRoute.home;
-      }
+        if (role == UserRole.institutionAdmin && isStudentCareRoute) {
+          return AppRoute.institutionAdmin;
+        }
 
-      if (role == UserRole.counselor && isStudentCareRoute) {
-        return needsCounselorSetup
-            ? AppRoute.counselorSetup
-            : AppRoute.counselorDashboard;
-      }
+        if (role == UserRole.institutionAdmin && isLiveRoute) {
+          return AppRoute.institutionAdmin;
+        }
 
-      if (role == UserRole.institutionAdmin && isStudentCareRoute) {
-        return AppRoute.institutionAdmin;
-      }
+        if (role == UserRole.individual && isLiveRoute) {
+          return AppRoute.home;
+        }
 
-      if (role == UserRole.institutionAdmin && isLiveRoute) {
-        return AppRoute.institutionAdmin;
-      }
+        if (role == UserRole.institutionAdmin &&
+            (isAuthRoute || location == AppRoute.verifyEmail)) {
+          return AppRoute.institutionAdmin;
+        }
 
-      if (role == UserRole.individual && isLiveRoute) {
-        return AppRoute.home;
-      }
+        if (role != UserRole.institutionAdmin &&
+            (isAuthRoute || location == AppRoute.verifyEmail)) {
+          return AppRoute.home;
+        }
 
-      if (role == UserRole.institutionAdmin &&
-          (isAuthRoute || location == AppRoute.verifyEmail)) {
-        return AppRoute.institutionAdmin;
+        return null;
+      } catch (e, st) {
+        // Catch unexpected errors in redirect and report for debugging.
+        final info = {
+          'event': 'redirect_error',
+          'error': e.toString(),
+          'stack': st.toString(),
+          'uri': state.uri.toString(),
+          'matchedLocation': state.matchedLocation,
+          'timestamp': DateTime.now().toIso8601String(),
+        };
+        trackInviteRouting(info);
+        // Fail open: don't redirect on error so user can still reach the route.
+        return null;
       }
-
-      if (role != UserRole.institutionAdmin &&
-          (isAuthRoute || location == AppRoute.verifyEmail)) {
-        return AppRoute.home;
-      }
-
-      return null;
     },
     routes: [
       GoRoute(
@@ -444,14 +477,34 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.inviteAccept,
         builder: (context, state) {
-          final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
-          return InviteAcceptScreen(
-            inviteId: inviteQuery[AppRoute.inviteIdQuery],
-            invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
-            invitedName: inviteQuery[AppRoute.invitedNameQuery],
-            institutionName: inviteQuery[AppRoute.institutionNameQuery],
-            intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
-          );
+          try {
+            final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
+            trackInviteRouting({
+              'event': 'inviteAccept_opened',
+              'uri': state.uri.toString(),
+              'matchedLocation': state.matchedLocation,
+              'inviteQuery': inviteQuery,
+              'timestamp': DateTime.now().toIso8601String(),
+            });
+            return InviteAcceptScreen(
+              inviteId: inviteQuery[AppRoute.inviteIdQuery],
+              invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
+              invitedName: inviteQuery[AppRoute.invitedNameQuery],
+              institutionName: inviteQuery[AppRoute.institutionNameQuery],
+              intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
+            );
+          } catch (e, st) {
+            trackInviteRouting({
+              'event': 'inviteAccept_builder_error',
+              'error': e.toString(),
+              'stack': st.toString(),
+              'uri': state.uri.toString(),
+              'matchedLocation': state.matchedLocation,
+              'timestamp': DateTime.now().toIso8601String(),
+            });
+            // Re-throw so GoRouter can surface the error during development.
+            rethrow;
+          }
         },
       ),
       GoRoute(
