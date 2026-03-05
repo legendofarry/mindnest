@@ -116,15 +116,14 @@ class _InstitutionAdminScreenState
     required InviteDeliveryDraft inviteDraft,
     required bool useAiAssistMessage,
   }) async {
-    final uri = Uri(
-      scheme: 'mailto',
-      path: inviteDraft.invitedEmail,
-      queryParameters: <String, String>{
-        'subject': inviteDraft.emailSubject,
-        'body': useAiAssistMessage
-            ? inviteDraft.aiEmailText
-            : inviteDraft.emailText,
-      },
+    final bodyText = useAiAssistMessage
+        ? inviteDraft.aiEmailText
+        : inviteDraft.emailText;
+    final subjectEncoded = Uri.encodeComponent(inviteDraft.emailSubject);
+    final bodyEncoded = Uri.encodeComponent(bodyText);
+    final recipientEncoded = Uri.encodeComponent(inviteDraft.invitedEmail);
+    final uri = Uri.parse(
+      'mailto:$recipientEncoded?subject=$subjectEncoded&body=$bodyEncoded',
     );
     final launched = await launchUrl(uri);
     if (!mounted) {
