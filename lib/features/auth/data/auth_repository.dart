@@ -13,6 +13,7 @@ class AuthRepository {
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
+  static const _kenyaPrefix = '+254';
 
   Stream<User?> authStateChanges() => _auth.userChanges();
 
@@ -31,12 +32,16 @@ class AuthRepository {
     required String name,
     required String email,
     required String password,
+    required String phoneNumber,
+    String? additionalPhoneNumber,
   }) async {
     await _registerWithProfile(
       name: name,
       email: email,
       password: password,
       role: UserRole.individual,
+      phoneNumber: phoneNumber,
+      additionalPhoneNumber: additionalPhoneNumber,
     );
   }
 
@@ -46,6 +51,8 @@ class AuthRepository {
     required String password,
     required String institutionId,
     required String institutionName,
+    String? phoneNumber,
+    String? additionalPhoneNumber,
   }) async {
     await _registerWithProfile(
       name: name,
@@ -54,6 +61,8 @@ class AuthRepository {
       role: UserRole.institutionAdmin,
       institutionId: institutionId,
       institutionName: institutionName,
+      phoneNumber: phoneNumber,
+      additionalPhoneNumber: additionalPhoneNumber,
     );
   }
 
@@ -78,8 +87,24 @@ class AuthRepository {
     required UserRole role,
     String? institutionId,
     String? institutionName,
+    String? phoneNumber,
+    String? additionalPhoneNumber,
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
+    final normalizedPhoneNumber = _normalizeRequiredKenyaPhone(phoneNumber);
+    final normalizedAdditionalPhoneNumber = _normalizeOptionalKenyaPhone(
+      additionalPhoneNumber,
+    );
+    if (normalizedAdditionalPhoneNumber == normalizedPhoneNumber) {
+      throw Exception(
+        'Additional mobile number must be different from primary mobile number.',
+      );
+    }
+    final phoneCandidates = _buildPhoneCandidates(
+      primaryPhone: normalizedPhoneNumber,
+      additionalPhone: normalizedAdditionalPhoneNumber,
+    );
+
     final credential = await _auth.createUserWithEmailAndPassword(
       email: normalizedEmail,
       password: password,
@@ -100,6 +125,9 @@ class AuthRepository {
       role: role,
       institutionId: institutionId,
       institutionName: institutionName,
+      phoneNumber: normalizedPhoneNumber,
+      additionalPhoneNumber: normalizedAdditionalPhoneNumber,
+      phoneNumbers: phoneCandidates,
     );
 
     await _firestore.collection('users').doc(user.uid).set({
@@ -224,7 +252,53 @@ class AuthRepository {
       'onboardingCompletedRoles': <String, int>{},
       'institutionId': null,
       'institutionName': null,
+      'phoneNumber': '',
+      'additionalPhoneNumber': null,
+      'phoneNumbers': const <String>[],
       'createdAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  String _normalizeRequiredKenyaPhone(String? value) {
+    final normalized = _normalizeOptionalKenyaPhone(value);
+    if (normalized == null) {
+      throw Exception('Primary mobile number is required.');
+    }
+    return normalized;
+  }
+
+  String? _normalizeOptionalKenyaPhone(String? value) {
+    var raw = value?.trim() ?? '';
+    if (raw.isEmpty) {
+      return null;
+    }
+
+    if (raw == _kenyaPrefix) {
+      return null;
+    }
+
+    if (!raw.startsWith('+')) {
+      raw = '+$raw';
+    }
+
+    if (!RegExp(r'^\+254\d{9}$').hasMatch(raw)) {
+      throw Exception(
+        'Use a valid Kenya mobile number in +254 format (example: +254712345678).',
+      );
+    }
+
+    return raw;
+  }
+
+  List<String> _buildPhoneCandidates({
+    required String primaryPhone,
+    String? additionalPhone,
+  }) {
+    final candidates = <String>{primaryPhone, primaryPhone.substring(1)};
+    if (additionalPhone != null && additionalPhone.isNotEmpty) {
+      candidates.add(additionalPhone);
+      candidates.add(additionalPhone.substring(1));
+    }
+    return candidates.toList(growable: false);
   }
 }

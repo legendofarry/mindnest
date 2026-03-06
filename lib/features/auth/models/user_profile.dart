@@ -34,6 +34,9 @@ class UserProfile {
     this.aiAssistantPreferences = const {},
     this.institutionId,
     this.institutionName,
+    this.phoneNumber,
+    this.additionalPhoneNumber,
+    this.phoneNumbers = const [],
   });
 
   final String id;
@@ -47,6 +50,9 @@ class UserProfile {
   final Map<String, dynamic> aiAssistantPreferences;
   final String? institutionId;
   final String? institutionName;
+  final String? phoneNumber;
+  final String? additionalPhoneNumber;
+  final List<String> phoneNumbers;
 
   Map<String, dynamic> toMap() {
     return {
@@ -60,6 +66,9 @@ class UserProfile {
       'aiAssistantPreferences': aiAssistantPreferences,
       'institutionId': institutionId,
       'institutionName': institutionName,
+      'phoneNumber': phoneNumber,
+      'additionalPhoneNumber': additionalPhoneNumber,
+      'phoneNumbers': phoneNumbers,
     };
   }
 
@@ -107,6 +116,17 @@ class UserProfile {
       }
     }
 
+    final phoneNumbersRaw = data['phoneNumbers'];
+    final phoneNumbers = <String>[];
+    if (phoneNumbersRaw is List) {
+      for (final value in phoneNumbersRaw) {
+        final normalized = value?.toString().trim() ?? '';
+        if (normalized.isNotEmpty) {
+          phoneNumbers.add(normalized);
+        }
+      }
+    }
+
     final mappedRole = UserRole.values.firstWhere(
       (role) => role.name == normalizedRole,
       orElse: () => UserRole.other,
@@ -135,6 +155,9 @@ class UserProfile {
       aiAssistantPreferences: aiAssistantPreferences,
       institutionId: data['institutionId'] as String?,
       institutionName: data['institutionName'] as String?,
+      phoneNumber: data['phoneNumber'] as String?,
+      additionalPhoneNumber: data['additionalPhoneNumber'] as String?,
+      phoneNumbers: phoneNumbers,
     );
   }
 }

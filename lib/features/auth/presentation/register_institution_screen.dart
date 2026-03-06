@@ -27,6 +27,7 @@ class _RegisterInstitutionScreenState
   final _adminNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _adminPhoneController = TextEditingController();
+  final _additionalAdminPhoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _schoolRequestNameController = TextEditingController();
@@ -41,6 +42,7 @@ class _RegisterInstitutionScreenState
   bool _adminNameFieldError = false;
   bool _adminEmailFieldError = false;
   bool _adminPhoneFieldError = false;
+  bool _additionalAdminPhoneFieldError = false;
   bool _passwordFieldError = false;
   bool _confirmPasswordFieldError = false;
   String? _formError;
@@ -76,6 +78,7 @@ class _RegisterInstitutionScreenState
     _adminPhoneController.text = _kenyaPrefix;
     _schoolRequestMobileController.text = _kenyaPrefix;
     _adminPhoneController.addListener(_enforceAdminPhonePrefix);
+    _additionalAdminPhoneController.addListener(_enforceAdditionalAdminPhone);
     _schoolRequestMobileController.addListener(_enforceSchoolMobilePrefix);
   }
 
@@ -83,10 +86,14 @@ class _RegisterInstitutionScreenState
   void dispose() {
     _shakeController.dispose();
     _adminPhoneController.removeListener(_enforceAdminPhonePrefix);
+    _additionalAdminPhoneController.removeListener(
+      _enforceAdditionalAdminPhone,
+    );
     _schoolRequestMobileController.removeListener(_enforceSchoolMobilePrefix);
     _adminNameController.dispose();
     _emailController.dispose();
     _adminPhoneController.dispose();
+    _additionalAdminPhoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _schoolRequestNameController.dispose();
@@ -100,6 +107,14 @@ class _RegisterInstitutionScreenState
 
   void _enforceSchoolMobilePrefix() {
     _enforceKenyaPrefix(_schoolRequestMobileController);
+  }
+
+  void _enforceAdditionalAdminPhone() {
+    final trimmed = _additionalAdminPhoneController.text.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+    _enforceKenyaPrefix(_additionalAdminPhoneController);
   }
 
   void _enforceKenyaPrefix(TextEditingController controller) {
@@ -128,6 +143,14 @@ class _RegisterInstitutionScreenState
     return RegExp(r'^\+254\d{9}$').hasMatch(value);
   }
 
+  String? _optionalPhoneValue(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || trimmed == _kenyaPrefix) {
+      return null;
+    }
+    return trimmed;
+  }
+
   Future<void> _submit() async {
     final stepError = _validateCurrentStep();
     if (stepError != null) {
@@ -148,6 +171,9 @@ class _RegisterInstitutionScreenState
             adminName: _adminNameController.text.trim(),
             adminEmail: _emailController.text.trim(),
             adminPhoneNumber: _adminPhoneController.text.trim(),
+            additionalAdminPhoneNumber: _optionalPhoneValue(
+              _additionalAdminPhoneController.text,
+            ),
             password: _passwordController.text,
             institutionCatalogId: selectedSchool.id,
             institutionName: selectedSchool.name,
@@ -213,12 +239,26 @@ class _RegisterInstitutionScreenState
         final email = _emailController.text.trim();
         final hasEmail = email.isNotEmpty && email.contains('@');
         final hasPhone = _isValidKenyaPhone(_adminPhoneController.text.trim());
+        final optionalPhone = _optionalPhoneValue(
+          _additionalAdminPhoneController.text,
+        );
+        final hasValidOptionalPhone =
+            optionalPhone == null || _isValidKenyaPhone(optionalPhone);
+        final hasDistinctOptionalPhone =
+            optionalPhone == null ||
+            optionalPhone != _adminPhoneController.text.trim();
         setState(() {
           _adminNameFieldError = !hasName;
           _adminEmailFieldError = !hasEmail;
           _adminPhoneFieldError = !hasPhone;
+          _additionalAdminPhoneFieldError =
+              !hasValidOptionalPhone || !hasDistinctOptionalPhone;
         });
-        if (!hasName || !hasEmail || !hasPhone) {
+        if (!hasName ||
+            !hasEmail ||
+            !hasPhone ||
+            !hasValidOptionalPhone ||
+            !hasDistinctOptionalPhone) {
           return 'Please correct the highlighted fields.';
         }
         return null;
@@ -631,6 +671,26 @@ class _RegisterInstitutionScreenState
               border: InputBorder.none,
               hintText: '+254...',
               prefixIcon: Icon(Icons.phone_rounded),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        const _FieldLabel(text: 'ADDITIONAL PHONE (OPTIONAL)'),
+        const SizedBox(height: 8),
+        _RoundedInput(
+          hasError: _additionalAdminPhoneFieldError,
+          child: TextFormField(
+            controller: _additionalAdminPhoneController,
+            keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.done,
+            onChanged: (_) => setState(() {
+              _additionalAdminPhoneFieldError = false;
+              _formError = null;
+            }),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              hintText: '+254...',
+              prefixIcon: Icon(Icons.phone_android_rounded),
             ),
           ),
         ),

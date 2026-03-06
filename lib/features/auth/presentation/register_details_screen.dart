@@ -28,9 +28,12 @@ class RegisterDetailsScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
+  static const _kenyaPrefix = '+254';
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _additionalPhoneController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isSubmitting = false;
 
@@ -47,6 +50,9 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    _phoneController.text = _kenyaPrefix;
+    _phoneController.addListener(_enforcePrimaryPhonePrefix);
+    _additionalPhoneController.addListener(_enforceOptionalPhonePrefix);
     final invitedName = (widget.invitedName ?? '').trim();
     if (invitedName.isNotEmpty) {
       _nameController.text = invitedName;
@@ -59,10 +65,55 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
 
   @override
   void dispose() {
+    _phoneController.removeListener(_enforcePrimaryPhonePrefix);
+    _additionalPhoneController.removeListener(_enforceOptionalPhonePrefix);
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
+    _additionalPhoneController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _enforcePrimaryPhonePrefix() {
+    final normalized = _normalizeKenyaPhoneInput(_phoneController.text);
+    if (_phoneController.text == normalized) {
+      return;
+    }
+    _phoneController.value = TextEditingValue(
+      text: normalized,
+      selection: TextSelection.collapsed(offset: normalized.length),
+    );
+  }
+
+  void _enforceOptionalPhonePrefix() {
+    final text = _additionalPhoneController.text.trim();
+    if (text.isEmpty) {
+      return;
+    }
+    final normalized = _normalizeKenyaPhoneInput(text);
+    if (_additionalPhoneController.text == normalized) {
+      return;
+    }
+    _additionalPhoneController.value = TextEditingValue(
+      text: normalized,
+      selection: TextSelection.collapsed(offset: normalized.length),
+    );
+  }
+
+  String _normalizeKenyaPhoneInput(String input) {
+    var digits = input.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.startsWith('254')) {
+      digits = digits.substring(3);
+    }
+    if (digits.startsWith('0')) {
+      digits = digits.substring(1);
+    }
+    return '$_kenyaPrefix$digits';
+  }
+
+  bool _isValidKenyaPhone(String value) {
+    return RegExp(r'^\+254\d{9}$').hasMatch(value);
   }
 
   Future<void> _submit() async {
@@ -78,6 +129,8 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             name: _nameController.text,
             email: _emailController.text,
             password: _passwordController.text,
+            phoneNumber: _phoneController.text.trim(),
+            additionalPhoneNumber: _additionalPhoneController.text.trim(),
           );
       if (!mounted) {
         return;
@@ -223,6 +276,55 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                   final trimmed = value?.trim() ?? '';
                   if (trimmed.isEmpty || !trimmed.contains('@')) {
                     return 'Enter a valid email address.';
+                  }
+                  return null;
+                },
+              ),
+            ),
+            const SizedBox(height: 18),
+            const _FieldLabel(text: 'MOBILE NUMBER'),
+            const SizedBox(height: 8),
+            _RoundedInput(
+              child: TextFormField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: '+254712345678',
+                  prefixIcon: Icon(Icons.phone_rounded),
+                ),
+                validator: (value) {
+                  final normalized = _normalizeKenyaPhoneInput(value ?? '');
+                  if (!_isValidKenyaPhone(normalized)) {
+                    return 'Enter a valid mobile number (example: +254712345678).';
+                  }
+                  return null;
+                },
+              ),
+            ),
+            const SizedBox(height: 18),
+            const _FieldLabel(text: 'ADDITIONAL MOBILE (OPTIONAL)'),
+            const SizedBox(height: 8),
+            _RoundedInput(
+              child: TextFormField(
+                controller: _additionalPhoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: '+2547...',
+                  prefixIcon: Icon(Icons.phone_android_rounded),
+                ),
+                validator: (value) {
+                  final trimmed = (value ?? '').trim();
+                  if (trimmed.isEmpty || trimmed == _kenyaPrefix) {
+                    return null;
+                  }
+                  final normalized = _normalizeKenyaPhoneInput(trimmed);
+                  if (!_isValidKenyaPhone(normalized)) {
+                    return 'Use +254 format for additional mobile.';
+                  }
+                  if (normalized == _phoneController.text.trim()) {
+                    return 'Additional mobile must differ from primary mobile.';
                   }
                   return null;
                 },

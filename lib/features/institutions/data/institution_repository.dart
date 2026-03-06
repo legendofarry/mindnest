@@ -143,6 +143,7 @@ class InstitutionRepository {
     required String adminName,
     required String adminEmail,
     required String adminPhoneNumber,
+    String? additionalAdminPhoneNumber,
     required String password,
     required String institutionCatalogId,
     required String institutionName,
@@ -150,15 +151,26 @@ class InstitutionRepository {
     final trimmedName = adminName.trim();
     final trimmedInstitutionCatalogId = institutionCatalogId.trim();
     final trimmedInstitutionName = institutionName.trim();
-    final trimmedAdminPhone = adminPhoneNumber.trim();
+    final normalizedAdminPhone = _normalizePhoneE164(adminPhoneNumber);
+    final normalizedAdditionalAdminPhone = _normalizeOptionalPhoneE164(
+      additionalAdminPhoneNumber,
+    );
+    if (normalizedAdditionalAdminPhone == normalizedAdminPhone) {
+      throw Exception(
+        'Additional mobile number must be different from primary mobile number.',
+      );
+    }
+    final phoneCandidates = _buildPhoneCandidates(
+      primaryPhone: normalizedAdminPhone,
+      additionalPhone: normalizedAdditionalAdminPhone,
+    );
     final normalizedEmail = adminEmail.trim().toLowerCase();
     final normalizedInstitutionName = _normalizeInstitutionName(
       trimmedInstitutionName,
     );
     if (trimmedName.length < 2 ||
         trimmedInstitutionCatalogId.isEmpty ||
-        trimmedInstitutionName.length < 2 ||
-        trimmedAdminPhone.length < 6) {
+        trimmedInstitutionName.length < 2) {
       throw Exception('Name, institution name, and phone number are required.');
     }
 
@@ -206,8 +218,9 @@ class InstitutionRepository {
           'institutionCatalogId': trimmedInstitutionCatalogId,
           'status': 'pending',
           'createdBy': createdUser.uid,
-          'adminPhoneNumber': trimmedAdminPhone,
-          'contactPhone': trimmedAdminPhone,
+          'adminPhoneNumber': normalizedAdminPhone,
+          'additionalAdminPhoneNumber': normalizedAdditionalAdminPhone,
+          'contactPhone': normalizedAdminPhone,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
           'review': <String, dynamic>{
@@ -225,7 +238,9 @@ class InstitutionRepository {
           'institutionId': institutionRef.id,
           'institutionName': trimmedInstitutionName,
           'institutionCatalogId': trimmedInstitutionCatalogId,
-          'phoneNumber': trimmedAdminPhone,
+          'phoneNumber': normalizedAdminPhone,
+          'additionalPhoneNumber': normalizedAdditionalAdminPhone,
+          'phoneNumbers': phoneCandidates,
           'createdAt': FieldValue.serverTimestamp(),
         });
         transaction.set(membershipRef, {
@@ -234,7 +249,8 @@ class InstitutionRepository {
           'role': UserRole.institutionAdmin.name,
           'userName': trimmedName,
           'email': createdUser.email ?? normalizedEmail,
-          'phoneNumber': trimmedAdminPhone,
+          'phoneNumber': normalizedAdminPhone,
+          'additionalPhoneNumber': normalizedAdditionalAdminPhone,
           'joinedAt': FieldValue.serverTimestamp(),
           'status': 'active',
         });
@@ -1630,6 +1646,26 @@ class InstitutionRepository {
     return normalized;
   }
 
+  String? _normalizeOptionalPhoneE164(String? rawPhone) {
+    final trimmed = rawPhone?.trim() ?? '';
+    if (trimmed.isEmpty || trimmed == '+254') {
+      return null;
+    }
+    return _normalizePhoneE164(trimmed);
+  }
+
+  List<String> _buildPhoneCandidates({
+    required String primaryPhone,
+    String? additionalPhone,
+  }) {
+    final candidates = <String>{primaryPhone, primaryPhone.substring(1)};
+    if (additionalPhone != null && additionalPhone.isNotEmpty) {
+      candidates.add(additionalPhone);
+      candidates.add(additionalPhone.substring(1));
+    }
+    return candidates.toList(growable: false);
+  }
+
   Future<QueryDocumentSnapshot<Map<String, dynamic>>> _resolveInviteeByPhone(
     String phoneE164,
   ) async {
@@ -1640,6 +1676,16 @@ class InstitutionRepository {
 
     QueryDocumentSnapshot<Map<String, dynamic>>? found;
     for (final candidate in candidates) {
+      final indexedSnapshot = await _firestore
+          .collection('users')
+          .where('phoneNumbers', arrayContains: candidate)
+          .limit(1)
+          .get();
+      if (indexedSnapshot.docs.isNotEmpty) {
+        found = indexedSnapshot.docs.first;
+        break;
+      }
+
       final snapshot = await _firestore
           .collection('users')
           .where('phoneNumber', isEqualTo: candidate)
@@ -1647,6 +1693,16 @@ class InstitutionRepository {
           .get();
       if (snapshot.docs.isNotEmpty) {
         found = snapshot.docs.first;
+        break;
+      }
+
+      final secondarySnapshot = await _firestore
+          .collection('users')
+          .where('additionalPhoneNumber', isEqualTo: candidate)
+          .limit(1)
+          .get();
+      if (secondarySnapshot.docs.isNotEmpty) {
+        found = secondarySnapshot.docs.first;
         break;
       }
     }
