@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/presentation/terms_and_privacy_screen.dart';
 
 class RegisterDetailsScreen extends ConsumerStatefulWidget {
   const RegisterDetailsScreen({
@@ -114,6 +115,14 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
 
   bool _isValidKenyaPhone(String value) {
     return RegExp(r'^\+254\d{9}$').hasMatch(value);
+  }
+
+  Future<void> _openLegalDoc(LegalDocumentType type) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TermsAndPrivacyScreen(documentType: type),
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -358,25 +367,69 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: const Color(0xFFB3ECDD)),
               ),
-              child: const Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
+                  const Padding(
                     padding: EdgeInsets.only(top: 1),
                     child: Icon(
                       Icons.info_outline_rounded,
                       color: Color(0xFF0E9B90),
                     ),
                   ),
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      'By joining, you agree to our Terms of Service and Privacy Policy. MindNest is not a substitute for professional medical advice.',
-                      style: TextStyle(
-                        color: Color(0xFF0D6F69),
-                        fontWeight: FontWeight.w600,
-                        height: 1.4,
-                      ),
+                    child: Wrap(
+                      children: [
+                        const Text(
+                          'By joining, you agree to our ',
+                          style: TextStyle(
+                            color: Color(0xFF0D6F69),
+                            fontWeight: FontWeight.w600,
+                            height: 1.4,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () =>
+                              _openLegalDoc(LegalDocumentType.termsOfService),
+                          child: const Text(
+                            'Terms of Service',
+                            style: TextStyle(
+                              color: Color(0xFF0A6D66),
+                              fontWeight: FontWeight.w800,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                        const Text(
+                          ' and ',
+                          style: TextStyle(
+                            color: Color(0xFF0D6F69),
+                            fontWeight: FontWeight.w600,
+                            height: 1.4,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () =>
+                              _openLegalDoc(LegalDocumentType.privacyPolicy),
+                          child: const Text(
+                            'Privacy Policy',
+                            style: TextStyle(
+                              color: Color(0xFF0A6D66),
+                              fontWeight: FontWeight.w800,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                        const Text(
+                          '. MindNest is not a substitute for professional medical advice.',
+                          style: TextStyle(
+                            color: Color(0xFF0D6F69),
+                            fontWeight: FontWeight.w600,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
