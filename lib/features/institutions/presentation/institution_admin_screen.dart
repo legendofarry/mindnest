@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,7 +39,6 @@ class _InstitutionAdminScreenState
   String _activeFilter = 'all';
   bool _isSubmitting = false;
   bool _isRegeneratingJoinCode = false;
-  bool _isDeletingAccount = false;
   int _rowsPerPage = PaginatedDataTable.defaultRowsPerPage;
   int? _sortColumnIndex;
   bool _sortAscending = true;
@@ -218,69 +216,6 @@ class _InstitutionAdminScreenState
         ],
       ),
     );
-  }
-
-  Future<bool> _confirmDeleteDialog() async {
-    final controller = TextEditingController();
-    final decision = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Account'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('Type DELETE to confirm permanent account deletion.'),
-            const SizedBox(height: 8),
-            TextField(controller: controller),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-            ),
-            onPressed: () => Navigator.of(
-              dialogContext,
-            ).pop(controller.text.trim() == 'DELETE'),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    return decision == true;
-  }
-
-  Future<void> _deleteCurrentAccount() async {
-    if (!kDebugMode || _isDeletingAccount) {
-      return;
-    }
-    final confirmed = await _confirmDeleteDialog();
-    if (!confirmed || !mounted) {
-      return;
-    }
-    setState(() => _isDeletingAccount = true);
-    try {
-      await ref.read(authRepositoryProvider).deleteCurrentAccount();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isDeletingAccount = false);
-      }
-    }
   }
 
   Future<void> _regenerateJoinCode({bool silent = false}) async {
@@ -736,17 +671,6 @@ class _InstitutionAdminScreenState
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          if (kDebugMode)
-            TextButton.icon(
-              onPressed: _isDeletingAccount ? null : _deleteCurrentAccount,
-              icon: const Icon(Icons.delete_forever_rounded),
-              label: Text(
-                _isDeletingAccount ? 'Deleting...' : 'Delete Account',
-              ),
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFB91C1C),
-              ),
-            ),
           TextButton.icon(
             onPressed: () => confirmAndLogout(context: context, ref: ref),
             icon: const Icon(Icons.logout_rounded),

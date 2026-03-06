@@ -1,14 +1,12 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/core/ui/back_to_home_button.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
-import 'package:mindnest/features/auth/models/user_profile.dart';
 
 class PrivacyControlsScreen extends ConsumerStatefulWidget {
   const PrivacyControlsScreen({super.key});
@@ -20,19 +18,11 @@ class PrivacyControlsScreen extends ConsumerStatefulWidget {
 
 class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
   bool _isExporting = false;
-  bool _isDeleting = false;
 
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final userId = profile?.id ?? '';
-    final role = profile?.role;
-    final canDeleteInDevelopment =
-        kDebugMode &&
-        (role == UserRole.student ||
-            role == UserRole.individual ||
-            role == UserRole.counselor ||
-            role == UserRole.institutionAdmin);
     final firestore = ref.watch(firestoreProvider);
 
     return MindNestShell(
@@ -212,64 +202,6 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
                                     : 'Export My Data (JSON)',
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            if (canDeleteInDevelopment) ...[
-                              const Text(
-                                'Development only',
-                                style: TextStyle(
-                                  color: Color(0xFFB45309),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFDC2626),
-                                ),
-                                onPressed: _isDeleting
-                                    ? null
-                                    : () async {
-                                        final confirmation =
-                                            await _confirmDeleteDialog(context);
-                                        if (!mounted || !confirmation) {
-                                          return;
-                                        }
-                                        setState(() => _isDeleting = true);
-                                        try {
-                                          await ref
-                                              .read(authRepositoryProvider)
-                                              .deleteCurrentAccount();
-                                        } catch (error) {
-                                          if (!mounted) {
-                                            return;
-                                          }
-                                          ScaffoldMessenger.of(
-                                            this.context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                error.toString().replaceFirst(
-                                                  'Exception: ',
-                                                  '',
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        } finally {
-                                          if (mounted) {
-                                            setState(() => _isDeleting = false);
-                                          }
-                                        }
-                                      },
-                                icon: const Icon(Icons.delete_forever_rounded),
-                                label: Text(
-                                  _isDeleting
-                                      ? 'Deleting account...'
-                                      : 'Delete Account',
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       ),
@@ -279,40 +211,5 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
               },
             ),
     );
-  }
-
-  Future<bool> _confirmDeleteDialog(BuildContext context) async {
-    final controller = TextEditingController();
-    final decision = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Delete Account'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Type DELETE to confirm permanent account deletion.'),
-              const SizedBox(height: 8),
-              TextField(controller: controller),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(
-                dialogContext,
-              ).pop(controller.text.trim() == 'DELETE'),
-              child: const Text('Confirm'),
-            ),
-          ],
-        );
-      },
-    );
-    controller.dispose();
-    return decision == true;
   }
 }
