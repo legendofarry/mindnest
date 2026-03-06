@@ -116,7 +116,6 @@ class AuthRepository {
     }
 
     await user.updateDisplayName(name.trim());
-    await user.sendEmailVerification();
 
     final profile = UserProfile(
       id: user.uid,
@@ -130,11 +129,53 @@ class AuthRepository {
       phoneNumbers: phoneCandidates,
     );
 
-    await _firestore.collection('users').doc(user.uid).set({
-      ...profile.toMap(),
-      'onboardingCompletedRoles': <String, int>{},
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      await _firestore.runTransaction((transaction) async {
+        final phoneRegistryRefs = _phoneRegistryRefsForRegistration(
+          primaryPhoneNumber: normalizedPhoneNumber,
+          additionalPhoneNumber: normalizedAdditionalPhoneNumber,
+        );
+
+        for (final ref in phoneRegistryRefs) {
+          final snapshot = await transaction.get(ref);
+          if (!snapshot.exists) {
+            continue;
+          }
+          final ownerUid = (snapshot.data()?['uid'] as String?) ?? '';
+          if (ownerUid != user.uid) {
+            final claimedPhone =
+                (snapshot.data()?['phoneNumber'] as String?) ?? ref.id;
+            throw _PhoneNumberAlreadyInUseException(
+              'The mobile number $claimedPhone is already linked to another account.',
+            );
+          }
+        }
+
+        transaction.set(_firestore.collection('users').doc(user.uid), {
+          ...profile.toMap(),
+          'onboardingCompletedRoles': <String, int>{},
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        for (final ref in phoneRegistryRefs) {
+          transaction.set(ref, {
+            'uid': user.uid,
+            'phoneNumber': _phoneFromRegistryDocId(ref.id),
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      });
+    } on _PhoneNumberAlreadyInUseException catch (error) {
+      try {
+        await user.delete();
+      } catch (_) {
+        // If rollback auth deletion fails, keep a user-facing error.
+      }
+      throw Exception(error.message);
+    }
+
+    await user.sendEmailVerification();
   }
 
   Future<void> signIn({
@@ -159,6 +200,7 @@ class AuthRepository {
     }
 
     await _ensureProfileExists(user);
+    await _backfillPhoneRegistryForCurrentUser(user.uid);
     await AuthSessionManager.markLogin(rememberMe: rememberMe);
   }
 
@@ -301,4 +343,105 @@ class AuthRepository {
     }
     return candidates.toList(growable: false);
   }
+
+  String _phoneRegistryDocId(String phoneE164) {
+    return phoneE164.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  String _phoneFromRegistryDocId(String docId) {
+    return '+$docId';
+  }
+
+  List<DocumentReference<Map<String, dynamic>>>
+  _phoneRegistryRefsForRegistration({
+    required String primaryPhoneNumber,
+    String? additionalPhoneNumber,
+  }) {
+    final keys = <String>{
+      _phoneRegistryDocId(primaryPhoneNumber),
+      if (additionalPhoneNumber != null && additionalPhoneNumber.isNotEmpty)
+        _phoneRegistryDocId(additionalPhoneNumber),
+    };
+    return keys
+        .map((key) => _firestore.collection('phone_number_registry').doc(key))
+        .toList(growable: false);
+  }
+
+  Future<void> _backfillPhoneRegistryForCurrentUser(String uid) async {
+    try {
+      final userSnapshot = await _firestore.collection('users').doc(uid).get();
+      final data = userSnapshot.data();
+      if (data == null) {
+        return;
+      }
+
+      final phones = <String>{};
+      final primary = _normalizeOptionalKenyaPhone(
+        data['phoneNumber'] as String?,
+      );
+      if (primary != null) {
+        phones.add(primary);
+      }
+      final additional = _normalizeOptionalKenyaPhone(
+        data['additionalPhoneNumber'] as String?,
+      );
+      if (additional != null) {
+        phones.add(additional);
+      }
+
+      final rawPhoneList = data['phoneNumbers'];
+      if (rawPhoneList is List) {
+        for (final value in rawPhoneList) {
+          final raw = value?.toString().trim() ?? '';
+          if (raw.isEmpty) {
+            continue;
+          }
+          final normalized = raw.startsWith('+')
+              ? _normalizeOptionalKenyaPhone(raw)
+              : _normalizeOptionalKenyaPhone('+$raw');
+          if (normalized != null) {
+            phones.add(normalized);
+          }
+        }
+      }
+
+      if (phones.isEmpty) {
+        return;
+      }
+
+      final refs = phones
+          .map(
+            (phone) => _firestore
+                .collection('phone_number_registry')
+                .doc(_phoneRegistryDocId(phone)),
+          )
+          .toList(growable: false);
+
+      await _firestore.runTransaction((transaction) async {
+        for (final ref in refs) {
+          final snapshot = await transaction.get(ref);
+          if (snapshot.exists) {
+            final ownerUid = (snapshot.data()?['uid'] as String?) ?? '';
+            if (ownerUid != uid) {
+              continue;
+            }
+          }
+          transaction.set(ref, {
+            'uid': uid,
+            'phoneNumber': _phoneFromRegistryDocId(ref.id),
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      });
+    } catch (_) {
+      // Registry backfill should not block authentication.
+    }
+  }
+}
+
+class _PhoneNumberAlreadyInUseException implements Exception {
+  const _PhoneNumberAlreadyInUseException(this.message);
+
+  final String message;
 }

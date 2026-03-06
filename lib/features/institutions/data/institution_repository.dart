@@ -201,6 +201,27 @@ class InstitutionRepository {
           .doc('${institutionRef.id}_${createdUser.uid}');
 
       await _firestore.runTransaction((transaction) async {
+        final phoneRegistryRefs = _phoneRegistryRefsForRegistration(
+          primaryPhoneNumber: normalizedAdminPhone,
+          additionalPhoneNumber: normalizedAdditionalAdminPhone,
+        );
+        for (final ref in phoneRegistryRefs) {
+          final registryPhoneSnapshot = await transaction.get(ref);
+          if (!registryPhoneSnapshot.exists) {
+            continue;
+          }
+          final ownerUid =
+              (registryPhoneSnapshot.data()?['uid'] as String?) ?? '';
+          if (ownerUid != createdUser.uid) {
+            final claimedPhone =
+                (registryPhoneSnapshot.data()?['phoneNumber'] as String?) ??
+                '+${ref.id}';
+            throw _PhoneNumberAlreadyInUseException(
+              'The mobile number $claimedPhone is already linked to another account.',
+            );
+          }
+        }
+
         final registrySnapshot = await transaction.get(catalogRegistryRef);
         if (registrySnapshot.exists) {
           final claimedInstitutionId =
@@ -254,6 +275,14 @@ class InstitutionRepository {
           'joinedAt': FieldValue.serverTimestamp(),
           'status': 'active',
         });
+        for (final ref in phoneRegistryRefs) {
+          transaction.set(ref, {
+            'uid': createdUser.uid,
+            'phoneNumber': '+${ref.id}',
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
         transaction.set(catalogRegistryRef, {
           'institutionId': institutionRef.id,
           'institutionCatalogId': trimmedInstitutionCatalogId,
@@ -275,6 +304,15 @@ class InstitutionRepository {
           SetOptions(merge: true),
         );
       });
+    } on _PhoneNumberAlreadyInUseException catch (error) {
+      if (user != null) {
+        try {
+          await user.delete();
+        } catch (_) {
+          // Keep rollback resilient.
+        }
+      }
+      throw Exception(error.message);
     } on _InstitutionDuplicationException {
       if (user != null) {
         try {
@@ -1510,6 +1548,7 @@ class InstitutionRepository {
       'live_sessions',
       'notifications',
       'onboarding_responses',
+      'phone_number_registry',
       'school_requests',
       'user_invites',
       'user_notification_settings',
@@ -1664,6 +1703,21 @@ class InstitutionRepository {
       candidates.add(additionalPhone.substring(1));
     }
     return candidates.toList(growable: false);
+  }
+
+  List<DocumentReference<Map<String, dynamic>>>
+  _phoneRegistryRefsForRegistration({
+    required String primaryPhoneNumber,
+    String? additionalPhoneNumber,
+  }) {
+    final keys = <String>{
+      primaryPhoneNumber.replaceAll(RegExp(r'[^0-9]'), ''),
+      if (additionalPhoneNumber != null && additionalPhoneNumber.isNotEmpty)
+        additionalPhoneNumber.replaceAll(RegExp(r'[^0-9]'), ''),
+    };
+    return keys
+        .map((key) => _firestore.collection('phone_number_registry').doc(key))
+        .toList(growable: false);
   }
 
   Future<QueryDocumentSnapshot<Map<String, dynamic>>> _resolveInviteeByPhone(
@@ -2068,6 +2122,12 @@ class _JoinCodeFlowException implements Exception {
 
 class _InstitutionDuplicationException implements Exception {
   const _InstitutionDuplicationException(this.message);
+
+  final String message;
+}
+
+class _PhoneNumberAlreadyInUseException implements Exception {
+  const _PhoneNumberAlreadyInUseException(this.message);
 
   final String message;
 }

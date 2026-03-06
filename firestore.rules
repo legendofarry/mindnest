@@ -507,6 +507,19 @@ service cloud.firestore {
         );
     }
 
+    function phoneBelongsToCurrentUserAfterWrite(phoneNumber) {
+      return isSignedIn() &&
+        existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.phoneNumber == phoneNumber ||
+          getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.additionalPhoneNumber == phoneNumber ||
+          (
+            getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.phoneNumbers is list &&
+            phoneNumber in getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.phoneNumbers
+          )
+        );
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid) ||
         resource.data.email == 'karimiarrison@gmail.com' ||
@@ -840,6 +853,22 @@ service cloud.firestore {
       allow read, create, update: if isOwner(uid);
       allow delete: if isOwner(uid) ||
         canInstitutionAdminManageTargetUser(uid);
+    }
+
+    match /phone_number_registry/{phoneKey} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.phoneNumber is string &&
+        request.resource.data.phoneNumber.size() >= 8 &&
+        phoneBelongsToCurrentUserAfterWrite(request.resource.data.phoneNumber);
+      allow update: if isSignedIn() &&
+        resource.data.uid == request.auth.uid &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.phoneNumber == resource.data.phoneNumber &&
+        phoneBelongsToCurrentUserAfterWrite(request.resource.data.phoneNumber);
+      allow delete: if isOwnerAccount() ||
+        isDevClearAccount();
     }
 
     match /mood_entries/{entryId} {

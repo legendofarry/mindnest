@@ -17,6 +17,7 @@ class OwnerDashboardScreen extends ConsumerStatefulWidget {
 
 class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   final _declineReasonController = TextEditingController();
+  bool _isClearingDatabase = false;
 
   @override
   void dispose() {
@@ -143,6 +144,42 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     }
   }
 
+  Future<void> _clearDatabase() async {
+    if (_isClearingDatabase) {
+      return;
+    }
+    setState(() => _isClearingDatabase = true);
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .clearAllDataForDevelopment();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Database cleared.')));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error
+                .toString()
+                .replaceFirst('Exception: ', '')
+                .replaceFirst('[cloud_firestore/permission-denied] ', ''),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isClearingDatabase = false);
+      }
+    }
+  }
+
   String _formatDate(dynamic value) {
     if (value is Timestamp) {
       final local = value.toDate().toLocal();
@@ -164,6 +201,20 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          FilledButton.icon(
+            onPressed: _isClearingDatabase ? null : _clearDatabase,
+            icon: Icon(
+              _isClearingDatabase
+                  ? Icons.hourglass_top_rounded
+                  : Icons.delete_forever_rounded,
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            label: Text(_isClearingDatabase ? 'Clearing...' : 'Clear DB'),
+          ),
+          const SizedBox(width: 8),
           TextButton.icon(
             onPressed: () => confirmAndLogout(context: context, ref: ref),
             icon: const Icon(Icons.logout_rounded),
