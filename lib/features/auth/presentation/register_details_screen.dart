@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/terms_and_privacy_screen.dart';
 
 class RegisterDetailsScreen extends ConsumerStatefulWidget {
@@ -15,6 +16,7 @@ class RegisterDetailsScreen extends ConsumerStatefulWidget {
     this.invitedName,
     this.institutionName,
     this.intendedRole,
+    this.registrationIntent,
   });
 
   final String? inviteId;
@@ -22,6 +24,7 @@ class RegisterDetailsScreen extends ConsumerStatefulWidget {
   final String? invitedName;
   final String? institutionName;
   final String? intendedRole;
+  final String? registrationIntent;
 
   @override
   ConsumerState<RegisterDetailsScreen> createState() =>
@@ -47,6 +50,23 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   );
 
   bool get _hasInviteContext => _inviteQuery.isNotEmpty;
+  bool get _isCounselorIntent {
+    if (_hasInviteContext) {
+      return false;
+    }
+    return (widget.registrationIntent ?? '').trim() ==
+        UserProfile.counselorRegistrationIntent;
+  }
+
+  String _routeWithCurrentContext(String path) {
+    return AppRoute.withInviteAndRegistrationIntent(
+      path,
+      _inviteQuery,
+      registrationIntent: _isCounselorIntent
+          ? UserProfile.counselorRegistrationIntent
+          : null,
+    );
+  }
 
   @override
   void initState() {
@@ -140,11 +160,12 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             password: _passwordController.text,
             phoneNumber: _phoneController.text.trim(),
             additionalPhoneNumber: _additionalPhoneController.text.trim(),
+            counselorRegistrationIntent: _isCounselorIntent,
           );
       if (!mounted) {
         return;
       }
-      context.go(AppRoute.withInviteQuery(AppRoute.verifyEmail, _inviteQuery));
+      context.go(_routeWithCurrentContext(AppRoute.verifyEmail));
     } on FirebaseAuthException catch (error) {
       _showMessage(error.message ?? 'Registration failed.');
     } catch (error) {
@@ -183,7 +204,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                                 AppRoute.login,
                                 _inviteQuery,
                               )
-                            : AppRoute.register,
+                            : _routeWithCurrentContext(AppRoute.register),
                       ),
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 2, vertical: 4),
@@ -211,7 +232,9 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'Create your account',
+              _isCounselorIntent
+                  ? 'Create your counselor account'
+                  : 'Create your account',
               style: Theme.of(context).textTheme.displaySmall?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: const Color(0xFF071937),
@@ -223,6 +246,8 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             Text(
               _hasInviteContext
                   ? 'Register with the invited email, then accept your invite instantly.'
+                  : _isCounselorIntent
+                  ? 'After verification, you will wait for an institution admin invite and skip basic onboarding questions.'
                   : 'You can join your institution later from Home using a join code.',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: const Color(0xFF516784),

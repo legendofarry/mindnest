@@ -25,6 +25,7 @@ import 'package:mindnest/features/care/presentation/student_care_plan_screen.dar
 import 'package:mindnest/features/care/presentation/student_appointments_screen.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_dashboard_screen.dart';
+import 'package:mindnest/features/counselor/presentation/counselor_invite_waiting_screen.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_profile_settings_screen.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_setup_screen.dart';
 import 'package:mindnest/features/home/presentation/home_screen.dart';
@@ -50,6 +51,7 @@ class AppRoute {
   static const forgotPassword = '/forgot-password';
   static const postSignup = '/post-signup';
   static const verifyEmail = '/verify-email';
+  static const counselorInviteWaiting = '/counselor-invite-waiting';
   static const inviteAccept = '/invite-accept';
   static const onboarding = '/onboarding';
   static const onboardingLoading = '/onboarding-loading';
@@ -80,6 +82,7 @@ class AppRoute {
   static const invitedNameQuery = 'invitedName';
   static const institutionNameQuery = 'institutionName';
   static const intendedRoleQuery = 'intendedRole';
+  static const registrationIntentQuery = 'registrationIntent';
 
   static Map<String, String> inviteQueryFromRaw(Map<String, String> raw) {
     final inviteId = (raw[inviteIdQuery] ?? '').trim();
@@ -146,6 +149,32 @@ class AppRoute {
     });
   }
 
+  static String? registrationIntentFromUri(Uri uri) {
+    final normalized = (uri.queryParameters[registrationIntentQuery] ?? '')
+        .trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    return normalized;
+  }
+
+  static String withInviteAndRegistrationIntent(
+    String path,
+    Map<String, String> rawInviteQuery, {
+    String? registrationIntent,
+  }) {
+    final inviteQuery = inviteQueryFromRaw(rawInviteQuery);
+    final normalizedIntent = (registrationIntent ?? '').trim();
+    if (inviteQuery.isEmpty && normalizedIntent.isEmpty) {
+      return path;
+    }
+    final query = <String, String>{...inviteQuery};
+    if (normalizedIntent.isNotEmpty) {
+      query[registrationIntentQuery] = normalizedIntent;
+    }
+    return Uri(path: path, queryParameters: query).toString();
+  }
+
   static String withInviteQuery(String path, Map<String, String> rawQuery) {
     final inviteQuery = inviteQueryFromRaw(rawQuery);
     if (inviteQuery.isEmpty) {
@@ -185,6 +214,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.verifyEmail ||
           location == AppRoute.joinInstitution ||
           location == AppRoute.postSignup;
+      final isCounselorInviteWaitingRoute =
+          location == AppRoute.counselorInviteWaiting;
       final isCounselorOpsRoute =
           location == AppRoute.counselorSetup ||
           location == AppRoute.counselorDashboard ||
@@ -257,6 +288,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         final pendingInvite = pendingInviteAsync.valueOrNull;
         final role = profile?.role ?? UserRole.other;
         final roleResolved = role != UserRole.other;
+        final hasCounselorRegistrationIntent =
+            profile?.isCounselorRegistrationIntentPending ?? false;
         final needsCounselorSetup = counselorRepository.requiresSetup(profile);
         final institutionRequest = currentAdminInstitutionAsync.valueOrNull;
 
@@ -275,6 +308,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return AppRoute.postSignup;
           }
           return null;
+        }
+
+        if (hasCounselorRegistrationIntent) {
+          final canRemainInRoute =
+              isCounselorInviteWaitingRoute ||
+              location == AppRoute.notifications ||
+              location == AppRoute.notificationDetails ||
+              location == AppRoute.inviteAccept;
+          if (!canRemainInRoute) {
+            return AppRoute.counselorInviteWaiting;
+          }
+        } else if (isCounselorInviteWaitingRoute) {
+          if (role == UserRole.institutionAdmin) {
+            return AppRoute.institutionAdmin;
+          }
+          if (role == UserRole.counselor) {
+            return needsCounselorSetup
+                ? AppRoute.counselorSetup
+                : AppRoute.counselorDashboard;
+          }
+          return AppRoute.home;
         }
 
         if (isOwnerRoute) {
@@ -418,12 +472,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.register,
         builder: (context, state) {
           final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
+          final registrationIntent = AppRoute.registrationIntentFromUri(
+            state.uri,
+          );
           return RegisterScreen(
             inviteId: inviteQuery[AppRoute.inviteIdQuery],
             invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
             invitedName: inviteQuery[AppRoute.invitedNameQuery],
             institutionName: inviteQuery[AppRoute.institutionNameQuery],
             intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
+            registrationIntent: registrationIntent,
           );
         },
       ),
@@ -431,12 +489,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.registerDetails,
         builder: (context, state) {
           final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
+          final registrationIntent = AppRoute.registrationIntentFromUri(
+            state.uri,
+          );
           return RegisterDetailsScreen(
             inviteId: inviteQuery[AppRoute.inviteIdQuery],
             invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
             invitedName: inviteQuery[AppRoute.invitedNameQuery],
             institutionName: inviteQuery[AppRoute.institutionNameQuery],
             intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
+            registrationIntent: registrationIntent,
           );
         },
       ),
@@ -465,14 +527,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.verifyEmail,
         builder: (context, state) {
           final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
+          final registrationIntent = AppRoute.registrationIntentFromUri(
+            state.uri,
+          );
           return VerifyEmailScreen(
             inviteId: inviteQuery[AppRoute.inviteIdQuery],
             invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
             invitedName: inviteQuery[AppRoute.invitedNameQuery],
             institutionName: inviteQuery[AppRoute.institutionNameQuery],
             intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
+            registrationIntent: registrationIntent,
           );
         },
+      ),
+      GoRoute(
+        path: AppRoute.counselorInviteWaiting,
+        builder: (context, state) => const CounselorInviteWaitingScreen(),
       ),
       GoRoute(
         path: AppRoute.inviteAccept,

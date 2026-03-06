@@ -17,6 +17,9 @@ class OnboardingRepository {
     if (profile == null) {
       return false;
     }
+    if (profile.isCounselorRegistrationIntentPending) {
+      return false;
+    }
     if (!OnboardingQuestionBank.roleRequiresQuestionnaire(profile.role)) {
       return false;
     }

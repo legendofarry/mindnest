@@ -15,6 +15,7 @@ class VerifyEmailScreen extends ConsumerStatefulWidget {
     this.invitedName,
     this.institutionName,
     this.intendedRole,
+    this.registrationIntent,
   });
 
   final String? inviteId;
@@ -22,6 +23,7 @@ class VerifyEmailScreen extends ConsumerStatefulWidget {
   final String? invitedName;
   final String? institutionName;
   final String? intendedRole;
+  final String? registrationIntent;
 
   @override
   ConsumerState<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
@@ -40,8 +42,12 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   );
 
   bool get _hasInviteContext => _inviteQuery.isNotEmpty;
+  bool get _isCounselorIntentFallback {
+    return (widget.registrationIntent ?? '').trim() ==
+        UserProfile.counselorRegistrationIntent;
+  }
 
-  Future<void> _refreshVerificationStatus(UserRole? role) async {
+  Future<void> _refreshVerificationStatus(UserProfile? profile) async {
     setState(() => _isChecking = true);
     try {
       final authRepository = ref.read(authRepositoryProvider);
@@ -60,7 +66,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Email verified successfully.')),
       );
-      context.go(_resolveNextRouteForRole(role));
+      context.go(_resolveNextRoute(profile));
     } finally {
       if (mounted) {
         setState(() => _isChecking = false);
@@ -68,10 +74,17 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     }
   }
 
-  String _resolveNextRouteForRole(UserRole? role) {
+  String _resolveNextRoute(UserProfile? profile) {
     if (_hasInviteContext) {
       return AppRoute.withInviteQuery(AppRoute.inviteAccept, _inviteQuery);
     }
+    final hasCounselorIntent =
+        profile?.isCounselorRegistrationIntentPending ??
+        _isCounselorIntentFallback;
+    if (hasCounselorIntent) {
+      return AppRoute.counselorInviteWaiting;
+    }
+    final role = profile?.role;
     if (role == UserRole.institutionAdmin) {
       return AppRoute.institutionAdmin;
     }
@@ -233,6 +246,26 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 ),
               ),
             ],
+            if (!_hasInviteContext &&
+                (profile?.isCounselorRegistrationIntentPending ??
+                    _isCounselorIntentFallback)) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFFFFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFB3ECDD)),
+                ),
+                child: const Text(
+                  'After verification, we will take you to counselor invite waiting and skip basic onboarding questions.',
+                  style: TextStyle(
+                    color: Color(0xFF0D6F69),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             Container(
               height: 62,
@@ -254,7 +287,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
               child: ElevatedButton(
                 onPressed: _isChecking
                     ? null
-                    : () => _refreshVerificationStatus(profile?.role),
+                    : () => _refreshVerificationStatus(profile),
                 style: ElevatedButton.styleFrom(
                   shadowColor: Colors.transparent,
                   backgroundColor: Colors.transparent,
@@ -286,8 +319,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
             ),
             const SizedBox(height: 10),
             TextButton(
-              onPressed: () =>
-                  context.go(_resolveNextRouteForRole(profile?.role)),
+              onPressed: () => context.go(_resolveNextRoute(profile)),
               child: Text(
                 _hasInviteContext ? 'Continue to Invite' : 'Continue',
               ),

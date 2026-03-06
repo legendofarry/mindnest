@@ -22,6 +22,8 @@ extension UserRoleX on UserRole {
 }
 
 class UserProfile {
+  static const String counselorRegistrationIntent = 'counselor';
+
   const UserProfile({
     required this.id,
     required this.email,
@@ -37,6 +39,7 @@ class UserProfile {
     this.phoneNumber,
     this.additionalPhoneNumber,
     this.phoneNumbers = const [],
+    this.registrationIntent,
   });
 
   final String id;
@@ -53,6 +56,12 @@ class UserProfile {
   final String? phoneNumber;
   final String? additionalPhoneNumber;
   final List<String> phoneNumbers;
+  final String? registrationIntent;
+
+  bool get isCounselorRegistrationIntentPending {
+    return role == UserRole.individual &&
+        registrationIntent == counselorRegistrationIntent;
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -69,6 +78,7 @@ class UserProfile {
       'phoneNumber': phoneNumber,
       'additionalPhoneNumber': additionalPhoneNumber,
       'phoneNumbers': phoneNumbers,
+      'registrationIntent': registrationIntent,
     };
   }
 
@@ -158,6 +168,7 @@ class UserProfile {
       phoneNumber: data['phoneNumber'] as String?,
       additionalPhoneNumber: data['additionalPhoneNumber'] as String?,
       phoneNumbers: phoneNumbers,
+      registrationIntent: (data['registrationIntent'] as String?)?.trim(),
     );
   }
 }

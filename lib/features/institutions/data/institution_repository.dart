@@ -686,6 +686,7 @@ class InstitutionRepository {
             ? (latestInviteData['institutionName'] as String)
             : invite.institutionName,
         'role': intendedRole.name,
+        'registrationIntent': null,
         if (intendedRole == UserRole.counselor) ...{
           'counselorSetupCompleted': false,
           'counselorSetupData': <String, dynamic>{},
@@ -972,6 +973,7 @@ class InstitutionRepository {
           'institutionId': institutionDoc.id,
           'institutionName': institutionName,
           'role': UserRole.student.name,
+          'registrationIntent': null,
           'updatedAt': FieldValue.serverTimestamp(),
         });
         transaction.set(membershipRef, {
@@ -1891,6 +1893,7 @@ class InstitutionRepository {
       'institutionId': null,
       'institutionName': null,
       'role': UserRole.individual.name,
+      'registrationIntent': null,
       'updatedAt': FieldValue.serverTimestamp(),
     });
     batch.delete(membershipRef);

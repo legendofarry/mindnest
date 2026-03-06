@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/core/ui/auth_desktop_shell.dart';
+import 'package:mindnest/features/auth/models/user_profile.dart';
 
 class RegisterScreen extends StatelessWidget {
   const RegisterScreen({
@@ -13,6 +14,7 @@ class RegisterScreen extends StatelessWidget {
     this.invitedName,
     this.institutionName,
     this.intendedRole,
+    this.registrationIntent,
   });
   static const _desktopBreakpoint = 1100.0;
 
@@ -21,6 +23,7 @@ class RegisterScreen extends StatelessWidget {
   final String? invitedName;
   final String? institutionName;
   final String? intendedRole;
+  final String? registrationIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +48,7 @@ class RegisterScreen extends StatelessWidget {
           invitedName: invitedName,
           institutionName: institutionName,
           intendedRole: intendedRole,
+          registrationIntent: registrationIntent,
         ),
       );
     }
@@ -60,6 +64,7 @@ class RegisterScreen extends StatelessWidget {
         invitedName: invitedName,
         institutionName: institutionName,
         intendedRole: intendedRole,
+        registrationIntent: registrationIntent,
       ),
     );
   }
@@ -74,6 +79,7 @@ class _RegisterContent extends StatelessWidget {
     this.invitedName,
     this.institutionName,
     this.intendedRole,
+    this.registrationIntent,
   });
 
   final bool showBrand;
@@ -83,6 +89,7 @@ class _RegisterContent extends StatelessWidget {
   final String? invitedName;
   final String? institutionName;
   final String? intendedRole;
+  final String? registrationIntent;
 
   Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
     inviteId: inviteId ?? '',
@@ -91,9 +98,41 @@ class _RegisterContent extends StatelessWidget {
     institutionName: institutionName,
     intendedRole: intendedRole,
   );
+  String get _normalizedRegistrationIntent => (registrationIntent ?? '').trim();
+  bool get _hasInviteContext => _inviteQuery.isNotEmpty;
+
+  String _registerDetailsRoute({String? routeRegistrationIntent}) {
+    return AppRoute.withInviteAndRegistrationIntent(
+      AppRoute.registerDetails,
+      _inviteQuery,
+      registrationIntent: routeRegistrationIntent,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final showSideBySideMobileChoices = !isDesktop && !_hasInviteContext;
+    final createAccountCard = _AccountTypeCard(
+      icon: Icons.account_circle_outlined,
+      title: 'Create Account',
+      description:
+          'Use wellness tools, track your mood, and access resources. You can connect to an institution after sign-up.',
+      compact: showSideBySideMobileChoices,
+      onTap: () => context.go(_registerDetailsRoute()),
+    );
+    final counselorCard = _AccountTypeCard(
+      icon: Icons.psychology_alt_outlined,
+      title: 'I am a Counselor',
+      description:
+          'Create your account for institution counselor invite flow and skip basic onboarding questions.',
+      compact: showSideBySideMobileChoices,
+      onTap: () => context.go(
+        _registerDetailsRoute(
+          routeRegistrationIntent: UserProfile.counselorRegistrationIntent,
+        ),
+      ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -132,20 +171,31 @@ class _RegisterContent extends StatelessWidget {
             description:
                 'Create your account with the invited email, then accept the invite instantly.',
             onTap: () => context.go(
-              AppRoute.withInviteQuery(AppRoute.registerDetails, _inviteQuery),
+              AppRoute.withInviteAndRegistrationIntent(
+                AppRoute.registerDetails,
+                _inviteQuery,
+                registrationIntent: _normalizedRegistrationIntent,
+              ),
             ),
           ),
           const SizedBox(height: 12),
         ],
-        _AccountTypeCard(
-          icon: Icons.account_circle_outlined,
-          title: 'Create Account',
-          description:
-              'Use wellness tools, track your mood, and access resources. You can connect to an institution after sign-up.',
-          onTap: () => context.go(
-            AppRoute.withInviteQuery(AppRoute.registerDetails, _inviteQuery),
+        if (showSideBySideMobileChoices) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: createAccountCard),
+              const SizedBox(width: 10),
+              Expanded(child: counselorCard),
+            ],
           ),
-        ),
+        ] else ...[
+          createAccountCard,
+          if (!_hasInviteContext) ...[
+            const SizedBox(height: 12),
+            counselorCard,
+          ],
+        ],
         const SizedBox(height: 24),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -193,12 +243,14 @@ class _AccountTypeCard extends StatefulWidget {
     required this.title,
     required this.description,
     required this.onTap,
+    this.compact = false,
   });
 
   final IconData icon;
   final String title;
   final String description;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   State<_AccountTypeCard> createState() => _AccountTypeCardState();
@@ -209,6 +261,33 @@ class _AccountTypeCardState extends State<_AccountTypeCard> {
 
   @override
   Widget build(BuildContext context) {
+    final cardPadding = widget.compact
+        ? const EdgeInsets.symmetric(horizontal: 14, vertical: 16)
+        : const EdgeInsets.symmetric(horizontal: 22, vertical: 24);
+    final borderRadius = widget.compact ? 22.0 : 30.0;
+    final iconSize = widget.compact ? 52.0 : 72.0;
+    final iconGlyphSize = widget.compact ? 28.0 : 36.0;
+    final titleStyle = widget.compact
+        ? Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF071937),
+            letterSpacing: -0.2,
+          )
+        : Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF071937),
+            letterSpacing: -0.4,
+          );
+    final descriptionStyle = widget.compact
+        ? Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: const Color(0xFF516784),
+            height: 1.35,
+          )
+        : Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: const Color(0xFF516784),
+            height: 1.45,
+          );
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -222,10 +301,10 @@ class _AccountTypeCardState extends State<_AccountTypeCard> {
             _hovered ? 1.01 : 1,
             1,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+          padding: cardPadding,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(color: const Color(0xFFDDE6F1)),
             boxShadow: const [
               BoxShadow(
@@ -239,34 +318,26 @@ class _AccountTypeCardState extends State<_AccountTypeCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 72,
-                height: 72,
+                width: iconSize,
+                height: iconSize,
                 decoration: BoxDecoration(
                   color: const Color(0xFFE7F3F1),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(widget.compact ? 14 : 18),
                 ),
                 child: Icon(
                   widget.icon,
-                  size: 36,
+                  size: iconGlyphSize,
                   color: const Color(0xFF0E9B90),
                 ),
               ),
-              const SizedBox(height: 22),
-              Text(
-                widget.title,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF071937),
-                  letterSpacing: -0.4,
-                ),
-              ),
-              const SizedBox(height: 12),
+              SizedBox(height: widget.compact ? 14 : 22),
+              Text(widget.title, style: titleStyle),
+              SizedBox(height: widget.compact ? 8 : 12),
               Text(
                 widget.description,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: const Color(0xFF516784),
-                  height: 1.45,
-                ),
+                style: descriptionStyle,
+                maxLines: widget.compact ? 5 : null,
+                overflow: widget.compact ? TextOverflow.ellipsis : null,
               ),
             ],
           ),

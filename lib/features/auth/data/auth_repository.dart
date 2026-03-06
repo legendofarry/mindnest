@@ -34,6 +34,7 @@ class AuthRepository {
     required String password,
     required String phoneNumber,
     String? additionalPhoneNumber,
+    bool counselorRegistrationIntent = false,
   }) async {
     await _registerWithProfile(
       name: name,
@@ -42,6 +43,9 @@ class AuthRepository {
       role: UserRole.individual,
       phoneNumber: phoneNumber,
       additionalPhoneNumber: additionalPhoneNumber,
+      registrationIntent: counselorRegistrationIntent
+          ? UserProfile.counselorRegistrationIntent
+          : null,
     );
   }
 
@@ -76,6 +80,7 @@ class AuthRepository {
       'role': UserRole.individual.name,
       'institutionId': null,
       'institutionName': null,
+      'registrationIntent': null,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -89,6 +94,7 @@ class AuthRepository {
     String? institutionName,
     String? phoneNumber,
     String? additionalPhoneNumber,
+    String? registrationIntent,
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
     final normalizedPhoneNumber = _normalizeRequiredKenyaPhone(phoneNumber);
@@ -127,6 +133,7 @@ class AuthRepository {
       phoneNumber: normalizedPhoneNumber,
       additionalPhoneNumber: normalizedAdditionalPhoneNumber,
       phoneNumbers: phoneCandidates,
+      registrationIntent: registrationIntent,
     );
 
     try {
@@ -297,6 +304,7 @@ class AuthRepository {
       'phoneNumber': '',
       'additionalPhoneNumber': null,
       'phoneNumbers': const <String>[],
+      'registrationIntent': null,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
