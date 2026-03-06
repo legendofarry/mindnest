@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/config/school_catalog.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
+import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
@@ -21,6 +23,7 @@ class _InstitutionPendingScreenState
   static const _kenyaPrefix = '+254';
   bool _isResubmitting = false;
   bool _isSubmittingSchoolRequest = false;
+  bool _isDeletingAccount = false;
   String? _selectedSchoolId;
   final _schoolRequestNameController = TextEditingController();
   final _schoolRequestMobileController = TextEditingController();
@@ -71,6 +74,69 @@ class _InstitutionPendingScreenState
 
   bool _isValidKenyaPhone(String value) {
     return RegExp(r'^\+254\d{9}$').hasMatch(value);
+  }
+
+  Future<bool> _confirmDeleteDialog() async {
+    final controller = TextEditingController();
+    final decision = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Account'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Type DELETE to confirm permanent account deletion.'),
+            const SizedBox(height: 8),
+            TextField(controller: controller),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            onPressed: () => Navigator.of(
+              dialogContext,
+            ).pop(controller.text.trim() == 'DELETE'),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return decision == true;
+  }
+
+  Future<void> _deleteCurrentAccount() async {
+    if (!kDebugMode || _isDeletingAccount) {
+      return;
+    }
+    final confirmed = await _confirmDeleteDialog();
+    if (!confirmed || !mounted) {
+      return;
+    }
+    setState(() => _isDeletingAccount = true);
+    try {
+      await ref.read(authRepositoryProvider).deleteCurrentAccount();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isDeletingAccount = false);
+      }
+    }
   }
 
   Future<void> _resubmit() async {
@@ -337,6 +403,17 @@ class _InstitutionPendingScreenState
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         actions: [
+          if (kDebugMode)
+            TextButton.icon(
+              onPressed: _isDeletingAccount ? null : _deleteCurrentAccount,
+              icon: const Icon(Icons.delete_forever_rounded),
+              label: Text(
+                _isDeletingAccount ? 'Deleting...' : 'Delete Account',
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFB91C1C),
+              ),
+            ),
           TextButton.icon(
             onPressed: () => confirmAndLogout(context: context, ref: ref),
             icon: const Icon(Icons.logout_rounded),

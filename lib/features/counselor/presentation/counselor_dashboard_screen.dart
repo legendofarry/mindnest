@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +11,7 @@ import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
-enum _CounselorHeaderAction { profile, notifications, logout }
+enum _CounselorHeaderAction { profile, notifications, deleteAccount, logout }
 
 class CounselorDashboardScreen extends ConsumerStatefulWidget {
   const CounselorDashboardScreen({super.key});
@@ -24,6 +25,70 @@ class _CounselorDashboardScreenState
     extends ConsumerState<CounselorDashboardScreen> {
   static const String _devClearEmail = 'legendofarrie@gmail.com';
   bool _isClearingDev = false;
+  bool _isDeletingAccount = false;
+
+  Future<bool> _confirmDeleteDialog() async {
+    final controller = TextEditingController();
+    final decision = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Account'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Type DELETE to confirm permanent account deletion.'),
+            const SizedBox(height: 8),
+            TextField(controller: controller),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            onPressed: () => Navigator.of(
+              dialogContext,
+            ).pop(controller.text.trim() == 'DELETE'),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return decision == true;
+  }
+
+  Future<void> _deleteCurrentAccount() async {
+    if (!kDebugMode || _isDeletingAccount) {
+      return;
+    }
+    final confirmed = await _confirmDeleteDialog();
+    if (!confirmed || !mounted) {
+      return;
+    }
+    setState(() => _isDeletingAccount = true);
+    try {
+      await ref.read(authRepositoryProvider).deleteCurrentAccount();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isDeletingAccount = false);
+      }
+    }
+  }
 
   Future<void> _clearDevelopmentData() async {
     final confirmed = await showDialog<bool>(
@@ -105,37 +170,63 @@ class _CounselorDashboardScreenState
                   context.go(AppRoute.counselorSettings);
                 case _CounselorHeaderAction.notifications:
                   context.go(AppRoute.notifications);
+                case _CounselorHeaderAction.deleteAccount:
+                  _deleteCurrentAccount();
                 case _CounselorHeaderAction.logout:
                   confirmAndLogout(context: context, ref: ref);
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: _CounselorHeaderAction.profile,
-                child: ListTile(
-                  leading: Icon(Icons.manage_accounts_rounded),
-                  title: Text('Profile & Settings'),
-                  contentPadding: EdgeInsets.zero,
+            itemBuilder: (context) {
+              final items = <PopupMenuEntry<_CounselorHeaderAction>>[
+                const PopupMenuItem(
+                  value: _CounselorHeaderAction.profile,
+                  child: ListTile(
+                    leading: Icon(Icons.manage_accounts_rounded),
+                    title: Text('Profile & Settings'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-              PopupMenuItem(
-                value: _CounselorHeaderAction.notifications,
-                child: ListTile(
-                  leading: Icon(Icons.notifications_none_rounded),
-                  title: Text('Notifications'),
-                  contentPadding: EdgeInsets.zero,
+                const PopupMenuItem(
+                  value: _CounselorHeaderAction.notifications,
+                  child: ListTile(
+                    leading: Icon(Icons.notifications_none_rounded),
+                    title: Text('Notifications'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-              PopupMenuDivider(),
-              PopupMenuItem(
-                value: _CounselorHeaderAction.logout,
-                child: ListTile(
-                  leading: Icon(Icons.logout_rounded),
-                  title: Text('Logout'),
-                  contentPadding: EdgeInsets.zero,
+              ];
+              if (kDebugMode) {
+                items.add(
+                  PopupMenuItem(
+                    value: _CounselorHeaderAction.deleteAccount,
+                    enabled: !_isDeletingAccount,
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.delete_forever_rounded,
+                        color: Color(0xFFB91C1C),
+                      ),
+                      title: Text(
+                        _isDeletingAccount ? 'Deleting...' : 'Delete Account',
+                        style: const TextStyle(color: Color(0xFFB91C1C)),
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                );
+              }
+              items.addAll(const [
+                PopupMenuDivider(),
+                PopupMenuItem(
+                  value: _CounselorHeaderAction.logout,
+                  child: ListTile(
+                    leading: Icon(Icons.logout_rounded),
+                    title: Text('Logout'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-            ],
+              ]);
+              return items;
+            },
           ),
         ],
       ),
