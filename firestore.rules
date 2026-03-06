@@ -119,6 +119,19 @@ service cloud.firestore {
         currentInstitutionApproved();
     }
 
+    function canInstitutionAdminManageInstitution(institutionId) {
+      return isSignedIn() &&
+        currentUserRole() == 'institutionAdmin' &&
+        currentInstitutionId() == institutionId;
+    }
+
+    function canInstitutionAdminManageTargetUser(targetUid) {
+      return currentInstitutionId() != null &&
+        canInstitutionAdminManageInstitution(currentInstitutionId()) &&
+        exists(/databases/$(database)/documents/users/$(targetUid)) &&
+        get(/databases/$(database)/documents/users/$(targetUid)).data.institutionId == currentInstitutionId();
+    }
+
     function canAdminRegenerateInstitutionCode(institutionId) {
       return sameInstitutionAdmin(institutionId) &&
         institutionStatusIsApproved(resource.data) &&
@@ -502,7 +515,8 @@ service cloud.firestore {
           canSelfSetStudentRoleFromMembership() ||
           canSelfSetInviteRoleFromMembership()
         );
-      allow delete: if isOwner(uid);
+      allow delete: if isOwner(uid) ||
+        canInstitutionAdminManageTargetUser(uid);
     }
 
     match /institutions/{institutionId} {
@@ -516,7 +530,9 @@ service cloud.firestore {
         canJoinFlowIncrementUsage(institutionId) ||
         canInviteFlowIncrementUsage(institutionId) ||
         canAutoRotateExpiredOrCappedCode();
-      allow delete: if false;
+      allow delete: if sameInstitutionAdmin(institutionId) ||
+        isOwnerAccount() ||
+        isDevClearAccount();
     }
 
     match /institution_name_registry/{nameKey} {
@@ -535,6 +551,7 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/institutions/$(resource.data.institutionId)) &&
         (
           get(/databases/$(database)/documents/institutions/$(resource.data.institutionId)).data.createdBy == request.auth.uid ||
+          sameInstitutionAdmin(resource.data.institutionId) ||
           isOwnerAccount()
         );
     }
@@ -559,6 +576,7 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/institutions/$(resource.data.institutionId)) &&
         (
           get(/databases/$(database)/documents/institutions/$(resource.data.institutionId)).data.createdBy == request.auth.uid ||
+          sameInstitutionAdmin(resource.data.institutionId) ||
           isOwnerAccount()
         );
     }
@@ -571,7 +589,12 @@ service cloud.firestore {
       allow update: if canSelfCodeJoinMembershipWrite(membershipId) ||
         canSelfInviteMembershipWrite(membershipId) ||
         canAdminUpdateMembershipLifecycle();
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() &&
+        (
+          resource.data.userId == request.auth.uid ||
+          canInstitutionAdminManageInstitution(resource.data.institutionId) ||
+          canInstitutionAdminManageTargetUser(resource.data.userId)
+        );
     }
 
     match /user_invites/{inviteId} {
@@ -604,7 +627,8 @@ service cloud.firestore {
       allow delete: if isSignedIn() &&
         (
           resource.data.inviteeUid == request.auth.uid ||
-          resource.data.invitedBy == request.auth.uid
+          resource.data.invitedBy == request.auth.uid ||
+          canInstitutionAdminManageInstitution(resource.data.institutionId)
         );
     }
 
@@ -629,6 +653,7 @@ service cloud.firestore {
         (
           resource.data.actorUid == request.auth.uid ||
           resource.data.targetUserId == request.auth.uid ||
+          canInstitutionAdminManageInstitution(resource.data.institutionId) ||
           isOwnerAccount()
         );
     }
@@ -646,7 +671,11 @@ service cloud.firestore {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create, update: if isSignedIn() &&
         request.resource.data.userId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() &&
+        (
+          resource.data.userId == request.auth.uid ||
+          canInstitutionAdminManageTargetUser(resource.data.userId)
+        );
     }
 
     match /counselor_profiles/{counselorId} {
@@ -659,7 +688,11 @@ service cloud.firestore {
         currentUserRole() == 'counselor' &&
         counselorId == request.auth.uid &&
         request.resource.data.institutionId == currentInstitutionId();
-      allow delete: if isSignedIn() && counselorId == request.auth.uid;
+      allow delete: if isSignedIn() &&
+        (
+          counselorId == request.auth.uid ||
+          canInstitutionAdminManageInstitution(resource.data.institutionId)
+        );
     }
 
     match /counselor_availability/{slotId} {
@@ -691,7 +724,10 @@ service cloud.firestore {
           )
         );
       allow delete: if isSignedIn() &&
-        resource.data.counselorId == request.auth.uid;
+        (
+          resource.data.counselorId == request.auth.uid ||
+          canInstitutionAdminManageInstitution(resource.data.institutionId)
+        );
     }
 
     match /appointments/{appointmentId} {
@@ -755,7 +791,10 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid &&
         request.resource.data.userId == resource.data.userId;
       allow delete: if isSignedIn() &&
-        resource.data.userId == request.auth.uid;
+        (
+          resource.data.userId == request.auth.uid ||
+          canInstitutionAdminManageInstitution(resource.data.institutionId)
+        );
     }
 
     match /user_push_tokens/{tokenId} {
@@ -768,17 +807,34 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid &&
         request.resource.data.userId == resource.data.userId &&
         request.resource.data.token == resource.data.token;
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() &&
+        (
+          resource.data.userId == request.auth.uid ||
+          canInstitutionAdminManageTargetUser(resource.data.userId)
+        );
     }
 
     match /user_notification_settings/{uid} {
       allow read, create, update: if isOwner(uid);
-      allow delete: if isOwner(uid);
+      allow delete: if isOwner(uid) ||
+        canInstitutionAdminManageTargetUser(uid);
     }
 
     match /user_privacy_settings/{uid} {
       allow read, create, update: if isOwner(uid);
-      allow delete: if isOwner(uid);
+      allow delete: if isOwner(uid) ||
+        canInstitutionAdminManageTargetUser(uid);
+    }
+
+    match /auth_deletion_blocklist/{uid} {
+      allow read: if isOwner(uid) ||
+        isOwnerAccount() ||
+        isDevClearAccount();
+      allow create, update: if canInstitutionAdminManageTargetUser(uid) ||
+        isOwnerAccount() ||
+        isDevClearAccount();
+      allow delete: if isOwnerAccount() ||
+        isDevClearAccount();
     }
 
     match /mood_entries/{entryId} {
@@ -815,7 +871,10 @@ service cloud.firestore {
         request.resource.data.energy >= 1 &&
         request.resource.data.energy <= 5;
       allow delete: if isSignedIn() &&
-        resource.data.userId == request.auth.uid;
+        (
+          resource.data.userId == request.auth.uid ||
+          canInstitutionAdminManageTargetUser(resource.data.userId)
+        );
     }
 
     match /mood_events/{eventId} {
@@ -839,7 +898,10 @@ service cloud.firestore {
         request.resource.data.energy <= 5;
       allow update: if false;
       allow delete: if isSignedIn() &&
-        resource.data.userId == request.auth.uid;
+        (
+          resource.data.userId == request.auth.uid ||
+          canInstitutionAdminManageTargetUser(resource.data.userId)
+        );
     }
 
     match /care_goals/{goalId} {
@@ -872,7 +934,8 @@ service cloud.firestore {
       allow delete: if isSignedIn() &&
         (
           resource.data.studentId == request.auth.uid ||
-          resource.data.counselorId == request.auth.uid
+          resource.data.counselorId == request.auth.uid ||
+          canInstitutionAdminManageInstitution(resource.data.institutionId)
         );
     }
 
@@ -913,7 +976,10 @@ service cloud.firestore {
         );
 
       allow delete: if isSignedIn() &&
-        resource.data.createdBy == request.auth.uid;
+        (
+          resource.data.createdBy == request.auth.uid ||
+          canInstitutionAdminManageInstitution(resource.data.institutionId)
+        );
 
       match /participants/{uid} {
         allow read: if canAccessLiveSession(sessionId);
@@ -931,11 +997,14 @@ service cloud.firestore {
             liveSessionDoc(sessionId).createdBy == request.auth.uid
           );
 
-        allow delete: if canAccessLiveSession(sessionId) &&
-          (
-            uid == request.auth.uid ||
-            liveSessionDoc(sessionId).createdBy == request.auth.uid
-          );
+        allow delete: if (
+            canAccessLiveSession(sessionId) &&
+            (
+              uid == request.auth.uid ||
+              liveSessionDoc(sessionId).createdBy == request.auth.uid
+            )
+          ) ||
+          canInstitutionAdminManageInstitution(liveSessionDoc(sessionId).institutionId);
       }
 
       match /mic_requests/{uid} {
@@ -953,11 +1022,14 @@ service cloud.firestore {
             liveSessionDoc(sessionId).createdBy == request.auth.uid
           );
 
-        allow delete: if canAccessLiveSession(sessionId) &&
-          (
-            uid == request.auth.uid ||
-            liveSessionDoc(sessionId).createdBy == request.auth.uid
-          );
+        allow delete: if (
+            canAccessLiveSession(sessionId) &&
+            (
+              uid == request.auth.uid ||
+              liveSessionDoc(sessionId).createdBy == request.auth.uid
+            )
+          ) ||
+          canInstitutionAdminManageInstitution(liveSessionDoc(sessionId).institutionId);
       }
 
       match /comments/{commentId} {
@@ -972,11 +1044,14 @@ service cloud.firestore {
 
         allow update: if false;
 
-        allow delete: if canAccessLiveSession(sessionId) &&
-          (
-            resource.data.userId == request.auth.uid ||
-            liveSessionDoc(sessionId).createdBy == request.auth.uid
-          );
+        allow delete: if (
+            canAccessLiveSession(sessionId) &&
+            (
+              resource.data.userId == request.auth.uid ||
+              liveSessionDoc(sessionId).createdBy == request.auth.uid
+            )
+          ) ||
+          canInstitutionAdminManageInstitution(liveSessionDoc(sessionId).institutionId);
       }
 
       match /reactions/{reactionId} {
@@ -988,11 +1063,14 @@ service cloud.firestore {
           request.resource.data.emoji.size() > 0 &&
           request.resource.data.emoji.size() <= 8;
         allow update: if false;
-        allow delete: if canAccessLiveSession(sessionId) &&
-          (
-            resource.data.userId == request.auth.uid ||
-            liveSessionDoc(sessionId).createdBy == request.auth.uid
-          );
+        allow delete: if (
+            canAccessLiveSession(sessionId) &&
+            (
+              resource.data.userId == request.auth.uid ||
+              liveSessionDoc(sessionId).createdBy == request.auth.uid
+            )
+          ) ||
+          canInstitutionAdminManageInstitution(liveSessionDoc(sessionId).institutionId);
       }
 
       match /comment_reports/{reportId} {
@@ -1004,12 +1082,15 @@ service cloud.firestore {
             currentUserRole() == 'institutionAdmin'
           );
         allow update: if false;
-        allow delete: if canAccessLiveSession(sessionId) &&
-          (
-            resource.data.userId == request.auth.uid ||
-            resource.data.reportedBy == request.auth.uid ||
-            liveSessionDoc(sessionId).createdBy == request.auth.uid
-          );
+        allow delete: if (
+            canAccessLiveSession(sessionId) &&
+            (
+              resource.data.userId == request.auth.uid ||
+              resource.data.reportedBy == request.auth.uid ||
+              liveSessionDoc(sessionId).createdBy == request.auth.uid
+            )
+          ) ||
+          canInstitutionAdminManageInstitution(liveSessionDoc(sessionId).institutionId);
       }
     }
 
@@ -1033,7 +1114,8 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if isSignedIn() && (
         resource.data.studentId == request.auth.uid ||
-        resource.data.counselorId == request.auth.uid
+        resource.data.counselorId == request.auth.uid ||
+        canInstitutionAdminManageInstitution(resource.data.institutionId)
       );
     }
 
@@ -1057,7 +1139,8 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if isSignedIn() && (
         resource.data.studentId == request.auth.uid ||
-        resource.data.counselorId == request.auth.uid
+        resource.data.counselorId == request.auth.uid ||
+        canInstitutionAdminManageInstitution(resource.data.institutionId)
       );
     }
 

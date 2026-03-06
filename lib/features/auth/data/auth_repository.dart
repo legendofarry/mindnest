@@ -13,6 +13,7 @@ class AuthRepository {
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
+  static const _authDeletionBlocklistCollection = 'auth_deletion_blocklist';
 
   Stream<User?> authStateChanges() => _auth.userChanges();
 
@@ -130,6 +131,14 @@ class AuthRepository {
       throw Exception('Unable to sign in.');
     }
 
+    final isBlocked = await _isAuthBlocked(user.uid);
+    if (isBlocked) {
+      await _auth.signOut();
+      throw Exception(
+        'This account was deactivated because its institution was deleted.',
+      );
+    }
+
     await _ensureProfileExists(user);
     await AuthSessionManager.markLogin(rememberMe: rememberMe);
   }
@@ -222,8 +231,184 @@ class AuthRepository {
 
     final uid = user.uid;
     final userDoc = await _firestore.collection('users').doc(uid).get();
-    final institutionId = (userDoc.data()?['institutionId'] as String?)?.trim();
+    final userData = userDoc.data() ?? const <String, dynamic>{};
+    final role = (userData['role'] as String?)?.trim();
+    final institutionId = (userData['institutionId'] as String?)?.trim();
 
+    if (role == UserRole.institutionAdmin.name &&
+        institutionId != null &&
+        institutionId.isNotEmpty) {
+      await _deleteInstitutionCascadeForDevelopment(
+        institutionId: institutionId,
+        deletingAdminUid: uid,
+      );
+    } else {
+      await _deleteUserDataForDevelopment(
+        uid: uid,
+        institutionIdHint: institutionId,
+      );
+    }
+
+    try {
+      await user.delete();
+      await AuthSessionManager.clear();
+    } on FirebaseAuthException catch (error) {
+      if (error.code == 'requires-recent-login') {
+        throw Exception(
+          'For security, log in again before deleting your account.',
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _deleteInstitutionCascadeForDevelopment({
+    required String institutionId,
+    required String deletingAdminUid,
+  }) async {
+    final institutionDoc = await _firestore
+        .collection('institutions')
+        .doc(institutionId)
+        .get();
+
+    final membersSnapshot = await _firestore
+        .collection('institution_members')
+        .where('institutionId', isEqualTo: institutionId)
+        .get();
+    final usersSnapshot = await _firestore
+        .collection('users')
+        .where('institutionId', isEqualTo: institutionId)
+        .get();
+
+    final memberUids = <String>{deletingAdminUid};
+    for (final doc in membersSnapshot.docs) {
+      final userId = (doc.data()['userId'] as String?)?.trim() ?? '';
+      if (userId.isNotEmpty) {
+        memberUids.add(userId);
+      }
+    }
+    for (final doc in usersSnapshot.docs) {
+      memberUids.add(doc.id);
+    }
+
+    await _deleteInstitutionScopedDataForDevelopment(
+      institutionId: institutionId,
+    );
+
+    final nonAdminUids = memberUids
+        .where((uid) => uid != deletingAdminUid)
+        .toList(growable: false);
+    for (final memberUid in nonAdminUids) {
+      await _setAuthBlockedForUid(
+        uid: memberUid,
+        institutionId: institutionId,
+        deletedByUid: deletingAdminUid,
+      );
+      await _deleteUserDataForDevelopment(
+        uid: memberUid,
+        institutionIdHint: institutionId,
+      );
+    }
+
+    await _deleteUserDataForDevelopment(
+      uid: deletingAdminUid,
+      institutionIdHint: institutionId,
+    );
+
+    await _deleteWhere(
+      collectionPath: 'institution_name_registry',
+      field: 'institutionId',
+      value: institutionId,
+    );
+    await _deleteWhere(
+      collectionPath: 'institution_catalog_registry',
+      field: 'institutionId',
+      value: institutionId,
+    );
+
+    if (institutionDoc.exists) {
+      await institutionDoc.reference.delete();
+    }
+  }
+
+  Future<void> _deleteInstitutionScopedDataForDevelopment({
+    required String institutionId,
+  }) async {
+    await _deleteWhere(
+      collectionPath: 'appointments',
+      field: 'institutionId',
+      value: institutionId,
+    );
+    await _deleteWhere(
+      collectionPath: 'care_goals',
+      field: 'institutionId',
+      value: institutionId,
+    );
+    await _deleteWhere(
+      collectionPath: 'counselor_availability',
+      field: 'institutionId',
+      value: institutionId,
+    );
+    await _deleteWhere(
+      collectionPath: 'counselor_profiles',
+      field: 'institutionId',
+      value: institutionId,
+    );
+    await _deleteWhere(
+      collectionPath: 'counselor_ratings',
+      field: 'institutionId',
+      value: institutionId,
+    );
+    await _deleteWhere(
+      collectionPath: 'counselor_public_ratings',
+      field: 'institutionId',
+      value: institutionId,
+    );
+    await _deleteWhere(
+      collectionPath: 'notifications',
+      field: 'institutionId',
+      value: institutionId,
+    );
+    await _deleteWhere(
+      collectionPath: 'user_invites',
+      field: 'institutionId',
+      value: institutionId,
+    );
+    await _deleteWhere(
+      collectionPath: 'institution_members',
+      field: 'institutionId',
+      value: institutionId,
+    );
+    await _deleteWhere(
+      collectionPath: 'institution_membership_audit',
+      field: 'institutionId',
+      value: institutionId,
+    );
+
+    final sessions = await _firestore
+        .collection('live_sessions')
+        .where('institutionId', isEqualTo: institutionId)
+        .get();
+    for (final session in sessions.docs) {
+      for (final subCollection in const <String>[
+        'participants',
+        'mic_requests',
+        'comments',
+        'reactions',
+        'comment_reports',
+      ]) {
+        await _deleteCollectionPath(
+          'live_sessions/${session.id}/$subCollection',
+        );
+      }
+      await session.reference.delete();
+    }
+  }
+
+  Future<void> _deleteUserDataForDevelopment({
+    required String uid,
+    String? institutionIdHint,
+  }) async {
     await _deleteWhere(
       collectionPath: 'notifications',
       field: 'userId',
@@ -366,26 +551,38 @@ class AuthRepository {
       await session.reference.delete();
     }
 
-    if (institutionId != null && institutionId.isNotEmpty) {
-      await _deleteDocIfExists('institution_members', '${institutionId}_$uid');
+    if (institutionIdHint != null && institutionIdHint.isNotEmpty) {
+      await _deleteDocIfExists(
+        'institution_members',
+        '${institutionIdHint}_$uid',
+      );
     }
-
     await _deleteDocIfExists('counselor_profiles', uid);
     await _deleteDocIfExists('user_privacy_settings', uid);
     await _deleteDocIfExists('user_notification_settings', uid);
     await _deleteDocIfExists('users', uid);
+  }
 
-    try {
-      await user.delete();
-      await AuthSessionManager.clear();
-    } on FirebaseAuthException catch (error) {
-      if (error.code == 'requires-recent-login') {
-        throw Exception(
-          'For security, log in again before deleting your account.',
-        );
-      }
-      rethrow;
-    }
+  Future<void> _setAuthBlockedForUid({
+    required String uid,
+    required String institutionId,
+    required String deletedByUid,
+  }) async {
+    await _firestore.collection(_authDeletionBlocklistCollection).doc(uid).set({
+      'uid': uid,
+      'institutionId': institutionId,
+      'reason': 'institution_deleted',
+      'deletedByUid': deletedByUid,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<bool> _isAuthBlocked(String uid) async {
+    final snapshot = await _firestore
+        .collection(_authDeletionBlocklistCollection)
+        .doc(uid)
+        .get();
+    return snapshot.exists;
   }
 
   Future<void> _deleteDocIfExists(String collectionPath, String docId) async {
