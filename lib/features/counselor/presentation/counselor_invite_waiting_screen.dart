@@ -48,12 +48,29 @@ class _CounselorInviteWaitingScreenState
     });
   }
 
+  void _showCodeError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _codeError = message;
+      _banner = null;
+    });
+  }
+
+  String _formatInviteCodeError(Object error) {
+    final message = error.toString().replaceFirst('Exception: ', '').trim();
+    if (message.isEmpty) {
+      return 'Institution code is invalid or no longer active.';
+    }
+    if (message.contains('Dart exception thrown from converted Future')) {
+      return 'Institution code is invalid or no longer active.';
+    }
+    return message;
+  }
+
   Future<void> _accept(UserInvite invite) async {
     final code = _codeController.text.trim().toUpperCase();
     if (code.isEmpty) {
-      setState(() {
-        _codeError = 'Enter the institution code to accept the invite.';
-      });
+      _showCodeError('Enter the institution code to accept the invite.');
       return;
     }
     setState(() {
@@ -67,7 +84,7 @@ class _CounselorInviteWaitingScreenState
       if (!mounted) return;
       context.go(AppRoute.counselorSetup);
     } catch (error) {
-      _showBanner(error.toString().replaceFirst('Exception: ', ''), isError: true);
+      _showCodeError(_formatInviteCodeError(error));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
