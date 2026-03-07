@@ -1287,6 +1287,7 @@ class _CounselorProfileScreenState
                 displayName: 'Counselor',
                 title: 'Counselor',
                 specialization: 'Profile setup in progress',
+                gender: null,
                 sessionMode: '--',
                 timezone: 'UTC',
                 bio: '',

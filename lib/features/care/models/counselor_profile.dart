@@ -5,6 +5,7 @@ class CounselorProfile {
     required this.displayName,
     required this.title,
     required this.specialization,
+    this.gender,
     required this.sessionMode,
     required this.timezone,
     required this.bio,
@@ -20,6 +21,7 @@ class CounselorProfile {
   final String displayName;
   final String title;
   final String specialization;
+  final String? gender;
   final String sessionMode;
   final String timezone;
   final String bio;
@@ -52,6 +54,9 @@ class CounselorProfile {
       displayName: (data['displayName'] as String?) ?? 'Counselor',
       title: (data['title'] as String?) ?? 'Counselor',
       specialization: (data['specialization'] as String?) ?? 'General',
+      gender: (data['gender'] as String?)?.trim().isEmpty == true
+          ? null
+          : (data['gender'] as String?)?.trim(),
       sessionMode: (data['sessionMode'] as String?) ?? '--',
       timezone: (data['timezone'] as String?) ?? 'UTC',
       bio: (data['bio'] as String?) ?? '',

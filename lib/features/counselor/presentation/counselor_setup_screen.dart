@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,6 +37,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
 
   String _sessionMode = 'Hybrid';
   String _timezone = 'UTC';
+  String? _selectedGender;
   bool _isSubmitting = false;
   bool _specializationsError = false;
   String? _formError;
@@ -74,6 +74,13 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     'America/New_York',
     'America/Los_Angeles',
     'Asia/Dubai',
+  ];
+
+  static const List<String> _genderOptions = <String>[
+    'Woman',
+    'Man',
+    'Non-binary',
+    'Prefer not to say',
   ];
 
   static const List<_StepItem> _steps = <_StepItem>[
@@ -136,6 +143,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       if (_titleController.text.trim().isNotEmpty)
         'Professional title: ${_titleController.text.trim()}',
       if (selected.isNotEmpty) 'Selected specializations: $selected',
+      if ((_selectedGender ?? '').trim().isNotEmpty)
+        'Selected gender label: ${_selectedGender!.trim()}',
       if (_yearsController.text.trim().isNotEmpty)
         'Years of experience: ${_yearsController.text.trim()}',
       'Session mode: $_sessionMode',
@@ -351,6 +360,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
           .completeSetup(
             title: _titleController.text,
             specialization: specialization,
+            gender: _selectedGender,
             yearsExperience: years,
             sessionMode: _sessionMode,
             timezone: _timezone,
@@ -566,6 +576,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                     ),
                   ),
                 const SizedBox(height: 18),
+                _buildGenderField(),
+                const SizedBox(height: 18),
                 if (isWide)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -696,6 +708,57 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
               }
               return null;
             },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGenderField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _FieldLabel(text: 'COUNSELOR GENDER (OPTIONAL)'),
+        const SizedBox(height: 6),
+        const Text(
+          'Optional. Including this can support respectful preference-based matching when a student is specifically seeking care from a counselor of a particular gender.',
+          style: TextStyle(
+            color: Color(0xFF7A8CA4),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7FBFF),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFD7E4F1)),
+          ),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: _genderOptions
+                .asMap()
+                .entries
+                .map(
+                  (entry) => _OptionPill(
+                    label: entry.value,
+                    selected: _selectedGender == entry.value,
+                    index: entry.key,
+                    onTap: () {
+                      setState(() {
+                        _selectedGender = _selectedGender == entry.value
+                            ? null
+                            : entry.value;
+                        _formError = null;
+                      });
+                    },
+                  ),
+                )
+                .toList(growable: false),
           ),
         ),
       ],
@@ -1146,6 +1209,89 @@ class _SpecializationPill extends StatelessWidget {
                 selected
                     ? Icons.check_rounded
                     : Icons.add_circle_outline_rounded,
+                size: 16,
+                color: selected ? Colors.white : const Color(0xFF58708C),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : const Color(0xFF0B2442),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OptionPill extends StatelessWidget {
+  const _OptionPill({
+    required this.label,
+    required this.selected,
+    required this.index,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final int index;
+  final VoidCallback onTap;
+
+  static const List<List<Color>> _gradients = <List<Color>>[
+    <Color>[Color(0xFFE7F8F5), Color(0xFFD5F1EC)],
+    <Color>[Color(0xFFEAF2FF), Color(0xFFDCE8FF)],
+    <Color>[Color(0xFFFFF2DD), Color(0xFFFFE8B8)],
+    <Color>[Color(0xFFF2EAFE), Color(0xFFE7D8FF)],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _gradients[index % _gradients.length];
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            gradient: selected
+                ? const LinearGradient(
+                    colors: [Color(0xFF0E9B90), Color(0xFF2563EB)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : LinearGradient(
+                    colors: colors,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected ? Colors.transparent : const Color(0xFFD6E4F1),
+            ),
+            boxShadow: selected
+                ? const [
+                    BoxShadow(
+                      color: Color(0x331D4ED8),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ]
+                : const [],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                selected ? Icons.check_rounded : Icons.person_outline_rounded,
                 size: 16,
                 color: selected ? Colors.white : const Color(0xFF58708C),
               ),

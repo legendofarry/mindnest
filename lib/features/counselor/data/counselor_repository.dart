@@ -22,6 +22,7 @@ class CounselorRepository {
   Future<void> completeSetup({
     required String title,
     required String specialization,
+    String? gender,
     required int yearsExperience,
     required String sessionMode,
     required String timezone,
@@ -44,6 +45,7 @@ class CounselorRepository {
 
     final trimmedTitle = title.trim();
     final trimmedSpecialization = specialization.trim();
+    final trimmedGender = (gender ?? '').trim();
     final trimmedMode = sessionMode.trim();
     final trimmedTimezone = timezone.trim();
     final trimmedBio = bio.trim();
@@ -83,6 +85,7 @@ class CounselorRepository {
       'displayName': displayName,
       'title': trimmedTitle,
       'specialization': trimmedSpecialization,
+      if (trimmedGender.isNotEmpty) 'gender': trimmedGender,
       'yearsExperience': yearsExperience,
       'sessionMode': trimmedMode,
       'timezone': trimmedTimezone,
@@ -121,6 +124,7 @@ class CounselorRepository {
     required String displayName,
     required String title,
     required String specialization,
+    String? gender,
     required int yearsExperience,
     required String sessionMode,
     required String timezone,
@@ -152,6 +156,7 @@ class CounselorRepository {
     final trimmedName = displayName.trim();
     final trimmedTitle = title.trim();
     final trimmedSpecialization = specialization.trim();
+    final trimmedGender = (gender ?? '').trim();
     final trimmedMode = sessionMode.trim();
     final trimmedTimezone = timezone.trim();
     final trimmedBio = bio.trim();
@@ -204,6 +209,7 @@ class CounselorRepository {
       'displayName': trimmedName,
       'title': trimmedTitle,
       'specialization': trimmedSpecialization,
+      if (trimmedGender.isNotEmpty) 'gender': trimmedGender,
       'yearsExperience': yearsExperience,
       'sessionMode': trimmedMode,
       'timezone': trimmedTimezone,
