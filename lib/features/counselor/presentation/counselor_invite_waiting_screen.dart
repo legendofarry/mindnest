@@ -255,16 +255,10 @@ class _CounselorInviteWaitingScreenState
         _inviteHeroCard(context, invite, isDesktop),
         const SizedBox(height: 22),
         if (isDesktop)
-          Align(
-            alignment: Alignment.centerRight,
-            child: SizedBox(
-              width: 640,
-              child: GlassCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(22),
-                  child: _invitePanel(invite, true),
-                ),
-              ),
+          GlassCard(
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: _invitePanel(invite, true),
             ),
           )
         else ...[
