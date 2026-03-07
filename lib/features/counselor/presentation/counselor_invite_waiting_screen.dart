@@ -31,6 +31,7 @@ class _CounselorInviteWaitingScreenState
   bool _isSubmitting = false;
   String? _banner;
   bool _bannerIsError = false;
+  String? _codeError;
 
   @override
   void dispose() {
@@ -50,10 +51,15 @@ class _CounselorInviteWaitingScreenState
   Future<void> _accept(UserInvite invite) async {
     final code = _codeController.text.trim().toUpperCase();
     if (code.isEmpty) {
-      _showBanner('Enter the institution code to accept the invite.', isError: true);
+      setState(() {
+        _codeError = 'Enter the institution code to accept the invite.';
+      });
       return;
     }
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _codeError = null;
+    });
     try {
       await ref
           .read(institutionRepositoryProvider)
@@ -68,7 +74,10 @@ class _CounselorInviteWaitingScreenState
   }
 
   Future<void> _decline(UserInvite invite) async {
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _codeError = null;
+    });
     try {
       await ref.read(institutionRepositoryProvider).declineInvite(invite);
       _codeController.clear();
@@ -488,9 +497,17 @@ class _CounselorInviteWaitingScreenState
           ],
         ),
         const SizedBox(height: 18),
+        if ((_codeError ?? '').trim().isNotEmpty) ...[
+          _InlineFieldError(message: _codeError!),
+          const SizedBox(height: 12),
+        ],
         TextField(
           controller: _codeController,
           textCapitalization: TextCapitalization.characters,
+          onChanged: (_) {
+            if ((_codeError ?? '').isEmpty) return;
+            setState(() => _codeError = null);
+          },
           decoration: InputDecoration(
             labelText: 'Institution code',
             hintText: 'Enter code from institution admin',
@@ -500,11 +517,21 @@ class _CounselorInviteWaitingScreenState
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: Color(0xFFF5C542), width: 1.2),
+              borderSide: BorderSide(
+                color: _codeError == null
+                    ? const Color(0xFFF5C542)
+                    : const Color(0xFFDC2626),
+                width: _codeError == null ? 1.2 : 1.4,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 1.6),
+              borderSide: BorderSide(
+                color: _codeError == null
+                    ? const Color(0xFFF59E0B)
+                    : const Color(0xFFDC2626),
+                width: 1.6,
+              ),
             ),
           ),
         ),
@@ -1100,6 +1127,45 @@ class _Banner extends StatelessWidget {
             child: Text(
               message,
               style: const TextStyle(color: Color(0xFF10223E), fontWeight: FontWeight.w700, height: 1.45),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineFieldError extends StatelessWidget {
+  const _InlineFieldError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1F2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFCA5A5)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            color: Color(0xFFDC2626),
+            size: 18,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Color(0xFF991B1B),
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
             ),
           ),
         ],
