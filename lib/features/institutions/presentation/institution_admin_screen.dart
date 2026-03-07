@@ -659,294 +659,874 @@ class _InstitutionAdminScreenState
     });
   }
 
+  String _workspaceTitle(AdminWorkspaceView view) {
+    switch (view) {
+      case AdminWorkspaceView.overview:
+        return 'Institution Admin Dashboard';
+      case AdminWorkspaceView.members:
+        return 'Members';
+      case AdminWorkspaceView.pendingInvites:
+        return 'Pending Invites';
+      case AdminWorkspaceView.students:
+        return 'Students';
+      case AdminWorkspaceView.staff:
+        return 'Staff';
+      case AdminWorkspaceView.counselors:
+        return 'Counselors';
+      case AdminWorkspaceView.allInvites:
+        return 'All Invites';
+    }
+  }
+
+  String _workspaceSubtitle(AdminWorkspaceView view) {
+    switch (view) {
+      case AdminWorkspaceView.overview:
+        return 'Control join code, invites, members, and institution operations from one persistent workspace.';
+      case AdminWorkspaceView.members:
+        return 'Review the full institution roster, inspect records, and take lifecycle actions from a single table.';
+      case AdminWorkspaceView.pendingInvites:
+        return 'Track outstanding invite demand and revoke pending role access when needed.';
+      case AdminWorkspaceView.students:
+        return 'Monitor the student population linked to this institution and inspect individual records quickly.';
+      case AdminWorkspaceView.staff:
+        return 'Keep staff membership visible and maintain operational access with fewer clicks.';
+      case AdminWorkspaceView.counselors:
+        return 'Watch counselor roster health and move quickly into detail records when changes are needed.';
+      case AdminWorkspaceView.allInvites:
+        return 'Review every invite state across the institution, not just the ones still pending.';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(currentUserProfileProvider);
     final firestore = ref.watch(firestoreProvider);
 
-    return MindNestShell(
-      maxWidth: 1200,
-      appBar: AppBar(
-        title: const Text('Institution Admin Dashboard'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          TextButton.icon(
-            onPressed: () => confirmAndLogout(context: context, ref: ref),
-            icon: const Icon(Icons.logout_rounded),
-            label: const Text('Logout'),
-          ),
-        ],
-      ),
-      child: profileAsync.when(
-        data: (profile) {
-          if (profile == null) {
-            return const _MessageCard(message: 'Profile not found.');
-          }
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FB),
+      body: _AdminWorkspaceBackdrop(
+        child: SafeArea(
+          child: profileAsync.when(
+            data: (profile) {
+              if (profile == null) {
+                return const Center(
+                  child: _MessageCard(message: 'Profile not found.'),
+                );
+              }
 
-          final institutionId = profile.institutionId ?? '';
-          if (profile.role != UserRole.institutionAdmin ||
-              institutionId.isEmpty) {
-            return const _MessageCard(
-              message: 'This page is available only for institution admins.',
-            );
-          }
+              final institutionId = profile.institutionId ?? '';
+              if (profile.role != UserRole.institutionAdmin ||
+                  institutionId.isEmpty) {
+                return const Center(
+                  child: _MessageCard(
+                    message:
+                        'This page is available only for institution admins.',
+                  ),
+                );
+              }
 
-          final institutionRef = firestore
-              .collection('institutions')
-              .doc(institutionId);
-          final membersQuery = firestore
-              .collection('institution_members')
-              .where('institutionId', isEqualTo: institutionId)
-              .limit(1000);
-          final invitesQuery = firestore
-              .collection('user_invites')
-              .where('institutionId', isEqualTo: institutionId)
-              .limit(1000);
+              final institutionRef = firestore
+                  .collection('institutions')
+                  .doc(institutionId);
+              final membersQuery = firestore
+                  .collection('institution_members')
+                  .where('institutionId', isEqualTo: institutionId)
+                  .limit(1000);
+              final invitesQuery = firestore
+                  .collection('user_invites')
+                  .where('institutionId', isEqualTo: institutionId)
+                  .limit(1000);
 
-          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: membersQuery.snapshots(),
-            builder: (context, membersSnapshot) {
-              final members = membersSnapshot.data?.docs ?? const [];
               return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: invitesQuery.snapshots(),
-                builder: (context, invitesSnapshot) {
-                  final invites = invitesSnapshot.data?.docs ?? const [];
+                stream: membersQuery.snapshots(),
+                builder: (context, membersSnapshot) {
+                  final members = membersSnapshot.data?.docs ?? const [];
+                  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: invitesQuery.snapshots(),
+                    builder: (context, invitesSnapshot) {
+                      final invites = invitesSnapshot.data?.docs ?? const [];
 
-                  final studentCount = members
-                      .where(
-                        (doc) => (doc.data()['role'] as String?) == 'student',
-                      )
-                      .length;
-                  final staffCount = members
-                      .where(
-                        (doc) => (doc.data()['role'] as String?) == 'staff',
-                      )
-                      .length;
-                  final counselorCount = members
-                      .where(
-                        (doc) => (doc.data()['role'] as String?) == 'counselor',
-                      )
-                      .length;
-                  final pendingCount = invites
-                      .where((doc) => _isPendingInviteData(doc.data()))
-                      .length;
+                      final studentCount = members
+                          .where(
+                            (doc) =>
+                                (doc.data()['role'] as String?) == 'student',
+                          )
+                          .length;
+                      final staffCount = members
+                          .where(
+                            (doc) => (doc.data()['role'] as String?) == 'staff',
+                          )
+                          .length;
+                      final counselorCount = members
+                          .where(
+                            (doc) =>
+                                (doc.data()['role'] as String?) == 'counselor',
+                          )
+                          .length;
+                      final pendingCount = invites
+                          .where((doc) => _isPendingInviteData(doc.data()))
+                          .length;
 
-                  final stats = [
-                    _DashboardStat(
-                      label: 'Members',
-                      value: '${members.length}',
-                      icon: Icons.groups_rounded,
-                      view: AdminWorkspaceView.members,
-                    ),
-                    _DashboardStat(
-                      label: 'Pending Invites',
-                      value: '$pendingCount',
-                      icon: Icons.mark_email_unread_rounded,
-                      view: AdminWorkspaceView.pendingInvites,
-                    ),
-                    _DashboardStat(
-                      label: 'Students',
-                      value: '$studentCount',
-                      icon: Icons.school_rounded,
-                      view: AdminWorkspaceView.students,
-                    ),
-                    _DashboardStat(
-                      label: 'Staff',
-                      value: '$staffCount',
-                      icon: Icons.badge_rounded,
-                      view: AdminWorkspaceView.staff,
-                    ),
-                    _DashboardStat(
-                      label: 'Counselors',
-                      value: '$counselorCount',
-                      icon: Icons.health_and_safety_rounded,
-                      view: AdminWorkspaceView.counselors,
-                    ),
-                  ];
+                      final stats = [
+                        _DashboardStat(
+                          label: 'Members',
+                          value: '${members.length}',
+                          icon: Icons.groups_rounded,
+                          view: AdminWorkspaceView.members,
+                        ),
+                        _DashboardStat(
+                          label: 'Pending Invites',
+                          value: '$pendingCount',
+                          icon: Icons.mark_email_unread_rounded,
+                          view: AdminWorkspaceView.pendingInvites,
+                        ),
+                        _DashboardStat(
+                          label: 'Students',
+                          value: '$studentCount',
+                          icon: Icons.school_rounded,
+                          view: AdminWorkspaceView.students,
+                        ),
+                        _DashboardStat(
+                          label: 'Staff',
+                          value: '$staffCount',
+                          icon: Icons.badge_rounded,
+                          view: AdminWorkspaceView.staff,
+                        ),
+                        _DashboardStat(
+                          label: 'Counselors',
+                          value: '$counselorCount',
+                          icon: Icons.health_and_safety_rounded,
+                          view: AdminWorkspaceView.counselors,
+                        ),
+                      ];
 
-                  final allEntries = _entriesForView(
-                    view: _activeView,
-                    members: members,
-                    invites: invites,
-                  );
-                  final normalizedSearch = _searchController.text
-                      .trim()
-                      .toLowerCase();
-                  final filteredEntries = allEntries
-                      .where((entry) {
-                        final passesFilter =
-                            _activeFilter == 'all' ||
-                            entry.type == _activeFilter ||
-                            entry.status == _activeFilter ||
-                            entry.source == _activeFilter;
-                        if (!passesFilter) {
-                          return false;
-                        }
-                        if (normalizedSearch.isEmpty) {
-                          return true;
-                        }
-                        final target =
-                            '${entry.primary} ${entry.secondary} ${entry.type} ${entry.status} ${entry.source}'
-                                .toLowerCase();
-                        return target.contains(normalizedSearch);
-                      })
-                      .toList(growable: false);
-                  final sortedEntries = _sortEntries(
-                    List<_WorkspaceEntry>.from(filteredEntries),
-                  );
+                      final allEntries = _entriesForView(
+                        view: _activeView,
+                        members: members,
+                        invites: invites,
+                      );
+                      final normalizedSearch = _searchController.text
+                          .trim()
+                          .toLowerCase();
+                      final filteredEntries = allEntries
+                          .where((entry) {
+                            final passesFilter =
+                                _activeFilter == 'all' ||
+                                entry.type == _activeFilter ||
+                                entry.status == _activeFilter ||
+                                entry.source == _activeFilter;
+                            if (!passesFilter) {
+                              return false;
+                            }
+                            if (normalizedSearch.isEmpty) {
+                              return true;
+                            }
+                            final target =
+                                '${entry.primary} ${entry.secondary} ${entry.type} ${entry.status} ${entry.source}'
+                                    .toLowerCase();
+                            return target.contains(normalizedSearch);
+                          })
+                          .toList(growable: false);
+                      final sortedEntries = _sortEntries(
+                        List<_WorkspaceEntry>.from(filteredEntries),
+                      );
 
-                  final filterOptions = <String>{'all'};
-                  for (final entry in allEntries) {
-                    filterOptions.add(entry.type);
-                    filterOptions.add(entry.status);
-                    filterOptions.add(entry.source);
-                  }
+                      final filterOptions = <String>{'all'};
+                      for (final entry in allEntries) {
+                        filterOptions.add(entry.type);
+                        filterOptions.add(entry.status);
+                        filterOptions.add(entry.source);
+                      }
 
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isWide = constraints.maxWidth >= 980;
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isWide = constraints.maxWidth >= 980;
+                          final title = _workspaceTitle(_activeView);
+                          final subtitle = _workspaceSubtitle(_activeView);
 
-                      final content = Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _HeroCard(
-                            institutionRef: institutionRef,
-                            fallbackName:
-                                profile.institutionName ?? 'Institution',
-                            isRegeneratingJoinCode: _isRegeneratingJoinCode,
-                            onRegenerateJoinCode: () => _regenerateJoinCode(),
-                          ),
-                          const SizedBox(height: 14),
-                          _StatsRow(
-                            stats: stats,
-                            activeView: _activeView,
-                            onTap: _setWorkspace,
-                          ),
-                          const SizedBox(height: 14),
-                          _WorkspacePanel(
-                            activeView: _activeView,
-                            onViewChange: _setWorkspace,
-                            searchController: _searchController,
-                            onSearchChanged: (_) => setState(() {}),
-                            activeFilter: _activeFilter,
-                            onFilterChanged: (value) {
-                              setState(() => _activeFilter = value);
-                            },
-                            filterOptions: filterOptions.toList()..sort(),
-                            entries: sortedEntries,
-                            rowsPerPage: _rowsPerPage,
-                            onRowsPerPageChanged: (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setState(() => _rowsPerPage = value);
-                            },
-                            onRowTap: _openEntryDetails,
-                            onExportCsv: _exportCsv,
-                            sortColumnIndex: _sortColumnIndex,
-                            sortAscending: _sortAscending,
-                            onSort: _setSort,
-                          ),
-                          const SizedBox(height: 14),
-                          LayoutBuilder(
-                            builder: (context, innerConstraints) {
-                              if (innerConstraints.maxWidth < 860) {
-                                return Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    _InviteComposer(
-                                      phoneController: _phoneController,
-                                      selectedRole: _inviteRole,
-                                      isSubmitting: _isSubmitting,
-                                      onRoleChanged: (role) {
-                                        setState(() => _inviteRole = role);
-                                      },
-                                      onCreateInvite: _createInvite,
-                                    ),
-                                    const SizedBox(height: 14),
-                                    _ActionComponents(
-                                      onOpenInvites: () {
-                                        _setWorkspace(
-                                          AdminWorkspaceView.allInvites,
-                                        );
-                                      },
-                                      onOpenMembers: () {
-                                        _setWorkspace(
-                                          AdminWorkspaceView.members,
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                );
-                              }
+                          final content = Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _HeroCard(
+                                institutionRef: institutionRef,
+                                fallbackName:
+                                    profile.institutionName ?? 'Institution',
+                                isRegeneratingJoinCode: _isRegeneratingJoinCode,
+                                onRegenerateJoinCode: () =>
+                                    _regenerateJoinCode(),
+                              ),
+                              const SizedBox(height: 14),
+                              _StatsRow(
+                                stats: stats,
+                                activeView: _activeView,
+                                onTap: _setWorkspace,
+                              ),
+                              const SizedBox(height: 14),
+                              _WorkspacePanel(
+                                activeView: _activeView,
+                                onViewChange: _setWorkspace,
+                                searchController: _searchController,
+                                onSearchChanged: (_) => setState(() {}),
+                                activeFilter: _activeFilter,
+                                onFilterChanged: (value) {
+                                  setState(() => _activeFilter = value);
+                                },
+                                filterOptions: filterOptions.toList()..sort(),
+                                entries: sortedEntries,
+                                rowsPerPage: _rowsPerPage,
+                                onRowsPerPageChanged: (value) {
+                                  if (value == null) {
+                                    return;
+                                  }
+                                  setState(() => _rowsPerPage = value);
+                                },
+                                onRowTap: _openEntryDetails,
+                                onExportCsv: _exportCsv,
+                                sortColumnIndex: _sortColumnIndex,
+                                sortAscending: _sortAscending,
+                                onSort: _setSort,
+                              ),
+                              const SizedBox(height: 14),
+                              LayoutBuilder(
+                                builder: (context, innerConstraints) {
+                                  if (innerConstraints.maxWidth < 860) {
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        _InviteComposer(
+                                          phoneController: _phoneController,
+                                          selectedRole: _inviteRole,
+                                          isSubmitting: _isSubmitting,
+                                          onRoleChanged: (role) {
+                                            setState(() => _inviteRole = role);
+                                          },
+                                          onCreateInvite: _createInvite,
+                                        ),
+                                        const SizedBox(height: 14),
+                                        _ActionComponents(
+                                          onOpenInvites: () {
+                                            _setWorkspace(
+                                              AdminWorkspaceView.allInvites,
+                                            );
+                                          },
+                                          onOpenMembers: () {
+                                            _setWorkspace(
+                                              AdminWorkspaceView.members,
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    );
+                                  }
 
-                              return Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                  return Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        flex: 5,
+                                        child: _InviteComposer(
+                                          phoneController: _phoneController,
+                                          selectedRole: _inviteRole,
+                                          isSubmitting: _isSubmitting,
+                                          onRoleChanged: (role) {
+                                            setState(() => _inviteRole = role);
+                                          },
+                                          onCreateInvite: _createInvite,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        flex: 4,
+                                        child: _ActionComponents(
+                                          onOpenInvites: () {
+                                            _setWorkspace(
+                                              AdminWorkspaceView.allInvites,
+                                            );
+                                          },
+                                          onOpenMembers: () {
+                                            _setWorkspace(
+                                              AdminWorkspaceView.members,
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ],
+                          );
+
+                          if (!isWide) {
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                14,
+                                14,
+                                14,
+                                20,
+                              ),
+                              child: Column(
                                 children: [
-                                  Expanded(
-                                    flex: 5,
-                                    child: _InviteComposer(
-                                      phoneController: _phoneController,
-                                      selectedRole: _inviteRole,
-                                      isSubmitting: _isSubmitting,
-                                      onRoleChanged: (role) {
-                                        setState(() => _inviteRole = role);
-                                      },
-                                      onCreateInvite: _createInvite,
+                                  _AdminWorkspaceHeader(
+                                    title: title,
+                                    subtitle: subtitle,
+                                    institutionName:
+                                        profile.institutionName ??
+                                        'Institution',
+                                    adminName: profile.name.isNotEmpty
+                                        ? profile.name
+                                        : profile.email,
+                                    desktop: false,
+                                    onLogout: () => confirmAndLogout(
+                                      context: context,
+                                      ref: ref,
                                     ),
                                   ),
-                                  const SizedBox(width: 14),
+                                  const SizedBox(height: 14),
+                                  SizedBox(
+                                    height: 52,
+                                    child: ListView.separated(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: _adminNavItems.length,
+                                      separatorBuilder: (_, _) =>
+                                          const SizedBox(width: 10),
+                                      itemBuilder: (context, index) {
+                                        final item = _adminNavItems[index];
+                                        return _AdminMobileNavChip(
+                                          item: item,
+                                          selected: _activeView == item.view,
+                                          onTap: () => _setWorkspace(item.view),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
                                   Expanded(
-                                    flex: 4,
-                                    child: _ActionComponents(
-                                      onOpenInvites: () {
-                                        _setWorkspace(
-                                          AdminWorkspaceView.allInvites,
-                                        );
-                                      },
-                                      onOpenMembers: () {
-                                        _setWorkspace(
-                                          AdminWorkspaceView.members,
-                                        );
-                                      },
+                                    child: SingleChildScrollView(
+                                      child: content,
                                     ),
                                   ),
                                 ],
-                              );
-                            },
-                          ),
-                        ],
-                      );
+                              ),
+                            );
+                          }
 
-                      if (!isWide) {
-                        return content;
-                      }
-
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: 240,
-                            child: _SideNav(
-                              activeView: _activeView,
-                              onViewSelected: _setWorkspace,
+                          return Padding(
+                            padding: const EdgeInsets.all(18),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 272,
+                                  child: _AdminSidebarShell(
+                                    institutionName:
+                                        profile.institutionName ??
+                                        'Institution',
+                                    adminName: profile.name.isNotEmpty
+                                        ? profile.name
+                                        : profile.email,
+                                    activeView: _activeView,
+                                    onViewSelected: _setWorkspace,
+                                    onLogout: () => confirmAndLogout(
+                                      context: context,
+                                      ref: ref,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 18),
+                                Expanded(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFFF8F8F3,
+                                      ).withValues(alpha: 0.92),
+                                      borderRadius: BorderRadius.circular(32),
+                                      border: Border.all(
+                                        color: const Color(0xFFE2E8F0),
+                                      ),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Color(0x120F172A),
+                                          blurRadius: 30,
+                                          offset: Offset(0, 18),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        _AdminWorkspaceHeader(
+                                          title: title,
+                                          subtitle: subtitle,
+                                          institutionName:
+                                              profile.institutionName ??
+                                              'Institution',
+                                          adminName: profile.name.isNotEmpty
+                                              ? profile.name
+                                              : profile.email,
+                                          desktop: true,
+                                          onLogout: () => confirmAndLogout(
+                                            context: context,
+                                            ref: ref,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: SingleChildScrollView(
+                                            padding: const EdgeInsets.fromLTRB(
+                                              28,
+                                              10,
+                                              28,
+                                              28,
+                                            ),
+                                            child: content,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(child: content),
-                        ],
+                          );
+                        },
                       );
                     },
                   );
                 },
               );
             },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _MessageCard(message: error.toString()),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) =>
+                Center(child: _MessageCard(message: error.toString())),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminWorkspaceBackdrop extends StatelessWidget {
+  const _AdminWorkspaceBackdrop({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFEDF6FB), Color(0xFFEAF4F2), Color(0xFFF7F8F5)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Stack(
+        children: [
+          const _AdminBlurOrb(
+            size: 300,
+            color: Color(0x5538BDF8),
+            offset: Offset(-90, 50),
+          ),
+          const _AdminBlurOrb(
+            size: 250,
+            color: Color(0x5514B8A6),
+            offset: Offset(1180, 240),
+          ),
+          const _AdminBlurOrb(
+            size: 220,
+            color: Color(0x55A7F3D0),
+            offset: Offset(140, 760),
+          ),
+          Positioned.fill(child: child),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminBlurOrb extends StatelessWidget {
+  const _AdminBlurOrb({
+    required this.size,
+    required this.color,
+    required this.offset,
+  });
+
+  final double size;
+  final Color color;
+  final Offset offset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: offset.dx,
+      top: offset.dy,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(color: color, blurRadius: 120, spreadRadius: 10),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminWorkspaceHeader extends StatelessWidget {
+  const _AdminWorkspaceHeader({
+    required this.title,
+    required this.subtitle,
+    required this.institutionName,
+    required this.adminName,
+    required this.desktop,
+    required this.onLogout,
+  });
+
+  final String title;
+  final String subtitle;
+  final String institutionName;
+  final String adminName;
+  final bool desktop;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        desktop ? 28 : 18,
+        desktop ? 24 : 18,
+        desktop ? 28 : 18,
+        18,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: desktop ? 0 : 0.9),
+        border: desktop
+            ? const Border(bottom: BorderSide(color: Color(0xFFE6EAF0)))
+            : null,
+        borderRadius: desktop ? null : BorderRadius.circular(28),
+        boxShadow: desktop
+            ? null
+            : const [
+                BoxShadow(
+                  color: Color(0x120F172A),
+                  blurRadius: 20,
+                  offset: Offset(0, 10),
+                ),
+              ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: const Color(0xFF081A30),
+                        fontSize: desktop ? 31 : 26,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: desktop ? -1.2 : -0.9,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      maxLines: desktop ? 1 : 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF6A7C93),
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              CircleAvatar(
+                radius: desktop ? 20 : 18,
+                backgroundColor: const Color(0xFF0E9B90),
+                child: Text(
+                  _adminInitials(adminName),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              IconButton(
+                onPressed: onLogout,
+                icon: const Icon(Icons.logout_rounded),
+                tooltip: 'Logout',
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.admin_panel_settings_rounded,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      adminName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF081A30),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      institutionName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF7B8CA4),
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminSidebarShell extends StatelessWidget {
+  const _AdminSidebarShell({
+    required this.institutionName,
+    required this.adminName,
+    required this.activeView,
+    required this.onViewSelected,
+    required this.onLogout,
+  });
+
+  final String institutionName;
+  final String adminName;
+  final AdminWorkspaceView activeView;
+  final ValueChanged<AdminWorkspaceView> onViewSelected;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0C2233),
+        borderRadius: BorderRadius.circular(32),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x180F172A),
+            blurRadius: 30,
+            offset: Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.domain_add_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'MindNest',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 25,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.8,
+                        ),
+                      ),
+                      Text(
+                        institutionName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF7FA0B5),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 26),
+            _SideNav(activeView: activeView, onViewSelected: onViewSelected),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF132D41),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFF1F415A)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'ADMIN STATUS',
+                    style: TextStyle(
+                      color: Color(0xFF7FA0B5),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Row(
+                    children: [
+                      Icon(Icons.circle, size: 10, color: Color(0xFF10B981)),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Institution sync active',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    adminName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFFBBD0DC),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onLogout,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Color(0xFF325068)),
+                      ),
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text('Logout'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminMobileNavChip extends StatelessWidget {
+  const _AdminMobileNavChip({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _NavItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: selected
+                ? const Color(0xFF0E9B90)
+                : Colors.white.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF0E9B90)
+                  : const Color(0xFFD8E3EC),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                item.icon,
+                color: selected ? Colors.white : const Color(0xFF4D647B),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                item.label,
+                style: TextStyle(
+                  color: selected ? Colors.white : const Color(0xFF0C2233),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -960,57 +1540,20 @@ class _SideNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      _NavItem(
-        'Overview',
-        Icons.dashboard_rounded,
-        AdminWorkspaceView.overview,
-      ),
-      _NavItem('Members', Icons.groups_rounded, AdminWorkspaceView.members),
-      _NavItem(
-        'Pending Invites',
-        Icons.mark_email_unread_rounded,
-        AdminWorkspaceView.pendingInvites,
-      ),
-      _NavItem('Students', Icons.school_rounded, AdminWorkspaceView.students),
-      _NavItem('Staff', Icons.badge_rounded, AdminWorkspaceView.staff),
-      _NavItem(
-        'Counselors',
-        Icons.health_and_safety_rounded,
-        AdminWorkspaceView.counselors,
-      ),
-      _NavItem(
-        'All Invites',
-        Icons.send_rounded,
-        AdminWorkspaceView.allInvites,
-      ),
-    ];
-
-    return GlassCard(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Navigation',
-              style: TextStyle(
-                color: Color(0xFF60738D),
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.6,
-              ),
-            ),
-            const SizedBox(height: 10),
-            ...items.map(
-              (item) => _SideNavButton(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: _adminNavItems
+          .map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _SideNavButton(
                 item: item,
                 selected: activeView == item.view,
                 onTap: () => onViewSelected(item.view),
               ),
             ),
-          ],
-        ),
-      ),
+          )
+          .toList(growable: false),
     );
   }
 }
@@ -1021,6 +1564,41 @@ class _NavItem {
   final String label;
   final IconData icon;
   final AdminWorkspaceView view;
+}
+
+const List<_NavItem> _adminNavItems = [
+  _NavItem('Overview', Icons.dashboard_rounded, AdminWorkspaceView.overview),
+  _NavItem('Members', Icons.groups_rounded, AdminWorkspaceView.members),
+  _NavItem(
+    'Pending Invites',
+    Icons.mark_email_unread_rounded,
+    AdminWorkspaceView.pendingInvites,
+  ),
+  _NavItem('Students', Icons.school_rounded, AdminWorkspaceView.students),
+  _NavItem('Staff', Icons.badge_rounded, AdminWorkspaceView.staff),
+  _NavItem(
+    'Counselors',
+    Icons.health_and_safety_rounded,
+    AdminWorkspaceView.counselors,
+  ),
+  _NavItem('All Invites', Icons.send_rounded, AdminWorkspaceView.allInvites),
+];
+
+String _adminInitials(String value) {
+  final parts = value
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((entry) => entry.isNotEmpty)
+      .toList(growable: false);
+  if (parts.isEmpty) {
+    return 'AD';
+  }
+  if (parts.length == 1) {
+    return parts.first
+        .substring(0, parts.first.length >= 2 ? 2 : 1)
+        .toUpperCase();
+  }
+  return (parts.first[0] + parts.last[0]).toUpperCase();
 }
 
 class _SideNavButton extends StatelessWidget {
@@ -1036,44 +1614,41 @@ class _SideNavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: selected ? const Color(0xFF0E9B90) : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: selected
-                    ? const Color(0xFF0E9B90)
-                    : const Color(0xFFD9E4F0),
-              ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF243746) : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? const Color(0xFF314A5C) : Colors.transparent,
             ),
-            child: Row(
-              children: [
-                Icon(
-                  item.icon,
-                  size: 18,
-                  color: selected ? Colors.white : const Color(0xFF415A77),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    item.label,
-                    style: TextStyle(
-                      color: selected ? Colors.white : const Color(0xFF415A77),
-                      fontWeight: FontWeight.w700,
-                    ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                item.icon,
+                size: 18,
+                color: selected
+                    ? const Color(0xFFF59E0B)
+                    : const Color(0xFF89A3B6),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  item.label,
+                  style: TextStyle(
+                    color: selected ? Colors.white : const Color(0xFFD3DEE7),
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
