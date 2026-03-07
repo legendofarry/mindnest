@@ -382,7 +382,7 @@ class _CounselorInviteWaitingScreenState
           hasInvite ? 'Your institution invite is here.' : 'Your counselor account is waiting for institution access.',
           textAlign: isDesktop ? TextAlign.left : TextAlign.center,
           style: theme.textTheme.headlineMedium?.copyWith(
-            fontSize: isDesktop ? 48 : 34,
+            fontSize: isDesktop ? 40 : 30,
             fontWeight: FontWeight.w900,
             color: const Color(0xFF071937),
             height: 1.04,
@@ -396,7 +396,7 @@ class _CounselorInviteWaitingScreenState
               : 'You are registered. When the institution admin invite arrives, this screen turns into a live action panel so you can respond immediately.',
           textAlign: isDesktop ? TextAlign.left : TextAlign.center,
           style: theme.textTheme.titleMedium?.copyWith(
-            fontSize: isDesktop ? 20 : 17,
+            fontSize: isDesktop ? 18 : 16,
             color: const Color(0xFF4E627A),
             fontWeight: FontWeight.w500,
             height: 1.55,
@@ -457,7 +457,7 @@ class _CounselorInviteWaitingScreenState
                 'INVITE ARRIVED',
                 style: TextStyle(
                   color: const Color(0xFF7C5400),
-                  fontSize: isDesktop ? 13.5 : 12,
+                  fontSize: isDesktop ? 12.5 : 11.5,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.0,
                 ),
@@ -472,7 +472,7 @@ class _CounselorInviteWaitingScreenState
           'This is no longer a waiting page. Review the invite, enter the institution code, and decide from this panel.',
           style: TextStyle(
             color: const Color(0xFF60748F),
-            fontSize: isDesktop ? 16 : 13.5,
+            fontSize: isDesktop ? 15 : 13,
             fontWeight: FontWeight.w500,
             height: 1.5,
           ),
@@ -556,7 +556,7 @@ class _CounselorInviteWaitingScreenState
       text,
       style: TextStyle(
         color: const Color(0xFF071937),
-        fontSize: isDesktop ? 24 : 18,
+        fontSize: isDesktop ? 21 : 17,
         fontWeight: FontWeight.w900,
       ),
     );
@@ -591,7 +591,7 @@ class _CounselorInviteWaitingScreenState
                   label.toUpperCase(),
                   style: TextStyle(
                     color: const Color(0xFF6B7B93),
-                    fontSize: isDesktop ? 11.5 : 10.5,
+                    fontSize: isDesktop ? 11 : 10,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.9,
                   ),
@@ -601,7 +601,7 @@ class _CounselorInviteWaitingScreenState
                   value,
                   style: TextStyle(
                     color: const Color(0xFF071937),
-                    fontSize: isDesktop ? 17 : 14.5,
+                    fontSize: isDesktop ? 16 : 14,
                     fontWeight: FontWeight.w800,
                     height: 1.35,
                   ),
@@ -718,7 +718,7 @@ class _CounselorInviteWaitingScreenState
           textAlign: isDesktop ? TextAlign.left : TextAlign.center,
           style: theme.textTheme.headlineLarge?.copyWith(
             color: Colors.white,
-            fontSize: isDesktop ? 58 : 36,
+            fontSize: isDesktop ? 46 : 31,
             height: 0.96,
             fontWeight: FontWeight.w900,
             letterSpacing: -1.2,
@@ -730,7 +730,7 @@ class _CounselorInviteWaitingScreenState
           textAlign: isDesktop ? TextAlign.left : TextAlign.center,
           style: theme.textTheme.headlineMedium?.copyWith(
             color: const Color(0xFFFFF4C4),
-            fontSize: isDesktop ? 34 : 26,
+            fontSize: isDesktop ? 28 : 22,
             fontWeight: FontWeight.w900,
             height: 1.05,
             letterSpacing: -0.7,
@@ -742,7 +742,7 @@ class _CounselorInviteWaitingScreenState
           textAlign: isDesktop ? TextAlign.left : TextAlign.center,
           style: theme.textTheme.titleMedium?.copyWith(
             color: const Color(0xFFE5F0FF),
-            fontSize: isDesktop ? 19 : 15.5,
+            fontSize: isDesktop ? 17 : 14.5,
             fontWeight: FontWeight.w600,
             height: 1.5,
           ),
@@ -808,7 +808,7 @@ class _CounselorInviteWaitingScreenState
               'INVITE',
               style: TextStyle(
                 color: const Color(0xFF0B2A52),
-                fontSize: isDesktop ? 20 : 15,
+                fontSize: isDesktop ? 18 : 14,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.4,
               ),
@@ -817,7 +817,7 @@ class _CounselorInviteWaitingScreenState
               'ARRIVED',
               style: TextStyle(
                 color: const Color(0xFF0E9B90),
-                fontSize: isDesktop ? 24 : 17,
+                fontSize: isDesktop ? 21 : 16,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.1,
               ),
@@ -839,7 +839,7 @@ class _CounselorInviteWaitingScreenState
         label,
         style: TextStyle(
           color: foreground,
-          fontSize: 11.5,
+          fontSize: 11,
           fontWeight: FontWeight.w900,
           letterSpacing: 0.9,
         ),
@@ -871,7 +871,7 @@ class _CounselorInviteWaitingScreenState
             label.toUpperCase(),
             style: TextStyle(
               color: const Color(0xFFE0EEFF),
-              fontSize: isDesktop ? 11.5 : 10.5,
+              fontSize: isDesktop ? 11 : 10,
               fontWeight: FontWeight.w900,
               letterSpacing: 0.9,
             ),
@@ -881,7 +881,7 @@ class _CounselorInviteWaitingScreenState
             value,
             style: TextStyle(
               color: Colors.white,
-              fontSize: isDesktop ? 16.5 : 14,
+              fontSize: isDesktop ? 15.5 : 13.5,
               fontWeight: FontWeight.w800,
               height: 1.35,
             ),
@@ -933,7 +933,7 @@ class _CounselorInviteWaitingScreenState
                   title,
                   style: TextStyle(
                     color: const Color(0xFF071937),
-                    fontSize: isDesktop ? 20 : 16.5,
+                    fontSize: isDesktop ? 18 : 15.5,
                     fontWeight: FontWeight.w900,
                     height: 1.2,
                   ),
@@ -943,7 +943,7 @@ class _CounselorInviteWaitingScreenState
                   description,
                   style: TextStyle(
                     color: const Color(0xFF5D728D),
-                    fontSize: isDesktop ? 15.5 : 13.5,
+                    fontSize: isDesktop ? 14.5 : 13,
                     fontWeight: FontWeight.w500,
                     height: 1.5,
                   ),
@@ -994,7 +994,7 @@ class _CounselorInviteWaitingScreenState
                   style: TextStyle(
                     color: const Color(0xFF071937),
                     fontWeight: FontWeight.w800,
-                    fontSize: isDesktop ? 19 : 15.5,
+                    fontSize: isDesktop ? 17.5 : 15,
                   ),
                 ),
                 const SizedBox(height: 5),
@@ -1004,7 +1004,7 @@ class _CounselorInviteWaitingScreenState
                     color: const Color(0xFF5D728D),
                     height: 1.42,
                     fontWeight: FontWeight.w500,
-                    fontSize: isDesktop ? 15.5 : 13.5,
+                    fontSize: isDesktop ? 14.5 : 13,
                   ),
                 ),
               ],
@@ -1046,7 +1046,7 @@ class _CounselorInviteWaitingScreenState
               value,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: isDesktop ? 19 : 15,
+                fontSize: isDesktop ? 17 : 14,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -1055,7 +1055,7 @@ class _CounselorInviteWaitingScreenState
               label,
               style: TextStyle(
                 color: const Color(0xD9E6FFFD),
-                fontSize: isDesktop ? 12.5 : 10.5,
+                fontSize: isDesktop ? 11.5 : 10,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.8,
               ),
@@ -1143,7 +1143,7 @@ class _StatusPill extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 label,
-                style: TextStyle(fontSize: isDesktop ? 16 : 13.5, color: const Color(0xFF0B6F69), fontWeight: FontWeight.w800),
+                style: TextStyle(fontSize: isDesktop ? 14.5 : 13, color: const Color(0xFF0B6F69), fontWeight: FontWeight.w800),
               ),
             ],
           ),
@@ -1192,7 +1192,7 @@ class _PrimaryButton extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TextStyle(fontSize: isDesktop ? 18 : 16, fontWeight: FontWeight.w800),
+          style: TextStyle(fontSize: isDesktop ? 17 : 15, fontWeight: FontWeight.w800),
         ),
       ),
     );
