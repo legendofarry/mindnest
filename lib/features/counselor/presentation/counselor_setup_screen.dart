@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/features/ai/data/assistant_providers.dart';
+import 'package:mindnest/features/ai/models/assistant_models.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
@@ -27,6 +28,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   final _aiPromptController = TextEditingController();
 
   final Set<String> _selectedSpecializations = <String>{};
+  final List<AssistantConversationMessage> _aiHistory =
+      <AssistantConversationMessage>[];
 
   String _sessionMode = 'Hybrid';
   String _timezone = 'UTC';
@@ -156,6 +159,13 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       target: target,
       customPrompt: customPrompt,
     );
+    final historyPrompt = switch (target) {
+      _AiAssistTarget.title => 'Suggest a professional counselor title.',
+      _AiAssistTarget.bio => 'Draft my counselor bio.',
+      _AiAssistTarget.specializations =>
+        'Recommend the best specializations for my profile.',
+      _AiAssistTarget.custom => customPrompt.trim(),
+    };
 
     setState(() {
       _isAiWorking = true;
@@ -171,6 +181,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
           .processPrompt(
             prompt: prompt,
             profile: profile,
+            history: List<AssistantConversationMessage>.unmodifiable(_aiHistory),
+            allowInAppRouting: false,
           );
       if (!mounted) {
         return;
@@ -179,6 +191,12 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       final cleaned = _cleanAiReply(reply.text);
 
       setState(() {
+        _aiHistory.add(
+          AssistantConversationMessage(role: 'user', text: historyPrompt),
+        );
+        _aiHistory.add(
+          AssistantConversationMessage(role: 'assistant', text: cleaned),
+        );
         _aiReply = cleaned;
         _aiReplyLabel = switch (target) {
           _AiAssistTarget.title => 'AI title suggestion',
@@ -194,7 +212,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
           _titleController.text = _extractSingleLine(cleaned, maxLength: 70);
           break;
         case _AiAssistTarget.bio:
-          _bioController.text = cleaned;
+      _bioController.text = cleaned;
           break;
         case _AiAssistTarget.specializations:
           final matches = _extractSpecializations(cleaned);
@@ -413,38 +431,26 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                 ),
                 const SizedBox(height: 18),
                 _buildAiAssistantCard(),
-                const SizedBox(height: 18),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF5FAFF),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: const Color(0xFFD8E8F8)),
+                if (isWide) ...[
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5FAFF),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: const Color(0xFFD8E8F8)),
+                    ),
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: _steps
+                          .map(
+                            (step) => _SetupStepCard(step: step, wide: true),
+                          )
+                          .toList(growable: false),
+                    ),
                   ),
-                  child: isWide
-                      ? Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: _steps
-                              .map(
-                                (step) =>
-                                    _SetupStepCard(step: step, wide: true),
-                              )
-                              .toList(growable: false),
-                        )
-                      : Column(
-                          children: _steps
-                              .map(
-                                (step) => Padding(
-                                  padding: EdgeInsets.only(
-                                    bottom: step == _steps.last ? 0 : 12,
-                                  ),
-                                  child: _SetupStepCard(step: step, wide: false),
-                                ),
-                              )
-                              .toList(growable: false),
-                        ),
-                ),
+                ],
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 180),
                   child: (_formError == null || _formError!.trim().isEmpty)

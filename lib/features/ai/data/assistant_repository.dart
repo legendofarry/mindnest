@@ -288,6 +288,7 @@ class AssistantRepository {
     required UserProfile profile,
     List<AssistantConversationMessage> history = const [],
     String memorySummary = '',
+    bool allowInAppRouting = true,
   }) async {
     final normalized = prompt.trim().toLowerCase();
     if (normalized.isEmpty) {
@@ -296,7 +297,7 @@ class AssistantRepository {
       );
     }
 
-    if (_isInAppRequest(normalized)) {
+    if (allowInAppRouting && _isInAppRequest(normalized)) {
       return _handleInAppPrompt(prompt: prompt.trim(), profile: profile);
     }
 
