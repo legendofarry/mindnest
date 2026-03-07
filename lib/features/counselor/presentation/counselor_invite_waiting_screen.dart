@@ -267,40 +267,13 @@ class _CounselorInviteWaitingScreenState
               ),
             ),
           )
-        else ...[
-          GlassCard(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _inviteHighlightTile(
-                    'Institution access is unlocked for review.',
-                    'This is your live handoff into counselor access. Enter the code and respond here.',
-                    const [Color(0xFF155EEF), Color(0xFF0E9B90)],
-                    Icons.verified_user_rounded,
-                    false,
-                  ),
-                  const SizedBox(height: 12),
-                  _inviteHighlightTile(
-                    'Respond before the invite expires.',
-                    'Rejecting or missing the window means the institution admin must send a new invite.',
-                    const [Color(0xFFF59E0B), Color(0xFFEF4444)],
-                    Icons.timer_outlined,
-                    false,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
+        else
           GlassCard(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: _invitePanel(invite, false),
             ),
           ),
-        ],
       ],
     );
   }
@@ -949,71 +922,6 @@ class _CounselorInviteWaitingScreenState
               fontSize: isDesktop ? 15.5 : 13.5,
               fontWeight: FontWeight.w800,
               height: 1.35,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _inviteHighlightTile(
-    String title,
-    String description,
-    List<Color> gradient,
-    IconData icon,
-    bool isDesktop,
-  ) {
-    return Container(
-      padding: EdgeInsets.all(isDesktop ? 18 : 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE3EDF5)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: isDesktop ? 58 : 50,
-            height: isDesktop ? 58 : 50,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              gradient: LinearGradient(colors: gradient),
-              boxShadow: [
-                BoxShadow(
-                  color: gradient.first.withValues(alpha: 0.24),
-                  blurRadius: 18,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: isDesktop ? 28 : 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: const Color(0xFF071937),
-                    fontSize: isDesktop ? 18 : 15.5,
-                    fontWeight: FontWeight.w900,
-                    height: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  description,
-                  style: TextStyle(
-                    color: const Color(0xFF5D728D),
-                    fontSize: isDesktop ? 14.5 : 13,
-                    fontWeight: FontWeight.w500,
-                    height: 1.5,
-                  ),
-                ),
-              ],
             ),
           ),
         ],
