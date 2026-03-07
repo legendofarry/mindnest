@@ -11,7 +11,7 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 // Source-file fallback config (used when no --dart-define values are passed).
 // If you prefer not to pass --dart-define during development, put values here.
 const _externalAiProviderSource =
-    'auto'; // auto | openai | gemini | groq | openrouter
+    'openrouter'; // auto | openai | gemini | groq | openrouter
 
 // OpenAI-compatible config
 const _externalAiApiKeySource = 'AIzaSyDZUxuK1aZj-pCpX78NTXBRTJ16YhCGG9o';
