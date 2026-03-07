@@ -181,7 +181,9 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
           .processPrompt(
             prompt: prompt,
             profile: profile,
-            history: List<AssistantConversationMessage>.unmodifiable(_aiHistory),
+            history: List<AssistantConversationMessage>.unmodifiable(
+              _aiHistory,
+            ),
             allowInAppRouting: false,
           );
       if (!mounted) {
@@ -201,8 +203,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         _aiReplyLabel = switch (target) {
           _AiAssistTarget.title => 'AI title suggestion',
           _AiAssistTarget.bio => 'AI bio draft',
-          _AiAssistTarget.specializations =>
-            'AI specialization recommendation',
+          _AiAssistTarget.specializations => 'AI specialization recommendation',
           _AiAssistTarget.custom => 'AI setup guidance',
         };
       });
@@ -212,7 +213,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
           _titleController.text = _extractSingleLine(cleaned, maxLength: 70);
           break;
         case _AiAssistTarget.bio:
-      _bioController.text = cleaned;
+          _bioController.text = cleaned;
           break;
         case _AiAssistTarget.specializations:
           final matches = _extractSpecializations(cleaned);
@@ -384,10 +385,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: const Color(0xFFBEE9E4),
-            width: 1.1,
-          ),
+          border: Border.all(color: const Color(0xFFBEE9E4), width: 1.1),
           boxShadow: const [
             BoxShadow(
               color: Color(0x140F172A),
@@ -444,9 +442,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                       spacing: 12,
                       runSpacing: 12,
                       children: _steps
-                          .map(
-                            (step) => _SetupStepCard(step: step, wide: true),
-                          )
+                          .map((step) => _SetupStepCard(step: step, wide: true))
                           .toList(growable: false),
                     ),
                   ),
@@ -645,7 +641,9 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 200),
                       child: Text(
-                        _isSubmitting ? 'Saving setup...' : 'Complete Setup  ->',
+                        _isSubmitting
+                            ? 'Saving setup...'
+                            : 'Complete Setup  ->',
                         key: ValueKey(_isSubmitting),
                         style: const TextStyle(
                           fontSize: 17.5,
@@ -712,10 +710,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
             icon: const Icon(Icons.keyboard_arrow_down_rounded),
             items: _sessionModes
                 .map(
-                  (item) => DropdownMenuItem<String>(
-                    value: item,
-                    child: Text(item),
-                  ),
+                  (item) =>
+                      DropdownMenuItem<String>(value: item, child: Text(item)),
                 )
                 .toList(growable: false),
             onChanged: (value) {
@@ -749,10 +745,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
             icon: const Icon(Icons.keyboard_arrow_down_rounded),
             items: _timezones
                 .map(
-                  (item) => DropdownMenuItem<String>(
-                    value: item,
-                    child: Text(item),
-                  ),
+                  (item) =>
+                      DropdownMenuItem<String>(value: item, child: Text(item)),
                 )
                 .toList(growable: false),
             onChanged: (value) {
@@ -891,19 +885,18 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
               },
               decoration: InputDecoration(
                 border: InputBorder.none,
-                hintText:
-                    'Ask AI: "What title fits academic stress and grief counseling?"',
+                hintText: 'Ask AI',
                 prefixIcon: const Icon(Icons.smart_toy_outlined),
                 suffixIcon: Padding(
                   padding: const EdgeInsets.all(8),
                   child: FilledButton(
-                    onPressed: _isAiWorking ||
-                            _aiPromptController.text.trim().isEmpty
+                    onPressed:
+                        _isAiWorking || _aiPromptController.text.trim().isEmpty
                         ? null
                         : () => _runAiAssist(
-                              target: _AiAssistTarget.custom,
-                              customPrompt: _aiPromptController.text,
-                            ),
+                            target: _AiAssistTarget.custom,
+                            customPrompt: _aiPromptController.text,
+                          ),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF0E9B90),
                       shape: RoundedRectangleBorder(
@@ -1124,9 +1117,7 @@ class _SpecializationPill extends StatelessWidget {
                   ),
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
-              color: selected
-                  ? Colors.transparent
-                  : const Color(0xFFD6E4F1),
+              color: selected ? Colors.transparent : const Color(0xFFD6E4F1),
             ),
             boxShadow: selected
                 ? const [
@@ -1146,9 +1137,7 @@ class _SpecializationPill extends StatelessWidget {
                     ? Icons.check_rounded
                     : Icons.add_circle_outline_rounded,
                 size: 16,
-                color: selected
-                    ? Colors.white
-                    : const Color(0xFF58708C),
+                color: selected ? Colors.white : const Color(0xFF58708C),
               ),
               const SizedBox(width: 8),
               Text(
@@ -1197,10 +1186,7 @@ class _RoundedInput extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: const Color(0xFFD2DCE9),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0xFFD2DCE9), width: 1),
         boxShadow: const [
           BoxShadow(
             color: Color(0x120F172A),
