@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
+import 'package:mindnest/features/ai/data/assistant_providers.dart';
+import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
 
 class CounselorSetupScreen extends ConsumerStatefulWidget {
@@ -20,6 +24,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   final _yearsController = TextEditingController();
   final _languagesController = TextEditingController();
   final _bioController = TextEditingController();
+  final _aiPromptController = TextEditingController();
 
   final Set<String> _selectedSpecializations = <String>{};
 
@@ -28,6 +33,10 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   bool _isSubmitting = false;
   bool _specializationsError = false;
   String? _formError;
+  bool _isAiWorking = false;
+  String? _aiReply;
+  String? _aiReplyLabel;
+  String? _aiError;
 
   static const List<String> _specializations = <String>[
     'Academic Stress',
@@ -86,6 +95,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     _yearsController.dispose();
     _languagesController.dispose();
     _bioController.dispose();
+    _aiPromptController.dispose();
     super.dispose();
   }
 
@@ -108,6 +118,177 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       }
       _formError = null;
     });
+  }
+
+  String _setupContext() {
+    final selected = _specializations
+        .where(_selectedSpecializations.contains)
+        .join(', ');
+    return [
+      if (_titleController.text.trim().isNotEmpty)
+        'Professional title: ${_titleController.text.trim()}',
+      if (selected.isNotEmpty) 'Selected specializations: $selected',
+      if (_yearsController.text.trim().isNotEmpty)
+        'Years of experience: ${_yearsController.text.trim()}',
+      'Session mode: $_sessionMode',
+      'Timezone: $_timezone',
+      if (_languagesController.text.trim().isNotEmpty)
+        'Languages: ${_languagesController.text.trim()}',
+      if (_bioController.text.trim().isNotEmpty)
+        'Bio draft: ${_bioController.text.trim()}',
+    ].join('\n');
+  }
+
+  Future<void> _runAiAssist({
+    required _AiAssistTarget target,
+    String customPrompt = '',
+  }) async {
+    final profile = ref.read(currentUserProfileProvider).valueOrNull;
+    if (profile == null) {
+      setState(() {
+        _aiError = 'AI assistant needs your signed-in profile to work.';
+      });
+      return;
+    }
+
+    final prompt = _buildAiPrompt(
+      profile: profile,
+      target: target,
+      customPrompt: customPrompt,
+    );
+
+    setState(() {
+      _isAiWorking = true;
+      _aiError = null;
+      _aiReply = null;
+      _aiReplyLabel = null;
+      _formError = null;
+    });
+
+    try {
+      final reply = await ref
+          .read(assistantRepositoryProvider)
+          .processPrompt(
+            prompt: prompt,
+            profile: profile,
+          );
+      if (!mounted) {
+        return;
+      }
+
+      final cleaned = _cleanAiReply(reply.text);
+
+      setState(() {
+        _aiReply = cleaned;
+        _aiReplyLabel = switch (target) {
+          _AiAssistTarget.title => 'AI title suggestion',
+          _AiAssistTarget.bio => 'AI bio draft',
+          _AiAssistTarget.specializations =>
+            'AI specialization recommendation',
+          _AiAssistTarget.custom => 'AI setup guidance',
+        };
+      });
+
+      switch (target) {
+        case _AiAssistTarget.title:
+          _titleController.text = _extractSingleLine(cleaned, maxLength: 70);
+          break;
+        case _AiAssistTarget.bio:
+          _bioController.text = cleaned;
+          break;
+        case _AiAssistTarget.specializations:
+          final matches = _extractSpecializations(cleaned);
+          if (matches.isEmpty) {
+            setState(() {
+              _aiError =
+                  'AI replied, but no valid specialization names were detected.';
+            });
+            return;
+          }
+          setState(() {
+            _selectedSpecializations
+              ..clear()
+              ..addAll(matches);
+            _specializationsError = false;
+          });
+          break;
+        case _AiAssistTarget.custom:
+          break;
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _aiError = error.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isAiWorking = false);
+      }
+    }
+  }
+
+  String _buildAiPrompt({
+    required UserProfile profile,
+    required _AiAssistTarget target,
+    required String customPrompt,
+  }) {
+    const specializationList =
+        'Academic Stress, Career Guidance, Anxiety, Depression, '
+        'Relationship Issues, Family Problems, Self-Esteem, Trauma, '
+        'Substance Abuse, Bullying, Grief & Loss, General Counseling';
+    final context = _setupContext();
+    final base =
+        'You are helping a MindNest counselor complete a profile setup form. '
+        'Keep the response concrete and professional. '
+        'User role: ${profile.role.name}. '
+        'Allowed specialization names: $specializationList.\n'
+        'Current form context:\n$context\n\n';
+
+    switch (target) {
+      case _AiAssistTarget.title:
+        return '${base}Write exactly one professional counselor title. '
+            'Return title only. No bullets, no quotes, no explanation. '
+            'Keep it between 2 and 6 words.';
+      case _AiAssistTarget.bio:
+        return '${base}Write a professional counselor bio for a school or institution setting. '
+            'Use 60 to 90 words. Return the bio only.';
+      case _AiAssistTarget.specializations:
+        return '${base}Choose the best 3 to 5 specialization names from the allowed list. '
+            'Return only a comma-separated list using the exact allowed names.';
+      case _AiAssistTarget.custom:
+        return '${base}Answer this counselor setup question briefly and practically: '
+            '${customPrompt.trim()}';
+    }
+  }
+
+  String _cleanAiReply(String value) {
+    return value
+        .trim()
+        .replaceAll(RegExp(r'^```[\w-]*\s*'), '')
+        .replaceAll(RegExp(r'```$'), '')
+        .trim();
+  }
+
+  String _extractSingleLine(String value, {required int maxLength}) {
+    final line = value
+        .split('\n')
+        .map((entry) => entry.trim())
+        .firstWhere((entry) => entry.isNotEmpty, orElse: () => value.trim())
+        .replaceAll(RegExp(r'^[\-\d\.\)\s]+'), '')
+        .trim();
+    if (line.length <= maxLength) {
+      return line;
+    }
+    return line.substring(0, maxLength).trim();
+  }
+
+  Set<String> _extractSpecializations(String value) {
+    final lowered = value.toLowerCase();
+    return _specializations
+        .where((item) => lowered.contains(item.toLowerCase()))
+        .toSet();
   }
 
   Future<void> _submit() async {
@@ -230,6 +411,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                   ),
                   textAlign: TextAlign.center,
                 ),
+                const SizedBox(height: 18),
+                _buildAiAssistantCard(),
                 const SizedBox(height: 18),
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -601,7 +784,201 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       ],
     );
   }
+
+  Widget _buildAiAssistantCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: <Color>[Color(0xFFE9FBF8), Color(0xFFF3F8FF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFBFE6E0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: <Color>[Color(0xFF0EA5A0), Color(0xFF0B7C9E)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'MindNest AI Setup Assist',
+                      style: TextStyle(
+                        color: Color(0xFF071937),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Draft a title, recommend specializations, write your bio, or answer setup questions.',
+                      style: TextStyle(
+                        color: Color(0xFF5D728D),
+                        fontSize: 12.8,
+                        fontWeight: FontWeight.w500,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _AiQuickActionChip(
+                label: 'Suggest Title',
+                icon: Icons.badge_outlined,
+                busy: _isAiWorking,
+                onTap: () => _runAiAssist(target: _AiAssistTarget.title),
+              ),
+              _AiQuickActionChip(
+                label: 'Pick Specializations',
+                icon: Icons.psychology_alt_outlined,
+                busy: _isAiWorking,
+                onTap: () =>
+                    _runAiAssist(target: _AiAssistTarget.specializations),
+              ),
+              _AiQuickActionChip(
+                label: 'Draft Bio',
+                icon: Icons.edit_note_rounded,
+                busy: _isAiWorking,
+                onTap: () => _runAiAssist(target: _AiAssistTarget.bio),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _RoundedInput(
+            child: TextField(
+              controller: _aiPromptController,
+              minLines: 1,
+              maxLines: 3,
+              onChanged: (_) {
+                setState(() {
+                  _aiError = null;
+                });
+              },
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                hintText:
+                    'Ask AI: "What title fits academic stress and grief counseling?"',
+                prefixIcon: const Icon(Icons.smart_toy_outlined),
+                suffixIcon: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: FilledButton(
+                    onPressed: _isAiWorking ||
+                            _aiPromptController.text.trim().isEmpty
+                        ? null
+                        : () => _runAiAssist(
+                              target: _AiAssistTarget.custom,
+                              customPrompt: _aiPromptController.text,
+                            ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF0E9B90),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                    child: _isAiWorking
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Ask',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if ((_aiError ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              _aiError!,
+              style: const TextStyle(
+                color: Color(0xFFB91C1C),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          if ((_aiReply ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFD6E7F3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _aiReplyLabel ?? 'AI response',
+                    style: const TextStyle(
+                      color: Color(0xFF0E9B90),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _aiReply!,
+                    style: const TextStyle(
+                      color: Color(0xFF0B2442),
+                      fontSize: 13.4,
+                      fontWeight: FontWeight.w500,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
+
+enum _AiAssistTarget { title, specializations, bio, custom }
 
 class _StepItem {
   const _StepItem({
@@ -827,6 +1204,56 @@ class _RoundedInput extends StatelessWidget {
         ],
       ),
       child: child,
+    );
+  }
+}
+
+class _AiQuickActionChip extends StatelessWidget {
+  const _AiQuickActionChip({
+    required this.label,
+    required this.icon,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: busy ? null : onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: const Color(0xFFD7E6F2)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: const Color(0xFF0E9B90)),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: busy
+                      ? const Color(0xFF90A4BC)
+                      : const Color(0xFF0B2442),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.8,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
