@@ -255,10 +255,16 @@ class _CounselorInviteWaitingScreenState
         _inviteHeroCard(context, invite, isDesktop),
         const SizedBox(height: 22),
         if (isDesktop)
-          GlassCard(
-            child: Padding(
-              padding: const EdgeInsets.all(22),
-              child: _invitePanel(invite, true),
+          Align(
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: 900,
+              child: GlassCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: _invitePanel(invite, true),
+                ),
+              ),
             ),
           )
         else ...[
@@ -496,7 +502,7 @@ class _CounselorInviteWaitingScreenState
               ),
               const SizedBox(width: 8),
               Text(
-                'INVITE ARRIVED',
+                'RESPOND NOW',
                 style: TextStyle(
                   color: const Color(0xFF7C5400),
                   fontSize: isDesktop ? 12.5 : 11.5,
@@ -507,8 +513,6 @@ class _CounselorInviteWaitingScreenState
             ],
           ),
         ),
-        const SizedBox(height: 14),
-        _sectionTitle('Respond now', isDesktop),
         const SizedBox(height: 8),
         Text(
           'This is no longer a waiting page. Review the invite, enter the institution code, and decide from this panel.',
@@ -1016,6 +1020,7 @@ class _CounselorInviteWaitingScreenState
       ),
     );
   }
+
   Widget _infoCard(
     bool isDesktop,
     String index,
