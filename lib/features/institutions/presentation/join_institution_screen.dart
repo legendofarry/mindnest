@@ -110,7 +110,17 @@ class _JoinInstitutionScreenState extends ConsumerState<JoinInstitutionScreen> {
                 TextButton(
                   onPressed: _isSubmitting
                       ? null
-                      : () => context.go(AppRoute.postSignup),
+                      : () {
+                          final isVerified =
+                              ref
+                                  .read(authRepositoryProvider)
+                                  .currentAuthUser
+                                  ?.emailVerified ??
+                              false;
+                          context.go(
+                            isVerified ? AppRoute.home : AppRoute.verifyEmail,
+                          );
+                        },
                   child: const Text('Back'),
                 ),
               ],

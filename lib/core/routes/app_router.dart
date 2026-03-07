@@ -35,7 +35,6 @@ import 'package:mindnest/features/institutions/presentation/institution_pending_
 import 'package:mindnest/features/institutions/presentation/invite_accept_screen.dart';
 import 'package:mindnest/features/institutions/presentation/join_institution_screen.dart';
 import 'package:mindnest/features/institutions/presentation/owner_dashboard_screen.dart';
-import 'package:mindnest/features/institutions/presentation/post_signup_decision_screen.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/live/presentation/live_hub_screen.dart';
 import 'package:mindnest/features/live/presentation/live_room_screen.dart';
@@ -49,7 +48,6 @@ class AppRoute {
   static const registerDetails = '/register-details';
   static const registerInstitution = '/register-institution';
   static const forgotPassword = '/forgot-password';
-  static const postSignup = '/post-signup';
   static const verifyEmail = '/verify-email';
   static const counselorInviteWaiting = '/counselor-invite-waiting';
   static const inviteAccept = '/invite-accept';
@@ -212,8 +210,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.registerInstitution;
       final isPreVerificationOnboardingRoute =
           location == AppRoute.verifyEmail ||
-          location == AppRoute.joinInstitution ||
-          location == AppRoute.postSignup;
+          location == AppRoute.joinInstitution;
       final isCounselorInviteWaitingRoute =
           location == AppRoute.counselorInviteWaiting;
       final isCounselorOpsRoute =
@@ -301,11 +298,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return null;
         }
 
-        // 4. Verified, role unresolved -> post-signup role selection.
+        // 4. Verified, role unresolved -> continue with base app flow.
         if (!roleResolved) {
-          if (location != AppRoute.postSignup &&
-              location != AppRoute.joinInstitution) {
-            return AppRoute.postSignup;
+          if (location != AppRoute.joinInstitution) {
+            return AppRoute.home;
           }
           return null;
         }
@@ -518,10 +514,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.registerInstitution,
         builder: (context, state) => const RegisterInstitutionScreen(),
-      ),
-      GoRoute(
-        path: AppRoute.postSignup,
-        builder: (context, state) => const PostSignupDecisionScreen(),
       ),
       GoRoute(
         path: AppRoute.verifyEmail,

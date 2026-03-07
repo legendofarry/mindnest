@@ -92,7 +92,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       return AppRoute.counselorSetup;
     }
     if (role == null || role == UserRole.other) {
-      return AppRoute.postSignup;
+      return AppRoute.home;
     }
     return AppRoute.home;
   }

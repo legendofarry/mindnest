@@ -115,16 +115,14 @@ class _RegisterContent extends StatelessWidget {
     final createAccountCard = _AccountTypeCard(
       icon: Icons.account_circle_outlined,
       title: 'Create Account',
-      description:
-          'Use wellness tools, track your mood, and access resources. You can connect to an institution after sign-up.',
+      description: 'Use wellness tools and access resources.',
       compact: showSideBySideMobileChoices,
       onTap: () => context.go(_registerDetailsRoute()),
     );
     final counselorCard = _AccountTypeCard(
       icon: Icons.psychology_alt_outlined,
       title: 'I am a Counselor',
-      description:
-          'Create your account for institution counselor invite flow and skip basic onboarding questions.',
+      description: 'Create your account for institution counselor.',
       compact: showSideBySideMobileChoices,
       onTap: () => context.go(
         _registerDetailsRoute(

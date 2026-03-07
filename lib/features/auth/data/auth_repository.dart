@@ -70,13 +70,55 @@ class AuthRepository {
     );
   }
 
+  Future<bool> isPhoneNumberAvailableForRegistration(String phoneNumber) async {
+    final normalizedPhoneNumber = _normalizeRequiredKenyaPhone(phoneNumber);
+    final registryRef = _firestore
+        .collection('phone_number_registry')
+        .doc(_phoneRegistryDocId(normalizedPhoneNumber));
+    final snapshot = await registryRef.get();
+    if (!snapshot.exists) {
+      return true;
+    }
+
+    final ownerUid = ((snapshot.data()?['uid'] as String?) ?? '').trim();
+    if (ownerUid.isEmpty) {
+      return true;
+    }
+
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid != null && currentUid == ownerUid) {
+      return true;
+    }
+    return false;
+  }
+
   Future<void> setCurrentUserAsIndividual() async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('You must be logged in.');
     }
 
-    await _firestore.collection('users').doc(user.uid).update({
+    final userDoc = _firestore.collection('users').doc(user.uid);
+    final snapshot = await userDoc.get();
+    if (!snapshot.exists) {
+      await userDoc.set({
+        'email': user.email ?? '',
+        'name': user.displayName ?? '',
+        'role': UserRole.individual.name,
+        'onboardingCompletedRoles': <String, int>{},
+        'institutionId': null,
+        'institutionName': null,
+        'phoneNumber': '',
+        'additionalPhoneNumber': null,
+        'phoneNumbers': const <String>[],
+        'registrationIntent': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+
+    await userDoc.update({
       'role': UserRole.individual.name,
       'institutionId': null,
       'institutionName': null,

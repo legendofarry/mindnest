@@ -856,7 +856,8 @@ service cloud.firestore {
     }
 
     match /phone_number_registry/{phoneKey} {
-      allow read: if isSignedIn();
+      allow get: if true;
+      allow list: if isSignedIn();
       allow create: if isSignedIn() &&
         request.resource.data.uid == request.auth.uid &&
         request.resource.data.phoneNumber is string &&

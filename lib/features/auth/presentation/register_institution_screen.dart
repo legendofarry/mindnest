@@ -1,4 +1,6 @@
 // features/auth/presentation/register_institution_screen.dart
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import 'package:mindnest/core/config/school_catalog.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/core/ui/auth_desktop_shell.dart';
+import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
 class RegisterInstitutionScreen extends ConsumerStatefulWidget {
@@ -28,6 +31,8 @@ class _RegisterInstitutionScreenState
   final _emailController = TextEditingController();
   final _adminPhoneController = TextEditingController();
   final _additionalAdminPhoneController = TextEditingController();
+  final _adminPhoneFocusNode = FocusNode();
+  final _additionalAdminPhoneFocusNode = FocusNode();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _schoolRequestNameController = TextEditingController();
@@ -43,9 +48,13 @@ class _RegisterInstitutionScreenState
   bool _adminEmailFieldError = false;
   bool _adminPhoneFieldError = false;
   bool _additionalAdminPhoneFieldError = false;
+  String? _adminPhoneDuplicateError;
+  String? _additionalAdminPhoneDuplicateError;
   bool _passwordFieldError = false;
   bool _confirmPasswordFieldError = false;
   String? _formError;
+  int _adminPhoneCheckToken = 0;
+  int _additionalAdminPhoneCheckToken = 0;
 
   late final AnimationController _shakeController = AnimationController(
     vsync: this,
@@ -72,6 +81,42 @@ class _RegisterInstitutionScreenState
     return current;
   }
 
+  bool get _isPrimaryActionEnabled {
+    if (_isSubmitting) {
+      return false;
+    }
+    switch (_activeStep) {
+      case 0:
+        return (_selectedSchoolId ?? '').trim().isNotEmpty;
+      case 1:
+        final hasName = _adminNameController.text.trim().length >= 2;
+        final email = _emailController.text.trim();
+        final hasEmail = email.isNotEmpty && email.contains('@');
+        final primaryPhone = _normalizeKenyaPhoneInput(
+          _adminPhoneController.text,
+        );
+        final hasPhone = _isValidKenyaPhone(primaryPhone);
+        final optionalPhone = _optionalPhoneValue(
+          _additionalAdminPhoneController.text,
+        );
+        final hasValidOptionalPhone =
+            optionalPhone == null || _isValidKenyaPhone(optionalPhone);
+        final hasDistinctOptionalPhone =
+            optionalPhone == null || optionalPhone != primaryPhone;
+        return hasName &&
+            hasEmail &&
+            hasPhone &&
+            hasValidOptionalPhone &&
+            hasDistinctOptionalPhone &&
+            _adminPhoneDuplicateError == null &&
+            _additionalAdminPhoneDuplicateError == null;
+      default:
+        return _passwordController.text.length >= 8 &&
+            _confirmPasswordController.text.isNotEmpty &&
+            _confirmPasswordController.text == _passwordController.text;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -80,6 +125,10 @@ class _RegisterInstitutionScreenState
     _adminPhoneController.addListener(_enforceAdminPhonePrefix);
     _additionalAdminPhoneController.addListener(_enforceAdditionalAdminPhone);
     _schoolRequestMobileController.addListener(_enforceSchoolMobilePrefix);
+    _adminPhoneFocusNode.addListener(_onAdminPhoneFocusChange);
+    _additionalAdminPhoneFocusNode.addListener(
+      _onAdditionalAdminPhoneFocusChange,
+    );
   }
 
   @override
@@ -90,10 +139,16 @@ class _RegisterInstitutionScreenState
       _enforceAdditionalAdminPhone,
     );
     _schoolRequestMobileController.removeListener(_enforceSchoolMobilePrefix);
+    _adminPhoneFocusNode.removeListener(_onAdminPhoneFocusChange);
+    _additionalAdminPhoneFocusNode.removeListener(
+      _onAdditionalAdminPhoneFocusChange,
+    );
     _adminNameController.dispose();
     _emailController.dispose();
     _adminPhoneController.dispose();
     _additionalAdminPhoneController.dispose();
+    _adminPhoneFocusNode.dispose();
+    _additionalAdminPhoneFocusNode.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _schoolRequestNameController.dispose();
@@ -141,6 +196,109 @@ class _RegisterInstitutionScreenState
 
   bool _isValidKenyaPhone(String value) {
     return RegExp(r'^\+254\d{9}$').hasMatch(value);
+  }
+
+  void _onAdminPhoneFocusChange() {
+    if (_adminPhoneFocusNode.hasFocus) {
+      return;
+    }
+    unawaited(_checkAdminPhoneDuplicate());
+  }
+
+  void _onAdditionalAdminPhoneFocusChange() {
+    if (_additionalAdminPhoneFocusNode.hasFocus) {
+      return;
+    }
+    unawaited(_checkAdditionalAdminPhoneDuplicate());
+  }
+
+  Future<void> _checkAdminPhoneDuplicate() async {
+    final normalized = _normalizeKenyaPhoneInput(_adminPhoneController.text);
+    if (!_isValidKenyaPhone(normalized)) {
+      if (_adminPhoneDuplicateError != null) {
+        setState(() => _adminPhoneDuplicateError = null);
+      }
+      return;
+    }
+
+    final token = ++_adminPhoneCheckToken;
+    try {
+      final isAvailable = await ref
+          .read(authRepositoryProvider)
+          .isPhoneNumberAvailableForRegistration(normalized);
+      if (!mounted || token != _adminPhoneCheckToken) {
+        return;
+      }
+      setState(() {
+        _adminPhoneDuplicateError = isAvailable
+            ? null
+            : 'This mobile number is already linked to another account.';
+        if (_adminPhoneDuplicateError != null) {
+          _formError = _adminPhoneDuplicateError;
+        } else if (_formError ==
+            'This mobile number is already linked to another account.') {
+          _formError = null;
+        }
+      });
+    } catch (_) {
+      if (!mounted || token != _adminPhoneCheckToken) {
+        return;
+      }
+      setState(() => _adminPhoneDuplicateError = null);
+    }
+  }
+
+  Future<void> _checkAdditionalAdminPhoneDuplicate() async {
+    final optionalPhone = _optionalPhoneValue(
+      _additionalAdminPhoneController.text,
+    );
+    if (optionalPhone == null) {
+      if (_additionalAdminPhoneDuplicateError != null) {
+        setState(() => _additionalAdminPhoneDuplicateError = null);
+      }
+      return;
+    }
+    final normalized = _normalizeKenyaPhoneInput(optionalPhone);
+    if (!_isValidKenyaPhone(normalized) ||
+        normalized == _adminPhoneController.text.trim()) {
+      if (_additionalAdminPhoneDuplicateError != null) {
+        setState(() => _additionalAdminPhoneDuplicateError = null);
+      }
+      return;
+    }
+
+    final token = ++_additionalAdminPhoneCheckToken;
+    try {
+      final isAvailable = await ref
+          .read(authRepositoryProvider)
+          .isPhoneNumberAvailableForRegistration(normalized);
+      if (!mounted || token != _additionalAdminPhoneCheckToken) {
+        return;
+      }
+      setState(() {
+        _additionalAdminPhoneDuplicateError = isAvailable
+            ? null
+            : 'This additional mobile is already linked to another account.';
+        if (_additionalAdminPhoneDuplicateError != null) {
+          _formError = _additionalAdminPhoneDuplicateError;
+        } else if (_formError ==
+            'This additional mobile is already linked to another account.') {
+          _formError = null;
+        }
+      });
+    } catch (_) {
+      if (!mounted || token != _additionalAdminPhoneCheckToken) {
+        return;
+      }
+      setState(() => _additionalAdminPhoneDuplicateError = null);
+    }
+  }
+
+  Future<bool> _runAdminPhoneDuplicationChecks() async {
+    await _checkAdminPhoneDuplicate();
+    await _checkAdditionalAdminPhoneDuplicate();
+    return _adminPhoneDuplicateError != null ||
+        _additionalAdminPhoneDuplicateError != null;
   }
 
   String? _optionalPhoneValue(String value) {
@@ -247,18 +405,25 @@ class _RegisterInstitutionScreenState
         final hasDistinctOptionalPhone =
             optionalPhone == null ||
             optionalPhone != _adminPhoneController.text.trim();
+        final hasDuplicateAdminPhone = _adminPhoneDuplicateError != null;
+        final hasDuplicateAdditionalPhone =
+            _additionalAdminPhoneDuplicateError != null;
         setState(() {
           _adminNameFieldError = !hasName;
           _adminEmailFieldError = !hasEmail;
-          _adminPhoneFieldError = !hasPhone;
+          _adminPhoneFieldError = !hasPhone || hasDuplicateAdminPhone;
           _additionalAdminPhoneFieldError =
-              !hasValidOptionalPhone || !hasDistinctOptionalPhone;
+              !hasValidOptionalPhone ||
+              !hasDistinctOptionalPhone ||
+              hasDuplicateAdditionalPhone;
         });
         if (!hasName ||
             !hasEmail ||
             !hasPhone ||
             !hasValidOptionalPhone ||
-            !hasDistinctOptionalPhone) {
+            !hasDistinctOptionalPhone ||
+            hasDuplicateAdminPhone ||
+            hasDuplicateAdditionalPhone) {
           return 'Please correct the highlighted fields.';
         }
         return null;
@@ -412,10 +577,19 @@ class _RegisterInstitutionScreenState
     if (_isSubmitting) {
       return;
     }
-    final stepError = _validateCurrentStep();
+    var stepError = _validateCurrentStep();
     if (stepError != null) {
       await _showFormError(stepError);
       return;
+    }
+
+    if (_activeStep == 1) {
+      await _runAdminPhoneDuplicationChecks();
+      stepError = _validateCurrentStep();
+      if (stepError != null) {
+        await _showFormError(stepError);
+        return;
+      }
     }
 
     if (_activeStep == 0) {
@@ -658,19 +832,21 @@ class _RegisterInstitutionScreenState
         const _FieldLabel(text: 'ADMIN PHONE NUMBER'),
         const SizedBox(height: 8),
         _RoundedInput(
-          hasError: _adminPhoneFieldError,
+          hasError: _adminPhoneFieldError || _adminPhoneDuplicateError != null,
           child: TextFormField(
             controller: _adminPhoneController,
+            focusNode: _adminPhoneFocusNode,
             keyboardType: TextInputType.phone,
             textInputAction: TextInputAction.done,
             onChanged: (_) => setState(() {
               _adminPhoneFieldError = false;
+              _adminPhoneDuplicateError = null;
               _formError = null;
             }),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               border: InputBorder.none,
               hintText: '+254...',
-              prefixIcon: Icon(Icons.phone_rounded),
+              prefixIcon: const Icon(Icons.phone_rounded),
             ),
           ),
         ),
@@ -678,19 +854,23 @@ class _RegisterInstitutionScreenState
         const _FieldLabel(text: 'ADDITIONAL PHONE (OPTIONAL)'),
         const SizedBox(height: 8),
         _RoundedInput(
-          hasError: _additionalAdminPhoneFieldError,
+          hasError:
+              _additionalAdminPhoneFieldError ||
+              _additionalAdminPhoneDuplicateError != null,
           child: TextFormField(
             controller: _additionalAdminPhoneController,
+            focusNode: _additionalAdminPhoneFocusNode,
             keyboardType: TextInputType.phone,
             textInputAction: TextInputAction.done,
             onChanged: (_) => setState(() {
               _additionalAdminPhoneFieldError = false;
+              _additionalAdminPhoneDuplicateError = null;
               _formError = null;
             }),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               border: InputBorder.none,
               hintText: '+254...',
-              prefixIcon: Icon(Icons.phone_android_rounded),
+              prefixIcon: const Icon(Icons.phone_android_rounded),
             ),
           ),
         ),
@@ -765,7 +945,11 @@ class _RegisterInstitutionScreenState
               _confirmPasswordFieldError = false;
               _formError = null;
             }),
-            onFieldSubmitted: (_) => _handlePrimaryAction(),
+            onFieldSubmitted: (_) {
+              if (_isPrimaryActionEnabled) {
+                unawaited(_handlePrimaryAction());
+              }
+            },
             decoration: InputDecoration(
               border: InputBorder.none,
               hintText: 'Re-enter password',
@@ -914,21 +1098,27 @@ class _RegisterInstitutionScreenState
                     height: 58,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF0E9B90), Color(0xFF18A89D)],
+                      gradient: LinearGradient(
+                        colors: _isPrimaryActionEnabled
+                            ? const [Color(0xFF0E9B90), Color(0xFF18A89D)]
+                            : const [Color(0xFFB8C5D6), Color(0xFFAAB8CB)],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                       ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x3C72ECDC),
-                          blurRadius: 22,
-                          offset: Offset(0, 12),
-                        ),
-                      ],
+                      boxShadow: _isPrimaryActionEnabled
+                          ? const [
+                              BoxShadow(
+                                color: Color(0x3C72ECDC),
+                                blurRadius: 22,
+                                offset: Offset(0, 12),
+                              ),
+                            ]
+                          : const [],
                     ),
                     child: ElevatedButton(
-                      onPressed: _isSubmitting ? null : _handlePrimaryAction,
+                      onPressed: _isPrimaryActionEnabled
+                          ? _handlePrimaryAction
+                          : null,
                       style: ElevatedButton.styleFrom(
                         shadowColor: Colors.transparent,
                         backgroundColor: Colors.transparent,

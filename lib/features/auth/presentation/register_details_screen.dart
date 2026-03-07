@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,13 +35,32 @@ class RegisterDetailsScreen extends ConsumerStatefulWidget {
 
 class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   static const _kenyaPrefix = '+254';
-  final _formKey = GlobalKey<FormState>();
+  static const _primaryDuplicateMessage =
+      'This mobile number is already linked to another account.';
+  static const _additionalDuplicateMessage =
+      'This additional mobile is already linked to another account.';
+
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _additionalPhoneController = TextEditingController();
+  final _phoneFocusNode = FocusNode();
+  final _additionalPhoneFocusNode = FocusNode();
   final _passwordController = TextEditingController();
+
   bool _isSubmitting = false;
+  bool _nameFieldError = false;
+  bool _emailFieldError = false;
+  bool _phoneFieldError = false;
+  bool _additionalPhoneFieldError = false;
+  bool _passwordFieldError = false;
+
+  String? _phoneDuplicateError;
+  String? _additionalPhoneDuplicateError;
+  String? _formError;
+
+  int _phoneCheckToken = 0;
+  int _additionalPhoneCheckToken = 0;
 
   Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
     inviteId: widget.inviteId ?? '',
@@ -50,6 +71,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   );
 
   bool get _hasInviteContext => _inviteQuery.isNotEmpty;
+
   bool get _isCounselorIntent {
     if (_hasInviteContext) {
       return false;
@@ -68,16 +90,56 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
     );
   }
 
+  bool get _isFormStructurallyValid {
+    final hasName = _nameController.text.trim().length >= 2;
+    final email = _emailController.text.trim();
+    final hasEmail = email.isNotEmpty && email.contains('@');
+
+    final primaryPhone = _normalizeKenyaPhoneInput(_phoneController.text);
+    final hasPhone = _isValidKenyaPhone(primaryPhone);
+
+    final additionalRaw = _additionalPhoneController.text.trim();
+    final hasAdditional =
+        additionalRaw.isNotEmpty && additionalRaw != _kenyaPrefix;
+    final additionalPhone = hasAdditional
+        ? _normalizeKenyaPhoneInput(additionalRaw)
+        : null;
+    final hasValidAdditional =
+        additionalPhone == null || _isValidKenyaPhone(additionalPhone);
+    final hasDistinctAdditional =
+        additionalPhone == null || additionalPhone != primaryPhone;
+
+    final hasPassword = _passwordController.text.length >= 8;
+
+    return hasName &&
+        hasEmail &&
+        hasPhone &&
+        hasValidAdditional &&
+        hasDistinctAdditional &&
+        hasPassword;
+  }
+
+  bool get _canSubmit {
+    return !_isSubmitting &&
+        _isFormStructurallyValid &&
+        _phoneDuplicateError == null &&
+        _additionalPhoneDuplicateError == null;
+  }
+
   @override
   void initState() {
     super.initState();
     _phoneController.text = _kenyaPrefix;
     _phoneController.addListener(_enforcePrimaryPhonePrefix);
     _additionalPhoneController.addListener(_enforceOptionalPhonePrefix);
+    _phoneFocusNode.addListener(_onPrimaryPhoneFocusChange);
+    _additionalPhoneFocusNode.addListener(_onAdditionalPhoneFocusChange);
+
     final invitedName = (widget.invitedName ?? '').trim();
     if (invitedName.isNotEmpty) {
       _nameController.text = invitedName;
     }
+
     final invitedEmail = (widget.invitedEmail ?? '').trim().toLowerCase();
     if (invitedEmail.isNotEmpty) {
       _emailController.text = invitedEmail;
@@ -88,10 +150,14 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   void dispose() {
     _phoneController.removeListener(_enforcePrimaryPhonePrefix);
     _additionalPhoneController.removeListener(_enforceOptionalPhonePrefix);
+    _phoneFocusNode.removeListener(_onPrimaryPhoneFocusChange);
+    _additionalPhoneFocusNode.removeListener(_onAdditionalPhoneFocusChange);
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _additionalPhoneController.dispose();
+    _phoneFocusNode.dispose();
+    _additionalPhoneFocusNode.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -137,6 +203,126 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
     return RegExp(r'^\+254\d{9}$').hasMatch(value);
   }
 
+  void _onPrimaryPhoneFocusChange() {
+    if (_phoneFocusNode.hasFocus) {
+      return;
+    }
+    unawaited(_checkPrimaryPhoneDuplicate());
+  }
+
+  void _onAdditionalPhoneFocusChange() {
+    if (_additionalPhoneFocusNode.hasFocus) {
+      return;
+    }
+    unawaited(_checkAdditionalPhoneDuplicate());
+  }
+
+  Future<void> _checkPrimaryPhoneDuplicate() async {
+    final normalized = _normalizeKenyaPhoneInput(_phoneController.text);
+    if (!_isValidKenyaPhone(normalized)) {
+      if (_phoneDuplicateError != null || _phoneFieldError) {
+        setState(() {
+          _phoneDuplicateError = null;
+          _phoneFieldError = false;
+        });
+      }
+      return;
+    }
+
+    final token = ++_phoneCheckToken;
+    try {
+      final isAvailable = await ref
+          .read(authRepositoryProvider)
+          .isPhoneNumberAvailableForRegistration(normalized);
+      if (!mounted || token != _phoneCheckToken) {
+        return;
+      }
+      setState(() {
+        _phoneDuplicateError = isAvailable ? null : _primaryDuplicateMessage;
+        _phoneFieldError = !isAvailable;
+        if (!isAvailable) {
+          _formError = _primaryDuplicateMessage;
+        } else if (_formError == _primaryDuplicateMessage) {
+          _formError = null;
+        }
+      });
+    } catch (_) {
+      if (!mounted || token != _phoneCheckToken) {
+        return;
+      }
+      setState(() {
+        _phoneDuplicateError = null;
+        _phoneFieldError = false;
+      });
+    }
+  }
+
+  Future<void> _checkAdditionalPhoneDuplicate() async {
+    final trimmed = _additionalPhoneController.text.trim();
+    if (trimmed.isEmpty || trimmed == _kenyaPrefix) {
+      if (_additionalPhoneDuplicateError != null ||
+          _additionalPhoneFieldError) {
+        setState(() {
+          _additionalPhoneDuplicateError = null;
+          _additionalPhoneFieldError = false;
+          if (_formError == _additionalDuplicateMessage) {
+            _formError = null;
+          }
+        });
+      }
+      return;
+    }
+
+    final normalized = _normalizeKenyaPhoneInput(trimmed);
+    final primaryPhone = _normalizeKenyaPhoneInput(_phoneController.text);
+    if (!_isValidKenyaPhone(normalized) || normalized == primaryPhone) {
+      if (_additionalPhoneDuplicateError != null ||
+          _additionalPhoneFieldError) {
+        setState(() {
+          _additionalPhoneDuplicateError = null;
+          _additionalPhoneFieldError = false;
+        });
+      }
+      return;
+    }
+
+    final token = ++_additionalPhoneCheckToken;
+    try {
+      final isAvailable = await ref
+          .read(authRepositoryProvider)
+          .isPhoneNumberAvailableForRegistration(normalized);
+      if (!mounted || token != _additionalPhoneCheckToken) {
+        return;
+      }
+      setState(() {
+        _additionalPhoneDuplicateError = isAvailable
+            ? null
+            : _additionalDuplicateMessage;
+        _additionalPhoneFieldError = !isAvailable;
+        if (!isAvailable) {
+          _formError = _additionalDuplicateMessage;
+        } else if (_formError == _additionalDuplicateMessage) {
+          _formError = null;
+        }
+      });
+    } catch (_) {
+      if (!mounted || token != _additionalPhoneCheckToken) {
+        return;
+      }
+      setState(() {
+        _additionalPhoneDuplicateError = null;
+        _additionalPhoneFieldError = false;
+      });
+    }
+  }
+
+  Future<bool> _runPhoneDuplicationChecksBeforeSubmit() async {
+    await _checkPrimaryPhoneDuplicate();
+    await _checkAdditionalPhoneDuplicate();
+    return _phoneDuplicateError != null ||
+        _additionalPhoneDuplicateError != null;
+  }
+
   Future<void> _openLegalDoc(LegalDocumentType type) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -145,12 +331,82 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
     );
   }
 
+  bool _validateBeforeSubmit() {
+    final hasName = _nameController.text.trim().length >= 2;
+    final email = _emailController.text.trim();
+    final hasEmail = email.isNotEmpty && email.contains('@');
+
+    final primaryPhone = _normalizeKenyaPhoneInput(_phoneController.text);
+    final hasPhone = _isValidKenyaPhone(primaryPhone);
+
+    final additionalRaw = _additionalPhoneController.text.trim();
+    final hasAdditional =
+        additionalRaw.isNotEmpty && additionalRaw != _kenyaPrefix;
+    final additionalPhone = hasAdditional
+        ? _normalizeKenyaPhoneInput(additionalRaw)
+        : null;
+    final hasValidAdditional =
+        additionalPhone == null || _isValidKenyaPhone(additionalPhone);
+    final hasDistinctAdditional =
+        additionalPhone == null || additionalPhone != primaryPhone;
+
+    final hasPassword = _passwordController.text.length >= 8;
+    final hasDuplicatePrimary = _phoneDuplicateError != null;
+    final hasDuplicateAdditional = _additionalPhoneDuplicateError != null;
+
+    setState(() {
+      _nameFieldError = !hasName;
+      _emailFieldError = !hasEmail;
+      _phoneFieldError = !hasPhone || hasDuplicatePrimary;
+      _additionalPhoneFieldError =
+          !hasValidAdditional ||
+          !hasDistinctAdditional ||
+          hasDuplicateAdditional;
+      _passwordFieldError = !hasPassword;
+    });
+
+    if (!hasName ||
+        !hasEmail ||
+        !hasPhone ||
+        !hasValidAdditional ||
+        !hasDistinctAdditional ||
+        !hasPassword) {
+      setState(() {
+        _formError = 'Please correct the highlighted fields.';
+      });
+      return false;
+    }
+
+    if (hasDuplicatePrimary || hasDuplicateAdditional) {
+      setState(() {
+        _formError =
+            _phoneDuplicateError ??
+            _additionalPhoneDuplicateError ??
+            'A mobile number is already linked to another account.';
+      });
+      return false;
+    }
+
+    return true;
+  }
+
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) {
+    if (!_validateBeforeSubmit()) {
       return;
     }
 
     setState(() => _isSubmitting = true);
+
+    final hasDuplicatePhone = await _runPhoneDuplicationChecksBeforeSubmit();
+    if (!mounted) {
+      return;
+    }
+
+    if (hasDuplicatePhone || !_validateBeforeSubmit()) {
+      setState(() => _isSubmitting = false);
+      return;
+    }
+
     try {
       await ref
           .read(authRepositoryProvider)
@@ -167,9 +423,13 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
       }
       context.go(_routeWithCurrentContext(AppRoute.verifyEmail));
     } on FirebaseAuthException catch (error) {
-      _showMessage(error.message ?? 'Registration failed.');
+      setState(() {
+        _formError = error.message ?? 'Registration failed.';
+      });
     } catch (error) {
-      _showMessage(error.toString());
+      setState(() {
+        _formError = error.toString().replaceFirst('Exception: ', '');
+      });
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -177,17 +437,12 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
   @override
   Widget build(BuildContext context) {
+    final canSubmit = _canSubmit;
+
     return AuthBackgroundScaffold(
       child: Form(
-        key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -239,7 +494,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                 fontWeight: FontWeight.w800,
                 color: const Color(0xFF071937),
                 letterSpacing: -0.5,
-                fontSize: 48 / 2,
+                fontSize: 24,
               ),
             ),
             const SizedBox(height: 6),
@@ -254,8 +509,45 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                 fontWeight: FontWeight.w500,
               ),
             ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: (_formError == null || _formError!.trim().isEmpty)
+                  ? const SizedBox(height: 12)
+                  : Container(
+                      key: ValueKey(_formError),
+                      margin: const EdgeInsets.only(top: 14, bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFECDD3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: Color(0xFFBE123C),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _formError!,
+                              style: const TextStyle(
+                                color: Color(0xFF9F1239),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
             if (_hasInviteContext) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -279,109 +571,100 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             const _FieldLabel(text: 'FULL NAME'),
             const SizedBox(height: 8),
             _RoundedInput(
+              hasError: _nameFieldError,
               child: TextFormField(
                 controller: _nameController,
+                onChanged: (_) => setState(() {
+                  _nameFieldError = false;
+                  _formError = null;
+                }),
                 decoration: const InputDecoration(
                   border: InputBorder.none,
                   hintText: 'Alex Rivera',
                   prefixIcon: Icon(Icons.person_outline_rounded),
                 ),
-                validator: (value) {
-                  if ((value ?? '').trim().length < 2) {
-                    return 'Enter your full name.';
-                  }
-                  return null;
-                },
               ),
             ),
             const SizedBox(height: 18),
             const _FieldLabel(text: 'EMAIL ADDRESS'),
             const SizedBox(height: 8),
             _RoundedInput(
+              hasError: _emailFieldError,
               child: TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
+                onChanged: (_) => setState(() {
+                  _emailFieldError = false;
+                  _formError = null;
+                }),
                 decoration: const InputDecoration(
                   border: InputBorder.none,
                   hintText: 'alex@example.com',
                   prefixIcon: Icon(Icons.mail_outline_rounded),
                 ),
-                validator: (value) {
-                  final trimmed = value?.trim() ?? '';
-                  if (trimmed.isEmpty || !trimmed.contains('@')) {
-                    return 'Enter a valid email address.';
-                  }
-                  return null;
-                },
               ),
             ),
             const SizedBox(height: 18),
             const _FieldLabel(text: 'MOBILE NUMBER'),
             const SizedBox(height: 8),
             _RoundedInput(
+              hasError: _phoneFieldError || _phoneDuplicateError != null,
               child: TextFormField(
                 controller: _phoneController,
+                focusNode: _phoneFocusNode,
                 keyboardType: TextInputType.phone,
+                onChanged: (_) => setState(() {
+                  _phoneFieldError = false;
+                  _phoneDuplicateError = null;
+                  _formError = null;
+                }),
                 decoration: const InputDecoration(
                   border: InputBorder.none,
                   hintText: '+254712345678',
                   prefixIcon: Icon(Icons.phone_rounded),
                 ),
-                validator: (value) {
-                  final normalized = _normalizeKenyaPhoneInput(value ?? '');
-                  if (!_isValidKenyaPhone(normalized)) {
-                    return 'Enter a valid mobile number (example: +254712345678).';
-                  }
-                  return null;
-                },
               ),
             ),
             const SizedBox(height: 18),
             const _FieldLabel(text: 'ADDITIONAL MOBILE (OPTIONAL)'),
             const SizedBox(height: 8),
             _RoundedInput(
+              hasError:
+                  _additionalPhoneFieldError ||
+                  _additionalPhoneDuplicateError != null,
               child: TextFormField(
                 controller: _additionalPhoneController,
+                focusNode: _additionalPhoneFocusNode,
                 keyboardType: TextInputType.phone,
+                onChanged: (_) => setState(() {
+                  _additionalPhoneFieldError = false;
+                  _additionalPhoneDuplicateError = null;
+                  _formError = null;
+                }),
                 decoration: const InputDecoration(
                   border: InputBorder.none,
                   hintText: '+2547...',
                   prefixIcon: Icon(Icons.phone_android_rounded),
                 ),
-                validator: (value) {
-                  final trimmed = (value ?? '').trim();
-                  if (trimmed.isEmpty || trimmed == _kenyaPrefix) {
-                    return null;
-                  }
-                  final normalized = _normalizeKenyaPhoneInput(trimmed);
-                  if (!_isValidKenyaPhone(normalized)) {
-                    return 'Use +254 format for additional mobile.';
-                  }
-                  if (normalized == _phoneController.text.trim()) {
-                    return 'Additional mobile must differ from primary mobile.';
-                  }
-                  return null;
-                },
               ),
             ),
             const SizedBox(height: 18),
             const _FieldLabel(text: 'PASSWORD'),
             const SizedBox(height: 8),
             _RoundedInput(
+              hasError: _passwordFieldError,
               child: TextFormField(
                 controller: _passwordController,
                 obscureText: true,
+                onChanged: (_) => setState(() {
+                  _passwordFieldError = false;
+                  _formError = null;
+                }),
                 decoration: const InputDecoration(
                   border: InputBorder.none,
-                  hintText: '••••••••',
+                  hintText: '********',
                   prefixIcon: Icon(Icons.lock_outline_rounded),
                 ),
-                validator: (value) {
-                  if ((value ?? '').length < 8) {
-                    return 'Use at least 8 characters.';
-                  }
-                  return null;
-                },
               ),
             ),
             const SizedBox(height: 18),
@@ -465,21 +748,25 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
               height: 62,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(17),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0E9B90), Color(0xFF18A89D)],
+                gradient: LinearGradient(
+                  colors: canSubmit
+                      ? const [Color(0xFF0E9B90), Color(0xFF18A89D)]
+                      : const [Color(0xFFB8C5D6), Color(0xFFAAB8CB)],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x4D72ECDC),
-                    blurRadius: 28,
-                    offset: Offset(0, 14),
-                  ),
-                ],
+                boxShadow: canSubmit
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x4D72ECDC),
+                          blurRadius: 28,
+                          offset: Offset(0, 14),
+                        ),
+                      ]
+                    : const [],
               ),
               child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _submit,
+                onPressed: canSubmit ? _submit : null,
                 style: ElevatedButton.styleFrom(
                   shadowColor: Colors.transparent,
                   backgroundColor: Colors.transparent,
@@ -494,7 +781,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                     _isSubmitting ? 'Creating...' : 'Create Account  ->',
                     key: ValueKey(_isSubmitting),
                     style: const TextStyle(
-                      fontSize: 35 / 2,
+                      fontSize: 17.5,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
                     ),
@@ -545,9 +832,10 @@ class _FieldLabel extends StatelessWidget {
 }
 
 class _RoundedInput extends StatelessWidget {
-  const _RoundedInput({required this.child});
+  const _RoundedInput({required this.child, this.hasError = false});
 
   final Widget child;
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) {
@@ -555,7 +843,10 @@ class _RoundedInput extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFD2DCE9)),
+        border: Border.all(
+          color: hasError ? const Color(0xFFFECDD3) : const Color(0xFFD2DCE9),
+          width: hasError ? 1.2 : 1.0,
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x120F172A),
