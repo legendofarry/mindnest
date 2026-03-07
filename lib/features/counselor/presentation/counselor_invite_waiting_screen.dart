@@ -24,8 +24,10 @@ class _CounselorInviteWaitingScreenState
     vsync: this,
     duration: const Duration(seconds: 6),
   )..repeat();
-  late final Animation<double> _pulse = Tween<double>(begin: 0.96, end: 1.04)
-      .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  late final Animation<double> _pulse = Tween<double>(
+    begin: 0.96,
+    end: 1.04,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
   final _codeController = TextEditingController();
   bool _isSubmitting = false;
@@ -103,7 +105,10 @@ class _CounselorInviteWaitingScreenState
         isError: false,
       );
     } catch (error) {
-      _showBanner(error.toString().replaceFirst('Exception: ', ''), isError: true);
+      _showBanner(
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -119,7 +124,12 @@ class _CounselorInviteWaitingScreenState
       backgroundMode: isDesktop
           ? MindNestBackgroundMode.homeStyle
           : MindNestBackgroundMode.defaultShell,
-      padding: EdgeInsets.fromLTRB(isDesktop ? 28 : 20, 24, isDesktop ? 28 : 20, 28),
+      padding: EdgeInsets.fromLTRB(
+        isDesktop ? 28 : 20,
+        24,
+        isDesktop ? 28 : 20,
+        28,
+      ),
       child: inviteAsync.when(
         data: (invite) => _buildContent(context, invite, isDesktop),
         loading: () => const GlassCard(
@@ -151,7 +161,11 @@ class _CounselorInviteWaitingScreenState
     );
   }
 
-  Widget _buildContent(BuildContext context, UserInvite? invite, bool isDesktop) {
+  Widget _buildContent(
+    BuildContext context,
+    UserInvite? invite,
+    bool isDesktop,
+  ) {
     if (invite != null) {
       return _buildInviteExperience(context, invite, isDesktop);
     }
@@ -241,58 +255,17 @@ class _CounselorInviteWaitingScreenState
         _inviteHeroCard(context, invite, isDesktop),
         const SizedBox(height: 22),
         if (isDesktop)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 10,
-                child: GlassCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _sectionTitle('Why this matters now', true),
-                        const SizedBox(height: 16),
-                        _inviteHighlightTile(
-                          'Institution access is unlocked for review.',
-                          'This invite is the handoff point from registration into institution-backed counselor access.',
-                          const [Color(0xFF155EEF), Color(0xFF0E9B90)],
-                          Icons.verified_user_rounded,
-                          true,
-                        ),
-                        const SizedBox(height: 12),
-                        _inviteHighlightTile(
-                          'This screen is now live, not passive.',
-                          'You do not need to hunt through the app. Review the code, accept here, and continue immediately.',
-                          const [Color(0xFFF59E0B), Color(0xFFEF4444)],
-                          Icons.campaign_rounded,
-                          true,
-                        ),
-                        const SizedBox(height: 12),
-                        _inviteHighlightTile(
-                          'Respond before the invite expires.',
-                          'If you reject or let it expire, the admin must issue a fresh invite before counselor setup can continue.',
-                          const [Color(0xFF7C3AED), Color(0xFF2563EB)],
-                          Icons.timer_outlined,
-                          true,
-                        ),
-                      ],
-                    ),
-                  ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: 640,
+              child: GlassCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: _invitePanel(invite, true),
                 ),
               ),
-              const SizedBox(width: 22),
-              Expanded(
-                flex: 9,
-                child: GlassCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(22),
-                    child: _invitePanel(invite, true),
-                  ),
-                ),
-              ),
-            ],
+            ),
           )
         else ...[
           GlassCard(
@@ -343,13 +316,25 @@ class _CounselorInviteWaitingScreenState
             borderRadius: BorderRadius.circular(30),
             gradient: LinearGradient(
               colors: hasInvite
-                  ? const [Color(0xFF082A55), Color(0xFF155EEF), Color(0xFF11B981)]
-                  : const [Color(0xFF072B52), Color(0xFF0D7FA1), Color(0xFF19B7A7)],
+                  ? const [
+                      Color(0xFF082A55),
+                      Color(0xFF155EEF),
+                      Color(0xFF11B981),
+                    ]
+                  : const [
+                      Color(0xFF072B52),
+                      Color(0xFF0D7FA1),
+                      Color(0xFF19B7A7),
+                    ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             boxShadow: const [
-              BoxShadow(color: Color(0x22072B52), blurRadius: 30, offset: Offset(0, 18)),
+              BoxShadow(
+                color: Color(0x22072B52),
+                blurRadius: 30,
+                offset: Offset(0, 18),
+              ),
             ],
           ),
           child: Stack(
@@ -362,7 +347,10 @@ class _CounselorInviteWaitingScreenState
               Positioned(
                 right: -36,
                 bottom: -36,
-                child: _blob(150, hasInvite ? const Color(0x338DBEFF) : const Color(0x33A7F3D0)),
+                child: _blob(
+                  150,
+                  hasInvite ? const Color(0x338DBEFF) : const Color(0x33A7F3D0),
+                ),
               ),
               Center(
                 child: ScaleTransition(
@@ -379,7 +367,9 @@ class _CounselorInviteWaitingScreenState
                       ),
                     ),
                     child: Icon(
-                      hasInvite ? Icons.mark_email_unread_rounded : Icons.notifications_active_rounded,
+                      hasInvite
+                          ? Icons.mark_email_unread_rounded
+                          : Icons.notifications_active_rounded,
                       size: hasInvite ? 48 : 44,
                       color: const Color(0xFF0C7E9C),
                     ),
@@ -392,11 +382,23 @@ class _CounselorInviteWaitingScreenState
                 bottom: 16,
                 child: Row(
                   children: [
-                    _metric(isDesktop, hasInvite ? 'NOW' : '1', hasInvite ? 'REVIEW INVITE' : 'WAITING STEP'),
+                    _metric(
+                      isDesktop,
+                      hasInvite ? 'NOW' : '1',
+                      hasInvite ? 'REVIEW INVITE' : 'WAITING STEP',
+                    ),
                     const SizedBox(width: 10),
-                    _metric(isDesktop, hasInvite ? 'CODE' : 'ADMIN', hasInvite ? 'VERIFY ACCESS' : 'TRIGGERS INVITE'),
+                    _metric(
+                      isDesktop,
+                      hasInvite ? 'CODE' : 'ADMIN',
+                      hasInvite ? 'VERIFY ACCESS' : 'TRIGGERS INVITE',
+                    ),
                     const SizedBox(width: 10),
-                    _metric(isDesktop, hasInvite ? 'GO' : 'APP', hasInvite ? 'RESPOND HERE' : 'LIVE SWITCH HERE'),
+                    _metric(
+                      isDesktop,
+                      hasInvite ? 'GO' : 'APP',
+                      hasInvite ? 'RESPOND HERE' : 'LIVE SWITCH HERE',
+                    ),
                   ],
                 ),
               ),
@@ -405,7 +407,9 @@ class _CounselorInviteWaitingScreenState
         ),
         const SizedBox(height: 22),
         Text(
-          hasInvite ? 'Your institution invite is here.' : 'Your counselor account is waiting for institution access.',
+          hasInvite
+              ? 'Your institution invite is here.'
+              : 'Your counselor account is waiting for institution access.',
           textAlign: isDesktop ? TextAlign.left : TextAlign.center,
           style: theme.textTheme.headlineMedium?.copyWith(
             fontSize: isDesktop ? 40 : 30,
@@ -446,11 +450,29 @@ class _CounselorInviteWaitingScreenState
       children: [
         _sectionTitle('What happens next', isDesktop),
         const SizedBox(height: 14),
-        _infoCard(isDesktop, '01', 'Wait for the institution admin', 'Your account stays locked to counselor onboarding until the invite is issued.', const Color(0xFF0E9B90)),
+        _infoCard(
+          isDesktop,
+          '01',
+          'Wait for the institution admin',
+          'Your account stays locked to counselor onboarding until the invite is issued.',
+          const Color(0xFF0E9B90),
+        ),
         const SizedBox(height: 12),
-        _infoCard(isDesktop, '02', 'Watch this screen or Notifications', 'The invite appears in Notifications and this screen flips into an action state at the same time.', const Color(0xFF0D7FA1)),
+        _infoCard(
+          isDesktop,
+          '02',
+          'Watch this screen or Notifications',
+          'The invite appears in Notifications and this screen flips into an action state at the same time.',
+          const Color(0xFF0D7FA1),
+        ),
         const SizedBox(height: 12),
-        _infoCard(isDesktop, '03', 'Accept and continue setup', 'Once accepted, counselor setup opens and the institution link becomes active.', const Color(0xFF2563EB)),
+        _infoCard(
+          isDesktop,
+          '03',
+          'Accept and continue setup',
+          'Once accepted, counselor setup opens and the institution link becomes active.',
+          const Color(0xFF2563EB),
+        ),
       ],
     );
   }
@@ -504,13 +526,35 @@ class _CounselorInviteWaitingScreenState
           ),
         ),
         const SizedBox(height: 18),
-        _detailTile(isDesktop, Icons.apartment_rounded, 'Institution', invite.institutionName, const Color(0xFF0D7FA1)),
+        _detailTile(
+          isDesktop,
+          Icons.apartment_rounded,
+          'Institution',
+          invite.institutionName,
+          const Color(0xFF0D7FA1),
+        ),
         const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(child: _detailTile(isDesktop, Icons.workspace_premium_outlined, 'Role', invite.intendedRole.label, const Color(0xFF0E9B90))),
+            Expanded(
+              child: _detailTile(
+                isDesktop,
+                Icons.workspace_premium_outlined,
+                'Role',
+                invite.intendedRole.label,
+                const Color(0xFF0E9B90),
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: _detailTile(isDesktop, Icons.schedule_rounded, 'Expires', _formatExpiry(invite.expiresAt), const Color(0xFF2563EB))),
+            Expanded(
+              child: _detailTile(
+                isDesktop,
+                Icons.schedule_rounded,
+                'Expires',
+                _formatExpiry(invite.expiresAt),
+                const Color(0xFF2563EB),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 18),
@@ -580,12 +624,17 @@ class _CounselorInviteWaitingScreenState
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(58),
                   side: const BorderSide(color: Color(0xFFEF4444)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
                   foregroundColor: const Color(0xFFB91C1C),
                 ),
                 child: Text(
                   _isSubmitting ? 'Working...' : 'Reject Invite',
-                  style: TextStyle(fontSize: isDesktop ? 18 : 16, fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    fontSize: isDesktop ? 18 : 16,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ),
@@ -606,7 +655,13 @@ class _CounselorInviteWaitingScreenState
     );
   }
 
-  Widget _detailTile(bool isDesktop, IconData icon, String label, String value, Color color) {
+  Widget _detailTile(
+    bool isDesktop,
+    IconData icon,
+    String label,
+    String value,
+    Color color,
+  ) {
     return Container(
       padding: EdgeInsets.all(isDesktop ? 18 : 15),
       decoration: BoxDecoration(
@@ -669,11 +724,7 @@ class _CounselorInviteWaitingScreenState
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(34),
         gradient: const LinearGradient(
-          colors: [
-            Color(0xFF071B3A),
-            Color(0xFF155EEF),
-            Color(0xFF13B58A),
-          ],
+          colors: [Color(0xFF071B3A), Color(0xFF155EEF), Color(0xFF13B58A)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -731,8 +782,9 @@ class _CounselorInviteWaitingScreenState
 
   Widget _inviteHeroCopy(ThemeData theme, UserInvite invite, bool isDesktop) {
     return Column(
-      crossAxisAlignment:
-          isDesktop ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      crossAxisAlignment: isDesktop
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
       children: [
         Wrap(
           spacing: 10,
@@ -791,26 +843,6 @@ class _CounselorInviteWaitingScreenState
             height: 1.5,
           ),
         ),
-        const SizedBox(height: 20),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          alignment: isDesktop ? WrapAlignment.start : WrapAlignment.center,
-          children: [
-            _heroFact(
-              'Institution',
-              invite.institutionName,
-              const Color(0x33FFFFFF),
-              isDesktop,
-            ),
-            _heroFact(
-              'Next step',
-              'Accept or reject on this screen',
-              const Color(0x24FFF3C2),
-              isDesktop,
-            ),
-          ],
-        ),
       ],
     );
   }
@@ -824,11 +856,7 @@ class _CounselorInviteWaitingScreenState
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: const RadialGradient(
-            colors: [
-              Color(0xFFFFFFFF),
-              Color(0xFFFFF3C4),
-              Color(0x66FFFFFF),
-            ],
+            colors: [Color(0xFFFFFFFF), Color(0xFFFFF3C4), Color(0x66FFFFFF)],
           ),
           border: Border.all(color: const Color(0x66FFFFFF), width: 2),
           boxShadow: const [
@@ -891,12 +919,7 @@ class _CounselorInviteWaitingScreenState
     );
   }
 
-  Widget _heroFact(
-    String label,
-    String value,
-    Color color,
-    bool isDesktop,
-  ) {
+  Widget _heroFact(String label, String value, Color color, bool isDesktop) {
     return Container(
       constraints: BoxConstraints(maxWidth: isDesktop ? 300 : double.infinity),
       padding: EdgeInsets.symmetric(
@@ -999,8 +1022,13 @@ class _CounselorInviteWaitingScreenState
       ),
     );
   }
-
-  Widget _infoCard(bool isDesktop, String index, String title, String description, Color accent) {
+  Widget _infoCard(
+    bool isDesktop,
+    String index,
+    String title,
+    String description,
+    Color accent,
+  ) {
     return Container(
       padding: EdgeInsets.all(isDesktop ? 18 : 14),
       decoration: BoxDecoration(
@@ -1016,7 +1044,9 @@ class _CounselorInviteWaitingScreenState
             height: isDesktop ? 50 : 42,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.72)]),
+              gradient: LinearGradient(
+                colors: [accent, accent.withValues(alpha: 0.72)],
+              ),
             ),
             alignment: Alignment.center,
             child: Text(
@@ -1113,8 +1143,23 @@ class _CounselorInviteWaitingScreenState
   String _formatExpiry(DateTime? value) {
     if (value == null) return 'Not specified';
     final local = value.toLocal();
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    final hour = local.hour == 0 ? 12 : (local.hour > 12 ? local.hour - 12 : local.hour);
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final hour = local.hour == 0
+        ? 12
+        : (local.hour > 12 ? local.hour - 12 : local.hour);
     final suffix = local.hour >= 12 ? 'PM' : 'AM';
     return '${months[local.month - 1]} ${local.day}, ${local.year} ${hour}:${local.minute.toString().padLeft(2, '0')} $suffix';
   }
@@ -1138,12 +1183,21 @@ class _Banner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded, color: accent),
+          Icon(
+            isError
+                ? Icons.error_outline_rounded
+                : Icons.check_circle_outline_rounded,
+            color: accent,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: Color(0xFF10223E), fontWeight: FontWeight.w700, height: 1.45),
+              style: const TextStyle(
+                color: Color(0xFF10223E),
+                fontWeight: FontWeight.w700,
+                height: 1.45,
+              ),
             ),
           ),
         ],
@@ -1192,7 +1246,11 @@ class _InlineFieldError extends StatelessWidget {
 }
 
 class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.controller, required this.label, required this.ready});
+  const _StatusPill({
+    required this.controller,
+    required this.label,
+    required this.ready,
+  });
 
   final Animation<double> controller;
   final String label;
@@ -1206,11 +1264,20 @@ class _StatusPill extends StatelessWidget {
       builder: (context, child) {
         final glow = 0.82 + (math.sin(controller.value * 2 * math.pi) * 0.12);
         return Container(
-          padding: EdgeInsets.symmetric(horizontal: isDesktop ? 18 : 14, vertical: isDesktop ? 12 : 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: isDesktop ? 18 : 14,
+            vertical: isDesktop ? 12 : 10,
+          ),
           decoration: BoxDecoration(
-            color: Color.lerp(const Color(0xFFF8FFFE), ready ? const Color(0xFFE8FBF5) : const Color(0xFFEAFBF8), glow),
+            color: Color.lerp(
+              const Color(0xFFF8FFFE),
+              ready ? const Color(0xFFE8FBF5) : const Color(0xFFEAFBF8),
+              glow,
+            ),
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: ready ? const Color(0xFF98E4D1) : const Color(0xFFA8E7DC)),
+            border: Border.all(
+              color: ready ? const Color(0xFF98E4D1) : const Color(0xFFA8E7DC),
+            ),
             boxShadow: [
               BoxShadow(
                 color: const Color(0x220E9B90).withValues(alpha: glow),
@@ -1222,11 +1289,19 @@ class _StatusPill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(ready ? Icons.campaign_rounded : Icons.hourglass_top_rounded, size: isDesktop ? 18 : 16, color: const Color(0xFF0D8E85)),
+              Icon(
+                ready ? Icons.campaign_rounded : Icons.hourglass_top_rounded,
+                size: isDesktop ? 18 : 16,
+                color: const Color(0xFF0D8E85),
+              ),
               const SizedBox(width: 8),
               Text(
                 label,
-                style: TextStyle(fontSize: isDesktop ? 14.5 : 13, color: const Color(0xFF0B6F69), fontWeight: FontWeight.w800),
+                style: TextStyle(
+                  fontSize: isDesktop ? 14.5 : 13,
+                  color: const Color(0xFF0B6F69),
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
@@ -1261,7 +1336,11 @@ class _PrimaryButton extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         boxShadow: [
-          BoxShadow(color: glowColor, blurRadius: 26, offset: const Offset(0, 14)),
+          BoxShadow(
+            color: glowColor,
+            blurRadius: 26,
+            offset: const Offset(0, 14),
+          ),
         ],
       ),
       child: ElevatedButton(
@@ -1271,11 +1350,16 @@ class _PrimaryButton extends StatelessWidget {
           backgroundColor: Colors.transparent,
           disabledBackgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
         ),
         child: Text(
           label,
-          style: TextStyle(fontSize: isDesktop ? 17 : 15, fontWeight: FontWeight.w800),
+          style: TextStyle(
+            fontSize: isDesktop ? 17 : 15,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
     );
