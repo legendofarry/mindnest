@@ -42,6 +42,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   bool _specializationsError = false;
   String? _formError;
   bool _isAiWorking = false;
+  _AiAssistTarget? _activeAiTarget;
   String? _aiReply;
   String? _aiReplyLabel;
   String? _aiError;
@@ -176,13 +177,12 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     final historyPrompt = switch (target) {
       _AiAssistTarget.title => 'Suggest a professional counselor title.',
       _AiAssistTarget.bio => 'Draft my counselor bio.',
-      _AiAssistTarget.specializations =>
-        'Recommend the best specializations for my profile.',
       _AiAssistTarget.custom => customPrompt.trim(),
     };
 
     setState(() {
       _isAiWorking = true;
+      _activeAiTarget = target;
       _aiError = null;
       _aiReply = null;
       _aiReplyLabel = null;
@@ -217,7 +217,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         _aiReplyLabel = switch (target) {
           _AiAssistTarget.title => 'AI title suggestion',
           _AiAssistTarget.bio => 'AI bio draft',
-          _AiAssistTarget.specializations => 'AI specialization recommendation',
           _AiAssistTarget.custom => 'AI setup guidance',
         };
       });
@@ -228,22 +227,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
           break;
         case _AiAssistTarget.bio:
           _bioController.text = cleaned;
-          break;
-        case _AiAssistTarget.specializations:
-          final matches = _extractSpecializations(cleaned);
-          if (matches.isEmpty) {
-            setState(() {
-              _aiError =
-                  'AI replied, but no valid specialization names were detected.';
-            });
-            return;
-          }
-          setState(() {
-            _selectedSpecializations
-              ..clear()
-              ..addAll(matches);
-            _specializationsError = false;
-          });
           break;
         case _AiAssistTarget.custom:
           break;
@@ -257,7 +240,10 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       });
     } finally {
       if (mounted) {
-        setState(() => _isAiWorking = false);
+        setState(() {
+          _isAiWorking = false;
+          _activeAiTarget = null;
+        });
       }
     }
   }
@@ -287,9 +273,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       case _AiAssistTarget.bio:
         return '${base}Write a professional counselor bio for a school or institution setting. '
             'Use 60 to 90 words. Return the bio only.';
-      case _AiAssistTarget.specializations:
-        return '${base}Choose the best 3 to 5 specialization names from the allowed list. '
-            'Return only a comma-separated list using the exact allowed names.';
       case _AiAssistTarget.custom:
         return '${base}Answer this counselor setup question briefly and practically: '
             '${customPrompt.trim()}';
@@ -315,13 +298,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       return line;
     }
     return line.substring(0, maxLength).trim();
-  }
-
-  Set<String> _extractSpecializations(String value) {
-    final lowered = value.toLowerCase();
-    return _specializations
-        .where((item) => lowered.contains(item.toLowerCase()))
-        .toSet();
   }
 
   Future<void> _submit() async {
@@ -505,11 +481,20 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                   child: TextFormField(
                     controller: _titleController,
                     onChanged: (_) => _clearTopError(),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: 'Licensed Professional Counselor',
                       hintStyle: _setupHintStyle,
-                      prefixIcon: Icon(Icons.badge_outlined),
+                      prefixIcon: const Icon(Icons.badge_outlined),
+                      suffixIcon: _InlineAiIconButton(
+                        busy:
+                            _isAiWorking &&
+                            _activeAiTarget == _AiAssistTarget.title,
+                        enabled: !_isAiWorking,
+                        tooltip: 'Generate title',
+                        onTap: () =>
+                            _runAiAssist(target: _AiAssistTarget.title),
+                      ),
                     ),
                     validator: (value) {
                       if ((value ?? '').trim().length < 2) {
@@ -616,15 +601,34 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                     minLines: 4,
                     maxLines: 6,
                     onChanged: (_) => _clearTopError(),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText:
                           'Briefly explain your counseling approach, tone, and the kind of support students can expect.',
                       hintStyle: _setupHintStyle,
                       alignLabelWithHint: true,
-                      prefixIcon: Padding(
+                      prefixIcon: const Padding(
                         padding: EdgeInsets.only(bottom: 64),
                         child: Icon(Icons.notes_rounded),
+                      ),
+                      suffixIconConstraints: const BoxConstraints(
+                        minWidth: 56,
+                        minHeight: 56,
+                      ),
+                      suffixIcon: Padding(
+                        padding: const EdgeInsets.only(right: 10, top: 10),
+                        child: Align(
+                          alignment: Alignment.topRight,
+                          child: _InlineAiIconButton(
+                            busy:
+                                _isAiWorking &&
+                                _activeAiTarget == _AiAssistTarget.bio,
+                            enabled: !_isAiWorking,
+                            tooltip: 'Draft bio',
+                            onTap: () =>
+                                _runAiAssist(target: _AiAssistTarget.bio),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -905,7 +909,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'Draft a title, recommend specializations, write your bio, or answer setup questions.',
+                      'Use the star actions inside title and bio for direct drafting, or ask AI to help you phrase your profile.',
                       style: TextStyle(
                         color: Color(0xFF5D728D),
                         fontSize: 12.8,
@@ -915,32 +919,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _AiQuickActionChip(
-                label: 'Suggest Title',
-                icon: Icons.badge_outlined,
-                busy: _isAiWorking,
-                onTap: () => _runAiAssist(target: _AiAssistTarget.title),
-              ),
-              _AiQuickActionChip(
-                label: 'Pick Specializations',
-                icon: Icons.psychology_alt_outlined,
-                busy: _isAiWorking,
-                onTap: () =>
-                    _runAiAssist(target: _AiAssistTarget.specializations),
-              ),
-              _AiQuickActionChip(
-                label: 'Draft Bio',
-                icon: Icons.edit_note_rounded,
-                busy: _isAiWorking,
-                onTap: () => _runAiAssist(target: _AiAssistTarget.bio),
               ),
             ],
           ),
@@ -980,7 +958,9 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                         vertical: 10,
                       ),
                     ),
-                    child: _isAiWorking
+                    child:
+                        _isAiWorking &&
+                            _activeAiTarget == _AiAssistTarget.custom
                         ? const SizedBox(
                             width: 16,
                             height: 16,
@@ -1050,7 +1030,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   }
 }
 
-enum _AiAssistTarget { title, specializations, bio, custom }
+enum _AiAssistTarget { title, bio, custom }
 
 class _StepItem {
   const _StepItem({
@@ -1356,49 +1336,62 @@ class _RoundedInput extends StatelessWidget {
   }
 }
 
-class _AiQuickActionChip extends StatelessWidget {
-  const _AiQuickActionChip({
-    required this.label,
-    required this.icon,
+class _InlineAiIconButton extends StatelessWidget {
+  const _InlineAiIconButton({
     required this.busy,
+    required this.enabled,
+    required this.tooltip,
     required this.onTap,
   });
 
-  final String label;
-  final IconData icon;
   final bool busy;
+  final bool enabled;
+  final String tooltip;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: busy ? null : onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: const Color(0xFFD7E6F2)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 16, color: const Color(0xFF0E9B90)),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: busy
-                      ? const Color(0xFF90A4BC)
-                      : const Color(0xFF0B2442),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12.8,
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: (!enabled || busy) ? null : onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Opacity(
+            opacity: enabled ? 1 : 0.5,
+            child: Ink(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0EA5A0), Color(0xFF2563EB)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x260E9B90),
+                    blurRadius: 12,
+                    offset: Offset(0, 6),
+                  ),
+                ],
               ),
-            ],
+              child: busy
+                  ? const Padding(
+                      padding: EdgeInsets.all(9),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+            ),
           ),
         ),
       ),
