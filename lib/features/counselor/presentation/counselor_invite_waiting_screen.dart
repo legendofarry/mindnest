@@ -126,10 +126,11 @@ class _CounselorInviteWaitingScreenState
   }
 
   Widget _buildContent(BuildContext context, UserInvite? invite, bool isDesktop) {
-    final hasInvite = invite != null;
-    final side = hasInvite
-        ? _invitePanel(invite, isDesktop)
-        : _waitingPanel(isDesktop);
+    if (invite != null) {
+      return _buildInviteExperience(context, invite, isDesktop);
+    }
+
+    final side = _waitingPanel(isDesktop);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -138,8 +139,8 @@ class _CounselorInviteWaitingScreenState
           alignment: isDesktop ? Alignment.centerLeft : Alignment.center,
           child: _StatusPill(
             controller: _controller,
-            label: hasInvite ? 'Institution Invite Ready' : 'Pending Institution Invite',
-            ready: hasInvite,
+            label: 'Pending Institution Invite',
+            ready: false,
           ),
         ),
         if ((_banner ?? '').trim().isNotEmpty) ...[
@@ -156,7 +157,7 @@ class _CounselorInviteWaitingScreenState
                 child: GlassCard(
                   child: Padding(
                     padding: const EdgeInsets.all(28),
-                    child: _hero(context, hasInvite, true),
+                    child: _hero(context, false, true),
                   ),
                 ),
               ),
@@ -179,13 +180,128 @@ class _CounselorInviteWaitingScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _hero(context, hasInvite, false),
+                  _hero(context, false, false),
                   const SizedBox(height: 22),
                   side,
                 ],
               ),
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _buildInviteExperience(
+    BuildContext context,
+    UserInvite invite,
+    bool isDesktop,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: isDesktop ? Alignment.centerLeft : Alignment.center,
+          child: _StatusPill(
+            controller: _controller,
+            label: 'Invite Arrived: Action Required',
+            ready: true,
+          ),
+        ),
+        if ((_banner ?? '').trim().isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _Banner(message: _banner!, isError: _bannerIsError),
+        ],
+        const SizedBox(height: 18),
+        _inviteHeroCard(context, invite, isDesktop),
+        const SizedBox(height: 22),
+        if (isDesktop)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 10,
+                child: GlassCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _sectionTitle('Why this matters now', true),
+                        const SizedBox(height: 16),
+                        _inviteHighlightTile(
+                          'Institution access is unlocked for review.',
+                          'This invite is the handoff point from registration into institution-backed counselor access.',
+                          const [Color(0xFF155EEF), Color(0xFF0E9B90)],
+                          Icons.verified_user_rounded,
+                          true,
+                        ),
+                        const SizedBox(height: 12),
+                        _inviteHighlightTile(
+                          'This screen is now live, not passive.',
+                          'You do not need to hunt through the app. Review the code, accept here, and continue immediately.',
+                          const [Color(0xFFF59E0B), Color(0xFFEF4444)],
+                          Icons.campaign_rounded,
+                          true,
+                        ),
+                        const SizedBox(height: 12),
+                        _inviteHighlightTile(
+                          'Respond before the invite expires.',
+                          'If you reject or let it expire, the admin must issue a fresh invite before counselor setup can continue.',
+                          const [Color(0xFF7C3AED), Color(0xFF2563EB)],
+                          Icons.timer_outlined,
+                          true,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 22),
+              Expanded(
+                flex: 9,
+                child: GlassCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(22),
+                    child: _invitePanel(invite, true),
+                  ),
+                ),
+              ),
+            ],
+          )
+        else ...[
+          GlassCard(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _inviteHighlightTile(
+                    'Institution access is unlocked for review.',
+                    'This is your live handoff into counselor access. Enter the code and respond here.',
+                    const [Color(0xFF155EEF), Color(0xFF0E9B90)],
+                    Icons.verified_user_rounded,
+                    false,
+                  ),
+                  const SizedBox(height: 12),
+                  _inviteHighlightTile(
+                    'Respond before the invite expires.',
+                    'Rejecting or missing the window means the institution admin must send a new invite.',
+                    const [Color(0xFFF59E0B), Color(0xFFEF4444)],
+                    Icons.timer_outlined,
+                    false,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          GlassCard(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: _invitePanel(invite, false),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -317,10 +433,43 @@ class _CounselorInviteWaitingScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle('Review and respond', isDesktop),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFF1C8), Color(0xFFFFE3A1)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(color: const Color(0xFFF5C542)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.priority_high_rounded,
+                color: Color(0xFF9A6700),
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'INVITE ARRIVED',
+                style: TextStyle(
+                  color: const Color(0xFF7C5400),
+                  fontSize: isDesktop ? 13.5 : 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _sectionTitle('Respond now', isDesktop),
         const SizedBox(height: 8),
         Text(
-          'This is the same invite available in Notifications, but you can finish it here without leaving the waiting screen.',
+          'This is no longer a waiting page. Review the invite, enter the institution code, and decide from this panel.',
           style: TextStyle(
             color: const Color(0xFF60748F),
             fontSize: isDesktop ? 16 : 13.5,
@@ -347,15 +496,15 @@ class _CounselorInviteWaitingScreenState
             hintText: 'Enter code from institution admin',
             prefixIcon: const Icon(Icons.key_rounded),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: const Color(0xFFFFFBED),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: Color(0xFFD4E4F1)),
+              borderSide: const BorderSide(color: Color(0xFFF5C542), width: 1.2),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: Color(0xFF0E9B90), width: 1.4),
+              borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 1.6),
             ),
           ),
         ),
@@ -376,6 +525,8 @@ class _CounselorInviteWaitingScreenState
               child: _PrimaryButton(
                 label: _isSubmitting ? 'Accepting...' : 'Accept Invite',
                 onPressed: _isSubmitting ? null : () => _accept(invite),
+                gradient: const [Color(0xFF155EEF), Color(0xFF0E9B90)],
+                glowColor: const Color(0x33155EEF),
               ),
             ),
             const SizedBox(width: 12),
@@ -453,6 +604,348 @@ class _CounselorInviteWaitingScreenState
                     fontSize: isDesktop ? 17 : 14.5,
                     fontWeight: FontWeight.w800,
                     height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _inviteHeroCard(
+    BuildContext context,
+    UserInvite invite,
+    bool isDesktop,
+  ) {
+    final theme = Theme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(34),
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF071B3A),
+            Color(0xFF155EEF),
+            Color(0xFF13B58A),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33155EEF),
+            blurRadius: 36,
+            offset: Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            left: -44,
+            top: -30,
+            child: _blob(180, const Color(0x26FFFFFF)),
+          ),
+          Positioned(
+            right: -54,
+            top: 22,
+            child: _blob(156, const Color(0x26D9FFF6)),
+          ),
+          Positioned(
+            right: 32,
+            bottom: -48,
+            child: _blob(164, const Color(0x1FFFFFFF)),
+          ),
+          Padding(
+            padding: EdgeInsets.all(isDesktop ? 30 : 22),
+            child: isDesktop
+                ? Row(
+                    children: [
+                      Expanded(child: _inviteHeroCopy(theme, invite, true)),
+                      const SizedBox(width: 24),
+                      _inviteHeroOrb(true),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Align(
+                        alignment: Alignment.center,
+                        child: _inviteHeroOrb(false),
+                      ),
+                      const SizedBox(height: 20),
+                      _inviteHeroCopy(theme, invite, false),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _inviteHeroCopy(ThemeData theme, UserInvite invite, bool isDesktop) {
+    return Column(
+      crossAxisAlignment:
+          isDesktop ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      children: [
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          alignment: isDesktop ? WrapAlignment.start : WrapAlignment.center,
+          children: [
+            _signalChip(
+              'ACTION REQUIRED',
+              const Color(0xFFFFE7AA),
+              const Color(0xFF8A5B00),
+            ),
+            _signalChip(
+              invite.intendedRole.label.toUpperCase(),
+              const Color(0x1FFFFFFF),
+              Colors.white,
+            ),
+            _signalChip(
+              'EXPIRES ${_formatExpiry(invite.expiresAt).toUpperCase()}',
+              const Color(0x1AFFFFFF),
+              const Color(0xFFE0F2FE),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Text(
+          'Invite unlocked.',
+          textAlign: isDesktop ? TextAlign.left : TextAlign.center,
+          style: theme.textTheme.headlineLarge?.copyWith(
+            color: Colors.white,
+            fontSize: isDesktop ? 58 : 36,
+            height: 0.96,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -1.2,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          invite.institutionName,
+          textAlign: isDesktop ? TextAlign.left : TextAlign.center,
+          style: theme.textTheme.headlineMedium?.copyWith(
+            color: const Color(0xFFFFF4C4),
+            fontSize: isDesktop ? 34 : 26,
+            fontWeight: FontWeight.w900,
+            height: 1.05,
+            letterSpacing: -0.7,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Your counselor registration has reached the live institution approval handoff. Review the code from the admin and respond here immediately.',
+          textAlign: isDesktop ? TextAlign.left : TextAlign.center,
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: const Color(0xFFE5F0FF),
+            fontSize: isDesktop ? 19 : 15.5,
+            fontWeight: FontWeight.w600,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 20),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          alignment: isDesktop ? WrapAlignment.start : WrapAlignment.center,
+          children: [
+            _heroFact(
+              'Institution',
+              invite.institutionName,
+              const Color(0x33FFFFFF),
+              isDesktop,
+            ),
+            _heroFact(
+              'Next step',
+              'Accept or reject on this screen',
+              const Color(0x24FFF3C2),
+              isDesktop,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _inviteHeroOrb(bool isDesktop) {
+    return ScaleTransition(
+      scale: _pulse,
+      child: Container(
+        width: isDesktop ? 238 : 154,
+        height: isDesktop ? 238 : 154,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const RadialGradient(
+            colors: [
+              Color(0xFFFFFFFF),
+              Color(0xFFFFF3C4),
+              Color(0x66FFFFFF),
+            ],
+          ),
+          border: Border.all(color: const Color(0x66FFFFFF), width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x55FFF0AE),
+              blurRadius: 50,
+              spreadRadius: 6,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.mark_email_unread_rounded,
+              size: isDesktop ? 74 : 48,
+              color: const Color(0xFF155EEF),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'INVITE',
+              style: TextStyle(
+                color: const Color(0xFF0B2A52),
+                fontSize: isDesktop ? 20 : 15,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.4,
+              ),
+            ),
+            Text(
+              'ARRIVED',
+              style: TextStyle(
+                color: const Color(0xFF0E9B90),
+                fontSize: isDesktop ? 24 : 17,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _signalChip(String label, Color background, Color foreground) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.9,
+        ),
+      ),
+    );
+  }
+
+  Widget _heroFact(
+    String label,
+    String value,
+    Color color,
+    bool isDesktop,
+  ) {
+    return Container(
+      constraints: BoxConstraints(maxWidth: isDesktop ? 300 : double.infinity),
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 16 : 14,
+        vertical: isDesktop ? 14 : 12,
+      ),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x22FFFFFF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              color: const Color(0xFFE0EEFF),
+              fontSize: isDesktop ? 11.5 : 10.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.9,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: isDesktop ? 16.5 : 14,
+              fontWeight: FontWeight.w800,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _inviteHighlightTile(
+    String title,
+    String description,
+    List<Color> gradient,
+    IconData icon,
+    bool isDesktop,
+  ) {
+    return Container(
+      padding: EdgeInsets.all(isDesktop ? 18 : 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE3EDF5)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: isDesktop ? 58 : 50,
+            height: isDesktop ? 58 : 50,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: LinearGradient(colors: gradient),
+              boxShadow: [
+                BoxShadow(
+                  color: gradient.first.withValues(alpha: 0.24),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: isDesktop ? 28 : 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: const Color(0xFF071937),
+                    fontSize: isDesktop ? 20 : 16.5,
+                    fontWeight: FontWeight.w900,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: const Color(0xFF5D728D),
+                    fontSize: isDesktop ? 15.5 : 13.5,
+                    fontWeight: FontWeight.w500,
+                    height: 1.5,
                   ),
                 ),
               ],
@@ -661,10 +1154,17 @@ class _StatusPill extends StatelessWidget {
 }
 
 class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({required this.label, required this.onPressed});
+  const _PrimaryButton({
+    required this.label,
+    required this.onPressed,
+    this.gradient = const [Color(0xFF0D7FA1), Color(0xFF0E9B90)],
+    this.glowColor = const Color(0x330E9B90),
+  });
 
   final String label;
   final VoidCallback? onPressed;
+  final List<Color> gradient;
+  final Color glowColor;
 
   @override
   Widget build(BuildContext context) {
@@ -672,13 +1172,13 @@ class _PrimaryButton extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0D7FA1), Color(0xFF0E9B90)],
+        gradient: LinearGradient(
+          colors: gradient,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        boxShadow: const [
-          BoxShadow(color: Color(0x330E9B90), blurRadius: 26, offset: Offset(0, 14)),
+        boxShadow: [
+          BoxShadow(color: glowColor, blurRadius: 26, offset: const Offset(0, 14)),
         ],
       ),
       child: ElevatedButton(

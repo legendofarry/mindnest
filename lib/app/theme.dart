@@ -20,7 +20,8 @@ class MindNestTheme {
 
     return ThemeData(
       useMaterial3: true,
-      textTheme: GoogleFonts.dmSansTextTheme().apply(bodyColor: _text),
+      fontFamily: GoogleFonts.montserrat().fontFamily,
+      textTheme: GoogleFonts.montserratTextTheme().apply(bodyColor: _text),
       colorScheme: colorScheme,
       scaffoldBackgroundColor: _surface,
       appBarTheme: const AppBarTheme(
@@ -55,7 +56,7 @@ class MindNestTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          textStyle: GoogleFonts.dmSans(
+          textStyle: GoogleFonts.montserrat(
             fontWeight: FontWeight.w700,
             fontSize: 15,
           ),
@@ -94,6 +95,7 @@ class MindNestTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      fontFamily: GoogleFonts.montserrat().fontFamily,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: _darkSurface,
       appBarTheme: const AppBarTheme(
@@ -103,7 +105,7 @@ class MindNestTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
-      textTheme: GoogleFonts.dmSansTextTheme(
+      textTheme: GoogleFonts.montserratTextTheme(
         ThemeData.dark().textTheme,
       ).apply(bodyColor: _darkText, displayColor: _darkText),
       inputDecorationTheme: InputDecorationTheme(
@@ -135,7 +137,7 @@ class MindNestTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          textStyle: GoogleFonts.dmSans(
+          textStyle: GoogleFonts.montserrat(
             fontWeight: FontWeight.w700,
             fontSize: 15,
           ),
