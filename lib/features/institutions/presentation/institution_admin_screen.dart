@@ -2082,101 +2082,381 @@ class _WorkspacePanel extends StatelessWidget {
     }
   }
 
+  String _subtitleForView(AdminWorkspaceView view) {
+    switch (view) {
+      case AdminWorkspaceView.overview:
+        return 'Use the stat cards to jump into live records, exports, and action-heavy admin tables.';
+      case AdminWorkspaceView.members:
+        return 'Inspect the entire institution roster, open raw records, and manage lifecycle state from one command panel.';
+      case AdminWorkspaceView.pendingInvites:
+        return 'Review the active invite queue and revoke outstanding access before it turns into membership.';
+      case AdminWorkspaceView.students:
+        return 'Keep student enrollment visible and searchable without leaving the workspace.';
+      case AdminWorkspaceView.staff:
+        return 'Use this table to watch staff access health and resolve lifecycle issues quickly.';
+      case AdminWorkspaceView.counselors:
+        return 'Stay on top of counselor roster coverage and open details when action is needed.';
+      case AdminWorkspaceView.allInvites:
+        return 'Search every invite record across status, source, and target role in one place.';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
+    final isOverview = activeView == AdminWorkspaceView.overview;
+    final surfaceTint = isOverview
+        ? const Color(0xFFE9FBF8)
+        : const Color(0xFFF5F8FF);
+    final surfaceBorder = isOverview
+        ? const Color(0xFFC8EEE7)
+        : const Color(0xFFD8E6F2);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _titleForView(activeView),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                if (activeView != AdminWorkspaceView.overview)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: entries.isEmpty
-                            ? null
-                            : () => onExportCsv(entries),
-                        icon: const Icon(Icons.download_rounded, size: 18),
-                        label: const Text('Export CSV'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.tonalIcon(
-                        onPressed: () =>
-                            onViewChange(AdminWorkspaceView.overview),
-                        icon: const Icon(Icons.dashboard_rounded, size: 18),
-                        label: const Text('Back to overview'),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (activeView == AdminWorkspaceView.overview)
-              const _OverviewEmptyState()
-            else ...[
-              Row(
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: surfaceTint,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: surfaceBorder),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    flex: 3,
-                    child: TextField(
-                      controller: searchController,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search_rounded),
-                        hintText: 'Search by name, email, role, status, source',
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isOverview
+                            ? const [Color(0xFF0E9B90), Color(0xFF18A89D)]
+                            : const [Color(0xFF2563EB), Color(0xFF38BDF8)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      onChanged: onSearchChanged,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(
+                      isOverview
+                          ? Icons.space_dashboard_rounded
+                          : Icons.table_chart_rounded,
+                      color: Colors.white,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 16),
                   Expanded(
-                    flex: 2,
-                    child: DropdownButtonFormField<String>(
-                      initialValue: activeFilter,
-                      items: filterOptions
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.8),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: surfaceBorder),
+                              ),
                               child: Text(
-                                value == 'all' ? 'All filters' : value,
+                                isOverview
+                                    ? 'WORKSPACE OVERVIEW'
+                                    : 'LIVE DATA PANEL',
+                                style: TextStyle(
+                                  color: isOverview
+                                      ? const Color(0xFF0E9B90)
+                                      : const Color(0xFF2563EB),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.2,
+                                ),
                               ),
                             ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (value) {
-                        if (value != null) {
-                          onFilterChanged(value);
-                        }
-                      },
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.filter_alt_rounded),
-                      ),
+                            if (!isOverview)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.78),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: surfaceBorder),
+                                ),
+                                child: Text(
+                                  '${entries.length} rows in view',
+                                  style: const TextStyle(
+                                    color: Color(0xFF50657E),
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.9,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _titleForView(activeView),
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF081A30),
+                              ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _subtitleForView(activeView),
+                          style: const TextStyle(
+                            color: Color(0xFF6A7C93),
+                            height: 1.45,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  if (!isOverview) ...[
+                    const SizedBox(width: 16),
+                    SizedBox(
+                      width: 230,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.82),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: surfaceBorder),
+                            ),
+                            child: const Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'CONTROL STATUS',
+                                  style: TextStyle(
+                                    color: Color(0xFF7A8CA4),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                                SizedBox(height: 6),
+                                Text(
+                                  'Active panel',
+                                  style: TextStyle(
+                                    color: Color(0xFF081A30),
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                SizedBox(height: 6),
+                                Text(
+                                  'Search, filter, inspect rows, then export or return to overview.',
+                                  style: TextStyle(
+                                    color: Color(0xFF5E728D),
+                                    fontSize: 12.5,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF0D1B2A), Color(0xFF173D63)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: ElevatedButton.icon(
+                              onPressed: entries.isEmpty
+                                  ? null
+                                  : () => onExportCsv(entries),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor: Colors.transparent,
+                                disabledForegroundColor: Colors.white54,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                              ),
+                              icon: const Icon(
+                                Icons.download_rounded,
+                                size: 18,
+                              ),
+                              label: const Text(
+                                'Export CSV',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
+                            onPressed: () =>
+                                onViewChange(AdminWorkspaceView.overview),
+                            icon: const Icon(
+                              Icons.space_dashboard_rounded,
+                              size: 18,
+                            ),
+                            label: const Text('Back To Overview'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
-              const SizedBox(height: 10),
+            ),
+            const SizedBox(height: 18),
+            if (isOverview)
+              const _OverviewEmptyState()
+            else ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5FAFF),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: const Color(0xFFD8E6F2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.manage_search_rounded,
+                          color: Color(0xFF0284C7),
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Search and narrow this dataset before opening records.',
+                            style: TextStyle(
+                              color: Color(0xFF415A77),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: TextField(
+                            controller: searchController,
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.search_rounded),
+                              hintText:
+                                  'Search by name, email, role, status, source',
+                            ),
+                            onChanged: onSearchChanged,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: activeFilter,
+                            items: filterOptions
+                                .map(
+                                  (value) => DropdownMenuItem(
+                                    value: value,
+                                    child: Text(
+                                      value == 'all' ? 'All filters' : value,
+                                    ),
+                                  ),
+                                )
+                                .toList(growable: false),
+                            onChanged: (value) {
+                              if (value != null) {
+                                onFilterChanged(value);
+                              }
+                            },
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.filter_alt_rounded),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _TableHintPill(
+                          icon: Icons.ads_click_rounded,
+                          label: 'Row tap enabled',
+                        ),
+                        _TableHintPill(
+                          icon: Icons.hub_rounded,
+                          label: 'Raw record detail',
+                        ),
+                        _TableHintPill(
+                          icon: Icons.swap_vert_rounded,
+                          label: 'Sortable columns',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
               if (entries.isEmpty)
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFD9E4F0)),
+                    color: const Color(0xFFF8FBFF),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: const Color(0xFFD8E6F2)),
                   ),
-                  child: const Text(
-                    'No records match your current search/filter.',
+                  child: const Row(
+                    children: [
+                      Icon(Icons.search_off_rounded, color: Color(0xFF2563EB)),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'No records match the current control state. Adjust the search terms or reset the filter to reopen the table feed.',
+                          style: TextStyle(
+                            color: Color(0xFF5E728D),
+                            fontWeight: FontWeight.w600,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 )
               else
@@ -2202,48 +2482,116 @@ class _OverviewEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: const [
-        _MiniHint(
-          icon: Icons.touch_app_rounded,
-          text: 'Tap any stat card to open its live table.',
-        ),
-        _MiniHint(
-          icon: Icons.manage_search_rounded,
-          text: 'Use search + filters for fast admin operations.',
-        ),
-        _MiniHint(
-          icon: Icons.table_rows_rounded,
-          text: 'Rows are clickable to open detailed records.',
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5FAFF),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFD8E6F2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Overview Workspace',
+            style: TextStyle(
+              color: Color(0xFF081A30),
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'This panel turns stats into action. Open a live table, filter the dataset, and inspect detailed records without leaving the workspace shell.',
+            style: TextStyle(color: Color(0xFF5E728D), height: 1.45),
+          ),
+          const SizedBox(height: 16),
+          const Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _MiniHint(
+                icon: Icons.touch_app_rounded,
+                title: 'Jump into records',
+                text: 'Tap any stat card to open its live table immediately.',
+              ),
+              _MiniHint(
+                icon: Icons.manage_search_rounded,
+                title: 'Narrow the table',
+                text:
+                    'Use search and filters to reach the exact admin target faster.',
+              ),
+              _MiniHint(
+                icon: Icons.table_rows_rounded,
+                title: 'Inspect raw details',
+                text:
+                    'Open rows to review the underlying data without leaving the dashboard.',
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _MiniHint extends StatelessWidget {
-  const _MiniHint({required this.icon, required this.text});
+  const _MiniHint({
+    required this.icon,
+    required this.title,
+    required this.text,
+  });
 
   final IconData icon;
+  final String title;
   final String text;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: 260,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFD9E4F0)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: const Color(0xFF0284C7), size: 20),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text)),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F6FF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: const Color(0xFF0284C7), size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Color(0xFF16324F),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  text,
+                  style: const TextStyle(
+                    color: Color(0xFF415A77),
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -2272,45 +2620,148 @@ class _PaginatedWorkspaceTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final source = _WorkspaceDataSource(entries: entries, onRowTap: onRowTap);
-    return Theme(
-      data: Theme.of(context).copyWith(
-        cardTheme: const CardThemeData(color: Colors.transparent, elevation: 0),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFD9E4F0)),
       ),
-      child: PaginatedDataTable(
-        header: const Text('Records'),
-        rowsPerPage: rowsPerPage,
-        availableRowsPerPage: const [5, 10, 20, 50],
-        onRowsPerPageChanged: onRowsPerPageChanged,
-        sortColumnIndex: sortColumnIndex,
-        sortAscending: sortAscending,
-        columns: [
-          DataColumn(
-            label: const Text('Name'),
-            onSort: (columnIndex, ascending) => onSort(columnIndex, ascending),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8FBFF),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2563EB), Color(0xFF38BDF8)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.dataset_linked_rounded,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Live Records',
+                        style: TextStyle(
+                          color: Color(0xFF081A30),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Sortable rows, tap-to-open details, and export-ready admin data.',
+                        style: TextStyle(
+                          color: Color(0xFF5E728D),
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: const Color(0xFFD9E4F0)),
+                  ),
+                  child: Text(
+                    '${entries.length} visible',
+                    style: const TextStyle(
+                      color: Color(0xFF415A77),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          DataColumn(
-            label: const Text('Contact / ID'),
-            onSort: (columnIndex, ascending) => onSort(columnIndex, ascending),
-          ),
-          DataColumn(
-            label: const Text('Type'),
-            onSort: (columnIndex, ascending) => onSort(columnIndex, ascending),
-          ),
-          DataColumn(
-            label: const Text('Status'),
-            onSort: (columnIndex, ascending) => onSort(columnIndex, ascending),
-          ),
-          DataColumn(
-            label: const Text('Source'),
-            onSort: (columnIndex, ascending) => onSort(columnIndex, ascending),
-          ),
-          DataColumn(
-            label: const Text('Created'),
-            onSort: (columnIndex, ascending) => onSort(columnIndex, ascending),
+          Theme(
+            data: Theme.of(context).copyWith(
+              cardTheme: const CardThemeData(
+                color: Colors.transparent,
+                elevation: 0,
+              ),
+              dividerColor: const Color(0xFFE2EAF3),
+              textTheme: Theme.of(context).textTheme.apply(
+                bodyColor: const Color(0xFF16324F),
+                displayColor: const Color(0xFF16324F),
+              ),
+            ),
+            child: PaginatedDataTable(
+              header: const Text(
+                'Records',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              headingRowColor: WidgetStateProperty.all(const Color(0xFFF5FAFF)),
+              rowsPerPage: rowsPerPage,
+              availableRowsPerPage: const [5, 10, 20, 50],
+              onRowsPerPageChanged: onRowsPerPageChanged,
+              sortColumnIndex: sortColumnIndex,
+              sortAscending: sortAscending,
+              columnSpacing: 24,
+              horizontalMargin: 20,
+              columns: [
+                DataColumn(
+                  label: const Text('Name'),
+                  onSort: (columnIndex, ascending) =>
+                      onSort(columnIndex, ascending),
+                ),
+                DataColumn(
+                  label: const Text('Contact / ID'),
+                  onSort: (columnIndex, ascending) =>
+                      onSort(columnIndex, ascending),
+                ),
+                DataColumn(
+                  label: const Text('Type'),
+                  onSort: (columnIndex, ascending) =>
+                      onSort(columnIndex, ascending),
+                ),
+                DataColumn(
+                  label: const Text('Status'),
+                  onSort: (columnIndex, ascending) =>
+                      onSort(columnIndex, ascending),
+                ),
+                DataColumn(
+                  label: const Text('Source'),
+                  onSort: (columnIndex, ascending) =>
+                      onSort(columnIndex, ascending),
+                ),
+                DataColumn(
+                  label: const Text('Created'),
+                  onSort: (columnIndex, ascending) =>
+                      onSort(columnIndex, ascending),
+                ),
+              ],
+              source: source,
+              showFirstLastButtons: true,
+            ),
           ),
         ],
-        source: source,
-        showFirstLastButtons: true,
       ),
     );
   }
@@ -2330,22 +2781,84 @@ class _WorkspaceDataSource extends DataTableSource {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
+  Widget _metaPill(
+    String label, {
+    Color background = const Color(0xFFF4F7FB),
+    Color foreground = const Color(0xFF415A77),
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
   @override
   DataRow? getRow(int index) {
     if (index >= entries.length) {
       return null;
     }
     final entry = entries[index];
+    final status = entry.status.toLowerCase();
     return DataRow.byIndex(
       index: index,
       cells: [
-        DataCell(Text(entry.primary), onTap: () => onRowTap(entry)),
-        DataCell(Text(entry.secondary), onTap: () => onRowTap(entry)),
-        DataCell(Text(entry.type), onTap: () => onRowTap(entry)),
-        DataCell(Text(entry.status), onTap: () => onRowTap(entry)),
-        DataCell(Text(entry.source), onTap: () => onRowTap(entry)),
         DataCell(
-          Text(_formatDate(entry.createdAt)),
+          Text(
+            entry.primary,
+            style: const TextStyle(
+              color: Color(0xFF081A30),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          onTap: () => onRowTap(entry),
+        ),
+        DataCell(
+          Text(
+            entry.secondary,
+            style: const TextStyle(
+              color: Color(0xFF5E728D),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          onTap: () => onRowTap(entry),
+        ),
+        DataCell(_metaPill(entry.type), onTap: () => onRowTap(entry)),
+        DataCell(
+          _metaPill(
+            entry.status,
+            background: status == 'active' || status == 'accepted'
+                ? const Color(0xFFE8FBF5)
+                : status == 'pending'
+                ? const Color(0xFFFFF4DE)
+                : const Color(0xFFF3F4F6),
+            foreground: status == 'active' || status == 'accepted'
+                ? const Color(0xFF0E9B90)
+                : status == 'pending'
+                ? const Color(0xFFB45309)
+                : const Color(0xFF475569),
+          ),
+          onTap: () => onRowTap(entry),
+        ),
+        DataCell(_metaPill(entry.source), onTap: () => onRowTap(entry)),
+        DataCell(
+          Text(
+            _formatDate(entry.createdAt),
+            style: const TextStyle(
+              color: Color(0xFF5E728D),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           onTap: () => onRowTap(entry),
         ),
       ],
@@ -2379,58 +2892,215 @@ class _InviteComposer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Create Invite',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF0D1B2A),
+                    Color(0xFF173D63),
+                    Color(0xFF1AA9A1),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0x24FFFFFF),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0x50FFFFFF)),
+                    ),
+                    child: const Text(
+                      'INVITE FLOW',
+                      style: TextStyle(
+                        color: Color(0xFFFDE68A),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Create Invite',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Choose a target role, enter the phone number, and send a highlighted in-app institution invite from the same control surface.',
+                    style: TextStyle(
+                      color: Color(0xFFD7E5F0),
+                      height: 1.45,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _InviteMetaPill(
+                        icon: Icons.flash_on_rounded,
+                        label: 'In-app delivery',
+                      ),
+                      _InviteMetaPill(
+                        icon: Icons.verified_user_rounded,
+                        label: 'One-time use',
+                      ),
+                      _InviteMetaPill(
+                        icon: Icons.password_rounded,
+                        label: 'Code-protected onboarding',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 6),
-            const Text(
-              'Choose role and invite by phone number. The target user gets a highlighted in-app notification.',
-            ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Wrap(
-              spacing: 8,
+              spacing: 10,
+              runSpacing: 10,
               children: [
                 _RoleChip(
                   label: 'Student',
+                  subtitle: 'Enrollment via invite and code',
+                  icon: Icons.school_rounded,
                   selected: selectedRole == UserRole.student,
                   onTap: () => onRoleChanged(UserRole.student),
                 ),
                 _RoleChip(
                   label: 'Staff',
+                  subtitle: 'Operational access for team members',
+                  icon: Icons.badge_rounded,
                   selected: selectedRole == UserRole.staff,
                   onTap: () => onRoleChanged(UserRole.staff),
                 ),
                 _RoleChip(
                   label: 'Counselor',
+                  subtitle: 'Pending approval into care workspace',
+                  icon: Icons.health_and_safety_rounded,
                   selected: selectedRole == UserRole.counselor,
                   onTap: () => onRoleChanged(UserRole.counselor),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Invitee phone (+254...)',
-                prefixIcon: Icon(Icons.phone_rounded),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5FAFF),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFD8E6F2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.phone_forwarded_rounded,
+                        color: Color(0xFF0284C7),
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Invite delivery target',
+                          style: TextStyle(
+                            color: Color(0xFF16324F),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'The user receives an in-app alert and continues onboarding with the institution code flow after accepting.',
+                    style: TextStyle(
+                      color: Color(0xFF5E728D),
+                      fontSize: 12.8,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      hintText: '+254712345678',
+                      prefixIcon: Icon(Icons.phone_rounded),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 14),
-            ElevatedButton.icon(
-              onPressed: isSubmitting ? null : onCreateInvite,
-              icon: const Icon(Icons.send_rounded),
-              label: Text(
-                isSubmitting ? 'Creating invite...' : 'Create invite',
+            Container(
+              height: 58,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0E9B90), Color(0xFF18A89D)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x3372ECDC),
+                    blurRadius: 24,
+                    offset: Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: ElevatedButton.icon(
+                onPressed: isSubmitting ? null : onCreateInvite,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  disabledBackgroundColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+                icon: Icon(
+                  isSubmitting
+                      ? Icons.hourglass_top_rounded
+                      : Icons.send_rounded,
+                ),
+                label: Text(
+                  isSubmitting ? 'Creating invite...' : 'Create Invite',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
               ),
             ),
           ],
@@ -2443,24 +3113,109 @@ class _InviteComposer extends StatelessWidget {
 class _RoleChip extends StatelessWidget {
   const _RoleChip({
     required this.label,
+    required this.subtitle,
+    required this.icon,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
+  final String subtitle;
+  final IconData icon;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
-      selectedColor: const Color(0xFF0E9B90),
-      labelStyle: TextStyle(
-        color: selected ? Colors.white : const Color(0xFF415A77),
-        fontWeight: FontWeight.w700,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: selected
+                ? const LinearGradient(
+                    colors: [
+                      Color(0xFF0D1B2A),
+                      Color(0xFF173D63),
+                      Color(0xFF0E9B90),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: selected ? null : const Color(0xFFF7FBFF),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF0E9B90)
+                  : const Color(0xFFD8E6F2),
+            ),
+            boxShadow: selected
+                ? const [
+                    BoxShadow(
+                      color: Color(0x220E9B90),
+                      blurRadius: 20,
+                      offset: Offset(0, 10),
+                    ),
+                  ]
+                : null,
+          ),
+          child: SizedBox(
+            width: 188,
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? const Color(0x24FFFFFF)
+                        : const Color(0xFFE8F6FF),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: selected ? Colors.white : const Color(0xFF0284C7),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: selected
+                              ? Colors.white
+                              : const Color(0xFF16324F),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: selected
+                              ? const Color(0xFFD7E5F0)
+                              : const Color(0xFF6A7C93),
+                          fontSize: 12.4,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -2477,53 +3232,144 @@ class _ActionComponents extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
+    final components = <Widget>[
+      _ClickableComponentTile(
+        icon: Icons.table_rows_rounded,
+        eyebrow: 'Live table',
+        title: 'Open Members Table',
+        subtitle:
+            'Navigate directly to full member records and lifecycle actions.',
+        accent: const [Color(0xFF0E9B90), Color(0xFF18A89D)],
+        onTap: onOpenMembers,
+      ),
+      _ClickableComponentTile(
+        icon: Icons.mail_outline_rounded,
+        eyebrow: 'Invite queue',
+        title: 'Open Invites Table',
+        subtitle:
+            'Review all invite statuses, role targets, and acceptance outcomes.',
+        accent: const [Color(0xFF2563EB), Color(0xFF38BDF8)],
+        onTap: onOpenInvites,
+      ),
+      _ClickableComponentTile(
+        icon: Icons.event_note_rounded,
+        eyebrow: 'Preview module',
+        title: 'Appointments Overview',
+        subtitle:
+            'Reserved space for counselor scheduling and appointment visibility.',
+        accent: const [Color(0xFFF59E0B), Color(0xFFFB923C)],
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Appointments module coming soon.')),
+          );
+        },
+      ),
+      _ClickableComponentTile(
+        icon: Icons.library_books_rounded,
+        eyebrow: 'Preview module',
+        title: 'Resource Library',
+        subtitle:
+            'Reserved space for institution resources and student support materials.',
+        accent: const [Color(0xFF7C3AED), Color(0xFFA855F7)],
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Resource module coming soon.')),
+          );
+        },
+      ),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Quick Components',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 10),
-            _ClickableComponentTile(
-              icon: Icons.table_rows_rounded,
-              title: 'Open Members Table',
-              subtitle: 'Navigate directly to full member records.',
-              onTap: onOpenMembers,
-            ),
-            const SizedBox(height: 10),
-            _ClickableComponentTile(
-              icon: Icons.mail_outline_rounded,
-              title: 'Open Invites Table',
-              subtitle: 'View all invite statuses and role targets.',
-              onTap: onOpenInvites,
-            ),
-            const SizedBox(height: 10),
-            _ClickableComponentTile(
-              icon: Icons.event_note_rounded,
-              title: 'Appointments Overview',
-              subtitle: 'Placeholder module for counselor scheduling.',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Appointments module coming soon.'),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FBFF),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFD8E6F2)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Icon(
+                      Icons.widgets_rounded,
+                      color: Colors.white,
+                    ),
                   ),
-                );
-              },
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Quick Components',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Focused tools that move you into the right admin workflow without hunting through the full dashboard.',
+                          style: TextStyle(
+                            color: Color(0xFF5E728D),
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 10),
-            _ClickableComponentTile(
-              icon: Icons.library_books_rounded,
-              title: 'Resource Library',
-              subtitle: 'Placeholder module for institution resources.',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Resource module coming soon.')),
+            const SizedBox(height: 14),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final twoColumns = constraints.maxWidth >= 720;
+                if (!twoColumns) {
+                  return Column(
+                    children: [
+                      for (var i = 0; i < components.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 10),
+                        components[i],
+                      ],
+                    ],
+                  );
+                }
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final component in components)
+                      SizedBox(
+                        width: (constraints.maxWidth - 12) / 2,
+                        child: component,
+                      ),
+                  ],
                 );
               },
             ),
@@ -2537,14 +3383,18 @@ class _ActionComponents extends StatelessWidget {
 class _ClickableComponentTile extends StatelessWidget {
   const _ClickableComponentTile({
     required this.icon,
+    required this.eyebrow,
     required this.title,
     required this.subtitle,
+    required this.accent,
     required this.onTap,
   });
 
   final IconData icon;
+  final String eyebrow;
   final String title;
   final String subtitle;
+  final List<Color> accent;
   final VoidCallback onTap;
 
   @override
@@ -2552,43 +3402,147 @@ class _ClickableComponentTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(color: const Color(0xFFD9E4F0)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: const Color(0xFF0284C7)),
-              const SizedBox(width: 10),
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: accent,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      eyebrow.toUpperCase(),
+                      style: const TextStyle(
+                        color: Color(0xFF7A8CA4),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Color(0xFF16324F),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     Text(
                       subtitle,
                       style: const TextStyle(
                         color: Color(0xFF5E728D),
                         fontSize: 12.5,
+                        height: 1.4,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: Color(0xFF8FA0B6)),
+              const SizedBox(width: 8),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4F7FB),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF8FA0B6),
+                ),
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _TableHintPill extends StatelessWidget {
+  const _TableHintPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFD8E6F2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF0284C7)),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF415A77),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InviteMetaPill extends StatelessWidget {
+  const _InviteMetaPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0x24FFFFFF),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x40FFFFFF)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFFFDE68A)),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
