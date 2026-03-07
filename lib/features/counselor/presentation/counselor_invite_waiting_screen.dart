@@ -505,29 +505,47 @@ class _CounselorInviteWaitingScreenState
           const Color(0xFF0D7FA1),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _detailTile(
-                isDesktop,
-                Icons.workspace_premium_outlined,
-                'Role',
-                invite.intendedRole.label,
-                const Color(0xFF0E9B90),
+        if (isDesktop)
+          Row(
+            children: [
+              Expanded(
+                child: _detailTile(
+                  isDesktop,
+                  Icons.workspace_premium_outlined,
+                  'Role',
+                  invite.intendedRole.label,
+                  const Color(0xFF0E9B90),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _detailTile(
-                isDesktop,
-                Icons.schedule_rounded,
-                'Expires',
-                _formatExpiry(invite.expiresAt),
-                const Color(0xFF2563EB),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _detailTile(
+                  isDesktop,
+                  Icons.schedule_rounded,
+                  'Expires',
+                  _formatExpiry(invite.expiresAt),
+                  const Color(0xFF2563EB),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          )
+        else ...[
+          _detailTile(
+            isDesktop,
+            Icons.workspace_premium_outlined,
+            'Role',
+            invite.intendedRole.label,
+            const Color(0xFF0E9B90),
+          ),
+          const SizedBox(height: 12),
+          _detailTile(
+            isDesktop,
+            Icons.schedule_rounded,
+            'Expires',
+            _formatExpiry(invite.expiresAt),
+            const Color(0xFF2563EB),
+          ),
+        ],
         const SizedBox(height: 18),
         if ((_codeError ?? '').trim().isNotEmpty) ...[
           _InlineFieldError(message: _codeError!),
