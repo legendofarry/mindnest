@@ -609,7 +609,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                       hintStyle: _setupHintStyle,
                       alignLabelWithHint: true,
                       prefixIcon: const Padding(
-                        padding: EdgeInsets.only(bottom: 100),
+                        padding: EdgeInsets.only(bottom: 120),
                         child: Icon(Icons.notes_rounded),
                       ),
                       suffixIconConstraints: const BoxConstraints(
@@ -617,7 +617,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                         minHeight: 56,
                       ),
                       suffixIcon: Padding(
-                        padding: const EdgeInsets.only(right: 10, bottom: 100),
+                        padding: const EdgeInsets.only(right: 10, bottom: 105),
                         child: Align(
                           alignment: Alignment.bottomRight,
                           child: _InlineAiIconButton(
