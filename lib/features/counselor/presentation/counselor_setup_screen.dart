@@ -213,12 +213,13 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         _aiHistory.add(
           AssistantConversationMessage(role: 'assistant', text: cleaned),
         );
-        _aiReply = cleaned;
-        _aiReplyLabel = switch (target) {
-          _AiAssistTarget.title => 'AI title suggestion',
-          _AiAssistTarget.bio => 'AI bio draft',
-          _AiAssistTarget.custom => 'AI setup guidance',
-        };
+        if (target == _AiAssistTarget.custom) {
+          _aiReply = cleaned;
+          _aiReplyLabel = 'AI setup guidance';
+        } else {
+          _aiReply = null;
+          _aiReplyLabel = null;
+        }
       });
 
       switch (target) {
@@ -608,7 +609,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                       hintStyle: _setupHintStyle,
                       alignLabelWithHint: true,
                       prefixIcon: const Padding(
-                        padding: EdgeInsets.only(bottom: 64),
+                        padding: EdgeInsets.only(bottom: 100),
                         child: Icon(Icons.notes_rounded),
                       ),
                       suffixIconConstraints: const BoxConstraints(
@@ -616,9 +617,9 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                         minHeight: 56,
                       ),
                       suffixIcon: Padding(
-                        padding: const EdgeInsets.only(right: 10, top: 10),
+                        padding: const EdgeInsets.only(right: 10, bottom: 100),
                         child: Align(
-                          alignment: Alignment.topRight,
+                          alignment: Alignment.bottomRight,
                           child: _InlineAiIconButton(
                             busy:
                                 _isAiWorking &&
