@@ -290,7 +290,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         final needsCounselorSetup = counselorRepository.requiresSetup(profile);
         final institutionRequest = currentAdminInstitutionAsync.valueOrNull;
 
-        // 3. Verified but invite pending -> invite accept screen.
+        // 3. Verified but counselor-registration users stay on the waiting
+        // screen even after an invite arrives so they can respond there or
+        // from Notifications.
+        if (pendingInvite != null && hasCounselorRegistrationIntent) {
+          final canRemainInRoute =
+              isCounselorInviteWaitingRoute ||
+              location == AppRoute.notifications ||
+              location == AppRoute.notificationDetails ||
+              location == AppRoute.inviteAccept;
+          if (!canRemainInRoute) {
+            return AppRoute.counselorInviteWaiting;
+          }
+          return null;
+        }
+
+        // 4. Verified but invite pending -> invite accept screen.
         if (pendingInvite != null) {
           if (location != AppRoute.inviteAccept) {
             return AppRoute.withInviteQuery(AppRoute.inviteAccept, inviteQuery);
@@ -298,7 +313,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return null;
         }
 
-        // 4. Verified, role unresolved -> continue with base app flow.
+        // 5. Verified, role unresolved -> continue with base app flow.
         if (!roleResolved) {
           if (location != AppRoute.joinInstitution) {
             return AppRoute.home;
@@ -344,7 +359,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
         }
 
-        // 5. Counselor setup gate (counselors do not run wellness onboarding).
+        // 6. Counselor setup gate (counselors do not run wellness onboarding).
         if (role == UserRole.counselor) {
           if (needsCounselorSetup && location != AppRoute.counselorSetup) {
             return AppRoute.counselorSetup;
@@ -358,7 +373,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
         }
 
-        // 6. Verified role set, questionnaire incomplete -> onboarding questionnaire.
+        // 7. Verified role set, questionnaire incomplete -> onboarding questionnaire.
         final needsOnboarding = onboardingRepository.requiresQuestionnaire(
           profile,
         );
@@ -379,7 +394,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return AppRoute.home;
         }
 
-        // 7. Normal dashboard by role.
+        // 8. Normal dashboard by role.
         if (role == UserRole.institutionAdmin && location == AppRoute.home) {
           return AppRoute.institutionAdmin;
         }

@@ -32,6 +32,8 @@ class VerifyEmailScreen extends ConsumerStatefulWidget {
 class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   bool _isChecking = false;
   bool _isResending = false;
+  String? _topBannerMessage;
+  bool _topBannerIsError = false;
 
   Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
     inviteId: widget.inviteId ?? '',
@@ -59,13 +61,18 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       }
 
       if (!isVerified) {
-        await _showNotVerifiedModal();
+        setState(() {
+          _topBannerIsError = true;
+          _topBannerMessage =
+              'Your email is not verified yet. Open the link in your inbox, then try again.';
+        });
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email verified successfully.')),
-      );
+      setState(() {
+        _topBannerIsError = false;
+        _topBannerMessage = 'Email verified successfully.';
+      });
       context.go(_resolveNextRoute(profile));
     } finally {
       if (mounted) {
@@ -104,44 +111,15 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Verification email sent.')));
+      setState(() {
+        _topBannerIsError = false;
+        _topBannerMessage = 'Verification email sent.';
+      });
     } finally {
       if (mounted) {
         setState(() => _isResending = false);
       }
     }
-  }
-
-  Future<void> _showNotVerifiedModal() {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626)),
-              SizedBox(width: 8),
-              Text('Email Not Verified'),
-            ],
-          ),
-          content: const Text(
-            'We still cannot confirm your email. Please open the verification link from your inbox and then try again.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
@@ -228,6 +206,57 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 fontWeight: FontWeight.w500,
               ),
             ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child:
+                  (_topBannerMessage == null ||
+                      _topBannerMessage!.trim().isEmpty)
+                  ? const SizedBox(height: 12)
+                  : Container(
+                      key: ValueKey('${_topBannerIsError}_$_topBannerMessage'),
+                      margin: const EdgeInsets.only(top: 14, bottom: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _topBannerIsError
+                            ? const Color(0xFFFFF1F2)
+                            : const Color(0xFFEFFFFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _topBannerIsError
+                              ? const Color(0xFFFECDD3)
+                              : const Color(0xFFB3ECDD),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _topBannerIsError
+                                ? Icons.warning_amber_rounded
+                                : Icons.check_circle_outline_rounded,
+                            color: _topBannerIsError
+                                ? const Color(0xFFBE123C)
+                                : const Color(0xFF0D6F69),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _topBannerMessage!,
+                              style: TextStyle(
+                                color: _topBannerIsError
+                                    ? const Color(0xFF9F1239)
+                                    : const Color(0xFF0D6F69),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
             if (_hasInviteContext) ...[
               const SizedBox(height: 12),
               Container(
@@ -258,7 +287,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   border: Border.all(color: const Color(0xFFB3ECDD)),
                 ),
                 child: const Text(
-                  'After verification, we will take you to counselor invite waiting and skip basic onboarding questions.',
+                  'After verification, we will take you to counselor invite waiting.',
                   style: TextStyle(
                     color: Color(0xFF0D6F69),
                     fontWeight: FontWeight.w600,
@@ -315,13 +344,6 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
               ),
               child: Text(
                 _isResending ? 'Sending...' : 'Resend verification email',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextButton(
-              onPressed: () => context.go(_resolveNextRoute(profile)),
-              child: Text(
-                _hasInviteContext ? 'Continue to Invite' : 'Continue',
               ),
             ),
           ],

@@ -564,6 +564,17 @@ class InstitutionRepository {
       action: 'invite_declined',
       details: <String, dynamic>{'inviteId': invite.id},
     );
+    await _createNotifications(
+      _inviteDecisionNotificationPayloads(
+        invite: invite,
+        actorUid: currentUser.uid,
+        actorDisplayName: _bestInviteActorName(
+          fallbackName: invite.invitedName,
+          fallbackEmail: currentUser.email,
+        ),
+        accepted: false,
+      ),
+    );
   }
 
   Future<void> acceptInvite({
@@ -755,6 +766,17 @@ class InstitutionRepository {
         transaction.delete(previousMembershipRef);
       }
     });
+    await _createNotifications(
+      _inviteDecisionNotificationPayloads(
+        invite: invite,
+        actorUid: currentUser.uid,
+        actorDisplayName: _bestInviteActorName(
+          fallbackName: invite.invitedName,
+          fallbackEmail: currentUser.email,
+        ),
+        accepted: true,
+      ),
+    );
   }
 
   Future<void> revokeInvite({required String inviteId}) async {
@@ -1964,6 +1986,75 @@ class InstitutionRepository {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
+  }
+
+  List<Map<String, dynamic>> _inviteDecisionNotificationPayloads({
+    required UserInvite invite,
+    required String actorUid,
+    required String actorDisplayName,
+    required bool accepted,
+  }) {
+    final roleLabel = invite.intendedRole.label;
+    final normalizedActorName = actorDisplayName.trim().isEmpty
+        ? 'The invited user'
+        : actorDisplayName.trim();
+    final decisionVerb = accepted ? 'accepted' : 'declined';
+    final decisionType = accepted
+        ? 'institution_invite_accepted'
+        : 'institution_invite_declined';
+    final selfTitle = accepted ? 'Invite accepted' : 'Invite declined';
+    final selfBody = accepted
+        ? 'You accepted the $roleLabel invite for ${invite.institutionName}.'
+        : 'You declined the $roleLabel invite for ${invite.institutionName}.';
+    final adminTitle = accepted
+        ? '$roleLabel invite accepted'
+        : '$roleLabel invite declined';
+    final adminBody =
+        '$normalizedActorName $decisionVerb the $roleLabel invite for ${invite.institutionName}.';
+
+    final payloads = <Map<String, dynamic>>[
+      _notificationPayload(
+        userId: actorUid,
+        institutionId: invite.institutionId,
+        type: decisionType,
+        title: selfTitle,
+        body: selfBody,
+        relatedId: invite.id,
+        priority: 'high',
+      ),
+    ];
+
+    final invitedBy = (invite.invitedBy ?? '').trim();
+    if (invitedBy.isNotEmpty && invitedBy != actorUid) {
+      payloads.add(
+        _notificationPayload(
+          userId: invitedBy,
+          institutionId: invite.institutionId,
+          type: decisionType,
+          title: adminTitle,
+          body: adminBody,
+          relatedId: invite.id,
+          priority: 'high',
+        ),
+      );
+    }
+
+    return payloads;
+  }
+
+  String _bestInviteActorName({
+    required String fallbackName,
+    String? fallbackEmail,
+  }) {
+    final normalizedName = fallbackName.trim();
+    if (normalizedName.isNotEmpty) {
+      return normalizedName;
+    }
+    final normalizedEmail = (fallbackEmail ?? '').trim();
+    if (normalizedEmail.isNotEmpty) {
+      return normalizedEmail;
+    }
+    return 'The invited user';
   }
 
   Future<void> _createNotifications(List<Map<String, dynamic>> payloads) async {

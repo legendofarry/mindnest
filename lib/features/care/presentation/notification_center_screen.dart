@@ -36,6 +36,9 @@ class _NotificationCenterScreenState
     if (normalized == 'institution_invite') {
       return Icons.mark_email_unread_rounded;
     }
+    if (normalized.contains('accepted')) {
+      return Icons.check_circle_outline_rounded;
+    }
     if (normalized.contains('confirm')) {
       return Icons.check_circle_outline_rounded;
     }
@@ -61,6 +64,9 @@ class _NotificationCenterScreenState
     final normalized = type.toLowerCase();
     if (normalized == 'institution_invite') {
       return const Color(0xFF0E9B90);
+    }
+    if (normalized.contains('accepted')) {
+      return const Color(0xFF059669);
     }
     if (normalized.contains('confirm') || normalized.contains('completed')) {
       return const Color(0xFF059669);

@@ -271,6 +271,34 @@ service cloud.firestore {
       return getAfter(/databases/$(database)/documents/user_invites/$(inviteId)).data;
     }
 
+    function inviteDoc(inviteId) {
+      return get(/databases/$(database)/documents/user_invites/$(inviteId)).data;
+    }
+
+    function canCreateInviteDecisionNotification() {
+      return isSignedIn() &&
+        request.resource.data.type in ['institution_invite_accepted', 'institution_invite_declined'] &&
+        request.resource.data.relatedId is string &&
+        request.resource.data.relatedId.size() > 0 &&
+        exists(/databases/$(database)/documents/user_invites/$(request.resource.data.relatedId)) &&
+        inviteDoc(request.resource.data.relatedId).inviteeUid == request.auth.uid &&
+        inviteDoc(request.resource.data.relatedId).institutionId == request.resource.data.institutionId &&
+        (
+          request.resource.data.userId == request.auth.uid ||
+          request.resource.data.userId == inviteDoc(request.resource.data.relatedId).invitedBy
+        ) &&
+        (
+          (
+            request.resource.data.type == 'institution_invite_accepted' &&
+            inviteDoc(request.resource.data.relatedId).status == 'accepted'
+          ) ||
+          (
+            request.resource.data.type == 'institution_invite_declined' &&
+            inviteDoc(request.resource.data.relatedId).status == 'declined'
+          )
+        );
+    }
+
     function canSelfCodeJoinMembershipWrite(membershipId) {
       return isSignedIn() &&
         request.resource.data.userId == request.auth.uid &&
@@ -814,7 +842,10 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() &&
-        request.resource.data.institutionId == currentInstitutionId();
+        (
+          request.resource.data.institutionId == currentInstitutionId() ||
+          canCreateInviteDecisionNotification()
+        );
       allow update: if isSignedIn() &&
         resource.data.userId == request.auth.uid &&
         request.resource.data.userId == resource.data.userId;
