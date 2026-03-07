@@ -19,6 +19,11 @@ class CounselorSetupScreen extends ConsumerStatefulWidget {
       _CounselorSetupScreenState();
 }
 
+const _setupHintStyle = TextStyle(
+  color: Color(0x6B0B2442),
+  fontWeight: FontWeight.w500,
+);
+
 class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
@@ -493,6 +498,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                     decoration: const InputDecoration(
                       border: InputBorder.none,
                       hintText: 'Licensed Professional Counselor',
+                      hintStyle: _setupHintStyle,
                       prefixIcon: Icon(Icons.badge_outlined),
                     ),
                     validator: (value) {
@@ -602,6 +608,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                       border: InputBorder.none,
                       hintText:
                           'Briefly explain your counseling approach, tone, and the kind of support students can expect.',
+                      hintStyle: _setupHintStyle,
                       alignLabelWithHint: true,
                       prefixIcon: Padding(
                         padding: EdgeInsets.only(bottom: 64),
@@ -679,6 +686,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
             decoration: const InputDecoration(
               border: InputBorder.none,
               hintText: '3',
+              hintStyle: _setupHintStyle,
               prefixIcon: Icon(Icons.timeline_rounded),
             ),
             validator: (value) {
@@ -777,6 +785,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
             decoration: const InputDecoration(
               border: InputBorder.none,
               hintText: 'English, Swahili',
+              hintStyle: _setupHintStyle,
               prefixIcon: Icon(Icons.language_rounded),
             ),
           ),
@@ -886,6 +895,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
               decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Ask AI',
+                hintStyle: _setupHintStyle,
                 prefixIcon: const Icon(Icons.smart_toy_outlined),
                 suffixIcon: Padding(
                   padding: const EdgeInsets.all(8),
