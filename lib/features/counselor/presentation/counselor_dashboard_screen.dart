@@ -182,8 +182,6 @@ class _CounselorDashboardScreenState
                     onProfile: () => setState(() {
                       _activeSection = _CounselorWorkspaceSection.profile;
                     }),
-                    onLogout: () =>
-                        confirmAndLogout(context: context, ref: ref),
                   ),
                   Expanded(
                     child: AnimatedSwitcher(
@@ -238,7 +236,6 @@ class _CounselorDashboardScreenState
             onProfile: () => setState(() {
               _activeSection = _CounselorWorkspaceSection.profile;
             }),
-            onLogout: () => confirmAndLogout(context: context, ref: ref),
           ),
           const SizedBox(height: 14),
           SizedBox(
@@ -1040,7 +1037,6 @@ class _WorkspaceHeader extends StatelessWidget {
     required this.desktop,
     required this.onNotifications,
     required this.onProfile,
-    required this.onLogout,
   });
 
   final String title;
@@ -1050,7 +1046,6 @@ class _WorkspaceHeader extends StatelessWidget {
   final bool desktop;
   final VoidCallback onNotifications;
   final VoidCallback onProfile;
-  final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
@@ -1112,8 +1107,6 @@ class _WorkspaceHeader extends StatelessWidget {
                 icon: Icons.manage_accounts_rounded,
                 onTap: onProfile,
               ),
-              const SizedBox(width: 8),
-              _HeaderIconButton(icon: Icons.logout_rounded, onTap: onLogout),
             ],
           ),
           const SizedBox(height: 14),
@@ -2334,11 +2327,6 @@ const List<_SidebarItem> _sidebarItems = [
     section: _CounselorWorkspaceSection.availability,
     label: 'Availability',
     icon: Icons.calendar_month_rounded,
-  ),
-  _SidebarItem(
-    section: _CounselorWorkspaceSection.notifications,
-    label: 'Notifications',
-    icon: Icons.notifications_none_rounded,
   ),
 ];
 
