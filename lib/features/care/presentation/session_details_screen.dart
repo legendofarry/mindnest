@@ -91,6 +91,8 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
         context.go(AppRoute.counselorAppointments);
       case CounselorWorkspaceNavSection.availability:
         context.go(AppRoute.counselorAvailability);
+      case CounselorWorkspaceNavSection.counselors:
+        context.go(AppRoute.counselorDirectory);
     }
   }
 
@@ -566,6 +568,7 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
         return CounselorWorkspaceScaffold(
           profile: profile,
           activeSection: CounselorWorkspaceNavSection.sessions,
+          showCounselorDirectory: workflowSettings.directoryEnabled,
           unreadNotifications: unreadCount,
           title: 'Session Detail',
           subtitle:
@@ -581,6 +584,7 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
       return CounselorWorkspaceScaffold(
         profile: profile,
         activeSection: CounselorWorkspaceNavSection.sessions,
+        showCounselorDirectory: workflowSettings.directoryEnabled,
         unreadNotifications: unreadCount,
         title: 'Session Detail',
         subtitle:

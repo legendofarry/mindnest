@@ -494,7 +494,8 @@ class _CounselorDirectoryScreenState
         data: (settings) {
           return CounselorWorkspaceScaffold(
             profile: profile,
-            activeSection: CounselorWorkspaceNavSection.dashboard,
+            activeSection: CounselorWorkspaceNavSection.counselors,
+            showCounselorDirectory: true,
             unreadNotifications: unreadCount,
             title: 'Counselor Directory',
             subtitle:
@@ -507,6 +508,8 @@ class _CounselorDirectoryScreenState
                   context.go(AppRoute.counselorAppointments);
                 case CounselorWorkspaceNavSection.availability:
                   context.go(AppRoute.counselorAvailability);
+                case CounselorWorkspaceNavSection.counselors:
+                  context.go(AppRoute.counselorDirectory);
               }
             },
             onNotifications: () => context.go(AppRoute.notifications),
@@ -562,7 +565,8 @@ class _CounselorDirectoryScreenState
         },
         loading: () => CounselorWorkspaceScaffold(
           profile: profile,
-          activeSection: CounselorWorkspaceNavSection.dashboard,
+          activeSection: CounselorWorkspaceNavSection.counselors,
+          showCounselorDirectory: true,
           unreadNotifications: unreadCount,
           title: 'Counselor Directory',
           subtitle:
@@ -575,6 +579,8 @@ class _CounselorDirectoryScreenState
                 context.go(AppRoute.counselorAppointments);
               case CounselorWorkspaceNavSection.availability:
                 context.go(AppRoute.counselorAvailability);
+              case CounselorWorkspaceNavSection.counselors:
+                context.go(AppRoute.counselorDirectory);
             }
           },
           onNotifications: () => context.go(AppRoute.notifications),
@@ -584,7 +590,8 @@ class _CounselorDirectoryScreenState
         ),
         error: (error, _) => CounselorWorkspaceScaffold(
           profile: profile,
-          activeSection: CounselorWorkspaceNavSection.dashboard,
+          activeSection: CounselorWorkspaceNavSection.counselors,
+          showCounselorDirectory: true,
           unreadNotifications: unreadCount,
           title: 'Counselor Directory',
           subtitle:
@@ -597,6 +604,8 @@ class _CounselorDirectoryScreenState
                 context.go(AppRoute.counselorAppointments);
               case CounselorWorkspaceNavSection.availability:
                 context.go(AppRoute.counselorAvailability);
+              case CounselorWorkspaceNavSection.counselors:
+                context.go(AppRoute.counselorDirectory);
             }
           },
           onNotifications: () => context.go(AppRoute.notifications),

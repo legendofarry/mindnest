@@ -10,6 +10,7 @@ import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
+import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
 class CounselorDashboardScreen extends ConsumerStatefulWidget {
   const CounselorDashboardScreen({super.key});
@@ -23,6 +24,7 @@ enum _CounselorWorkspaceSection {
   overview,
   sessions,
   availability,
+  counselors,
   notifications,
   profile,
 }
@@ -70,6 +72,13 @@ class _CounselorDashboardScreenState
                       .watch(unreadNotificationCountProvider(profile.id))
                       .value ??
                   0;
+              final showCounselorDirectory =
+                  ref
+                      .watch(counselorWorkflowSettingsProvider(institutionId))
+                      .valueOrNull
+                      ?.directoryEnabled ??
+                  false;
+              final sidebarItems = _sidebarItems(showCounselorDirectory);
 
               return StreamBuilder<List<AppointmentRecord>>(
                 stream: ref
@@ -106,12 +115,14 @@ class _CounselorDashboardScreenState
                                   context: context,
                                   profile: profile,
                                   summary: summary,
+                                  sidebarItems: sidebarItems,
                                 )
                               : _buildMobileWorkspace(
                                   context: context,
                                   profile: profile,
                                   summary: summary,
                                   isTablet: isTablet,
+                                  sidebarItems: sidebarItems,
                                 );
                         },
                       );
@@ -136,6 +147,7 @@ class _CounselorDashboardScreenState
     required BuildContext context,
     required UserProfile profile,
     required _WorkspaceSummary summary,
+    required List<_SidebarItem> sidebarItems,
   }) {
     final shell = _sectionShell(_activeSection);
 
@@ -148,8 +160,15 @@ class _CounselorDashboardScreenState
             child: _DesktopSidebar(
               profile: profile,
               activeSection: _activeSection,
+              sidebarItems: sidebarItems,
               unreadNotifications: summary.unreadNotifications,
-              onSelect: (section) => setState(() => _activeSection = section),
+              onSelect: (section) {
+                if (section == _CounselorWorkspaceSection.counselors) {
+                  context.go(AppRoute.counselorDirectory);
+                  return;
+                }
+                setState(() => _activeSection = section);
+              },
               onLogout: () => confirmAndLogout(context: context, ref: ref),
             ),
           ),
@@ -212,6 +231,7 @@ class _CounselorDashboardScreenState
     required UserProfile profile,
     required _WorkspaceSummary summary,
     required bool isTablet,
+    required List<_SidebarItem> sidebarItems,
   }) {
     final shell = _sectionShell(_activeSection);
 
@@ -242,15 +262,21 @@ class _CounselorDashboardScreenState
             height: 54,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: _sidebarItems.length,
+              itemCount: sidebarItems.length,
               separatorBuilder: (_, _) => const SizedBox(width: 10),
               itemBuilder: (context, index) {
-                final item = _sidebarItems[index];
+                final item = sidebarItems[index];
                 return _MobileSectionChip(
                   item: item,
                   active: item.section == _activeSection,
                   unreadNotifications: summary.unreadNotifications,
-                  onTap: () => setState(() => _activeSection = item.section),
+                  onTap: () {
+                    if (item.section == _CounselorWorkspaceSection.counselors) {
+                      context.go(AppRoute.counselorDirectory);
+                      return;
+                    }
+                    setState(() => _activeSection = item.section);
+                  },
                 );
               },
             ),
@@ -303,6 +329,10 @@ class _CounselorDashboardScreenState
           summary: summary,
           onManageAvailability: () =>
               context.go(AppRoute.counselorAvailability),
+        );
+      case _CounselorWorkspaceSection.counselors:
+        return _buildCounselorsSection(
+          onOpenDirectory: () => context.go(AppRoute.counselorDirectory),
         );
       case _CounselorWorkspaceSection.notifications:
         return _buildNotificationsSection(
@@ -534,6 +564,18 @@ class _CounselorDashboardScreenState
     );
   }
 
+  Widget _buildCounselorsSection({required VoidCallback onOpenDirectory}) {
+    return _SpotlightPanel(
+      eyebrow: 'COUNSELOR DIRECTORY',
+      title: 'Open the internal counselor directory.',
+      body:
+          'Browse limited counselor identity details inside your institution when the admin enables directory visibility.',
+      primaryLabel: 'Open Counselor Directory',
+      onPrimaryTap: onOpenDirectory,
+      accent: const [Color(0xFF0E9B90), Color(0xFF2563EB)],
+    );
+  }
+
   Widget _buildNotificationsSection({
     required _WorkspaceSummary summary,
     required VoidCallback onOpenNotifications,
@@ -607,6 +649,12 @@ class _CounselorDashboardScreenState
           title: 'Availability',
           subtitle:
               'Keep your open slots healthy, spot gaps early, and move directly into slot management when you need to publish changes.',
+        );
+      case _CounselorWorkspaceSection.counselors:
+        return const _SectionShell(
+          title: 'Counselors',
+          subtitle:
+              'Browse the internal counselor directory when institution policy allows peer visibility.',
         );
       case _CounselorWorkspaceSection.notifications:
         return const _SectionShell(
@@ -869,6 +917,7 @@ class _DesktopSidebar extends StatelessWidget {
   const _DesktopSidebar({
     required this.profile,
     required this.activeSection,
+    required this.sidebarItems,
     required this.unreadNotifications,
     required this.onSelect,
     required this.onLogout,
@@ -876,6 +925,7 @@ class _DesktopSidebar extends StatelessWidget {
 
   final UserProfile profile;
   final _CounselorWorkspaceSection activeSection;
+  final List<_SidebarItem> sidebarItems;
   final int unreadNotifications;
   final ValueChanged<_CounselorWorkspaceSection> onSelect;
   final VoidCallback onLogout;
@@ -942,7 +992,7 @@ class _DesktopSidebar extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 26),
-            ..._sidebarItems.map(
+            ...sidebarItems.map(
               (item) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _SidebarNavItem(
@@ -2312,23 +2362,31 @@ class _SidebarItem {
   final IconData icon;
 }
 
-const List<_SidebarItem> _sidebarItems = [
-  _SidebarItem(
-    section: _CounselorWorkspaceSection.overview,
-    label: 'Dashboard',
-    icon: Icons.home_outlined,
-  ),
-  _SidebarItem(
-    section: _CounselorWorkspaceSection.sessions,
-    label: 'Sessions',
-    icon: Icons.event_note_rounded,
-  ),
-  _SidebarItem(
-    section: _CounselorWorkspaceSection.availability,
-    label: 'Availability',
-    icon: Icons.calendar_month_rounded,
-  ),
-];
+List<_SidebarItem> _sidebarItems(bool showCounselorDirectory) {
+  return [
+    const _SidebarItem(
+      section: _CounselorWorkspaceSection.overview,
+      label: 'Dashboard',
+      icon: Icons.home_outlined,
+    ),
+    const _SidebarItem(
+      section: _CounselorWorkspaceSection.sessions,
+      label: 'Sessions',
+      icon: Icons.event_note_rounded,
+    ),
+    const _SidebarItem(
+      section: _CounselorWorkspaceSection.availability,
+      label: 'Availability',
+      icon: Icons.calendar_month_rounded,
+    ),
+    if (showCounselorDirectory)
+      const _SidebarItem(
+        section: _CounselorWorkspaceSection.counselors,
+        label: 'Counselors',
+        icon: Icons.groups_rounded,
+      ),
+  ];
+}
 
 String _initials(String value) {
   final parts = value

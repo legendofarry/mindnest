@@ -219,11 +219,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.counselorAvailability ||
           location == AppRoute.counselorAppointments ||
           location == AppRoute.counselorSettings;
-      final isStudentCareRoute =
+      final isCounselorCareRoute =
           location == AppRoute.counselorDirectory ||
           location == AppRoute.counselorProfile ||
+          location == AppRoute.sessionDetails;
+      final isStudentCareRoute =
           location == AppRoute.studentAppointments ||
-          location == AppRoute.sessionDetails ||
           location == AppRoute.carePlan;
       final isLiveRoute =
           location == AppRoute.liveHub || location == AppRoute.liveRoom;
@@ -425,6 +426,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return needsCounselorSetup
               ? AppRoute.counselorSetup
               : AppRoute.counselorDashboard;
+        }
+
+        if (role != UserRole.counselor && isCounselorCareRoute) {
+          return role == UserRole.institutionAdmin
+              ? AppRoute.institutionAdmin
+              : AppRoute.home;
         }
 
         if (role == UserRole.institutionAdmin && isStudentCareRoute) {

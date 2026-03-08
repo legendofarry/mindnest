@@ -14,6 +14,7 @@ import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
+import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum _SpotPeriod { any, morning, afternoon, evening }
@@ -445,6 +446,8 @@ class _CounselorProfileScreenState
         context.go(AppRoute.counselorAppointments);
       case CounselorWorkspaceNavSection.availability:
         context.go(AppRoute.counselorAvailability);
+      case CounselorWorkspaceNavSection.counselors:
+        context.go(AppRoute.counselorDirectory);
     }
   }
 
@@ -1267,10 +1270,20 @@ class _CounselorProfileScreenState
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
+    final showCounselorDirectory =
+        ref
+            .watch(
+              counselorWorkflowSettingsProvider(profile?.institutionId ?? ''),
+            )
+            .valueOrNull
+            ?.directoryEnabled ??
+        false;
     final institutionId = profile?.institutionId ?? '';
     final canBook = _canCurrentUserBook(profile);
     final isCounselorWorkspace =
         profile != null && profile.role == UserRole.counselor;
+    final isViewingPeerCounselor =
+        isCounselorWorkspace && profile.id != widget.counselorId;
     _ensureFreezeCacheLoaded(profile);
 
     final content = StreamBuilder<CounselorProfile?>(
@@ -1324,98 +1337,102 @@ class _CounselorProfileScreenState
                     counselorId: widget.counselorId,
                   )
                 : _buildCounselorHeroCard(counselor),
-            const SizedBox(height: 12),
-            _buildBookingPolicyCard(),
-            const SizedBox(height: 12),
-            if (institutionId.isEmpty)
-              const GlassCard(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text(
-                    'Join an institution to view and book counselor schedules.',
-                  ),
-                ),
-              )
-            else
-              StreamBuilder<List<AvailabilitySlot>>(
-                stream: ref
-                    .read(careRepositoryProvider)
-                    .watchCounselorPublicAvailability(
-                      institutionId: institutionId,
-                      counselorId: effectiveCounselor.id,
+            if (!isViewingPeerCounselor) ...[
+              const SizedBox(height: 12),
+              _buildBookingPolicyCard(),
+              const SizedBox(height: 12),
+              if (institutionId.isEmpty)
+                const GlassCard(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'Join an institution to view and book counselor schedules.',
                     ),
-                builder: (context, availabilitySnapshot) {
-                  if (availabilitySnapshot.hasError) {
-                    return GlassCard(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          availabilitySnapshot.error.toString().replaceFirst(
-                            'Exception: ',
-                            '',
+                  ),
+                )
+              else
+                StreamBuilder<List<AvailabilitySlot>>(
+                  stream: ref
+                      .read(careRepositoryProvider)
+                      .watchCounselorPublicAvailability(
+                        institutionId: institutionId,
+                        counselorId: effectiveCounselor.id,
+                      ),
+                  builder: (context, availabilitySnapshot) {
+                    if (availabilitySnapshot.hasError) {
+                      return GlassCard(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            availabilitySnapshot.error.toString().replaceFirst(
+                              'Exception: ',
+                              '',
+                            ),
                           ),
                         ),
-                      ),
+                      );
+                    }
+
+                    final slots = availabilitySnapshot.data ?? const [];
+                    final weeklyFiltered = _filterAndSortSlots(
+                      _weekSlots(slots),
                     );
-                  }
 
-                  final slots = availabilitySnapshot.data ?? const [];
-                  final weeklyFiltered = _filterAndSortSlots(_weekSlots(slots));
+                    if (availabilitySnapshot.connectionState ==
+                            ConnectionState.waiting &&
+                        slots.isEmpty) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                  if (availabilitySnapshot.connectionState ==
-                          ConnectionState.waiting &&
-                      slots.isEmpty) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildFindSpotSection(
-                        counselor: effectiveCounselor,
-                        filteredWeekSlots: weeklyFiltered,
-                        profile: profile,
-                        canBook: canBook,
-                      ),
-                      const SizedBox(height: 12),
-                      if (profile != null &&
-                          institutionId.isNotEmpty &&
-                          _canCurrentUserBook(profile))
-                        StreamBuilder<List<AppointmentRecord>>(
-                          stream: ref
-                              .read(careRepositoryProvider)
-                              .watchStudentAppointments(
-                                institutionId: institutionId,
-                                studentId: profile.id,
-                              ),
-                          builder: (context, appointmentSnapshot) {
-                            final counselorAppointments =
-                                (appointmentSnapshot.data ?? const [])
-                                    .where(
-                                      (entry) =>
-                                          entry.counselorId ==
-                                          effectiveCounselor.id,
-                                    )
-                                    .toList(growable: false);
-                            return _buildWeeklyGrid(
-                              counselor: effectiveCounselor,
-                              slots: slots,
-                              appointments: counselorAppointments,
-                              profile: profile,
-                            );
-                          },
-                        )
-                      else
-                        _buildWeeklyGrid(
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildFindSpotSection(
                           counselor: effectiveCounselor,
-                          slots: slots,
-                          appointments: const [],
+                          filteredWeekSlots: weeklyFiltered,
                           profile: profile,
+                          canBook: canBook,
                         ),
-                    ],
-                  );
-                },
-              ),
+                        const SizedBox(height: 12),
+                        if (profile != null &&
+                            institutionId.isNotEmpty &&
+                            _canCurrentUserBook(profile))
+                          StreamBuilder<List<AppointmentRecord>>(
+                            stream: ref
+                                .read(careRepositoryProvider)
+                                .watchStudentAppointments(
+                                  institutionId: institutionId,
+                                  studentId: profile.id,
+                                ),
+                            builder: (context, appointmentSnapshot) {
+                              final counselorAppointments =
+                                  (appointmentSnapshot.data ?? const [])
+                                      .where(
+                                        (entry) =>
+                                            entry.counselorId ==
+                                            effectiveCounselor.id,
+                                      )
+                                      .toList(growable: false);
+                              return _buildWeeklyGrid(
+                                counselor: effectiveCounselor,
+                                slots: slots,
+                                appointments: counselorAppointments,
+                                profile: profile,
+                              );
+                            },
+                          )
+                        else
+                          _buildWeeklyGrid(
+                            counselor: effectiveCounselor,
+                            slots: slots,
+                            appointments: const [],
+                            profile: profile,
+                          ),
+                      ],
+                    );
+                  },
+                ),
+            ],
           ],
         );
       },
@@ -1427,11 +1444,13 @@ class _CounselorProfileScreenState
       return CounselorWorkspaceScaffold(
         profile: profile,
         activeSection: CounselorWorkspaceNavSection.dashboard,
+        showCounselorDirectory: showCounselorDirectory,
         unreadNotifications: unreadCount,
         profileHighlighted: true,
         title: 'Counselor Profile',
-        subtitle:
-            'Review the public-facing counselor profile and availability from the same workspace used across your dashboard, sessions, and settings.',
+        subtitle: isViewingPeerCounselor
+            ? 'Review another counselor profile from the same workspace used across your dashboard, sessions, and settings.'
+            : 'Review the public-facing counselor profile and availability from the same workspace used across your dashboard, sessions, and settings.',
         onSelectSection: (section) => _navigateSection(context, section),
         onNotifications: () => context.go(AppRoute.notifications),
         onProfile: () => context.go(AppRoute.counselorSettings),

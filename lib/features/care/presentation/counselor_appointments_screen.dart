@@ -207,6 +207,8 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
         context.go(AppRoute.counselorAppointments);
       case CounselorWorkspaceNavSection.availability:
         context.go(AppRoute.counselorAvailability);
+      case CounselorWorkspaceNavSection.counselors:
+        context.go(AppRoute.counselorDirectory);
     }
   }
 
@@ -470,6 +472,7 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
     return CounselorWorkspaceScaffold(
       profile: profile,
       activeSection: CounselorWorkspaceNavSection.sessions,
+      showCounselorDirectory: workflowSettings.directoryEnabled,
       unreadNotifications: unreadCount,
       title: 'Sessions',
       subtitle:

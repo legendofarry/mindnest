@@ -12,6 +12,7 @@ import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
+import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
 class CounselorProfileSettingsScreen extends ConsumerStatefulWidget {
   const CounselorProfileSettingsScreen({super.key});
@@ -258,6 +259,8 @@ class _CounselorProfileSettingsScreenState
         context.go(AppRoute.counselorAppointments);
       case CounselorWorkspaceNavSection.availability:
         context.go(AppRoute.counselorAvailability);
+      case CounselorWorkspaceNavSection.counselors:
+        context.go(AppRoute.counselorDirectory);
     }
   }
 
@@ -273,9 +276,20 @@ class _CounselorProfileSettingsScreenState
         }
         final unreadCount =
             ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
+        final showCounselorDirectory =
+            ref
+                .watch(
+                  counselorWorkflowSettingsProvider(
+                    profile.institutionId ?? '',
+                  ),
+                )
+                .valueOrNull
+                ?.directoryEnabled ??
+            false;
         return CounselorWorkspaceScaffold(
           profile: profile,
           activeSection: CounselorWorkspaceNavSection.dashboard,
+          showCounselorDirectory: showCounselorDirectory,
           unreadNotifications: unreadCount,
           profileHighlighted: true,
           title: 'Profile Settings',

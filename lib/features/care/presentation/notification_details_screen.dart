@@ -10,6 +10,7 @@ import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/app_notification.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
+import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
 class NotificationDetailsScreen extends ConsumerWidget {
   const NotificationDetailsScreen({super.key, required this.notificationId});
@@ -208,6 +209,8 @@ class NotificationDetailsScreen extends ConsumerWidget {
         context.go(AppRoute.counselorAppointments);
       case CounselorWorkspaceNavSection.availability:
         context.go(AppRoute.counselorAvailability);
+      case CounselorWorkspaceNavSection.counselors:
+        context.go(AppRoute.counselorDirectory);
     }
   }
 
@@ -698,6 +701,14 @@ class NotificationDetailsScreen extends ConsumerWidget {
     final textTheme = theme.textTheme;
     final isCounselorWorkspace =
         profile != null && profile.role == UserRole.counselor;
+    final showCounselorDirectory =
+        ref
+            .watch(
+              counselorWorkflowSettingsProvider(profile?.institutionId ?? ''),
+            )
+            .valueOrNull
+            ?.directoryEnabled ??
+        false;
 
     if (notificationId.trim().isEmpty) {
       if (isCounselorWorkspace) {
@@ -706,6 +717,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
         return CounselorWorkspaceScaffold(
           profile: profile,
           activeSection: CounselorWorkspaceNavSection.dashboard,
+          showCounselorDirectory: showCounselorDirectory,
           unreadNotifications: unreadCount,
           notificationsHighlighted: true,
           title: 'Notification Detail',
@@ -827,6 +839,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
       return CounselorWorkspaceScaffold(
         profile: profile,
         activeSection: CounselorWorkspaceNavSection.dashboard,
+        showCounselorDirectory: showCounselorDirectory,
         unreadNotifications: unreadCount,
         notificationsHighlighted: true,
         title: 'Notification Detail',

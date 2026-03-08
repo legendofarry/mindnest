@@ -3,7 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 
-enum CounselorWorkspaceNavSection { dashboard, sessions, availability }
+enum CounselorWorkspaceNavSection {
+  dashboard,
+  sessions,
+  availability,
+  counselors,
+}
 
 class CounselorWorkspaceScaffold extends StatelessWidget {
   const CounselorWorkspaceScaffold({
@@ -20,6 +25,7 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
     required this.onLogout,
     this.notificationsHighlighted = false,
     this.profileHighlighted = false,
+    this.showCounselorDirectory = false,
   });
 
   final UserProfile profile;
@@ -34,6 +40,7 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
   final VoidCallback onLogout;
   final bool notificationsHighlighted;
   final bool profileHighlighted;
+  final bool showCounselorDirectory;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +52,7 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
             builder: (context, constraints) {
               final isDesktop = constraints.maxWidth >= 1120;
               final isTablet = constraints.maxWidth >= 760;
+              final navItems = _navItems(showCounselorDirectory);
               if (isDesktop) {
                 return Padding(
                   padding: const EdgeInsets.all(18),
@@ -55,6 +63,7 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
                         child: _DesktopSidebar(
                           profile: profile,
                           activeSection: activeSection,
+                          navItems: navItems,
                           onSelectSection: onSelectSection,
                           onLogout: onLogout,
                         ),
@@ -135,10 +144,10 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
                       height: 54,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
-                        itemCount: _navItems.length,
+                        itemCount: navItems.length,
                         separatorBuilder: (_, _) => const SizedBox(width: 10),
                         itemBuilder: (context, index) {
-                          final item = _navItems[index];
+                          final item = navItems[index];
                           return _MobileSectionChip(
                             item: item,
                             active: item.section == activeSection,
@@ -234,12 +243,14 @@ class _DesktopSidebar extends StatelessWidget {
   const _DesktopSidebar({
     required this.profile,
     required this.activeSection,
+    required this.navItems,
     required this.onSelectSection,
     required this.onLogout,
   });
 
   final UserProfile profile;
   final CounselorWorkspaceNavSection activeSection;
+  final List<_ShellSidebarItem> navItems;
   final ValueChanged<CounselorWorkspaceNavSection> onSelectSection;
   final VoidCallback onLogout;
 
@@ -305,7 +316,7 @@ class _DesktopSidebar extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 26),
-            ..._navItems.map(
+            ...navItems.map(
               (item) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _SidebarNavItem(
@@ -708,23 +719,31 @@ class _ShellSidebarItem {
   final IconData icon;
 }
 
-const List<_ShellSidebarItem> _navItems = [
-  _ShellSidebarItem(
-    section: CounselorWorkspaceNavSection.dashboard,
-    label: 'Dashboard',
-    icon: Icons.home_outlined,
-  ),
-  _ShellSidebarItem(
-    section: CounselorWorkspaceNavSection.sessions,
-    label: 'Sessions',
-    icon: Icons.event_note_rounded,
-  ),
-  _ShellSidebarItem(
-    section: CounselorWorkspaceNavSection.availability,
-    label: 'Availability',
-    icon: Icons.calendar_month_rounded,
-  ),
-];
+List<_ShellSidebarItem> _navItems(bool showCounselorDirectory) {
+  return [
+    const _ShellSidebarItem(
+      section: CounselorWorkspaceNavSection.dashboard,
+      label: 'Dashboard',
+      icon: Icons.home_outlined,
+    ),
+    const _ShellSidebarItem(
+      section: CounselorWorkspaceNavSection.sessions,
+      label: 'Sessions',
+      icon: Icons.event_note_rounded,
+    ),
+    const _ShellSidebarItem(
+      section: CounselorWorkspaceNavSection.availability,
+      label: 'Availability',
+      icon: Icons.calendar_month_rounded,
+    ),
+    if (showCounselorDirectory)
+      const _ShellSidebarItem(
+        section: CounselorWorkspaceNavSection.counselors,
+        label: 'Counselors',
+        icon: Icons.groups_rounded,
+      ),
+  ];
+}
 
 String _initials(String value) {
   final parts = value
