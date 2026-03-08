@@ -330,7 +330,7 @@ class _CounselorDashboardScreenState
       _StatCardData(
         'Today',
         '${summary.todaySessions}',
-        'scheduled sessions',
+        'Sessions',
         const Color(0xFF0E9B90),
       ),
       _StatCardData(

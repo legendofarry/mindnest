@@ -18,6 +18,8 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
     required this.onNotifications,
     required this.onProfile,
     required this.onLogout,
+    this.notificationsHighlighted = false,
+    this.profileHighlighted = false,
   });
 
   final UserProfile profile;
@@ -30,6 +32,8 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
   final VoidCallback onNotifications;
   final VoidCallback onProfile;
   final VoidCallback onLogout;
+  final bool notificationsHighlighted;
+  final bool profileHighlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +86,9 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
                                 desktop: true,
                                 onNotifications: onNotifications,
                                 onProfile: onProfile,
+                                notificationsHighlighted:
+                                    notificationsHighlighted,
+                                profileHighlighted: profileHighlighted,
                               ),
                               Expanded(
                                 child: SingleChildScrollView(
@@ -120,6 +127,8 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
                       desktop: false,
                       onNotifications: onNotifications,
                       onProfile: onProfile,
+                      notificationsHighlighted: notificationsHighlighted,
+                      profileHighlighted: profileHighlighted,
                     ),
                     const SizedBox(height: 14),
                     SizedBox(
@@ -387,6 +396,8 @@ class _WorkspaceHeader extends StatelessWidget {
     required this.desktop,
     required this.onNotifications,
     required this.onProfile,
+    required this.notificationsHighlighted,
+    required this.profileHighlighted,
   });
 
   final String title;
@@ -396,6 +407,8 @@ class _WorkspaceHeader extends StatelessWidget {
   final bool desktop;
   final VoidCallback onNotifications;
   final VoidCallback onProfile;
+  final bool notificationsHighlighted;
+  final bool profileHighlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -451,11 +464,13 @@ class _WorkspaceHeader extends StatelessWidget {
                 icon: Icons.notifications_none_rounded,
                 badgeCount: unreadNotifications,
                 onTap: onNotifications,
+                active: notificationsHighlighted,
               ),
               const SizedBox(width: 8),
               _HeaderIconButton(
                 icon: Icons.manage_accounts_rounded,
                 onTap: onProfile,
+                active: profileHighlighted,
               ),
             ],
           ),
@@ -619,11 +634,13 @@ class _HeaderIconButton extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.badgeCount,
+    this.active = false,
   });
 
   final IconData icon;
   final VoidCallback onTap;
   final int? badgeCount;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
@@ -639,11 +656,18 @@ class _HeaderIconButton extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: active ? const Color(0xFF0C2233) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE1E7EF)),
+                border: Border.all(
+                  color: active
+                      ? const Color(0xFF0C2233)
+                      : const Color(0xFFE1E7EF),
+                ),
               ),
-              child: Icon(icon, color: const Color(0xFF0C2233)),
+              child: Icon(
+                icon,
+                color: active ? Colors.white : const Color(0xFF0C2233),
+              ),
             ),
           ),
         ),

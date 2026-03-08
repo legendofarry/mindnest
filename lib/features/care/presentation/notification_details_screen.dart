@@ -5,8 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
+import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/app_notification.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
+import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 
 class NotificationDetailsScreen extends ConsumerWidget {
   const NotificationDetailsScreen({super.key, required this.notificationId});
@@ -37,7 +40,8 @@ class NotificationDetailsScreen extends ConsumerWidget {
         .split('_')
         .where((part) => part.isNotEmpty)
         .map(
-          (part) => '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+          (part) =>
+              '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
         )
         .join(' ');
   }
@@ -168,7 +172,9 @@ class NotificationDetailsScreen extends ConsumerWidget {
     if (appointment != null &&
         appointment.counselorId.trim().isNotEmpty &&
         _canOpenCounselorProfile(role)) {
-      final encodedCounselorId = Uri.encodeQueryComponent(appointment.counselorId);
+      final encodedCounselorId = Uri.encodeQueryComponent(
+        appointment.counselorId,
+      );
       actions.add(
         _NotificationAction(
           label: 'View Counselor',
@@ -189,6 +195,20 @@ class NotificationDetailsScreen extends ConsumerWidget {
       ),
     );
     return actions;
+  }
+
+  void _navigateSection(
+    BuildContext context,
+    CounselorWorkspaceNavSection section,
+  ) {
+    switch (section) {
+      case CounselorWorkspaceNavSection.dashboard:
+        context.go(AppRoute.counselorDashboard);
+      case CounselorWorkspaceNavSection.sessions:
+        context.go(AppRoute.counselorAppointments);
+      case CounselorWorkspaceNavSection.availability:
+        context.go(AppRoute.counselorAvailability);
+    }
   }
 
   Widget _summaryField({
@@ -248,7 +268,9 @@ class NotificationDetailsScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.55),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,7 +311,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
                   context: context,
                   label: 'Time',
                   value:
-                      '${_formatClock(appointment.startAt)} -> ${_formatClock(appointment.endAt)}',
+                      '${_formatClock(appointment.startAt)} - ${_formatClock(appointment.endAt)}',
                 ),
               ),
               const SizedBox(width: 12),
@@ -344,7 +366,9 @@ class NotificationDetailsScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: scheme.surface,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.55),
+        ),
         boxShadow: [
           BoxShadow(
             color: scheme.shadow.withValues(alpha: 0.08),
@@ -378,7 +402,10 @@ class NotificationDetailsScreen extends ConsumerWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: notification.isRead
                       ? scheme.surfaceContainerHighest.withValues(alpha: 0.55)
@@ -393,7 +420,9 @@ class NotificationDetailsScreen extends ConsumerWidget {
                 child: Text(
                   notification.isRead ? 'Read' : 'Unread',
                   style: textTheme.labelMedium?.copyWith(
-                    color: notification.isRead ? scheme.onSurfaceVariant : accent,
+                    color: notification.isRead
+                        ? scheme.onSurfaceVariant
+                        : accent,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -419,7 +448,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            '${_formatDate(notification.createdAt)}  •  ${_formatTime(notification.createdAt)}',
+            '${_formatDate(notification.createdAt)} - ${_formatTime(notification.createdAt)}',
             style: textTheme.labelMedium?.copyWith(
               color: scheme.onSurfaceVariant,
               fontWeight: FontWeight.w700,
@@ -454,41 +483,45 @@ class NotificationDetailsScreen extends ConsumerWidget {
             Wrap(
               spacing: 10,
               runSpacing: 10,
-              children: actions.map((action) {
-                final style = action.primary
-                    ? ElevatedButton.styleFrom(
-                        backgroundColor: scheme.primary,
-                        foregroundColor: scheme.onPrimary,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                      )
-                    : OutlinedButton.styleFrom(
-                        foregroundColor: scheme.onSurface,
-                        side: BorderSide(
-                          color: scheme.outlineVariant.withValues(alpha: 0.75),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                      );
-                final button = action.primary
-                    ? ElevatedButton.icon(
-                        onPressed: () => context.go(action.route),
-                        icon: Icon(action.icon, size: 18),
-                        label: Text(action.label),
-                        style: style,
-                      )
-                    : OutlinedButton.icon(
-                        onPressed: () => context.go(action.route),
-                        icon: Icon(action.icon, size: 18),
-                        label: Text(action.label),
-                        style: style,
-                      );
-                return button;
-              }).toList(growable: false),
+              children: actions
+                  .map((action) {
+                    final style = action.primary
+                        ? ElevatedButton.styleFrom(
+                            backgroundColor: scheme.primary,
+                            foregroundColor: scheme.onPrimary,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          )
+                        : OutlinedButton.styleFrom(
+                            foregroundColor: scheme.onSurface,
+                            side: BorderSide(
+                              color: scheme.outlineVariant.withValues(
+                                alpha: 0.75,
+                              ),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          );
+                    final button = action.primary
+                        ? ElevatedButton.icon(
+                            onPressed: () => context.go(action.route),
+                            icon: Icon(action.icon, size: 18),
+                            label: Text(action.label),
+                            style: style,
+                          )
+                        : OutlinedButton.icon(
+                            onPressed: () => context.go(action.route),
+                            icon: Icon(action.icon, size: 18),
+                            label: Text(action.label),
+                            style: style,
+                          );
+                    return button;
+                  })
+                  .toList(growable: false),
             ),
           ],
         ],
@@ -507,7 +540,9 @@ class NotificationDetailsScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: scheme.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.55),
+        ),
       ),
       child: Text(
         message,
@@ -519,6 +554,141 @@ class NotificationDetailsScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildCounselorHero({
+    required BuildContext context,
+    required AppNotification notification,
+    required AppointmentRecord? appointment,
+  }) {
+    final theme = Theme.of(context);
+    final accent = _typeAccent(theme.colorScheme, notification.type);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF6D28D9), Color(0xFF2563EB), Color(0xFF0EA5A4)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(34),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F1D4ED8),
+            blurRadius: 28,
+            offset: Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _HeroPill(
+                label: _statusHeadline(notification).toUpperCase(),
+                background: const Color(0x26FFFFFF),
+              ),
+              _HeroPill(
+                label: notification.isRead ? 'READ' : 'UNREAD',
+                background: notification.isRead
+                    ? const Color(0x22FFFFFF)
+                    : accent.withValues(alpha: 0.22),
+              ),
+              if (appointment != null)
+                _HeroPill(
+                  label: _statusLabel(appointment.status).toUpperCase(),
+                  background: _statusColor(
+                    theme.colorScheme,
+                    appointment.status,
+                  ).withValues(alpha: 0.22),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            notification.title,
+            style: theme.textTheme.headlineMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Review the alert, verify the latest session context, and take the next action without leaving the counselor workspace.',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: const Color(0xFFE3F2FF),
+              height: 1.42,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: [
+              _HeroMetricCard(
+                label: 'Received',
+                value:
+                    '${_formatDate(notification.createdAt)} ${_formatTime(notification.createdAt)}',
+              ),
+              _HeroMetricCard(
+                label: 'Type',
+                value: _formatDisplayType(notification.type),
+              ),
+              if (appointment != null)
+                _HeroMetricCard(
+                  label: 'Session date',
+                  value: _formatDate(appointment.startAt),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCounselorNotificationView({
+    required BuildContext context,
+    required AppNotification notification,
+    required AppointmentRecord? appointment,
+    required UserRole role,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: () => context.go(AppRoute.notifications),
+            icon: const Icon(Icons.arrow_back_rounded, size: 18),
+            label: const Text('Back to notifications'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF0C2233),
+              side: const BorderSide(color: Color(0xFFD7E0EA)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildCounselorHero(
+          context: context,
+          notification: notification,
+          appointment: appointment,
+        ),
+        const SizedBox(height: 18),
+        _buildDetails(
+          context: context,
+          notification: notification,
+          appointment: appointment,
+          role: role,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
@@ -526,18 +696,147 @@ class NotificationDetailsScreen extends ConsumerWidget {
     final firestore = ref.watch(firestoreProvider);
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
+    final isCounselorWorkspace =
+        profile != null && profile.role == UserRole.counselor;
 
     if (notificationId.trim().isEmpty) {
+      if (isCounselorWorkspace) {
+        final unreadCount =
+            ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
+        return CounselorWorkspaceScaffold(
+          profile: profile,
+          activeSection: CounselorWorkspaceNavSection.dashboard,
+          unreadNotifications: unreadCount,
+          notificationsHighlighted: true,
+          title: 'Notification Detail',
+          subtitle:
+              'Review a single alert with the same counselor workspace structure used across sessions and availability.',
+          onSelectSection: (section) => _navigateSection(context, section),
+          onNotifications: () => context.go(AppRoute.notifications),
+          onProfile: () => context.go(AppRoute.counselorSettings),
+          onLogout: () => confirmAndLogout(context: context, ref: ref),
+          child: const _CounselorDetailStateCard(
+            message: 'Invalid notification.',
+          ),
+        );
+      }
       return Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         body: SafeArea(
           child: Center(
             child: Text(
               'Invalid notification.',
-              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ),
+      );
+    }
+
+    final detailStream = StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: firestore
+          .collection('notifications')
+          .doc(notificationId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          final message = snapshot.error.toString().replaceFirst(
+            'Exception: ',
+            '',
+          );
+          return isCounselorWorkspace
+              ? _CounselorDetailStateCard(message: message)
+              : _buildErrorCard(context: context, message: message);
+        }
+        if (!snapshot.hasData) {
+          return isCounselorWorkspace
+              ? const _CounselorLoadingCard()
+              : const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  ),
+                );
+        }
+
+        final doc = snapshot.data!;
+        if (!doc.exists || doc.data() == null) {
+          return isCounselorWorkspace
+              ? const _CounselorDetailStateCard(
+                  message: 'This notification was not found.',
+                )
+              : _buildErrorCard(
+                  context: context,
+                  message: 'This notification was not found.',
+                );
+        }
+
+        final notification = AppNotification.fromMap(doc.id, doc.data()!);
+        final relatedAppointmentId =
+            notification.relatedAppointmentId?.trim() ?? '';
+
+        Widget buildResolved(AppointmentRecord? appointment) {
+          if (isCounselorWorkspace) {
+            return _buildCounselorNotificationView(
+              context: context,
+              notification: notification,
+              appointment: appointment,
+              role: role,
+            );
+          }
+          return _buildDetails(
+            context: context,
+            notification: notification,
+            appointment: appointment,
+            role: role,
+          );
+        }
+
+        if (relatedAppointmentId.isEmpty) {
+          return buildResolved(null);
+        }
+
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: firestore
+              .collection('appointments')
+              .doc(relatedAppointmentId)
+              .snapshots(),
+          builder: (context, appointmentSnapshot) {
+            AppointmentRecord? appointment;
+            if (appointmentSnapshot.hasData) {
+              final appointmentDoc = appointmentSnapshot.data!;
+              if (appointmentDoc.exists && appointmentDoc.data() != null) {
+                appointment = AppointmentRecord.fromMap(
+                  appointmentDoc.id,
+                  appointmentDoc.data()!,
+                );
+              }
+            }
+
+            return buildResolved(appointment);
+          },
+        );
+      },
+    );
+
+    if (isCounselorWorkspace) {
+      final unreadCount =
+          ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
+      return CounselorWorkspaceScaffold(
+        profile: profile,
+        activeSection: CounselorWorkspaceNavSection.dashboard,
+        unreadNotifications: unreadCount,
+        notificationsHighlighted: true,
+        title: 'Notification Detail',
+        subtitle:
+            'Review a single alert with the same counselor workspace structure used across sessions and availability.',
+        onSelectSection: (section) => _navigateSection(context, section),
+        onNotifications: () => context.go(AppRoute.notifications),
+        onProfile: () => context.go(AppRoute.counselorSettings),
+        onLogout: () => confirmAndLogout(context: context, ref: ref),
+        child: detailStream,
       );
     }
 
@@ -552,84 +851,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
               constraints: const BoxConstraints(maxWidth: 780),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                    stream: firestore
-                        .collection('notifications')
-                        .doc(notificationId)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        return _buildErrorCard(
-                          context: context,
-                          message: snapshot.error.toString().replaceFirst(
-                            'Exception: ',
-                            '',
-                          ),
-                        );
-                      }
-                      if (!snapshot.hasData) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(24),
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
-                          ),
-                        );
-                      }
-
-                      final doc = snapshot.data!;
-                      if (!doc.exists || doc.data() == null) {
-                        return _buildErrorCard(
-                          context: context,
-                          message: 'This notification was not found.',
-                        );
-                      }
-
-                      final notification = AppNotification.fromMap(
-                        doc.id,
-                        doc.data()!,
-                      );
-                      final relatedAppointmentId =
-                          notification.relatedAppointmentId?.trim() ?? '';
-
-                      if (relatedAppointmentId.isEmpty) {
-                        return _buildDetails(
-                          context: context,
-                          notification: notification,
-                          appointment: null,
-                          role: role,
-                        );
-                      }
-
-                      return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                        stream: firestore
-                            .collection('appointments')
-                            .doc(relatedAppointmentId)
-                            .snapshots(),
-                        builder: (context, appointmentSnapshot) {
-                          AppointmentRecord? appointment;
-                          if (appointmentSnapshot.hasData) {
-                            final appointmentDoc = appointmentSnapshot.data!;
-                            if (appointmentDoc.exists &&
-                                appointmentDoc.data() != null) {
-                              appointment = AppointmentRecord.fromMap(
-                                appointmentDoc.id,
-                                appointmentDoc.data()!,
-                              );
-                            }
-                          }
-
-                          return _buildDetails(
-                            context: context,
-                            notification: notification,
-                            appointment: appointment,
-                            role: role,
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ],
+                children: [detailStream],
               ),
             ),
           ),
@@ -651,4 +873,120 @@ class _NotificationAction {
   final String route;
   final IconData icon;
   final bool primary;
+}
+
+class _HeroPill extends StatelessWidget {
+  const _HeroPill({required this.label, required this.background});
+
+  final String label;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x30FFFFFF)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroMetricCard extends StatelessWidget {
+  const _HeroMetricCard({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 180),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: const Color(0x1FFFFFFF),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x33FFFFFF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              color: Color(0xFFDDEBFF),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CounselorDetailStateCard extends StatelessWidget {
+  const _CounselorDetailStateCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(
+          color: Color(0xFF506176),
+          fontWeight: FontWeight.w700,
+          height: 1.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _CounselorLoadingCard extends StatelessWidget {
+  const _CounselorLoadingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+      ),
+      child: const Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
+    );
+  }
 }

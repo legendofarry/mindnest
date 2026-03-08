@@ -5,7 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
+import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
+import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 
 class SessionDetailsScreen extends ConsumerStatefulWidget {
   const SessionDetailsScreen({super.key, required this.appointmentId});
@@ -74,12 +77,485 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
     }
   }
 
+  void _navigateSection(
+    BuildContext context,
+    CounselorWorkspaceNavSection section,
+  ) {
+    switch (section) {
+      case CounselorWorkspaceNavSection.dashboard:
+        context.go(AppRoute.counselorDashboard);
+      case CounselorWorkspaceNavSection.sessions:
+        context.go(AppRoute.counselorAppointments);
+      case CounselorWorkspaceNavSection.availability:
+        context.go(AppRoute.counselorAvailability);
+    }
+  }
+
+  Widget _buildCounselorSessionWorkspace({
+    required BuildContext context,
+    required AppointmentRecord appointment,
+    required bool fromNotifications,
+  }) {
+    final statusColor = _statusColor(appointment.status);
+    final counselorName = (appointment.counselorName ?? '').trim().isNotEmpty
+        ? appointment.counselorName!.trim()
+        : appointment.counselorId;
+    final studentName = (appointment.studentName ?? '').trim().isNotEmpty
+        ? appointment.studentName!.trim()
+        : appointment.studentId;
+    final notes = (appointment.counselorSessionNote ?? '').trim().isNotEmpty
+        ? appointment.counselorSessionNote!.trim()
+        : (appointment.counselorCancelMessage ?? '').trim().isNotEmpty
+        ? appointment.counselorCancelMessage!.trim()
+        : 'No counselor notes were added for this session.';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: () => context.go(
+              fromNotifications
+                  ? AppRoute.notifications
+                  : AppRoute.counselorAppointments,
+            ),
+            icon: const Icon(Icons.arrow_back_rounded, size: 18),
+            label: Text(
+              fromNotifications ? 'Back to notifications' : 'Back to sessions',
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF0C2233),
+              side: const BorderSide(color: Color(0xFFD7E0EA)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0F172A), Color(0xFF2563EB), Color(0xFF0EA5A4)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(34),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1F2563EB),
+                blurRadius: 28,
+                offset: Offset(0, 18),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  const _SessionHeroPill(
+                    label: 'SESSION DETAIL',
+                    background: Color(0x26FFFFFF),
+                  ),
+                  _SessionHeroPill(
+                    label: _statusLabel(appointment.status).toUpperCase(),
+                    background: statusColor.withValues(alpha: 0.22),
+                  ),
+                  _SessionHeroPill(
+                    label: _formatDateLabel(appointment.startAt).toUpperCase(),
+                    background: const Color(0x20FFFFFF),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Counseling session context',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 38,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Review the session state, student context, and counselor notes without leaving the counselor workspace.',
+                style: TextStyle(
+                  color: Color(0xFFE3F2FF),
+                  fontSize: 18,
+                  height: 1.42,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                children: [
+                  _SessionHeroMetricCard(
+                    label: 'Time',
+                    value:
+                        '${_formatClock(appointment.startAt)} - ${_formatClock(appointment.endAt)}',
+                  ),
+                  _SessionHeroMetricCard(
+                    label: 'Counselor',
+                    value: counselorName,
+                  ),
+                  _SessionHeroMetricCard(label: 'Student', value: studentName),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: const Color(0xFFDDE6EE)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x120F172A),
+                blurRadius: 20,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 18,
+                runSpacing: 18,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: _detailBlock(
+                      label: 'Counselor',
+                      value: counselorName,
+                      icon: Icons.person_outline_rounded,
+                      accent: const Color(0xFF2563EB),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 320,
+                    child: _detailBlock(
+                      label: 'Student',
+                      value: studentName,
+                      icon: Icons.person_rounded,
+                      accent: const Color(0xFF0E9B90),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 240,
+                    child: _detailBlock(
+                      label: 'Date',
+                      value: _formatDateLabel(appointment.startAt),
+                      icon: Icons.event_note_rounded,
+                      accent: const Color(0xFF7C3AED),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 240,
+                    child: _detailBlock(
+                      label: 'Time',
+                      value:
+                          '${_formatClock(appointment.startAt)} - ${_formatClock(appointment.endAt)}',
+                      icon: Icons.schedule_rounded,
+                      accent: const Color(0xFFF59E0B),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FBFE),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFFDDE6EE)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        setState(() => _notesExpanded = !_notesExpanded);
+                      },
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'COUNSELOR NOTES',
+                              style: TextStyle(
+                                color: Color(0xFF6E84A3),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            _notesExpanded
+                                ? Icons.keyboard_arrow_up_rounded
+                                : Icons.keyboard_arrow_down_rounded,
+                            color: const Color(0xFF6E84A3),
+                          ),
+                        ],
+                      ),
+                    ),
+                    AnimatedCrossFade(
+                      duration: const Duration(milliseconds: 180),
+                      crossFadeState: _notesExpanded
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                      firstChild: const SizedBox.shrink(),
+                      secondChild: Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Text(
+                          notes,
+                          style: const TextStyle(
+                            color: Color(0xFF334155),
+                            fontSize: 16,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (appointment.status == AppointmentStatus.noShow) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF1F2),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFFECACA)),
+                  ),
+                  child: const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.only(top: 1),
+                        child: Icon(
+                          Icons.error_outline_rounded,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'This session was marked as a no-show. Review the record and contact the student if that attendance status is incorrect.',
+                          style: TextStyle(
+                            color: Color(0xFFDC2626),
+                            fontWeight: FontWeight.w600,
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () => context.go(AppRoute.counselorAppointments),
+                    icon: const Icon(Icons.calendar_month_outlined),
+                    label: const Text('All Sessions'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0E9B90),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(200, 56),
+                      textStyle: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                  ),
+                  if (fromNotifications)
+                    OutlinedButton.icon(
+                      onPressed: () => context.go(AppRoute.notifications),
+                      icon: const Icon(Icons.notifications_none_rounded),
+                      label: const Text('Open Notifications'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0C2233),
+                        side: const BorderSide(color: Color(0xFFD4DCE8)),
+                        minimumSize: const Size(220, 56),
+                        textStyle: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _detailBlock({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color accent,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, color: accent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    color: Color(0xFF7B8CA4),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Color(0xFF0C2233),
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final firestore = ref.watch(firestoreProvider);
     final source = GoRouterState.of(context).uri.queryParameters['from'] ?? '';
     final fromNotifications = source.trim().toLowerCase() == 'notifications';
+    final isCounselorWorkspace =
+        profile != null && profile.role == UserRole.counselor;
+
+    if (isCounselorWorkspace) {
+      final unreadCount =
+          ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
+      if (widget.appointmentId.trim().isEmpty) {
+        return CounselorWorkspaceScaffold(
+          profile: profile,
+          activeSection: CounselorWorkspaceNavSection.sessions,
+          unreadNotifications: unreadCount,
+          title: 'Session Detail',
+          subtitle:
+              'Review a single session record with the same counselor workspace structure used across the rest of the flow.',
+          onSelectSection: (section) => _navigateSection(context, section),
+          onNotifications: () => context.go(AppRoute.notifications),
+          onProfile: () => context.go(AppRoute.counselorSettings),
+          onLogout: () => confirmAndLogout(context: context, ref: ref),
+          child: const _SessionStateCard(message: 'Invalid session id.'),
+        );
+      }
+
+      return CounselorWorkspaceScaffold(
+        profile: profile,
+        activeSection: CounselorWorkspaceNavSection.sessions,
+        unreadNotifications: unreadCount,
+        title: 'Session Detail',
+        subtitle:
+            'Review a single session record with the same counselor workspace structure used across the rest of the flow.',
+        onSelectSection: (section) => _navigateSection(context, section),
+        onNotifications: () => context.go(AppRoute.notifications),
+        onProfile: () => context.go(AppRoute.counselorSettings),
+        onLogout: () => confirmAndLogout(context: context, ref: ref),
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: firestore
+              .collection('appointments')
+              .doc(widget.appointmentId)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return _SessionStateCard(
+                message: snapshot.error.toString().replaceFirst(
+                  'Exception: ',
+                  '',
+                ),
+              );
+            }
+
+            if (!snapshot.hasData) {
+              return const _SessionLoadingCard();
+            }
+
+            final doc = snapshot.data!;
+            if (!doc.exists || doc.data() == null) {
+              return const _SessionStateCard(message: 'Session not found.');
+            }
+
+            final appointment = AppointmentRecord.fromMap(doc.id, doc.data()!);
+            final canView = _canView(
+              profile: profile,
+              appointment: appointment,
+            );
+            if (!canView) {
+              return const _SessionStateCard(
+                message: 'You do not have access to this session.',
+              );
+            }
+
+            return _buildCounselorSessionWorkspace(
+              context: context,
+              appointment: appointment,
+              fromNotifications: fromNotifications,
+            );
+          },
+        ),
+      );
+    }
 
     if (widget.appointmentId.trim().isEmpty) {
       return _baseScaffold(
@@ -666,6 +1142,122 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _SessionHeroPill extends StatelessWidget {
+  const _SessionHeroPill({required this.label, required this.background});
+
+  final String label;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x30FFFFFF)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionHeroMetricCard extends StatelessWidget {
+  const _SessionHeroMetricCard({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 180),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: const Color(0x1FFFFFFF),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x33FFFFFF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              color: Color(0xFFDDEBFF),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SessionStateCard extends StatelessWidget {
+  const _SessionStateCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(
+          color: Color(0xFF506176),
+          fontWeight: FontWeight.w700,
+          height: 1.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionLoadingCard extends StatelessWidget {
+  const _SessionLoadingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+      ),
+      child: const Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
     );
   }
 }
