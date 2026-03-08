@@ -1535,187 +1535,180 @@ class _StudentAppointmentsScreenState
           children: [
             _StudentAppointmentsHeroCard(profile: profile),
             const SizedBox(height: 14),
-            Expanded(
-              child: institutionId.isEmpty || userId.isEmpty
-                  ? const GlassCard(
-                      child: Padding(
-                        padding: EdgeInsets.all(18),
-                        child: Text(
-                          'Join an institution to manage appointments.',
-                        ),
+            institutionId.isEmpty || userId.isEmpty
+                ? const GlassCard(
+                    child: Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Text(
+                        'Join an institution to manage appointments.',
                       ),
-                    )
-                  : StreamBuilder<List<AppointmentRecord>>(
-                      key: ValueKey(_refreshTick),
-                      stream: ref
-                          .read(careRepositoryProvider)
-                          .watchStudentAppointments(
-                            institutionId: institutionId,
-                            studentId: userId,
-                          ),
-                      builder: (context, snapshot) {
-                        if (snapshot.hasError) {
-                          return GlassCard(
-                            child: Padding(
-                              padding: const EdgeInsets.all(18),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Text(
-                                    snapshot.error.toString().replaceFirst(
-                                      'Exception: ',
-                                      '',
-                                    ),
+                    ),
+                  )
+                : StreamBuilder<List<AppointmentRecord>>(
+                    key: ValueKey(_refreshTick),
+                    stream: ref
+                        .read(careRepositoryProvider)
+                        .watchStudentAppointments(
+                          institutionId: institutionId,
+                          studentId: userId,
+                        ),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return GlassCard(
+                          child: Padding(
+                            padding: const EdgeInsets.all(18),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  snapshot.error.toString().replaceFirst(
+                                    'Exception: ',
+                                    '',
                                   ),
-                                  const SizedBox(height: 10),
-                                  ElevatedButton(
-                                    onPressed: () =>
-                                        setState(() => _refreshTick++),
-                                    child: const Text('Try Again'),
+                                ),
+                                const SizedBox(height: 10),
+                                ElevatedButton(
+                                  onPressed: () =>
+                                      setState(() => _refreshTick++),
+                                  child: const Text('Try Again'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      final appointments = snapshot.data ?? const [];
+                      if (snapshot.connectionState == ConnectionState.waiting &&
+                          appointments.isEmpty) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (appointments.isEmpty) {
+                        return const GlassCard(
+                          child: Padding(
+                            padding: EdgeInsets.all(18),
+                            child: Text(
+                              'No appointments yet. Open Find Counselors and book your first session.',
+                            ),
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Builder(
+                            builder: (context) {
+                              final now = DateTime.now();
+                              final upcoming =
+                                  appointments
+                                      .where(
+                                        (appointment) =>
+                                            (appointment.status ==
+                                                    AppointmentStatus.pending ||
+                                                appointment.status ==
+                                                    AppointmentStatus
+                                                        .confirmed) &&
+                                            appointment.startAt.isAfter(now),
+                                      )
+                                      .toList(growable: false)
+                                    ..sort(
+                                      (a, b) => a.startAt.compareTo(b.startAt),
+                                    );
+                              final nextSessionAt = upcoming.isEmpty
+                                  ? null
+                                  : upcoming.first.startAt;
+
+                              return _AppointmentsOverviewStrip(
+                                upcomingCount: upcoming.length,
+                                nextSessionLabel: _formatNextSessionLabel(
+                                  nextSessionAt,
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          GlassCard(
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFFFFFBEB),
+                                    Color(0xFFFFEDD5),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: const Color(0xFFFDBA74),
+                                  width: 1.2,
+                                ),
+                              ),
+                              child: const Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.warning_amber_rounded,
+                                    color: Color(0xFFB45309),
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Cancellation policy: cancel early when possible so the counselor can reopen the slot for other students.',
+                                      style: TextStyle(
+                                        color: Color(0xFF9A3412),
+                                        fontWeight: FontWeight.w700,
+                                        height: 1.4,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-                          );
-                        }
-
-                        final appointments = snapshot.data ?? const [];
-                        if (snapshot.connectionState ==
-                                ConnectionState.waiting &&
-                            appointments.isEmpty) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        if (appointments.isEmpty) {
-                          return const GlassCard(
-                            child: Padding(
-                              padding: EdgeInsets.all(18),
-                              child: Text(
-                                'No appointments yet. Open Find Counselors and book your first session.',
-                              ),
-                            ),
-                          );
-                        }
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Builder(
-                              builder: (context) {
-                                final now = DateTime.now();
-                                final upcoming =
-                                    appointments
-                                        .where(
-                                          (appointment) =>
-                                              (appointment.status ==
-                                                      AppointmentStatus
-                                                          .pending ||
-                                                  appointment.status ==
-                                                      AppointmentStatus
-                                                          .confirmed) &&
-                                              appointment.startAt.isAfter(now),
-                                        )
-                                        .toList(growable: false)
-                                      ..sort(
-                                        (a, b) =>
-                                            a.startAt.compareTo(b.startAt),
-                                      );
-                                final nextSessionAt = upcoming.isEmpty
-                                    ? null
-                                    : upcoming.first.startAt;
-
-                                return _AppointmentsOverviewStrip(
-                                  upcomingCount: upcoming.length,
-                                  nextSessionLabel: _formatNextSessionLabel(
-                                    nextSessionAt,
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 10),
-                            GlassCard(
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(7),
                                 decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFFFFFBEB),
-                                      Color(0xFFFFEDD5),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(
-                                    color: const Color(0xFFFDBA74),
-                                    width: 1.2,
-                                  ),
+                                  color: const Color(0xFFE2E8F0),
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: const Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      Icons.warning_amber_rounded,
-                                      color: Color(0xFFB45309),
-                                      size: 20,
-                                    ),
-                                    SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        'Cancellation policy: cancel early when possible so the counselor can reopen the slot for other students.',
-                                        style: TextStyle(
-                                          color: Color(0xFF9A3412),
-                                          fontWeight: FontWeight.w700,
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                child: const Icon(
+                                  Icons.view_module_rounded,
+                                  size: 16,
+                                  color: Color(0xFF334155),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(7),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE2E8F0),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.view_module_rounded,
-                                    size: 16,
-                                    color: Color(0xFF334155),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                ChoiceChip(
-                                  label: const Text('Table'),
-                                  selected: !_timelineView,
-                                  onSelected: (_) =>
-                                      setState(() => _timelineView = false),
-                                ),
-                                const SizedBox(width: 8),
-                                ChoiceChip(
-                                  label: const Text('Timeline'),
-                                  selected: _timelineView,
-                                  onSelected: (_) =>
-                                      setState(() => _timelineView = true),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            if (_timelineView)
-                              _buildTimeline(appointments)
-                            else
-                              _buildTable(appointments, profile),
-                          ],
-                        );
-                      },
-                    ),
-            ),
+                              const SizedBox(width: 8),
+                              ChoiceChip(
+                                label: const Text('Table'),
+                                selected: !_timelineView,
+                                onSelected: (_) =>
+                                    setState(() => _timelineView = false),
+                              ),
+                              const SizedBox(width: 8),
+                              ChoiceChip(
+                                label: const Text('Timeline'),
+                                selected: _timelineView,
+                                onSelected: (_) =>
+                                    setState(() => _timelineView = true),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          if (_timelineView)
+                            _buildTimeline(appointments)
+                          else
+                            _buildTable(appointments, profile),
+                        ],
+                      );
+                    },
+                  ),
           ],
         ),
       ),
