@@ -8,12 +8,17 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 
 class DesktopPrimaryShell extends ConsumerWidget {
-  const DesktopPrimaryShell({super.key, required this.child});
+  const DesktopPrimaryShell({
+    super.key,
+    required this.child,
+    required this.matchedLocation,
+  });
 
   static const _openProfileQueryKey = 'openProfile';
   static const _profileOpenTokenQueryKey = 'profileOpenTs';
 
   final Widget child;
+  final String matchedLocation;
 
   bool _canAccessLive(UserProfile profile) {
     return profile.role == UserRole.student ||
@@ -42,6 +47,13 @@ class DesktopPrimaryShell extends ConsumerWidget {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
+    final bypassShellForCounselorDirectory =
+        matchedLocation == AppRoute.counselorDirectory &&
+        profile?.role == UserRole.counselor;
+    if (bypassShellForCounselorDirectory) {
+      return child;
+    }
+
     final hasInstitution = (profile?.institutionId ?? '').isNotEmpty;
     final canAccessLive = profile != null && _canAccessLive(profile);
     final unreadCount = hasInstitution && profile != null

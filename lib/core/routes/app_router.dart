@@ -219,7 +219,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.counselorAvailability ||
           location == AppRoute.counselorAppointments ||
           location == AppRoute.counselorSettings;
-      final isCounselorCareRoute =
+      final isSharedCareRoute =
           location == AppRoute.counselorDirectory ||
           location == AppRoute.counselorProfile ||
           location == AppRoute.sessionDetails;
@@ -428,13 +428,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               : AppRoute.counselorDashboard;
         }
 
-        if (role != UserRole.counselor && isCounselorCareRoute) {
-          return role == UserRole.institutionAdmin
-              ? AppRoute.institutionAdmin
-              : AppRoute.home;
-        }
-
-        if (role == UserRole.institutionAdmin && isStudentCareRoute) {
+        if (role == UserRole.institutionAdmin &&
+            (isStudentCareRoute || isSharedCareRoute)) {
           return AppRoute.institutionAdmin;
         }
 
@@ -615,17 +610,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.counselorSettings,
         builder: (context, state) => const CounselorProfileSettingsScreen(),
       ),
-      GoRoute(
-        path: AppRoute.counselorDirectory,
-        builder: (context, state) => const CounselorDirectoryScreen(),
-      ),
       ShellRoute(
-        builder: (context, state, child) => DesktopPrimaryShell(child: child),
+        builder: (context, state, child) => DesktopPrimaryShell(
+          matchedLocation: state.matchedLocation,
+          child: child,
+        ),
         routes: [
           GoRoute(
             path: AppRoute.home,
             builder: (context, state) =>
                 const HomeScreen(embeddedInDesktopShell: true),
+          ),
+          GoRoute(
+            path: AppRoute.counselorDirectory,
+            builder: (context, state) =>
+                const CounselorDirectoryScreen(embeddedInDesktopShell: true),
           ),
           GoRoute(
             path: AppRoute.studentAppointments,

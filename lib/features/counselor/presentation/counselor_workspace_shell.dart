@@ -95,6 +95,7 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
                                 desktop: true,
                                 onNotifications: onNotifications,
                                 onProfile: onProfile,
+                                onLogout: onLogout,
                                 notificationsHighlighted:
                                     notificationsHighlighted,
                                 profileHighlighted: profileHighlighted,
@@ -136,6 +137,7 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
                       desktop: false,
                       onNotifications: onNotifications,
                       onProfile: onProfile,
+                      onLogout: onLogout,
                       notificationsHighlighted: notificationsHighlighted,
                       profileHighlighted: profileHighlighted,
                     ),
@@ -407,6 +409,7 @@ class _WorkspaceHeader extends StatelessWidget {
     required this.desktop,
     required this.onNotifications,
     required this.onProfile,
+    required this.onLogout,
     required this.notificationsHighlighted,
     required this.profileHighlighted,
   });
@@ -418,8 +421,66 @@ class _WorkspaceHeader extends StatelessWidget {
   final bool desktop;
   final VoidCallback onNotifications;
   final VoidCallback onProfile;
+  final VoidCallback onLogout;
   final bool notificationsHighlighted;
   final bool profileHighlighted;
+
+  void _openMobileAccountSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFDDE6EE)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD6E4F2),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.manage_accounts_rounded),
+                  title: const Text('Profile'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    onProfile();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.logout_rounded,
+                    color: Color(0xFFB91C1C),
+                  ),
+                  title: const Text(
+                    'Logout',
+                    style: TextStyle(color: Color(0xFFB91C1C)),
+                  ),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    onLogout();
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -480,7 +541,13 @@ class _WorkspaceHeader extends StatelessWidget {
               const SizedBox(width: 8),
               _HeaderIconButton(
                 icon: Icons.manage_accounts_rounded,
-                onTap: onProfile,
+                onTap: () {
+                  if (desktop) {
+                    onProfile();
+                    return;
+                  }
+                  _openMobileAccountSheet(context);
+                },
                 active: profileHighlighted,
               ),
             ],
