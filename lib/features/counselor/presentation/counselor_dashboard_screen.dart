@@ -588,26 +588,7 @@ class _CounselorDashboardScreenState
     required _WorkspaceSummary summary,
     required VoidCallback onEditProfile,
   }) {
-    final infoCards = [
-      _ProfileInfoData('Title', summary.title),
-      _ProfileInfoData('Session mode', summary.sessionMode),
-      _ProfileInfoData('Timezone', summary.timezone),
-      _ProfileInfoData(
-        'Gender',
-        (summary.gender ?? '').trim().isEmpty
-            ? 'Not specified'
-            : summary.gender!,
-      ),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _ProfileHero(summary: summary, onEditProfile: onEditProfile),
-        const SizedBox(height: 20),
-        _ResponsiveProfileInfoGrid(items: infoCards),
-      ],
-    );
+    return _ProfileHero(summary: summary, onEditProfile: onEditProfile);
   }
 
   _SectionShell _sectionShell(_CounselorWorkspaceSection section) {
@@ -1721,73 +1702,6 @@ class _ProfileHero extends StatelessWidget {
                   .toList(growable: false),
             ),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ResponsiveProfileInfoGrid extends StatelessWidget {
-  const _ResponsiveProfileInfoGrid({required this.items});
-
-  final List<_ProfileInfoData> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      children: items
-          .map(
-            (item) => SizedBox(width: 220, child: _ProfileInfoCard(item: item)),
-          )
-          .toList(growable: false),
-    );
-  }
-}
-
-class _ProfileInfoData {
-  const _ProfileInfoData(this.label, this.value);
-
-  final String label;
-  final String value;
-}
-
-class _ProfileInfoCard extends StatelessWidget {
-  const _ProfileInfoCard({required this.item});
-
-  final _ProfileInfoData item;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE1E8EF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            item.label.toUpperCase(),
-            style: const TextStyle(
-              color: Color(0xFF7A8CA4),
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            item.value,
-            style: const TextStyle(
-              color: Color(0xFF081A30),
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
         ],
       ),
     );
