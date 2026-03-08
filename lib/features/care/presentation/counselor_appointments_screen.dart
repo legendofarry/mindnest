@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mindnest/core/ui/back_to_home_button.dart';
-import 'package:mindnest/core/ui/mindnest_shell.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
+import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class CounselorAppointmentsScreen extends ConsumerWidget {
@@ -191,227 +193,762 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
     }
   }
 
+  void _navigateSection(
+    BuildContext context,
+    CounselorWorkspaceNavSection section,
+  ) {
+    switch (section) {
+      case CounselorWorkspaceNavSection.dashboard:
+        context.go(AppRoute.counselorDashboard);
+      case CounselorWorkspaceNavSection.sessions:
+        context.go(AppRoute.counselorAppointments);
+      case CounselorWorkspaceNavSection.availability:
+        context.go(AppRoute.counselorAvailability);
+    }
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    WidgetRef ref, {
+    required UserProfile profile,
+    required List<AppointmentRecord> appointments,
+    required bool loading,
+  }) {
+    final sorted = [...appointments]
+      ..sort((a, b) => a.startAt.compareTo(b.startAt));
+    final now = DateTime.now().toUtc();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = todayStart.add(const Duration(days: 1));
+    final pending = sorted
+        .where((entry) => entry.status == AppointmentStatus.pending)
+        .length;
+    final confirmed = sorted
+        .where((entry) => entry.status == AppointmentStatus.confirmed)
+        .length;
+    final completed = sorted
+        .where((entry) => entry.status == AppointmentStatus.completed)
+        .length;
+    final todayCount = sorted
+        .where(
+          (entry) =>
+              !entry.startAt.isBefore(todayStart) &&
+              entry.startAt.isBefore(todayEnd),
+        )
+        .length;
+    final nextLive = sorted.cast<AppointmentRecord?>().firstWhere(
+      (entry) => entry != null && entry.startAt.isAfter(now),
+      orElse: () => null,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _AppointmentsHero(
+          nextLive: nextLive,
+          total: sorted.length,
+          onOpenNotifications: () => context.go(AppRoute.notifications),
+        ),
+        const SizedBox(height: 20),
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            _SessionStatCard(
+              label: 'Today',
+              value: '$todayCount',
+              hint: 'scheduled sessions',
+              accent: const Color(0xFF0E9B90),
+            ),
+            _SessionStatCard(
+              label: 'Pending',
+              value: '$pending',
+              hint: 'waiting response',
+              accent: const Color(0xFFF59E0B),
+            ),
+            _SessionStatCard(
+              label: 'Confirmed',
+              value: '$confirmed',
+              hint: 'currently live',
+              accent: const Color(0xFF2563EB),
+            ),
+            _SessionStatCard(
+              label: 'Completed',
+              value: '$completed',
+              hint: 'recorded',
+              accent: const Color(0xFF7C3AED),
+            ),
+          ].map((card) => SizedBox(width: 190, child: card)).toList(),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: const Color(0xFFDDE6EE)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x120F172A),
+                blurRadius: 24,
+                offset: Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const _ModuleEyebrow(
+                            label: 'SESSION CONTROL',
+                            color: Color(0xFF2563EB),
+                            background: Color(0xFFEFF6FF),
+                            border: Color(0xFFBFDBFE),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Counselor appointments',
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF081A30),
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Review pending requests, close completed sessions, and handle cancellations or no-shows from a stable workflow surface.',
+                            style: TextStyle(
+                              color: Color(0xFF6A7C93),
+                              height: 1.45,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (loading) ...[
+                      const SizedBox(width: 16),
+                      const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 18),
+                if (sorted.isEmpty)
+                  const _EmptyModuleCard(
+                    message:
+                        'No appointments are visible yet. New booking requests will appear here as soon as students create them.',
+                  )
+                else
+                  Column(
+                    children: sorted
+                        .map(
+                          (appointment) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _AppointmentPanelCard(
+                              appointment: appointment,
+                              statusColor: _statusColor(appointment.status),
+                              formatDate: _formatDate,
+                              onConfirm:
+                                  appointment.status ==
+                                      AppointmentStatus.pending
+                                  ? () => _updateStatus(
+                                      context,
+                                      ref,
+                                      appointment,
+                                      AppointmentStatus.confirmed,
+                                    )
+                                  : null,
+                              onCancel:
+                                  appointment.status ==
+                                          AppointmentStatus.pending ||
+                                      appointment.status ==
+                                          AppointmentStatus.confirmed
+                                  ? () => _updateStatus(
+                                      context,
+                                      ref,
+                                      appointment,
+                                      AppointmentStatus.cancelled,
+                                    )
+                                  : null,
+                              onNoShow:
+                                  appointment.status ==
+                                      AppointmentStatus.confirmed
+                                  ? () => _updateStatus(
+                                      context,
+                                      ref,
+                                      appointment,
+                                      AppointmentStatus.noShow,
+                                    )
+                                  : null,
+                              onComplete:
+                                  appointment.status ==
+                                      AppointmentStatus.confirmed
+                                  ? () => _updateStatus(
+                                      context,
+                                      ref,
+                                      appointment,
+                                      AppointmentStatus.completed,
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
-    final institutionId = profile?.institutionId ?? '';
-    final counselorId = profile?.id ?? '';
+    if (profile == null || profile.role != UserRole.counselor) {
+      return const Scaffold(
+        body: Center(
+          child: _EmptyModuleCard(
+            message: 'This page is available only for counselors.',
+          ),
+        ),
+      );
+    }
 
-    return MindNestShell(
-      maxWidth: 980,
-      appBar: AppBar(
-        title: const Text('Counselor Appointments'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: const BackToHomeButton(),
-      ),
-      child: profile == null || profile.role != UserRole.counselor
-          ? const GlassCard(
-              child: Padding(
-                padding: EdgeInsets.all(18),
-                child: Text('This page is available only for counselors.'),
-              ),
-            )
-          : StreamBuilder<List<AppointmentRecord>>(
-              stream: ref
-                  .read(careRepositoryProvider)
-                  .watchCounselorAppointments(
-                    institutionId: institutionId,
-                    counselorId: counselorId,
-                  ),
-              builder: (context, snapshot) {
-                final appointments = snapshot.data ?? const [];
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    appointments.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (appointments.isEmpty) {
-                  return const GlassCard(
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text('No appointments yet.'),
-                    ),
-                  );
-                }
+    final unreadCount =
+        ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: appointments
-                      .map(
-                        (appointment) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: GlassCard(
-                            child: Padding(
-                              padding: const EdgeInsets.all(14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          appointment.studentName ??
-                                              appointment.studentId,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 5,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: _statusColor(
-                                            appointment.status,
-                                          ).withValues(alpha: 0.14),
-                                          borderRadius: BorderRadius.circular(
-                                            999,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          appointment.status.name,
-                                          style: TextStyle(
-                                            color: _statusColor(
-                                              appointment.status,
-                                            ),
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Start: ${_formatDate(appointment.startAt)}',
-                                  ),
-                                  Text(
-                                    'End: ${_formatDate(appointment.endAt)}',
-                                  ),
-                                  if (appointment.status ==
-                                          AppointmentStatus.noShow &&
-                                      (appointment.attendanceStatus ?? '')
-                                          .trim()
-                                          .isNotEmpty)
-                                    Text(
-                                      'Attendance: ${appointment.attendanceStatus}',
-                                    ),
-                                  if (appointment.status ==
-                                          AppointmentStatus.cancelled &&
-                                      (appointment.counselorCancelMessage ?? '')
-                                          .trim()
-                                          .isNotEmpty) ...[
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFFF7ED),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(
-                                        'Message sent: ${appointment.counselorCancelMessage!.trim()}',
-                                        style: const TextStyle(
-                                          color: Color(0xFF9A3412),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                  if (appointment.status ==
-                                          AppointmentStatus.completed &&
-                                      (appointment.counselorSessionNote ?? '')
-                                          .trim()
-                                          .isNotEmpty) ...[
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFEFF6FF),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(
-                                        'Session note: ${appointment.counselorSessionNote!.trim()}',
-                                        style: const TextStyle(
-                                          color: Color(0xFF0C4A6E),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                  if (appointment.status ==
-                                          AppointmentStatus.completed &&
-                                      appointment
-                                          .counselorActionItems
-                                          .isNotEmpty) ...[
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Action items: ${appointment.counselorActionItems.join(', ')}',
-                                    ),
-                                  ],
-                                  const SizedBox(height: 10),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: [
-                                      if (appointment.status ==
-                                          AppointmentStatus.pending)
-                                        OutlinedButton(
-                                          onPressed: () => _updateStatus(
-                                            context,
-                                            ref,
-                                            appointment,
-                                            AppointmentStatus.confirmed,
-                                          ),
-                                          child: const Text('Confirm'),
-                                        ),
-                                      if (appointment.status ==
-                                              AppointmentStatus.pending ||
-                                          appointment.status ==
-                                              AppointmentStatus.confirmed)
-                                        OutlinedButton(
-                                          onPressed: () => _updateStatus(
-                                            context,
-                                            ref,
-                                            appointment,
-                                            AppointmentStatus.cancelled,
-                                          ),
-                                          child: const Text('Cancel'),
-                                        ),
-                                      if (appointment.status ==
-                                          AppointmentStatus.confirmed)
-                                        OutlinedButton(
-                                          onPressed: () => _updateStatus(
-                                            context,
-                                            ref,
-                                            appointment,
-                                            AppointmentStatus.noShow,
-                                          ),
-                                          child: const Text('Mark No-show'),
-                                        ),
-                                      if (appointment.status ==
-                                          AppointmentStatus.confirmed)
-                                        ElevatedButton(
-                                          onPressed: () => _updateStatus(
-                                            context,
-                                            ref,
-                                            appointment,
-                                            AppointmentStatus.completed,
-                                          ),
-                                          child: const Text('Mark Completed'),
-                                        ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(growable: false),
-                );
-              },
+    return CounselorWorkspaceScaffold(
+      profile: profile,
+      activeSection: CounselorWorkspaceNavSection.sessions,
+      unreadNotifications: unreadCount,
+      title: 'Sessions',
+      subtitle:
+          'Keep booking requests, live appointments, and session outcomes in one stable counselor workflow.',
+      onSelectSection: (section) => _navigateSection(context, section),
+      onNotifications: () => context.go(AppRoute.notifications),
+      onProfile: () => context.go(AppRoute.counselorSettings),
+      onLogout: () => confirmAndLogout(context: context, ref: ref),
+      child: StreamBuilder<List<AppointmentRecord>>(
+        stream: ref
+            .read(careRepositoryProvider)
+            .watchCounselorAppointments(
+              institutionId: profile.institutionId ?? '',
+              counselorId: profile.id,
             ),
+        builder: (context, snapshot) {
+          final appointments = snapshot.data ?? const <AppointmentRecord>[];
+          return _buildBody(
+            context,
+            ref,
+            profile: profile,
+            appointments: appointments,
+            loading:
+                snapshot.connectionState == ConnectionState.waiting &&
+                appointments.isEmpty,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AppointmentsHero extends StatelessWidget {
+  const _AppointmentsHero({
+    required this.nextLive,
+    required this.total,
+    required this.onOpenNotifications,
+  });
+
+  final AppointmentRecord? nextLive;
+  final int total;
+  final VoidCallback onOpenNotifications;
+
+  String _formatHeadline(DateTime value) {
+    final local = value.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final suffix = local.hour >= 12 ? 'PM' : 'AM';
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return '${days[local.weekday - 1]} ${local.day} at $hour:${local.minute.toString().padLeft(2, '0')} $suffix';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0D1B2A), Color(0xFF173D63), Color(0xFF1AA9A1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stacked = constraints.maxWidth < 820;
+          final intro = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _ModuleEyebrow(
+                label: 'COUNSELOR APPOINTMENTS',
+                color: Color(0xFFFDE68A),
+                background: Color(0x24FFFFFF),
+                border: Color(0x44FFFFFF),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                nextLive == null
+                    ? 'No live session is queued right now.'
+                    : 'Next session is ${_formatHeadline(nextLive!.startAt)}.',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 38,
+                  height: 1.04,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1.8,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'This screen keeps the active counseling queue visible while preserving fast status actions for each session.',
+                style: TextStyle(
+                  color: Color(0xFFD7E5F0),
+                  fontSize: 15.5,
+                  height: 1.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: onOpenNotifications,
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF0C2233),
+                ),
+                icon: const Icon(Icons.notifications_active_outlined),
+                label: const Text('Open Notifications'),
+              ),
+            ],
+          );
+
+          final sideCard = Container(
+            width: stacked ? double.infinity : 270,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0x33FFFFFF),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: const Color(0x55FFFFFF)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Queue pulse',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _MiniSignal(
+                  label: 'Sessions visible',
+                  value: '$total',
+                  tone: const Color(0xFFFDE68A),
+                ),
+                const SizedBox(height: 10),
+                _MiniSignal(
+                  label: 'Next live status',
+                  value: nextLive == null ? 'idle' : 'queued',
+                  tone: nextLive == null
+                      ? const Color(0xFF94A3B8)
+                      : const Color(0xFF10B981),
+                ),
+              ],
+            ),
+          );
+
+          if (stacked) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [intro, const SizedBox(height: 18), sideCard],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: intro),
+              const SizedBox(width: 18),
+              sideCard,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SessionStatCard extends StatelessWidget {
+  const _SessionStatCard({
+    required this.label,
+    required this.value,
+    required this.hint,
+    required this.accent,
+  });
+
+  final String label;
+  final String value;
+  final String hint;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE1E8EF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              color: accent,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.4,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF081A30),
+              fontSize: 42,
+              height: 1,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            hint,
+            style: const TextStyle(
+              color: Color(0xFF7B8CA4),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AppointmentPanelCard extends StatelessWidget {
+  const _AppointmentPanelCard({
+    required this.appointment,
+    required this.statusColor,
+    required this.formatDate,
+    required this.onConfirm,
+    required this.onCancel,
+    required this.onNoShow,
+    required this.onComplete,
+  });
+
+  final AppointmentRecord appointment;
+  final Color statusColor;
+  final String Function(DateTime value) formatDate;
+  final VoidCallback? onConfirm;
+  final VoidCallback? onCancel;
+  final VoidCallback? onNoShow;
+  final VoidCallback? onComplete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FBFE),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCE6F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      appointment.studentName ?? appointment.studentId,
+                      style: const TextStyle(
+                        color: Color(0xFF081A30),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${formatDate(appointment.startAt)} - ${formatDate(appointment.endAt)}',
+                      style: const TextStyle(
+                        color: Color(0xFF5E728D),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  appointment.status.name,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              if (appointment.status == AppointmentStatus.noShow &&
+                  (appointment.attendanceStatus ?? '').trim().isNotEmpty)
+                _InlineNoteCard(
+                  tone: const Color(0xFF7C3AED),
+                  background: const Color(0xFFF5F3FF),
+                  text: 'Attendance: ${appointment.attendanceStatus}',
+                ),
+              if (appointment.status == AppointmentStatus.cancelled &&
+                  (appointment.counselorCancelMessage ?? '').trim().isNotEmpty)
+                _InlineNoteCard(
+                  tone: const Color(0xFF9A3412),
+                  background: const Color(0xFFFFF7ED),
+                  text:
+                      'Message sent: ${appointment.counselorCancelMessage!.trim()}',
+                ),
+              if (appointment.status == AppointmentStatus.completed &&
+                  (appointment.counselorSessionNote ?? '').trim().isNotEmpty)
+                _InlineNoteCard(
+                  tone: const Color(0xFF0C4A6E),
+                  background: const Color(0xFFEFF6FF),
+                  text:
+                      'Session note: ${appointment.counselorSessionNote!.trim()}',
+                ),
+            ],
+          ),
+          if (appointment.status == AppointmentStatus.completed &&
+              appointment.counselorActionItems.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Action items: ${appointment.counselorActionItems.join(', ')}',
+              style: const TextStyle(
+                color: Color(0xFF415A77),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              if (onConfirm != null)
+                OutlinedButton.icon(
+                  onPressed: onConfirm,
+                  icon: const Icon(Icons.check_circle_outline_rounded),
+                  label: const Text('Confirm'),
+                ),
+              if (onCancel != null)
+                OutlinedButton.icon(
+                  onPressed: onCancel,
+                  icon: const Icon(Icons.cancel_outlined),
+                  label: const Text('Cancel'),
+                ),
+              if (onNoShow != null)
+                OutlinedButton.icon(
+                  onPressed: onNoShow,
+                  icon: const Icon(Icons.person_off_outlined),
+                  label: const Text('Mark No-show'),
+                ),
+              if (onComplete != null)
+                FilledButton.icon(
+                  onPressed: onComplete,
+                  icon: const Icon(Icons.task_alt_rounded),
+                  label: const Text('Mark Completed'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineNoteCard extends StatelessWidget {
+  const _InlineNoteCard({
+    required this.tone,
+    required this.background,
+    required this.text,
+  });
+
+  final Color tone;
+  final Color background;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: tone, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _ModuleEyebrow extends StatelessWidget {
+  const _ModuleEyebrow({
+    required this.label,
+    required this.color,
+    required this.background,
+    required this.border,
+  });
+
+  final String label;
+  final Color color;
+  final Color background;
+  final Color border;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.3,
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniSignal extends StatelessWidget {
+  const _MiniSignal({
+    required this.label,
+    required this.value,
+    required this.tone,
+  });
+
+  final String label;
+  final String value;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0x1FFFFFFF),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFFD6E4EE),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyModuleCard extends StatelessWidget {
+  const _EmptyModuleCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 540),
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE1E8EF)),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(
+          color: Color(0xFF0C2233),
+          fontWeight: FontWeight.w600,
+          height: 1.45,
+        ),
+      ),
     );
   }
 }
