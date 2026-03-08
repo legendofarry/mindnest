@@ -2340,11 +2340,6 @@ const List<_SidebarItem> _sidebarItems = [
     label: 'Notifications',
     icon: Icons.notifications_none_rounded,
   ),
-  _SidebarItem(
-    section: _CounselorWorkspaceSection.profile,
-    label: 'Profile',
-    icon: Icons.person_outline_rounded,
-  ),
 ];
 
 String _initials(String value) {
