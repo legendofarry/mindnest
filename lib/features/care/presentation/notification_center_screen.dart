@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/desktop_primary_shell.dart';
+import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/app_notification.dart';
 
@@ -730,123 +733,237 @@ class _NotificationCenterScreenState
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final userId = profile?.id ?? '';
     final theme = Theme.of(context);
+    final isDesktop = MediaQuery.sizeOf(context).width >= 900;
+    final isPrimaryUser =
+        profile != null &&
+        (profile.role == UserRole.student ||
+            profile.role == UserRole.staff ||
+            profile.role == UserRole.individual);
+    final hasInstitution = (profile?.institutionId ?? '').isNotEmpty;
+    final canAccessLive =
+        profile != null &&
+        (profile.role == UserRole.student || profile.role == UserRole.staff);
+    final content = _buildNotificationWorkspace(context, userId: userId);
+
+    if (isDesktop && isPrimaryUser) {
+      return DesktopPrimaryShell(
+        matchedLocation: AppRoute.notifications,
+        child: content,
+      );
+    }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
-              child: userId.isEmpty
-                  ? _emptyCard(context, forUnread: false)
-                  : StreamBuilder<List<AppNotification>>(
-                      stream: ref
-                          .read(careRepositoryProvider)
-                          .watchUserNotifications(userId),
-                      builder: (context, snapshot) {
-                        if (snapshot.hasError) {
-                          return _emptyCard(context, forUnread: false);
-                        }
+      body: content,
+      bottomNavigationBar: !isDesktop && isPrimaryUser
+          ? PrimaryMobileBottomNav(
+              hasInstitution: hasInstitution,
+              canAccessLive: canAccessLive,
+            )
+          : null,
+    );
+  }
 
-                        final notifications = snapshot.data ?? const [];
-                        final filtered = notifications
-                            .where(
-                              (entry) => switch (_activeFilter) {
-                                _NotificationFilter.all => !entry.isArchived,
-                                _NotificationFilter.unread =>
-                                  !entry.isArchived && !entry.isRead,
-                                _NotificationFilter.archived =>
-                                  entry.isArchived,
-                              },
-                            )
-                            .toList(growable: false);
+  Widget _buildNotificationWorkspace(
+    BuildContext context, {
+    required String userId,
+  }) {
+    return SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 860),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _NotificationHeroCard(),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: userId.isEmpty
+                      ? _emptyCard(context, forUnread: false)
+                      : StreamBuilder<List<AppNotification>>(
+                          stream: ref
+                              .read(careRepositoryProvider)
+                              .watchUserNotifications(userId),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              return _emptyCard(context, forUnread: false);
+                            }
 
-                        if (snapshot.connectionState ==
-                                ConnectionState.waiting &&
-                            notifications.isEmpty) {
-                          return const Center(
-                            child: CircularProgressIndicator(strokeWidth: 2.6),
-                          );
-                        }
+                            final notifications = snapshot.data ?? const [];
+                            final filtered = notifications
+                                .where(
+                                  (entry) => switch (_activeFilter) {
+                                    _NotificationFilter.all =>
+                                      !entry.isArchived,
+                                    _NotificationFilter.unread =>
+                                      !entry.isArchived && !entry.isRead,
+                                    _NotificationFilter.archived =>
+                                      entry.isArchived,
+                                  },
+                                )
+                                .toList(growable: false);
 
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _header(
-                              context: context,
-                              userId: userId,
-                              notifications: notifications,
-                            ),
-                            const SizedBox(height: 16),
-                            _segmentedControl(
-                              context: context,
-                              notifications: notifications,
-                              userId: userId,
-                            ),
-                            const SizedBox(height: 16),
-                            Expanded(
-                              child: filtered.isEmpty
-                                  ? Align(
-                                      alignment: Alignment.topCenter,
-                                      child: _emptyCard(
-                                        context,
-                                        forUnread:
-                                            _activeFilter ==
-                                            _NotificationFilter.unread,
-                                      ),
-                                    )
-                                  : ListView.separated(
-                                      physics: const BouncingScrollPhysics(),
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      itemCount: filtered.length,
-                                      separatorBuilder: (_, _) =>
-                                          const SizedBox(height: 12),
-                                      itemBuilder: (context, index) {
-                                        final entry = filtered[index];
-                                        final isBusy =
-                                            _openingNotificationIds.contains(
-                                              entry.id,
-                                            ) ||
-                                            _actionNotificationIds.contains(
-                                              entry.id,
-                                            );
-                                        return GestureDetector(
-                                          onSecondaryTapDown: isBusy
-                                              ? null
-                                              : (details) =>
-                                                    _showNotificationMenu(
-                                                      notification: entry,
-                                                      globalPosition: details
-                                                          .globalPosition,
-                                                    ),
-                                          onLongPressStart: isBusy
-                                              ? null
-                                              : (details) =>
-                                                    _showNotificationMenu(
-                                                      notification: entry,
-                                                      globalPosition: details
-                                                          .globalPosition,
-                                                    ),
-                                          child: _notificationCard(
-                                            context: context,
-                                            entry: entry,
-                                            isBusy: isBusy,
-                                            onTap: () =>
-                                                _openNotification(entry),
+                            if (snapshot.connectionState ==
+                                    ConnectionState.waiting &&
+                                notifications.isEmpty) {
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.6,
+                                ),
+                              );
+                            }
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _header(
+                                  context: context,
+                                  userId: userId,
+                                  notifications: notifications,
+                                ),
+                                const SizedBox(height: 16),
+                                _segmentedControl(
+                                  context: context,
+                                  notifications: notifications,
+                                  userId: userId,
+                                ),
+                                const SizedBox(height: 16),
+                                Expanded(
+                                  child: filtered.isEmpty
+                                      ? Align(
+                                          alignment: Alignment.topCenter,
+                                          child: _emptyCard(
+                                            context,
+                                            forUnread:
+                                                _activeFilter ==
+                                                _NotificationFilter.unread,
                                           ),
-                                        );
-                                      },
-                                    ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
+                                        )
+                                      : ListView.separated(
+                                          physics:
+                                              const BouncingScrollPhysics(),
+                                          padding: const EdgeInsets.only(
+                                            bottom: 8,
+                                          ),
+                                          itemCount: filtered.length,
+                                          separatorBuilder: (_, _) =>
+                                              const SizedBox(height: 12),
+                                          itemBuilder: (context, index) {
+                                            final entry = filtered[index];
+                                            final isBusy =
+                                                _openingNotificationIds
+                                                    .contains(entry.id) ||
+                                                _actionNotificationIds.contains(
+                                                  entry.id,
+                                                );
+                                            return GestureDetector(
+                                              onSecondaryTapDown: isBusy
+                                                  ? null
+                                                  : (
+                                                      details,
+                                                    ) => _showNotificationMenu(
+                                                      notification: entry,
+                                                      globalPosition: details
+                                                          .globalPosition,
+                                                    ),
+                                              onLongPressStart: isBusy
+                                                  ? null
+                                                  : (
+                                                      details,
+                                                    ) => _showNotificationMenu(
+                                                      notification: entry,
+                                                      globalPosition: details
+                                                          .globalPosition,
+                                                    ),
+                                              child: _notificationCard(
+                                                context: context,
+                                                entry: entry,
+                                                isBusy: isBusy,
+                                                onTap: () =>
+                                                    _openNotification(entry),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _NotificationHeroCard extends StatelessWidget {
+  const _NotificationHeroCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0A1C35), Color(0xFF15486E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x180F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.notifications_active_rounded,
+                  size: 16,
+                  color: Color(0xFFBEEBF2),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Notification center',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Track session updates, invites, reminders, and action-required changes without losing context.',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              height: 1.28,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -694,6 +694,20 @@ class _CounselorProfileScreenState
       nowLocal: nowLocal,
     );
     final days = _weekDays();
+    final openCount = weekSlots.length;
+    final activeAppointmentCount = weekAppointments
+        .where(
+          (entry) =>
+              entry.status == AppointmentStatus.pending ||
+              entry.status == AppointmentStatus.confirmed,
+        )
+        .length;
+    final completedCount = weekAppointments
+        .where((entry) => entry.status == AppointmentStatus.completed)
+        .length;
+    final selectedHourLabel = _selectedGridHour == null
+        ? 'No time row focused'
+        : 'Focused on ${_TimeCell.labelForHour(_selectedGridHour!)}';
     final weekControls = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -723,51 +737,88 @@ class _CounselorProfileScreenState
       ],
     );
 
-    return GlassCard(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isMobile = constraints.maxWidth < 560;
-                if (!isMobile) {
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Counselor Weekly Schedule',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(width: 250, child: weekControls),
-                    ],
-                  );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Counselor Weekly Schedule',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(width: double.infinity, child: weekControls),
-                  ],
-                );
-              },
+    return _ProfileSectionCard(
+      eyebrow: 'Weekly calendar',
+      title: 'Weekly schedule',
+      description: _canCurrentUserBook(profile)
+          ? 'Review open cells across the week, inspect session activity, and tap highlighted windows to book available spots.'
+          : 'Review the counselor week view, including open windows and current session activity across the schedule.',
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7FAFD),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0xFFDCE6F0)),
+        ),
+        child: SizedBox(width: 250, child: weekControls),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _ProfileMetaPill(
+                label: '$openCount open slot${openCount == 1 ? '' : 's'}',
+                icon: Icons.event_available_rounded,
+              ),
+              _ProfileMetaPill(
+                label:
+                    '$activeAppointmentCount active session${activeAppointmentCount == 1 ? '' : 's'}',
+                icon: Icons.calendar_month_rounded,
+              ),
+              _ProfileMetaPill(
+                label: '$completedCount completed this week',
+                icon: Icons.task_alt_rounded,
+              ),
+              _ProfileMetaPill(
+                label: selectedHourLabel,
+                icon: Icons.filter_alt_rounded,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _ScheduleLegendChip(
+                label: 'Open',
+                background: Color(0xFFE8FFF6),
+                foreground: Color(0xFF0E8F61),
+              ),
+              _ScheduleLegendChip(
+                label: 'Pending',
+                background: Color(0xFFFFF7E6),
+                foreground: Color(0xFFB5690F),
+              ),
+              _ScheduleLegendChip(
+                label: 'Confirmed',
+                background: Color(0xFFE8FFF6),
+                foreground: Color(0xFF0F766E),
+              ),
+              _ScheduleLegendChip(
+                label: 'Completed',
+                background: Color(0xFFEFF6FF),
+                foreground: Color(0xFF2457A6),
+              ),
+              _ScheduleLegendChip(
+                label: 'Cancelled or no-show',
+                background: Color(0xFFFFEEF0),
+                foreground: Color(0xFFB42318),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FBFD),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFDCE6F0)),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Tap a highlighted cell to view available spots and book.',
-            ),
-            const SizedBox(height: 12),
-            Row(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
@@ -856,8 +907,8 @@ class _CounselorProfileScreenState
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -867,14 +918,10 @@ class _CounselorProfileScreenState
     required String counselorId,
   }) {
     if (institutionId.isEmpty) {
-      return const GlassCard(
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Text(
-            'Counselor profile setup is in progress.',
-            style: TextStyle(color: Color(0xFF5E728D)),
-          ),
-        ),
+      return const _ProfileStateCard(
+        icon: Icons.shield_moon_outlined,
+        title: 'Profile setup in progress',
+        message: 'Counselor profile setup is still underway.',
       );
     }
 
@@ -890,31 +937,41 @@ class _CounselorProfileScreenState
             (data?['userName'] as String?) ??
             (data?['name'] as String?) ??
             'Counselor';
-        return GlassCard(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  displayName,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text('Counselor profile setup in progress'),
-                const SizedBox(height: 4),
-                const Text(
-                  'Basic scheduling is available while this profile is being completed.',
-                  style: TextStyle(color: Color(0xFF64748B)),
-                ),
-              ],
-            ),
+        return _ProfileSectionCard(
+          eyebrow: 'Setup status',
+          title: displayName,
+          description:
+              'This counselor is still completing their professional profile. Basic scheduling remains available during setup.',
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: const [
+              _ProfileMetaPill(
+                label: 'Profile still being configured',
+                icon: Icons.construction_rounded,
+              ),
+              _ProfileMetaPill(
+                label: 'Basic scheduling available',
+                icon: Icons.event_available_rounded,
+              ),
+            ],
           ),
         );
       },
     );
+  }
+
+  String _profileInitials(String name) {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .toList(growable: false);
+    if (parts.isEmpty) {
+      return 'CN';
+    }
+    return parts.map((part) => part[0].toUpperCase()).join();
   }
 
   Widget _buildHeroChip({
@@ -950,186 +1007,322 @@ class _CounselorProfileScreenState
   }
 
   Widget _buildCounselorHeroCard(CounselorProfile counselor) {
-    return GlassCard(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
+    final summary = counselor.bio.trim().isNotEmpty
+        ? counselor.bio.trim()
+        : 'Specializing in ${counselor.specialization.toLowerCase()}, helping people navigate life transitions with evidence-based support.';
+    return _ProfileSectionCard(
+      eyebrow: 'Public profile',
+      title: counselor.displayName,
+      description: counselor.title,
+      trailing: _buildHeroChip(
+        label: counselor.isActive ? 'Active profile' : 'Profile paused',
+        background: counselor.isActive
+            ? const Color(0xFFE9FBF3)
+            : const Color(0xFFF1F5F9),
+        foreground: counselor.isActive
+            ? const Color(0xFF0E8F61)
+            : const Color(0xFF64748B),
+        icon: counselor.isActive
+            ? Icons.verified_rounded
+            : Icons.pause_circle_outline_rounded,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 900;
+              final header = [
                 Container(
-                  width: 92,
-                  height: 92,
+                  width: 96,
+                  height: 96,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE7EBFF),
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: const Icon(
-                    Icons.person_outline_rounded,
-                    size: 48,
-                    color: Color(0xFF4F46E5),
-                  ),
-                ),
-                Positioned(
-                  right: -2,
-                  bottom: -2,
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0B2A4A), Color(0xFF184E77)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x180B2A4A),
+                        blurRadius: 24,
+                        offset: Offset(0, 14),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              counselor.displayName,
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              counselor.title,
-              style: const TextStyle(
-                fontSize: 24 / 2,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF4F46E5),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildHeroChip(
-                  label: '${counselor.yearsExperience} yrs experience',
-                  background: const Color(0xFFEFF6FF),
-                  foreground: const Color(0xFF5E728D),
-                ),
-                _buildHeroChip(
-                  label: counselor.sessionMode,
-                  background: const Color(0xFFF1F5F9),
-                  foreground: const Color(0xFF64748B),
-                ),
-                _buildHeroChip(
-                  label:
-                      '${counselor.ratingAverage.toStringAsFixed(1)} (${counselor.ratingCount} ratings)',
-                  background: const Color(0xFFFFF7E6),
-                  foreground: const Color(0xFFB45309),
-                  icon: Icons.star_rounded,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              counselor.bio.trim().isNotEmpty
-                  ? counselor.bio.trim()
-                  : 'Specializing in ${counselor.specialization.toLowerCase()}, helping you navigate life\'s challenges with evidence-based approaches.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF5E728D),
-                fontSize: 22 / 2,
-                height: 1.45,
-              ),
-            ),
-            if (counselor.languages.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.language_rounded,
-                    size: 15,
-                    color: Color(0xFF8DA0B7),
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
+                  child: Center(
                     child: Text(
-                      counselor.languages.join(', ').toUpperCase(),
-                      textAlign: TextAlign.center,
+                      _profileInitials(counselor.displayName),
                       style: const TextStyle(
-                        color: Color(0xFF8DA0B7),
-                        letterSpacing: 1.2,
+                        color: Colors.white,
+                        fontSize: 30,
                         fontWeight: FontWeight.w800,
-                        fontSize: 12,
+                        letterSpacing: 1.2,
                       ),
                     ),
                   ),
+                ),
+                const SizedBox(width: 18, height: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildHeroChip(
+                            label: counselor.specialization,
+                            background: const Color(0xFFEAF2FF),
+                            foreground: const Color(0xFF2457A6),
+                            icon: Icons.psychology_alt_rounded,
+                          ),
+                          if ((counselor.gender ?? '').trim().isNotEmpty)
+                            _buildHeroChip(
+                              label: counselor.gender!.trim(),
+                              background: const Color(0xFFF4F1FF),
+                              foreground: const Color(0xFF6D4CC3),
+                              icon: Icons.diversity_3_rounded,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        summary,
+                        style: const TextStyle(
+                          color: Color(0xFF5F738C),
+                          fontSize: 14.5,
+                          height: 1.6,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ];
+
+              final metrics = Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _ProfileMetricTile(
+                    label: 'Experience',
+                    value: '${counselor.yearsExperience} years',
+                    icon: Icons.timeline_rounded,
+                    tone: const Color(0xFF2457A6),
+                  ),
+                  _ProfileMetricTile(
+                    label: 'Session mode',
+                    value: counselor.sessionMode,
+                    icon: Icons.video_call_rounded,
+                    tone: const Color(0xFF0E8F61),
+                  ),
+                  _ProfileMetricTile(
+                    label: 'Rating',
+                    value: '${counselor.ratingAverage.toStringAsFixed(1)} / 5',
+                    supporting:
+                        '${counselor.ratingCount} review${counselor.ratingCount == 1 ? '' : 's'}',
+                    icon: Icons.star_rounded,
+                    tone: const Color(0xFFB5690F),
+                  ),
+                  _ProfileMetricTile(
+                    label: 'Timezone',
+                    value: counselor.timezone,
+                    icon: Icons.public_rounded,
+                    tone: const Color(0xFF6D4CC3),
+                  ),
+                ],
+              );
+
+              if (wide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 7, child: Row(children: header)),
+                    const SizedBox(width: 20),
+                    Expanded(flex: 5, child: metrics),
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: header,
+                  ),
+                  const SizedBox(height: 18),
+                  metrics,
+                ],
+              );
+            },
+          ),
+          if (counselor.languages.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7FAFD),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFDCE6F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Communication',
+                    style: TextStyle(
+                      color: Color(0xFF10233E),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: counselor.languages
+                        .map(
+                          (language) => _ProfileMetaPill(
+                            label: language,
+                            icon: Icons.language_rounded,
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
                 ],
               ),
-            ],
+            ),
           ],
-        ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfessionalSnapshotCard(CounselorProfile counselor) {
+    return _ProfileSectionCard(
+      eyebrow: 'Professional snapshot',
+      title: 'How this counselor practices',
+      description:
+          'A structured view of the counselor profile students and peers use when reviewing fit, availability, and communication style.',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useTwoColumns = constraints.maxWidth >= 860;
+          final columnWidth = useTwoColumns
+              ? (constraints.maxWidth - 14) / 2
+              : constraints.maxWidth;
+          return Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: [
+              SizedBox(
+                width: columnWidth,
+                child: _ProfileInfoBlock(
+                  title: 'Focus area',
+                  icon: Icons.psychology_alt_rounded,
+                  accent: const Color(0xFF2457A6),
+                  body: counselor.specialization,
+                ),
+              ),
+              SizedBox(
+                width: columnWidth,
+                child: _ProfileInfoBlock(
+                  title: 'Session delivery',
+                  icon: Icons.desktop_windows_rounded,
+                  accent: const Color(0xFF0E8F61),
+                  body:
+                      '${counselor.sessionMode} sessions coordinated in ${counselor.timezone}.',
+                ),
+              ),
+              SizedBox(
+                width: columnWidth,
+                child: _ProfileInfoBlock(
+                  title: 'Profile summary',
+                  icon: Icons.notes_rounded,
+                  accent: const Color(0xFF6D4CC3),
+                  body: counselor.bio.trim().isNotEmpty
+                      ? counselor.bio.trim()
+                      : 'Professional biography has not been added yet.',
+                ),
+              ),
+              SizedBox(
+                width: columnWidth,
+                child: _ProfileInfoBlock(
+                  title: 'Student-facing signals',
+                  icon: Icons.visibility_rounded,
+                  accent: const Color(0xFFB5690F),
+                  body: [
+                    '${counselor.yearsExperience} years of experience',
+                    if (counselor.languages.isNotEmpty)
+                      '${counselor.languages.length} listed language${counselor.languages.length == 1 ? '' : 's'}',
+                    if ((counselor.gender ?? '').trim().isNotEmpty)
+                      'Gender shared on profile',
+                    '${counselor.ratingCount} public rating${counselor.ratingCount == 1 ? '' : 's'}',
+                  ].join(' • '),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   Widget _buildBookingPolicyCard() {
-    return GlassCard(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF6F7FF),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFD9E0FF)),
-        ),
-        child: const Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 42,
-              height: 42,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Color(0xFFFFFFFF),
-                  borderRadius: BorderRadius.all(Radius.circular(13)),
-                  border: Border.fromBorderSide(
-                    BorderSide(color: Color(0xFFD9E0FF)),
-                  ),
+    return _ProfileSectionCard(
+      eyebrow: 'Booking guidance',
+      title: 'What happens after a booking request',
+      description:
+          'Use this section to understand response timing, cancellation expectations, and how the counselor booking workflow is handled.',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 760;
+          if (compact) {
+            return const Column(
+              children: [
+                _ProfileInfoBlock(
+                  title: 'Confirmation pace',
+                  icon: Icons.schedule_send_rounded,
+                  accent: Color(0xFF2457A6),
+                  body:
+                      'Counselors aim to confirm session requests within 2 hours.',
                 ),
-                child: Icon(
-                  Icons.info_outline_rounded,
-                  color: Color(0xFF4F46E5),
-                  size: 20,
+                SizedBox(height: 12),
+                _ProfileInfoBlock(
+                  title: 'Changes and cancellations',
+                  icon: Icons.update_rounded,
+                  accent: Color(0xFFB5690F),
+                  body:
+                      'Please cancel or reschedule at least 24 hours before the planned session time.',
+                ),
+              ],
+            );
+          }
+          return const Row(
+            children: [
+              Expanded(
+                child: _ProfileInfoBlock(
+                  title: 'Confirmation pace',
+                  icon: Icons.schedule_send_rounded,
+                  accent: Color(0xFF2457A6),
+                  body:
+                      'Counselors aim to confirm session requests within 2 hours.',
                 ),
               ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Booking Policy',
-                    style: TextStyle(
-                      fontSize: 18 / 2,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E1B4B),
-                    ),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    'Please cancel or reschedule at least 24 hours in advance. Counselors aim to confirm sessions within 2 hours of booking.',
-                    style: TextStyle(
-                      color: Color(0xFF4F46E5),
-                      fontWeight: FontWeight.w500,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
+              SizedBox(width: 12),
+              Expanded(
+                child: _ProfileInfoBlock(
+                  title: 'Changes and cancellations',
+                  icon: Icons.update_rounded,
+                  accent: Color(0xFFB5690F),
+                  body:
+                      'Please cancel or reschedule at least 24 hours before the planned session time.',
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1140,102 +1333,103 @@ class _CounselorProfileScreenState
     required UserProfile? profile,
     required bool canBook,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Text(
-              'Find a Spot',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _selectedDay = null;
-                  _period = _SpotPeriod.any;
-                });
-              },
-              child: const Text('CLEAR FILTERS'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        GlassCard(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _pickSpotDay,
-                        icon: const Icon(
-                          Icons.calendar_today_rounded,
-                          size: 16,
-                        ),
-                        label: Text(
-                          _selectedDay == null
-                              ? 'Any day'
-                              : '${_selectedDay!.year}-${_selectedDay!.month.toString().padLeft(2, '0')}-${_selectedDay!.day.toString().padLeft(2, '0')}',
-                        ),
-                      ),
+    final previewSlots = filteredWeekSlots.take(3).toList(growable: false);
+    return _ProfileSectionCard(
+      eyebrow: 'Availability matching',
+      title: 'Find a spot',
+      description:
+          'Filter the current week, preview the next openings, and move directly into the booking flow from one control surface.',
+      trailing: TextButton(
+        onPressed: () {
+          setState(() {
+            _selectedDay = null;
+            _period = _SpotPeriod.any;
+          });
+        },
+        child: const Text('Clear filters'),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stack = constraints.maxWidth < 720;
+              final controls = [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _pickSpotDay,
+                    icon: const Icon(Icons.calendar_today_rounded, size: 16),
+                    label: Text(
+                      _selectedDay == null
+                          ? 'Any day'
+                          : '${_selectedDay!.year}-${_selectedDay!.month.toString().padLeft(2, '0')}-${_selectedDay!.day.toString().padLeft(2, '0')}',
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: PopupMenuButton<_SpotPeriod>(
-                        onSelected: (value) => setState(() => _period = value),
-                        itemBuilder: (context) => _SpotPeriod.values
-                            .map(
-                              (period) => PopupMenuItem<_SpotPeriod>(
-                                value: period,
-                                child: Text(_periodLabel(period)),
-                              ),
-                            )
-                            .toList(growable: false),
-                        child: Container(
-                          height: 48,
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFDCE5EF)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.access_time_rounded,
-                                size: 16,
-                                color: Color(0xFF64748B),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _periodLabel(_period),
-                                  style: const TextStyle(
-                                    color: Color(0xFF334155),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              const Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                color: Color(0xFF94A3B8),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
+                const SizedBox(width: 10, height: 10),
+                Expanded(
+                  child: PopupMenuButton<_SpotPeriod>(
+                    onSelected: (value) => setState(() => _period = value),
+                    itemBuilder: (context) => _SpotPeriod.values
+                        .map(
+                          (period) => PopupMenuItem<_SpotPeriod>(
+                            value: period,
+                            child: Text(_periodLabel(period)),
+                          ),
+                        )
+                        .toList(growable: false),
+                    child: Container(
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFDCE5EF)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.access_time_rounded,
+                            size: 16,
+                            color: Color(0xFF64748B),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _periodLabel(_period),
+                              style: const TextStyle(
+                                color: Color(0xFF334155),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ];
+              return stack
+                  ? Column(children: controls)
+                  : Row(children: controls);
+            },
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7FAFD),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFDCE6F0)),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final stack = constraints.maxWidth < 760;
+                final cta = ElevatedButton.icon(
                   onPressed: filteredWeekSlots.isEmpty || !canBook
                       ? null
                       : () => _bookSlot(
@@ -1245,25 +1439,72 @@ class _CounselorProfileScreenState
                         ),
                   icon: const Icon(Icons.bolt_rounded),
                   label: const Text('Book next available'),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${filteredWeekSlots.length} matching spots in this week.',
-                  style: const TextStyle(color: Color(0xFF64748B)),
-                ),
-                if (!canBook)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 6),
-                    child: Text(
-                      'Only students, staff, and individual users can book sessions.',
-                      style: TextStyle(color: Color(0xFF64748B)),
+                );
+                final summary = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${filteredWeekSlots.length} matching spots in this week',
+                      style: const TextStyle(
+                        color: Color(0xFF10233E),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-              ],
+                    const SizedBox(height: 6),
+                    Text(
+                      previewSlots.isEmpty
+                          ? 'No openings match the current filters.'
+                          : 'Next opening: ${_friendlyDate(previewSlots.first.startAt)} at ${_friendlyTime(previewSlots.first.startAt)}',
+                      style: const TextStyle(
+                        color: Color(0xFF5F738C),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                );
+                if (stack) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [summary, const SizedBox(height: 12), cta],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: summary),
+                    const SizedBox(width: 12),
+                    cta,
+                  ],
+                );
+              },
             ),
           ),
-        ),
-      ],
+          if (previewSlots.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: previewSlots
+                  .map(
+                    (slot) => _AvailabilityPreviewTile(
+                      dateLabel: _friendlyDate(slot.startAt),
+                      timeLabel:
+                          '${_friendlyTime(slot.startAt)} - ${_friendlyTime(slot.endAt)}',
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ],
+          if (!canBook)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: Text(
+                'Only students, staff, and individual users can book sessions.',
+                style: TextStyle(color: Color(0xFF64748B)),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1331,24 +1572,34 @@ class _CounselorProfileScreenState
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            counselor == null
-                ? _buildPendingCounselorHeader(
-                    institutionId: institutionId,
-                    counselorId: widget.counselorId,
-                  )
-                : _buildCounselorHeroCard(counselor),
+            if (counselorSnapshot.connectionState == ConnectionState.waiting &&
+                counselor == null &&
+                !profileReadDenied)
+              const _ProfileStateCard(
+                icon: Icons.person_search_rounded,
+                title: 'Loading counselor profile',
+                message: 'Fetching the current public profile details.',
+                loading: true,
+              )
+            else
+              counselor == null
+                  ? _buildPendingCounselorHeader(
+                      institutionId: institutionId,
+                      counselorId: widget.counselorId,
+                    )
+                  : _buildCounselorHeroCard(counselor),
+            const SizedBox(height: 14),
+            _buildProfessionalSnapshotCard(effectiveCounselor),
             if (!isViewingPeerCounselor) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               _buildBookingPolicyCard(),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               if (institutionId.isEmpty)
-                const GlassCard(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text(
-                      'Join an institution to view and book counselor schedules.',
-                    ),
-                  ),
+                const _ProfileStateCard(
+                  icon: Icons.domain_add_outlined,
+                  title: 'Institution required',
+                  message:
+                      'Join an institution first to view counselor availability and book sessions.',
                 )
               else
                 StreamBuilder<List<AvailabilitySlot>>(
@@ -1360,16 +1611,12 @@ class _CounselorProfileScreenState
                       ),
                   builder: (context, availabilitySnapshot) {
                     if (availabilitySnapshot.hasError) {
-                      return GlassCard(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            availabilitySnapshot.error.toString().replaceFirst(
-                              'Exception: ',
-                              '',
-                            ),
-                          ),
-                        ),
+                      return _ProfileStateCard(
+                        icon: Icons.calendar_month_outlined,
+                        title: 'Availability unavailable',
+                        message: availabilitySnapshot.error
+                            .toString()
+                            .replaceFirst('Exception: ', ''),
                       );
                     }
 
@@ -1381,7 +1628,13 @@ class _CounselorProfileScreenState
                     if (availabilitySnapshot.connectionState ==
                             ConnectionState.waiting &&
                         slots.isEmpty) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const _ProfileStateCard(
+                        icon: Icons.schedule_outlined,
+                        title: 'Loading availability',
+                        message:
+                            'Preparing the counselor schedule and current booking windows.',
+                        loading: true,
+                      );
                     }
 
                     return Column(
@@ -1393,7 +1646,7 @@ class _CounselorProfileScreenState
                           profile: profile,
                           canBook: canBook,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 14),
                         if (profile != null &&
                             institutionId.isNotEmpty &&
                             _canCurrentUserBook(profile))
@@ -1463,6 +1716,430 @@ class _CounselorProfileScreenState
   }
 }
 
+class _ProfileSectionCard extends StatelessWidget {
+  const _ProfileSectionCard({
+    required this.eyebrow,
+    required this.title,
+    required this.description,
+    required this.child,
+    this.trailing,
+  });
+
+  final String eyebrow;
+  final String title;
+  final String description;
+  final Widget child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final stack = constraints.maxWidth < 720;
+                final headerText = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      eyebrow.toUpperCase(),
+                      style: const TextStyle(
+                        color: Color(0xFF7C93AF),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0F2037),
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        color: Color(0xFF5F738C),
+                        fontSize: 14.5,
+                        height: 1.55,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                );
+
+                if (trailing == null) {
+                  return headerText;
+                }
+                if (stack) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      headerText,
+                      const SizedBox(height: 14),
+                      trailing!,
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: headerText),
+                    const SizedBox(width: 18),
+                    trailing!,
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 18),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileMetaPill extends StatelessWidget {
+  const _ProfileMetaPill({required this.label, this.icon});
+
+  final String label;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6FAFD),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFDCE6F0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: const Color(0xFF59718E)),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF48627D),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileMetricTile extends StatelessWidget {
+  const _ProfileMetricTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.tone,
+    this.supporting,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color tone;
+  final String? supporting;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 180, maxWidth: 240),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFD),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFDCE6F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: tone.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: tone, size: 20),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              color: Color(0xFF7C93AF),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF10233E),
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (supporting != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              supporting!,
+              style: const TextStyle(
+                color: Color(0xFF5F738C),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileInfoBlock extends StatelessWidget {
+  const _ProfileInfoBlock({
+    required this.title,
+    required this.icon,
+    required this.accent,
+    required this.body,
+  });
+
+  final String title;
+  final IconData icon;
+  final Color accent;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFD),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFDCE6F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: accent, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Color(0xFF10233E),
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            body,
+            style: const TextStyle(
+              color: Color(0xFF5F738C),
+              fontSize: 14,
+              height: 1.55,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AvailabilityPreviewTile extends StatelessWidget {
+  const _AvailabilityPreviewTile({
+    required this.dateLabel,
+    required this.timeLabel,
+  });
+
+  final String dateLabel;
+  final String timeLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 220, maxWidth: 280),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFFFFF), Color(0xFFF4F8FD)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFDCE6F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'NEXT OPENING',
+            style: TextStyle(
+              color: Color(0xFF7C93AF),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            dateLabel,
+            style: const TextStyle(
+              color: Color(0xFF10233E),
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            timeLabel,
+            style: const TextStyle(
+              color: Color(0xFF5F738C),
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileStateCard extends StatelessWidget {
+  const _ProfileStateCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.loading = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF2FF),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: loading
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                    )
+                  : Icon(icon, color: const Color(0xFF2457A6)),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Color(0xFF10233E),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    message,
+                    style: const TextStyle(
+                      color: Color(0xFF5F738C),
+                      fontSize: 14.5,
+                      height: 1.55,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScheduleLegendChip extends StatelessWidget {
+  const _ScheduleLegendChip({
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
 class _HeaderCell extends StatelessWidget {
   const _HeaderCell({required this.label, required this.width});
 
@@ -1475,13 +2152,16 @@ class _HeaderCell extends StatelessWidget {
       width: width,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
-        border: Border.all(color: const Color(0xFFD9E4F0)),
+        color: const Color(0xFFF2F7FB),
+        border: Border.all(color: const Color(0xFFD6E3EE)),
       ),
       child: Text(
         label,
         textAlign: TextAlign.center,
-        style: const TextStyle(fontWeight: FontWeight.w700),
+        style: const TextStyle(
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF17304D),
+        ),
       ),
     );
   }
@@ -1493,7 +2173,7 @@ class _TimeCell extends StatelessWidget {
   final int hour;
   final bool isRowHighlighted;
 
-  String _label(int h) {
+  static String labelForHour(int h) {
     final suffix = h >= 12 ? 'PM' : 'AM';
     final normalized = h == 0
         ? 12
@@ -1506,11 +2186,11 @@ class _TimeCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background = isRowHighlighted
-        ? const Color(0xFFE7F3FF)
-        : Colors.white;
+        ? const Color(0xFFEAF4FF)
+        : const Color(0xFFFCFDFE);
     final borderColor = isRowHighlighted
-        ? const Color(0xFF93C5FD)
-        : const Color(0xFFD9E4F0);
+        ? const Color(0xFF93BEE8)
+        : const Color(0xFFD6E3EE);
     return Container(
       width: 100,
       height: 56,
@@ -1520,7 +2200,7 @@ class _TimeCell extends StatelessWidget {
         border: Border.all(color: borderColor),
       ),
       child: Text(
-        _label(hour),
+        labelForHour(hour),
         style: TextStyle(
           fontSize: 12.5,
           fontWeight: FontWeight.w600,
@@ -1645,9 +2325,9 @@ class _ScheduleCell extends StatelessWidget {
 
   Color _borderColor() {
     if (isRowHighlighted) {
-      return const Color(0xFF93C5FD);
+      return const Color(0xFF93BEE8);
     }
-    return const Color(0xFFD9E4F0);
+    return const Color(0xFFD6E3EE);
   }
 
   @override

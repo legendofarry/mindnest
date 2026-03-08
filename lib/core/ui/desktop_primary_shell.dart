@@ -60,84 +60,153 @@ class DesktopPrimaryShell extends ConsumerWidget {
         ? (ref.watch(unreadNotificationCountProvider(profile.id)).valueOrNull ??
               0)
         : 0;
+    final notificationsActive = matchedLocation == AppRoute.notifications;
+    final profileActive = matchedLocation == AppRoute.privacyControls;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDark
+          ? const Color(0xFF071120)
+          : const Color(0xFFF4F7FB),
       appBar: AppBar(
+        toolbarHeight: 82,
         elevation: 0,
-        backgroundColor: Colors.white,
-        titleSpacing: 16,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        titleSpacing: 24,
         title: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF15A39A), Color(0xFF0E9B90)],
+                  colors: [Color(0xFF15A39A), Color(0xFF1F6BFF)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x2615A39A),
+                    blurRadius: 16,
+                    offset: Offset(0, 8),
+                  ),
+                ],
               ),
               child: const Icon(
                 Icons.psychology_alt_rounded,
                 color: Colors.white,
-                size: 22,
+                size: 24,
               ),
             ),
-            const SizedBox(width: 10),
-            Text(
-              'MindNest',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: isDark
-                    ? const Color(0xFFE2E8F0)
-                    : const Color(0xFF071937),
-                fontSize: 20,
-                letterSpacing: -0.4,
-              ),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'MindNest',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: isDark
+                        ? const Color(0xFFE2E8F0)
+                        : const Color(0xFF071937),
+                    fontSize: 20,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                Text(
+                  'Student Workspace',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: isDark
+                        ? const Color(0xFF8FA4C2)
+                        : const Color(0xFF62748B),
+                    fontSize: 12,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
         actions: [
-          IconButton(
+          _HeaderActionButton(
             tooltip: 'Notifications',
+            active: notificationsActive,
             onPressed: hasInstitution
                 ? () => context.go(AppRoute.notifications)
                 : null,
-            icon: _HeaderBellIcon(unreadCount: unreadCount),
+            child: _HeaderBellIcon(
+              unreadCount: unreadCount,
+              active: notificationsActive,
+            ),
           ),
           const SizedBox(width: 8),
-          IconButton(
+          _HeaderActionButton(
             tooltip: 'Profile',
+            active: profileActive,
             onPressed: profile == null
                 ? null
                 : () => _openProfileFromHeader(context),
-            icon: const Icon(Icons.person_outline_rounded),
+            child: Icon(
+              Icons.person_outline_rounded,
+              color: profileActive
+                  ? const Color(0xFF0B2442)
+                  : (isDark
+                        ? const Color(0xFFD6E3F5)
+                        : const Color(0xFF16324F)),
+            ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 24),
         ],
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF081423) : const Color(0xFFF4F7FB),
+            border: Border(
+              bottom: BorderSide(
+                color: isDark
+                    ? const Color(0xFF18273B)
+                    : const Color(0xFFD8E2EE),
+              ),
+            ),
+          ),
+        ),
       ),
       body: Container(
-        color: Colors.white,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: 248,
-              child: DesktopSectionNav(
-                hasInstitution: hasInstitution,
-                canAccessLive: canAccessLive,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? const [Color(0xFF071120), Color(0xFF0B182A)]
+                : const [Color(0xFFF4F7FB), Color(0xFFEFF4F9)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 0, 20),
+                child: SizedBox(
+                  width: 272,
+                  child: DesktopSectionNav(
+                    hasInstitution: hasInstitution,
+                    canAccessLive: canAccessLive,
+                  ),
+                ),
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 14, 24, 20),
-                child: child,
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 24, 24),
+                  child: child,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -145,16 +214,24 @@ class DesktopPrimaryShell extends ConsumerWidget {
 }
 
 class _HeaderBellIcon extends StatelessWidget {
-  const _HeaderBellIcon({required this.unreadCount});
+  const _HeaderBellIcon({required this.unreadCount, required this.active});
 
   final int unreadCount;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        const Icon(Icons.notifications_none_rounded),
+        Icon(
+          Icons.notifications_none_rounded,
+          color: active
+              ? const Color(0xFF0B2442)
+              : (Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFFD6E3F5)
+                    : const Color(0xFF16324F)),
+        ),
         if (unreadCount > 0)
           Positioned(
             top: -6,
@@ -180,6 +257,55 @@ class _HeaderBellIcon extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _HeaderActionButton extends StatelessWidget {
+  const _HeaderActionButton({
+    required this.tooltip,
+    required this.active,
+    required this.onPressed,
+    required this.child,
+  });
+
+  final String tooltip;
+  final bool active;
+  final VoidCallback? onPressed;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: active
+              ? const Color(0xFFBEEBF2)
+              : (isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: active
+                ? const Color(0xFF69CBD7)
+                : (isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : const Color(0xFFD3DFEC)),
+          ),
+          boxShadow: active
+              ? const [
+                  BoxShadow(
+                    color: Color(0x1E15A39A),
+                    blurRadius: 14,
+                    offset: Offset(0, 6),
+                  ),
+                ]
+              : const [],
+        ),
+        child: IconButton(onPressed: onPressed, icon: child),
+      ),
     );
   }
 }

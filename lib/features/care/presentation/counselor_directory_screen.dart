@@ -618,7 +618,7 @@ class _CounselorDirectoryScreenState
       );
     }
 
-    return MindNestShell(
+    final shell = MindNestShell(
       maxWidth: isDesktop ? 1240 : 980,
       backgroundMode: widget.embeddedInDesktopShell && isDesktop
           ? MindNestBackgroundMode.plainWhite
@@ -646,6 +646,8 @@ class _CounselorDirectoryScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _CounselorDirectoryHeroCard(profile: profile),
+            const SizedBox(height: 14),
             if (institutionId.isEmpty)
               const GlassCard(
                 child: Padding(
@@ -952,6 +954,121 @@ class _CounselorDirectoryScreenState
                 },
               ),
           ],
+        ),
+      ),
+    );
+    if (isDesktop) {
+      return shell;
+    }
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: shell,
+      bottomNavigationBar: PrimaryMobileBottomNav(
+        hasInstitution: institutionId.isNotEmpty,
+        canAccessLive: canAccessLive,
+      ),
+    );
+  }
+}
+
+class _CounselorDirectoryHeroCard extends StatelessWidget {
+  const _CounselorDirectoryHeroCard({required this.profile});
+
+  final UserProfile? profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final firstName = ((profile?.name ?? '').trim().isEmpty)
+        ? 'You'
+        : profile!.name.trim().split(RegExp(r'\s+')).first;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF071B33), Color(0xFF11406A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x180F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.groups_rounded, size: 16, color: Color(0xFFBEEBF2)),
+                SizedBox(width: 8),
+                Text(
+                  'Counselor discovery',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '$firstName, compare counselors by fit, availability, focus areas, and session mode before you book.',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              height: 1.28,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _DirectoryMetaChip(label: 'Filter by fit'),
+              _DirectoryMetaChip(label: 'Open profile fast'),
+              _DirectoryMetaChip(label: 'Availability-aware'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DirectoryMetaChip extends StatelessWidget {
+  const _DirectoryMetaChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF153251),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFFD6E3F5),
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
