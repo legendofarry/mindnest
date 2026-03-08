@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:mindnest/core/config/owner_config.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 import 'package:mindnest/features/institutions/models/user_invite.dart';
 
 class InAppInviteDraft {
@@ -1107,6 +1108,29 @@ class InstitutionRepository {
                 return <String, dynamic>{'id': institutionDoc.id, ...data};
               });
         });
+  }
+
+  Future<void> updateCounselorWorkflowSettings({
+    required CounselorWorkflowSettings settings,
+  }) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('You must be logged in.');
+    }
+
+    final userSnapshot = await _firestore
+        .collection('users')
+        .doc(currentUser.uid)
+        .get();
+    final institutionId = userSnapshot.data()?['institutionId'] as String?;
+    if (institutionId == null || institutionId.isEmpty) {
+      throw Exception('Institution not found for this admin account.');
+    }
+
+    await _firestore.collection('institutions').doc(institutionId).update({
+      ...settings.toInstitutionPatch(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Stream<List<Map<String, dynamic>>> watchOwnerPendingInstitutions() {

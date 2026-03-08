@@ -91,6 +91,20 @@ service cloud.firestore {
       return !('status' in data) || data.status == 'approved';
     }
 
+    function currentInstitutionCounselorDirectoryEnabled() {
+      return isSignedIn() &&
+        currentInstitutionId() != null &&
+        exists(/databases/$(database)/documents/institutions/$(currentInstitutionId())) &&
+        get(/databases/$(database)/documents/institutions/$(currentInstitutionId())).data.counselorDirectoryEnabled == true;
+    }
+
+    function currentInstitutionCounselorReassignmentEnabled() {
+      return isSignedIn() &&
+        currentInstitutionId() != null &&
+        exists(/databases/$(database)/documents/institutions/$(currentInstitutionId())) &&
+        get(/databases/$(database)/documents/institutions/$(currentInstitutionId())).data.counselorReassignmentEnabled == true;
+    }
+
     function institutionJoinCodeChangedKeys() {
       return request.resource.data.diff(resource.data).changedKeys();
     }
@@ -113,6 +127,14 @@ service cloud.firestore {
         'status',
         'updatedAt',
         'review'
+      ];
+    }
+
+    function counselorWorkflowEditableKeys() {
+      return [
+        'counselorDirectoryEnabled',
+        'counselorReassignmentEnabled',
+        'updatedAt'
       ];
     }
 
@@ -251,6 +273,11 @@ service cloud.firestore {
         request.resource.data.review.decision == null &&
         request.resource.data.review.declineReason == null &&
         request.resource.data.createdBy == resource.data.createdBy;
+    }
+
+    function canAdminUpdateCounselorWorkflowSettings(institutionId) {
+      return sameInstitutionAdmin(institutionId) &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(counselorWorkflowEditableKeys());
     }
 
     function membershipDocId(institutionId, userId) {
@@ -548,6 +575,178 @@ service cloud.firestore {
         );
     }
 
+    function canReadCounselorProfile(counselorId) {
+      return isSignedIn() &&
+        (
+          counselorId == request.auth.uid ||
+          (
+            currentInstitutionId() != null &&
+            resource.data.institutionId == currentInstitutionId() &&
+            (
+              currentUserRole() in ['student', 'staff', 'institutionAdmin', 'admin'] ||
+              (
+                currentUserRole() == 'counselor' &&
+                currentInstitutionCounselorDirectoryEnabled()
+              )
+            )
+          )
+        );
+    }
+
+    function canCreateTransferredAppointment(appointmentId) {
+      return isSignedIn() &&
+        currentMembershipIsActiveForRole('counselor') &&
+        request.resource.data.institutionId == currentInstitutionId() &&
+        request.resource.data.status == 'confirmed' &&
+        request.resource.data.rated == false &&
+        request.resource.data.rescheduledFromAppointmentId is string &&
+        request.resource.data.rescheduledFromAppointmentId.size() > 0 &&
+        exists(/databases/$(database)/documents/session_reassignment_requests/$(request.resource.data.rescheduledFromAppointmentId)) &&
+        existsAfter(/databases/$(database)/documents/session_reassignment_requests/$(request.resource.data.rescheduledFromAppointmentId)) &&
+        getAfter(/databases/$(database)/documents/session_reassignment_requests/$(request.resource.data.rescheduledFromAppointmentId)).data.originalCounselorId == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/session_reassignment_requests/$(request.resource.data.rescheduledFromAppointmentId)).data.selectedCounselorId == request.resource.data.counselorId &&
+        getAfter(/databases/$(database)/documents/session_reassignment_requests/$(request.resource.data.rescheduledFromAppointmentId)).data.status == 'transferred' &&
+        getAfter(/databases/$(database)/documents/session_reassignment_requests/$(request.resource.data.rescheduledFromAppointmentId)).data.transferredAppointmentId == appointmentId &&
+        exists(/databases/$(database)/documents/appointments/$(request.resource.data.rescheduledFromAppointmentId)) &&
+        get(/databases/$(database)/documents/appointments/$(request.resource.data.rescheduledFromAppointmentId)).data.studentId == request.resource.data.studentId &&
+        get(/databases/$(database)/documents/appointments/$(request.resource.data.rescheduledFromAppointmentId)).data.institutionId == request.resource.data.institutionId;
+    }
+
+    function canCreateSessionReassignmentRequest(requestId) {
+      return isSignedIn() &&
+        currentMembershipIsActiveForRole('counselor') &&
+        currentInstitutionCounselorReassignmentEnabled() &&
+        requestId == request.resource.data.appointmentId &&
+        request.resource.data.institutionId == currentInstitutionId() &&
+        request.resource.data.originalCounselorId == request.auth.uid &&
+        request.resource.data.studentId is string &&
+        request.resource.data.status == 'open_for_responses' &&
+        request.resource.data.maxInterestedCounselors == 5 &&
+        request.resource.data.interestedCounselors is list &&
+        request.resource.data.interestedCounselors.size() == 0 &&
+        exists(/databases/$(database)/documents/appointments/$(requestId)) &&
+        get(/databases/$(database)/documents/appointments/$(requestId)).data.counselorId == request.auth.uid &&
+        get(/databases/$(database)/documents/appointments/$(requestId)).data.studentId == request.resource.data.studentId &&
+        get(/databases/$(database)/documents/appointments/$(requestId)).data.institutionId == request.resource.data.institutionId &&
+        get(/databases/$(database)/documents/appointments/$(requestId)).data.status in ['pending', 'confirmed'];
+    }
+
+    function canReadSessionReassignmentRequest() {
+      return isSignedIn() &&
+        resource.data.institutionId == currentInstitutionId() &&
+        (
+          resource.data.studentId == request.auth.uid ||
+          resource.data.originalCounselorId == request.auth.uid ||
+          isCurrentInstitutionAdmin() ||
+          (
+            currentMembershipIsActiveForRole('counselor') &&
+            currentInstitutionCounselorReassignmentEnabled()
+          )
+        );
+    }
+
+    function canCounselorRespondToSessionReassignment() {
+      return isSignedIn() &&
+        currentMembershipIsActiveForRole('counselor') &&
+        currentInstitutionCounselorReassignmentEnabled() &&
+        resource.data.institutionId == currentInstitutionId() &&
+        resource.data.originalCounselorId != request.auth.uid &&
+        resource.data.status == 'open_for_responses' &&
+        request.resource.data.appointmentId == resource.data.appointmentId &&
+        request.resource.data.studentId == resource.data.studentId &&
+        request.resource.data.originalCounselorId == resource.data.originalCounselorId &&
+        request.resource.data.institutionId == resource.data.institutionId &&
+        request.resource.data.interestedCounselors is list &&
+        request.resource.data.interestedCounselors.size() == resource.data.interestedCounselors.size() + 1 &&
+        request.resource.data.interestedCounselors[resource.data.interestedCounselors.size()].counselorId == request.auth.uid &&
+        request.resource.data.status in ['open_for_responses', 'awaiting_patient_choice'];
+    }
+
+    function canCounselorRecommendOrManageSessionReassignment() {
+      return isSignedIn() &&
+        currentMembershipIsActiveForRole('counselor') &&
+        resource.data.originalCounselorId == request.auth.uid &&
+        resource.data.institutionId == currentInstitutionId() &&
+        (
+          (
+            request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              'originalCounselorRecommendationId',
+              'updatedAt'
+            ])
+          ) ||
+          (
+            request.resource.data.status == 'cancelled' &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              'status',
+              'cancelledAt',
+              'updatedAt'
+            ])
+          ) ||
+          (
+            resource.data.status == 'patient_selected' &&
+            request.resource.data.status == 'transferred' &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              'status',
+              'transferredAppointmentId',
+              'confirmedAt',
+              'updatedAt'
+            ])
+          )
+        );
+    }
+
+    function canPatientChooseSessionReassignment() {
+      return isSignedIn() &&
+        resource.data.studentId == request.auth.uid &&
+        resource.data.institutionId == currentInstitutionId() &&
+        (
+          (
+            resource.data.status in ['open_for_responses', 'awaiting_patient_choice'] &&
+            request.resource.data.status == 'patient_selected' &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              'status',
+              'selectedCounselorId',
+              'selectedCounselorName',
+              'patientSelectedAt',
+              'updatedAt'
+            ])
+          ) ||
+          (
+            request.resource.data.status == 'declined' &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              'status',
+              'updatedAt'
+            ])
+          )
+        );
+    }
+
+    function canSyncSessionReassignmentLifecycle() {
+      return isSignedIn() &&
+        resource.data.institutionId == currentInstitutionId() &&
+        (
+          (
+            resource.data.status == 'open_for_responses' &&
+            request.resource.data.status in ['awaiting_patient_choice', 'expired'] &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              'status',
+              'choiceDeadlineAt',
+              'expiredAt',
+              'updatedAt'
+            ])
+          ) ||
+          (
+            resource.data.status == 'awaiting_patient_choice' &&
+            request.resource.data.status == 'expired' &&
+            request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              'status',
+              'expiredAt',
+              'updatedAt'
+            ])
+          )
+        );
+    }
+
     match /users/{uid} {
       allow read: if isOwner(uid) ||
         resource.data.email == 'karimiarrison@gmail.com' ||
@@ -581,6 +780,7 @@ service cloud.firestore {
         request.resource.data.institutionCatalogId.size() > 0;
       allow update: if canAdminRegenerateInstitutionCode(institutionId) ||
         canAdminResubmitInstitutionRequest(institutionId) ||
+        canAdminUpdateCounselorWorkflowSettings(institutionId) ||
         canJoinFlowIncrementUsage(institutionId) ||
         canInviteFlowIncrementUsage(institutionId) ||
         canAutoRotateExpiredOrCappedCode();
@@ -733,11 +933,7 @@ service cloud.firestore {
     }
 
     match /counselor_profiles/{counselorId} {
-      allow read: if isSignedIn() &&
-        (
-          sharesInstitutionWithUser(counselorId) ||
-          resource.data.institutionId == currentInstitutionId()
-        );
+      allow read: if canReadCounselorProfile(counselorId);
       allow create, update: if isSignedIn() &&
         currentUserRole() == 'counselor' &&
         counselorId == request.auth.uid &&
@@ -794,11 +990,16 @@ service cloud.firestore {
         )
       );
       allow create: if isSignedIn() &&
-        request.resource.data.studentId == request.auth.uid &&
-        request.resource.data.institutionId == currentInstitutionId() &&
-        currentUserRole() in ['student', 'staff', 'individual'] &&
-        request.resource.data.status in ['pending', 'confirmed'] &&
-        request.resource.data.rated == false;
+        (
+          (
+            request.resource.data.studentId == request.auth.uid &&
+            request.resource.data.institutionId == currentInstitutionId() &&
+            currentUserRole() in ['student', 'staff', 'individual'] &&
+            request.resource.data.status in ['pending', 'confirmed'] &&
+            request.resource.data.rated == false
+          ) ||
+          canCreateTransferredAppointment(appointmentId)
+        );
       allow update: if isSignedIn() &&
         request.resource.data.institutionId == resource.data.institutionId &&
         request.resource.data.studentId == resource.data.studentId &&
@@ -837,6 +1038,16 @@ service cloud.firestore {
         canInstitutionAdminManageTargetUser(resource.data.studentId) ||
         canInstitutionAdminManageTargetUser(resource.data.counselorId)
       );
+    }
+
+    match /session_reassignment_requests/{requestId} {
+      allow read: if canReadSessionReassignmentRequest();
+      allow create: if canCreateSessionReassignmentRequest(requestId);
+      allow update: if canCounselorRespondToSessionReassignment() ||
+        canCounselorRecommendOrManageSessionReassignment() ||
+        canPatientChooseSessionReassignment() ||
+        canSyncSessionReassignmentLifecycle();
+      allow delete: if false;
     }
 
     match /notifications/{notificationId} {

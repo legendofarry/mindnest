@@ -8,7 +8,10 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
+import 'package:mindnest/features/care/models/session_reassignment_request.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
+import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class CounselorAppointmentsScreen extends ConsumerWidget {
@@ -211,6 +214,7 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref, {
     required UserProfile profile,
+    required CounselorWorkflowSettings workflowSettings,
     required List<AppointmentRecord> appointments,
     required bool loading,
   }) {
@@ -247,6 +251,25 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
           nextLive: nextLive,
           total: sorted.length,
           onOpenNotifications: () => context.go(AppRoute.notifications),
+          onOpenDirectory: workflowSettings.directoryEnabled
+              ? () => context.go(AppRoute.counselorDirectory)
+              : null,
+        ),
+        const SizedBox(height: 20),
+        _ReassignmentBoardModule(
+          profile: profile,
+          workflowSettings: workflowSettings,
+          onOpenSession: (appointmentId) {
+            context.go(
+              Uri(
+                path: AppRoute.sessionDetails,
+                queryParameters: <String, String>{
+                  'appointmentId': appointmentId,
+                },
+              ).toString(),
+            );
+          },
+          onOpenDirectory: () => context.go(AppRoute.counselorDirectory),
         ),
         const SizedBox(height: 20),
         Wrap(
@@ -400,6 +423,14 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
                                       AppointmentStatus.completed,
                                     )
                                   : null,
+                              onOpenDetails: () => context.go(
+                                Uri(
+                                  path: AppRoute.sessionDetails,
+                                  queryParameters: <String, String>{
+                                    'appointmentId': appointment.id,
+                                  },
+                                ).toString(),
+                              ),
                             ),
                           ),
                         )
@@ -428,6 +459,13 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
 
     final unreadCount =
         ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
+    final workflowSettings =
+        ref
+            .watch(
+              counselorWorkflowSettingsProvider(profile.institutionId ?? ''),
+            )
+            .valueOrNull ??
+        const CounselorWorkflowSettings.disabled();
 
     return CounselorWorkspaceScaffold(
       profile: profile,
@@ -453,6 +491,7 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
             context,
             ref,
             profile: profile,
+            workflowSettings: workflowSettings,
             appointments: appointments,
             loading:
                 snapshot.connectionState == ConnectionState.waiting &&
@@ -469,11 +508,13 @@ class _AppointmentsHero extends StatelessWidget {
     required this.nextLive,
     required this.total,
     required this.onOpenNotifications,
+    required this.onOpenDirectory,
   });
 
   final AppointmentRecord? nextLive;
   final int total;
   final VoidCallback onOpenNotifications;
+  final VoidCallback? onOpenDirectory;
 
   String _formatHeadline(DateTime value) {
     final local = value.toLocal();
@@ -540,6 +581,18 @@ class _AppointmentsHero extends StatelessWidget {
                 icon: const Icon(Icons.notifications_active_outlined),
                 label: const Text('Open Notifications'),
               ),
+              if (onOpenDirectory != null) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: onOpenDirectory,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0x48FFFFFF)),
+                  ),
+                  icon: const Icon(Icons.groups_2_outlined),
+                  label: const Text('Counselor Directory'),
+                ),
+              ],
             ],
           );
 
@@ -660,11 +713,375 @@ class _SessionStatCard extends StatelessWidget {
   }
 }
 
+class _ReassignmentBoardModule extends ConsumerWidget {
+  const _ReassignmentBoardModule({
+    required this.profile,
+    required this.workflowSettings,
+    required this.onOpenSession,
+    required this.onOpenDirectory,
+  });
+
+  final UserProfile profile;
+  final CounselorWorkflowSettings workflowSettings;
+  final ValueChanged<String> onOpenSession;
+  final VoidCallback onOpenDirectory;
+
+  String _formatSlot(DateTime value) {
+    final local = value.toLocal();
+    return '${local.month}/${local.day} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!workflowSettings.reassignmentEnabled) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: const Color(0xFFDDE6EE)),
+        ),
+        child: const Text(
+          'Counselor-to-counselor reassignment requests are disabled for this institution.',
+          style: TextStyle(
+            color: Color(0xFF475569),
+            fontWeight: FontWeight.w600,
+            height: 1.45,
+          ),
+        ),
+      );
+    }
+
+    return StreamBuilder<List<SessionReassignmentRequest>>(
+      stream: ref
+          .read(careRepositoryProvider)
+          .watchInstitutionReassignmentBoard(
+            institutionId: profile.institutionId ?? '',
+          ),
+      builder: (context, snapshot) {
+        final requests = snapshot.data ?? const <SessionReassignmentRequest>[];
+        for (final request in requests) {
+          final nowUtc = DateTime.now().toUtc();
+          final responseExpired =
+              request.status == SessionReassignmentStatus.openForResponses &&
+              nowUtc.isAfter(request.responseDeadlineAt);
+          final choiceExpired =
+              request.status ==
+                  SessionReassignmentStatus.awaitingPatientChoice &&
+              request.choiceDeadlineAt != null &&
+              nowUtc.isAfter(request.choiceDeadlineAt!);
+          if (responseExpired || choiceExpired) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ref
+                  .read(careRepositoryProvider)
+                  .syncReassignmentLifecycle(request.id);
+            });
+          }
+        }
+        final mine = requests
+            .where((entry) => entry.originalCounselorId == profile.id)
+            .toList(growable: false);
+        final others = requests
+            .where((entry) => entry.originalCounselorId != profile.id)
+            .toList(growable: false);
+
+        return Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: const Color(0xFFDDE6EE)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x120F172A),
+                blurRadius: 24,
+                offset: Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _ModuleEyebrow(
+                          label: 'REASSIGNMENT BOARD',
+                          color: Color(0xFF7C3AED),
+                          background: Color(0xFFF5F3FF),
+                          border: Color(0xFFDDD6FE),
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          'Counselor coverage requests',
+                          style: TextStyle(
+                            color: Color(0xFF081A30),
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.6,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Respond to peer coverage requests here. Original counselors still control the patient conversation and final handoff.',
+                          style: TextStyle(
+                            color: Color(0xFF6A7C93),
+                            fontWeight: FontWeight.w500,
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (workflowSettings.directoryEnabled)
+                    OutlinedButton.icon(
+                      onPressed: onOpenDirectory,
+                      icon: const Icon(Icons.groups_rounded),
+                      label: const Text('Directory'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              if (requests.isEmpty)
+                const _EmptyModuleCard(
+                  message:
+                      'No reassignment requests are open right now. When a counselor needs replacement coverage, it will appear here.',
+                )
+              else ...[
+                if (mine.isNotEmpty) ...[
+                  const Text(
+                    'Your requests',
+                    style: TextStyle(
+                      color: Color(0xFF081A30),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ...mine.map(
+                    (request) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _ReassignmentRequestCard(
+                        request: request,
+                        currentCounselorId: profile.id,
+                        formatSlot: _formatSlot,
+                        onOpenSession: () =>
+                            onOpenSession(request.appointmentId),
+                        onExpressInterest: null,
+                      ),
+                    ),
+                  ),
+                ],
+                if (others.isNotEmpty) ...[
+                  if (mine.isNotEmpty) const SizedBox(height: 6),
+                  const Text(
+                    'Requests from other counselors',
+                    style: TextStyle(
+                      color: Color(0xFF081A30),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ...others.map(
+                    (request) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _ReassignmentRequestCard(
+                        request: request,
+                        currentCounselorId: profile.id,
+                        formatSlot: _formatSlot,
+                        onOpenSession: () =>
+                            onOpenSession(request.appointmentId),
+                        onExpressInterest:
+                            request.status ==
+                                    SessionReassignmentStatus
+                                        .openForResponses &&
+                                !request.interestedCounselors.any(
+                                  (entry) => entry.counselorId == profile.id,
+                                )
+                            ? () async {
+                                try {
+                                  await ref
+                                      .read(careRepositoryProvider)
+                                      .expressInterestInReassignment(
+                                        request.id,
+                                      );
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'You were added to the interested counselors list.',
+                                      ),
+                                    ),
+                                  );
+                                } catch (error) {
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        error.toString().replaceFirst(
+                                          'Exception: ',
+                                          '',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            : null,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ReassignmentRequestCard extends StatelessWidget {
+  const _ReassignmentRequestCard({
+    required this.request,
+    required this.currentCounselorId,
+    required this.formatSlot,
+    required this.onOpenSession,
+    required this.onExpressInterest,
+  });
+
+  final SessionReassignmentRequest request;
+  final String currentCounselorId;
+  final String Function(DateTime value) formatSlot;
+  final VoidCallback onOpenSession;
+  final VoidCallback? onExpressInterest;
+
+  @override
+  Widget build(BuildContext context) {
+    final alreadyInterested = request.interestedCounselors.any(
+      (entry) => entry.counselorId == currentCounselorId,
+    );
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FBFE),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCE6F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _RequestPill(label: request.status.wireName.replaceAll('_', ' ')),
+              _RequestPill(
+                label:
+                    '${request.interestedCounselors.length}/${request.maxInterestedCounselors} interested',
+              ),
+              if (request.originalCounselorRecommendationId ==
+                  currentCounselorId)
+                const _RequestPill(label: 'recommended by counselor A'),
+              if (request.selectedCounselorId == currentCounselorId)
+                const _RequestPill(label: 'selected by patient'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            request.requiredSpecialization.trim().isEmpty
+                ? 'Coverage needed'
+                : request.requiredSpecialization,
+            style: const TextStyle(
+              color: Color(0xFF081A30),
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${formatSlot(request.sessionStartAt)} - ${formatSlot(request.sessionEndAt)}',
+            style: const TextStyle(
+              color: Color(0xFF5E728D),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Mode: ${request.sessionMode}',
+            style: const TextStyle(
+              color: Color(0xFF6A7C93),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              if (request.originalCounselorId == currentCounselorId)
+                OutlinedButton.icon(
+                  onPressed: onOpenSession,
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  label: const Text('Open Session'),
+                ),
+              if (onExpressInterest != null)
+                FilledButton.icon(
+                  onPressed: onExpressInterest,
+                  icon: const Icon(Icons.volunteer_activism_outlined),
+                  label: const Text('I Can Take It'),
+                )
+              else if (alreadyInterested)
+                const _RequestPill(label: 'you already responded'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestPill extends StatelessWidget {
+  const _RequestPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFD5E1EA)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF475569),
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+}
+
 class _AppointmentPanelCard extends StatelessWidget {
   const _AppointmentPanelCard({
     required this.appointment,
     required this.statusColor,
     required this.formatDate,
+    required this.onOpenDetails,
     required this.onConfirm,
     required this.onCancel,
     required this.onNoShow,
@@ -674,6 +1091,7 @@ class _AppointmentPanelCard extends StatelessWidget {
   final AppointmentRecord appointment;
   final Color statusColor;
   final String Function(DateTime value) formatDate;
+  final VoidCallback onOpenDetails;
   final VoidCallback? onConfirm;
   final VoidCallback? onCancel;
   final VoidCallback? onNoShow;
@@ -782,6 +1200,11 @@ class _AppointmentPanelCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
+              OutlinedButton.icon(
+                onPressed: onOpenDetails,
+                icon: const Icon(Icons.open_in_new_rounded),
+                label: const Text('Open Detail'),
+              ),
               if (onConfirm != null)
                 OutlinedButton.icon(
                   onPressed: onConfirm,

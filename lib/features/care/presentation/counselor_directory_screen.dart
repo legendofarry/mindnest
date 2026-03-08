@@ -16,6 +16,9 @@ import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
 import 'package:mindnest/features/care/models/counselor_public_rating.dart';
+import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
+import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
+import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
 enum _CounselorSort { earliestAvailable, ratingHigh, experienceHigh }
 
@@ -481,6 +484,131 @@ class _CounselorDirectoryScreenState
             profile.role == UserRole.staff ||
             profile.role == UserRole.counselor);
 
+    if (profile != null && profile.role == UserRole.counselor) {
+      final settingsAsync = ref.watch(
+        counselorWorkflowSettingsProvider(institutionId),
+      );
+      final unreadCount =
+          ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
+      return settingsAsync.when(
+        data: (settings) {
+          return CounselorWorkspaceScaffold(
+            profile: profile,
+            activeSection: CounselorWorkspaceNavSection.dashboard,
+            unreadNotifications: unreadCount,
+            title: 'Counselor Directory',
+            subtitle:
+                'Browse the limited internal counselor directory only when the institution has collaboration visibility enabled.',
+            onSelectSection: (section) {
+              switch (section) {
+                case CounselorWorkspaceNavSection.dashboard:
+                  context.go(AppRoute.counselorDashboard);
+                case CounselorWorkspaceNavSection.sessions:
+                  context.go(AppRoute.counselorAppointments);
+                case CounselorWorkspaceNavSection.availability:
+                  context.go(AppRoute.counselorAvailability);
+              }
+            },
+            onNotifications: () => context.go(AppRoute.notifications),
+            onProfile: () => context.go(AppRoute.counselorSettings),
+            onLogout: () => confirmAndLogout(context: context, ref: ref),
+            child: institutionId.isEmpty
+                ? const _CounselorDirectoryStateCard(
+                    message: 'Join an institution first to view counselors.',
+                  )
+                : !settings.directoryEnabled
+                ? const _CounselorDirectoryStateCard(
+                    message:
+                        'This institution has not enabled the internal counselor directory.',
+                  )
+                : StreamBuilder<List<CounselorProfile>>(
+                    stream: ref
+                        .read(careRepositoryProvider)
+                        .watchCounselors(institutionId: institutionId),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return _CounselorDirectoryStateCard(
+                          message: snapshot.error.toString().replaceFirst(
+                            'Exception: ',
+                            '',
+                          ),
+                        );
+                      }
+                      final counselors =
+                          snapshot.data ?? const <CounselorProfile>[];
+                      if (snapshot.connectionState == ConnectionState.waiting &&
+                          counselors.isEmpty) {
+                        return const _CounselorDirectoryLoadingCard();
+                      }
+                      final visible = counselors
+                          .where((entry) => entry.id != profile.id)
+                          .toList(growable: false);
+                      return _CounselorInternalDirectoryModule(
+                        counselors: visible,
+                        onOpenProfile: (counselorId) {
+                          context.push(
+                            Uri(
+                              path: AppRoute.counselorProfile,
+                              queryParameters: <String, String>{
+                                'counselorId': counselorId,
+                              },
+                            ).toString(),
+                          );
+                        },
+                      );
+                    },
+                  ),
+          );
+        },
+        loading: () => CounselorWorkspaceScaffold(
+          profile: profile,
+          activeSection: CounselorWorkspaceNavSection.dashboard,
+          unreadNotifications: unreadCount,
+          title: 'Counselor Directory',
+          subtitle:
+              'Browse the limited internal counselor directory only when the institution has collaboration visibility enabled.',
+          onSelectSection: (section) {
+            switch (section) {
+              case CounselorWorkspaceNavSection.dashboard:
+                context.go(AppRoute.counselorDashboard);
+              case CounselorWorkspaceNavSection.sessions:
+                context.go(AppRoute.counselorAppointments);
+              case CounselorWorkspaceNavSection.availability:
+                context.go(AppRoute.counselorAvailability);
+            }
+          },
+          onNotifications: () => context.go(AppRoute.notifications),
+          onProfile: () => context.go(AppRoute.counselorSettings),
+          onLogout: () => confirmAndLogout(context: context, ref: ref),
+          child: const _CounselorDirectoryLoadingCard(),
+        ),
+        error: (error, _) => CounselorWorkspaceScaffold(
+          profile: profile,
+          activeSection: CounselorWorkspaceNavSection.dashboard,
+          unreadNotifications: unreadCount,
+          title: 'Counselor Directory',
+          subtitle:
+              'Browse the limited internal counselor directory only when the institution has collaboration visibility enabled.',
+          onSelectSection: (section) {
+            switch (section) {
+              case CounselorWorkspaceNavSection.dashboard:
+                context.go(AppRoute.counselorDashboard);
+              case CounselorWorkspaceNavSection.sessions:
+                context.go(AppRoute.counselorAppointments);
+              case CounselorWorkspaceNavSection.availability:
+                context.go(AppRoute.counselorAvailability);
+            }
+          },
+          onNotifications: () => context.go(AppRoute.notifications),
+          onProfile: () => context.go(AppRoute.counselorSettings),
+          onLogout: () => confirmAndLogout(context: context, ref: ref),
+          child: _CounselorDirectoryStateCard(
+            message: error.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    }
+
     return MindNestShell(
       maxWidth: isDesktop ? 1240 : 980,
       backgroundMode: widget.embeddedInDesktopShell && isDesktop
@@ -942,6 +1070,307 @@ class _RatingChip extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CounselorInternalDirectoryModule extends StatefulWidget {
+  const _CounselorInternalDirectoryModule({
+    required this.counselors,
+    required this.onOpenProfile,
+  });
+
+  final List<CounselorProfile> counselors;
+  final ValueChanged<String> onOpenProfile;
+
+  @override
+  State<_CounselorInternalDirectoryModule> createState() =>
+      _CounselorInternalDirectoryModuleState();
+}
+
+class _CounselorInternalDirectoryModuleState
+    extends State<_CounselorInternalDirectoryModule> {
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+    final filtered = widget.counselors
+        .where((entry) {
+          if (query.isEmpty) {
+            return true;
+          }
+          final target =
+              '${entry.displayName} ${entry.specialization} ${entry.languages.join(' ')} ${entry.sessionMode}'
+                  .toLowerCase();
+          return target.contains(query);
+        })
+        .toList(growable: false);
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Internal counselor directory',
+            style: TextStyle(
+              color: Color(0xFF081A30),
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.8,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Only limited professional identity details are shown here so counselors can evaluate collaboration and transfer fit without exposing unnecessary private information.',
+            style: TextStyle(
+              color: Color(0xFF6A7C93),
+              fontWeight: FontWeight.w500,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _searchController,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              hintText: 'Search by name, specialization, language, or mode',
+              prefixIcon: Icon(Icons.search_rounded),
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (filtered.isEmpty)
+            const _CounselorDirectoryStateCard(
+              message:
+                  'No other counselors matched the current search in this institution.',
+            )
+          else
+            Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              children: filtered
+                  .map(
+                    (entry) => SizedBox(
+                      width: 340,
+                      child: _InternalCounselorCard(
+                        counselor: entry,
+                        onOpenProfile: () => widget.onOpenProfile(entry.id),
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InternalCounselorCard extends StatelessWidget {
+  const _InternalCounselorCard({
+    required this.counselor,
+    required this.onOpenProfile,
+  });
+
+  final CounselorProfile counselor;
+  final VoidCallback onOpenProfile;
+
+  List<String> get _specializations => counselor.specialization
+      .split(',')
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
+
+  @override
+  Widget build(BuildContext context) {
+    final specializations = _specializations;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCE6EF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: const Color(0xFF0E9B90),
+                child: Text(
+                  counselor.displayName.trim().isEmpty
+                      ? 'C'
+                      : counselor.displayName
+                            .trim()
+                            .split(RegExp(r'\s+'))
+                            .take(2)
+                            .map(
+                              (part) => part.isEmpty
+                                  ? ''
+                                  : part.substring(0, 1).toUpperCase(),
+                            )
+                            .join(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      counselor.displayName,
+                      style: const TextStyle(
+                        color: Color(0xFF0C2233),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      counselor.isActive
+                          ? 'Available in directory'
+                          : 'Inactive',
+                      style: TextStyle(
+                        color: counselor.isActive
+                            ? const Color(0xFF0E9B90)
+                            : const Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _InternalInfoLine(
+            label: 'Focus',
+            value: specializations.isEmpty
+                ? 'No specializations saved'
+                : specializations.join(', '),
+          ),
+          const SizedBox(height: 10),
+          _InternalInfoLine(
+            label: 'Languages',
+            value: counselor.languages.isEmpty
+                ? 'Not listed'
+                : counselor.languages.join(', '),
+          ),
+          const SizedBox(height: 10),
+          _InternalInfoLine(label: 'Mode', value: counselor.sessionMode),
+          const SizedBox(height: 14),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: onOpenProfile,
+              icon: const Icon(Icons.open_in_new_rounded, size: 16),
+              label: const Text('Open Profile'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InternalInfoLine extends StatelessWidget {
+  const _InternalInfoLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            color: Color(0xFF7B8CA4),
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Color(0xFF0C2233),
+            fontWeight: FontWeight.w600,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CounselorDirectoryStateCard extends StatelessWidget {
+  const _CounselorDirectoryStateCard({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(
+          color: Color(0xFF334155),
+          fontWeight: FontWeight.w600,
+          height: 1.45,
+        ),
+      ),
+    );
+  }
+}
+
+class _CounselorDirectoryLoadingCard extends StatelessWidget {
+  const _CounselorDirectoryLoadingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+      ),
+      child: const Center(child: CircularProgressIndicator()),
     );
   }
 }

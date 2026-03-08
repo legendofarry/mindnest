@@ -8,7 +8,10 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
+import 'package:mindnest/features/care/models/session_reassignment_request.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
+import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 
 class SessionDetailsScreen extends ConsumerStatefulWidget {
   const SessionDetailsScreen({super.key, required this.appointmentId});
@@ -93,8 +96,11 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
 
   Widget _buildCounselorSessionWorkspace({
     required BuildContext context,
+    required UserProfile profile,
     required AppointmentRecord appointment,
     required bool fromNotifications,
+    required CounselorWorkflowSettings workflowSettings,
+    required SessionReassignmentRequest? reassignmentRequest,
   }) {
     final statusColor = _statusColor(appointment.status);
     final counselorName = (appointment.counselorName ?? '').trim().isNotEmpty
@@ -368,6 +374,47 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                   ),
                 ),
               ],
+              if (workflowSettings.reassignmentEnabled &&
+                  appointment.counselorId == profile.id) ...[
+                const SizedBox(height: 18),
+                _CounselorReassignmentManagerCard(
+                  appointment: appointment,
+                  request: reassignmentRequest,
+                  onCreateRequest: () async {
+                    await ref
+                        .read(careRepositoryProvider)
+                        .createReassignmentRequest(appointment: appointment);
+                  },
+                  onRecommend: (counselorId) async {
+                    await ref
+                        .read(careRepositoryProvider)
+                        .recommendInterestedCounselor(
+                          requestId: appointment.id,
+                          counselorId: counselorId,
+                        );
+                  },
+                  onCancelRequest: reassignmentRequest == null
+                      ? null
+                      : () async {
+                          await ref
+                              .read(careRepositoryProvider)
+                              .cancelReassignmentRequest(
+                                reassignmentRequest.id,
+                              );
+                        },
+                  onConfirmTransfer:
+                      reassignmentRequest?.status ==
+                          SessionReassignmentStatus.patientSelected
+                      ? () async {
+                          await ref
+                              .read(careRepositoryProvider)
+                              .confirmReassignmentTransfer(
+                                reassignmentRequest!.id,
+                              );
+                        }
+                      : null,
+                ),
+              ],
               const SizedBox(height: 20),
               Wrap(
                 spacing: 12,
@@ -481,6 +528,36 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
     final fromNotifications = source.trim().toLowerCase() == 'notifications';
     final isCounselorWorkspace =
         profile != null && profile.role == UserRole.counselor;
+    final workflowSettings =
+        ref
+            .watch(
+              counselorWorkflowSettingsProvider(profile?.institutionId ?? ''),
+            )
+            .valueOrNull ??
+        const CounselorWorkflowSettings.disabled();
+    final reassignmentRequest = ref
+        .watch(appointmentReassignmentRequestProvider(widget.appointmentId))
+        .valueOrNull;
+
+    if (reassignmentRequest != null) {
+      final nowUtc = DateTime.now().toUtc();
+      final responseWindowExpired =
+          reassignmentRequest.status ==
+              SessionReassignmentStatus.openForResponses &&
+          nowUtc.isAfter(reassignmentRequest.responseDeadlineAt);
+      final choiceWindowExpired =
+          reassignmentRequest.status ==
+              SessionReassignmentStatus.awaitingPatientChoice &&
+          reassignmentRequest.choiceDeadlineAt != null &&
+          nowUtc.isAfter(reassignmentRequest.choiceDeadlineAt!);
+      if (responseWindowExpired || choiceWindowExpired) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref
+              .read(careRepositoryProvider)
+              .syncReassignmentLifecycle(reassignmentRequest.id);
+        });
+      }
+    }
 
     if (isCounselorWorkspace) {
       final unreadCount =
@@ -549,8 +626,11 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
 
             return _buildCounselorSessionWorkspace(
               context: context,
+              profile: profile,
               appointment: appointment,
               fromNotifications: fromNotifications,
+              workflowSettings: workflowSettings,
+              reassignmentRequest: reassignmentRequest,
             );
           },
         ),
@@ -938,6 +1018,44 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                               ),
                             ),
                           ],
+                          if (workflowSettings.reassignmentEnabled &&
+                              profile != null &&
+                              profile.id == appointment.studentId &&
+                              reassignmentRequest != null) ...[
+                            const SizedBox(height: 16),
+                            _PatientReassignmentChoiceCard(
+                              request: reassignmentRequest,
+                              onOpenCounselor: (counselorId) => context.go(
+                                '${AppRoute.counselorProfile}?counselorId=$counselorId',
+                              ),
+                              onSelectCounselor:
+                                  reassignmentRequest.status ==
+                                      SessionReassignmentStatus.transferred
+                                  ? null
+                                  : (counselorId) async {
+                                      await ref
+                                          .read(careRepositoryProvider)
+                                          .selectInterestedCounselorAsPatient(
+                                            requestId: reassignmentRequest.id,
+                                            counselorId: counselorId,
+                                          );
+                                    },
+                              onDecline:
+                                  reassignmentRequest.status ==
+                                          SessionReassignmentStatus
+                                              .transferred ||
+                                      reassignmentRequest.status ==
+                                          SessionReassignmentStatus.declined
+                                  ? null
+                                  : () async {
+                                      await ref
+                                          .read(careRepositoryProvider)
+                                          .declineReassignmentAsPatient(
+                                            reassignmentRequest.id,
+                                          );
+                                    },
+                            ),
+                          ],
                           const SizedBox(height: 20),
                           Row(
                             children: [
@@ -1258,6 +1376,580 @@ class _SessionLoadingCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFFDDE6EE)),
       ),
       child: const Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
+    );
+  }
+}
+
+String _reassignmentStatusText(SessionReassignmentStatus status) {
+  switch (status) {
+    case SessionReassignmentStatus.openForResponses:
+      return 'Open for responses';
+    case SessionReassignmentStatus.awaitingPatientChoice:
+      return 'Awaiting patient choice';
+    case SessionReassignmentStatus.patientSelected:
+      return 'Patient selected counselor';
+    case SessionReassignmentStatus.transferred:
+      return 'Transferred';
+    case SessionReassignmentStatus.declined:
+      return 'Declined';
+    case SessionReassignmentStatus.expired:
+      return 'Expired';
+    case SessionReassignmentStatus.cancelled:
+      return 'Cancelled';
+  }
+}
+
+Color _reassignmentStatusColor(SessionReassignmentStatus status) {
+  switch (status) {
+    case SessionReassignmentStatus.openForResponses:
+      return const Color(0xFF2563EB);
+    case SessionReassignmentStatus.awaitingPatientChoice:
+      return const Color(0xFF7C3AED);
+    case SessionReassignmentStatus.patientSelected:
+      return const Color(0xFF0E9B90);
+    case SessionReassignmentStatus.transferred:
+      return const Color(0xFF059669);
+    case SessionReassignmentStatus.declined:
+      return const Color(0xFFDC2626);
+    case SessionReassignmentStatus.expired:
+      return const Color(0xFFF59E0B);
+    case SessionReassignmentStatus.cancelled:
+      return const Color(0xFF64748B);
+  }
+}
+
+String _formatRequestDateTime(DateTime value) {
+  final local = value.toLocal();
+  final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
+  final suffix = local.hour >= 12 ? 'PM' : 'AM';
+  return '${local.month}/${local.day}/${local.year} $hour:$minute $suffix';
+}
+
+class _CounselorReassignmentManagerCard extends StatelessWidget {
+  const _CounselorReassignmentManagerCard({
+    required this.appointment,
+    required this.request,
+    required this.onCreateRequest,
+    required this.onRecommend,
+    required this.onCancelRequest,
+    required this.onConfirmTransfer,
+  });
+
+  final AppointmentRecord appointment;
+  final SessionReassignmentRequest? request;
+  final Future<void> Function() onCreateRequest;
+  final Future<void> Function(String counselorId) onRecommend;
+  final Future<void> Function()? onCancelRequest;
+  final Future<void> Function()? onConfirmTransfer;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _reassignmentStatusColor(
+      request?.status ?? SessionReassignmentStatus.openForResponses,
+    );
+    final canCreate =
+        request == null &&
+        (appointment.status == AppointmentStatus.pending ||
+            appointment.status == AppointmentStatus.confirmed);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(Icons.swap_horiz_rounded, color: accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'COUNSELOR REASSIGNMENT',
+                      style: TextStyle(
+                        color: Color(0xFF6E84A3),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      request == null
+                          ? 'Offer this session to other counselors'
+                          : _reassignmentStatusText(request!.status),
+                      style: const TextStyle(
+                        color: Color(0xFF0C2233),
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      request == null
+                          ? 'Create an internal coverage request so other counselors can volunteer. You still control the final patient conversation and handoff.'
+                          : 'Interested counselors can respond here. You can mark one as recommended, then confirm the transfer only after the patient chooses.',
+                      style: const TextStyle(
+                        color: Color(0xFF5E738E),
+                        fontWeight: FontWeight.w500,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (request != null) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _RequestMetaPill(
+                  label: _reassignmentStatusText(request!.status),
+                  color: accent,
+                ),
+                _RequestMetaPill(
+                  label:
+                      'Responses ${request!.interestedCounselors.length}/${request!.maxInterestedCounselors}',
+                  color: const Color(0xFF2563EB),
+                ),
+                _RequestMetaPill(
+                  label:
+                      request!.status ==
+                          SessionReassignmentStatus.openForResponses
+                      ? 'Response deadline ${_formatRequestDateTime(request!.responseDeadlineAt)}'
+                      : request!.choiceDeadlineAt == null
+                      ? 'Waiting for patient decision'
+                      : 'Decision deadline ${_formatRequestDateTime(request!.choiceDeadlineAt!)}',
+                  color: const Color(0xFF7C3AED),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (request!.interestedCounselors.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFDDE6EE)),
+                ),
+                child: const Text(
+                  'No counselors have shown interest yet. The request stays open until the response deadline or until five counselors respond.',
+                  style: TextStyle(
+                    color: Color(0xFF5E738E),
+                    fontWeight: FontWeight.w600,
+                    height: 1.45,
+                  ),
+                ),
+              )
+            else
+              ...request!.interestedCounselors.map((entry) {
+                final isRecommended =
+                    request!.originalCounselorRecommendationId ==
+                    entry.counselorId;
+                final isSelected =
+                    request!.selectedCounselorId == entry.counselorId;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFDDE6EE)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                entry.displayName,
+                                style: const TextStyle(
+                                  color: Color(0xFF0C2233),
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            if (isRecommended)
+                              const _RequestMetaPill(
+                                label: 'Recommended',
+                                color: Color(0xFF0E9B90),
+                              ),
+                            if (isSelected) ...[
+                              const SizedBox(width: 8),
+                              const _RequestMetaPill(
+                                label: 'Patient selected',
+                                color: Color(0xFF7C3AED),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          entry.specialization.trim().isEmpty
+                              ? 'Specialization not specified'
+                              : entry.specialization,
+                          style: const TextStyle(
+                            color: Color(0xFF44556F),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${entry.sessionMode} • ${entry.languages.isEmpty ? 'Languages not listed' : entry.languages.join(', ')}',
+                          style: const TextStyle(
+                            color: Color(0xFF6E84A3),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        if (!isRecommended &&
+                            request!.status !=
+                                SessionReassignmentStatus.transferred &&
+                            request!.status !=
+                                SessionReassignmentStatus.cancelled &&
+                            request!.status !=
+                                SessionReassignmentStatus.declined)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: OutlinedButton.icon(
+                              onPressed: () => onRecommend(entry.counselorId),
+                              icon: const Icon(Icons.star_rounded, size: 18),
+                              label: const Text('Mark as recommended'),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+          ],
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              if (canCreate)
+                ElevatedButton.icon(
+                  onPressed: onCreateRequest,
+                  icon: const Icon(Icons.campaign_rounded),
+                  label: const Text('Open coverage request'),
+                ),
+              if (onCancelRequest != null)
+                OutlinedButton.icon(
+                  onPressed: onCancelRequest,
+                  icon: const Icon(Icons.close_rounded),
+                  label: const Text('Cancel request'),
+                ),
+              if (onConfirmTransfer != null)
+                ElevatedButton.icon(
+                  onPressed: onConfirmTransfer,
+                  icon: const Icon(Icons.check_circle_outline_rounded),
+                  label: const Text('Confirm transfer'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0E9B90),
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PatientReassignmentChoiceCard extends StatelessWidget {
+  const _PatientReassignmentChoiceCard({
+    required this.request,
+    required this.onOpenCounselor,
+    required this.onSelectCounselor,
+    required this.onDecline,
+  });
+
+  final SessionReassignmentRequest request;
+  final void Function(String counselorId) onOpenCounselor;
+  final Future<void> Function(String counselorId)? onSelectCounselor;
+  final Future<void> Function()? onDecline;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _reassignmentStatusColor(request.status);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFE),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(Icons.groups_rounded, color: accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'TRANSFER OPTIONS',
+                      style: TextStyle(
+                        color: Color(0xFF6E84A3),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _reassignmentStatusText(request.status),
+                      style: const TextStyle(
+                        color: Color(0xFF0C2233),
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            request.status == SessionReassignmentStatus.openForResponses
+                ? 'Counselors are still responding. You can watch the list live and choose when you are ready.'
+                : request.status == SessionReassignmentStatus.patientSelected
+                ? 'You already picked a replacement counselor. Your current counselor still needs to confirm the final handoff.'
+                : request.status == SessionReassignmentStatus.transferred
+                ? 'The transfer is complete and your session now belongs to the selected counselor.'
+                : 'Review the available counselors below. Your current counselor may also mark one as the recommended fit.',
+            style: const TextStyle(
+              color: Color(0xFF5E738E),
+              fontWeight: FontWeight.w500,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _RequestMetaPill(
+                label:
+                    'Interested ${request.interestedCounselors.length}/${request.maxInterestedCounselors}',
+                color: const Color(0xFF2563EB),
+              ),
+              _RequestMetaPill(
+                label:
+                    request.status == SessionReassignmentStatus.openForResponses
+                    ? 'Response deadline ${_formatRequestDateTime(request.responseDeadlineAt)}'
+                    : request.choiceDeadlineAt == null
+                    ? 'Waiting for your choice'
+                    : 'Choose by ${_formatRequestDateTime(request.choiceDeadlineAt!)}',
+                color: const Color(0xFF7C3AED),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (request.interestedCounselors.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFDDE6EE)),
+              ),
+              child: const Text(
+                'No replacement counselors have responded yet. This panel updates live as counselors express interest.',
+                style: TextStyle(
+                  color: Color(0xFF5E738E),
+                  fontWeight: FontWeight.w600,
+                  height: 1.45,
+                ),
+              ),
+            )
+          else
+            ...request.interestedCounselors.map((entry) {
+              final isRecommended =
+                  request.originalCounselorRecommendationId ==
+                  entry.counselorId;
+              final isSelected =
+                  request.selectedCounselorId == entry.counselorId;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFDDE6EE)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              entry.displayName,
+                              style: const TextStyle(
+                                color: Color(0xFF0C2233),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          if (isRecommended)
+                            const _RequestMetaPill(
+                              label: 'Recommended by counselor',
+                              color: Color(0xFF0E9B90),
+                            ),
+                          if (isSelected) ...[
+                            const SizedBox(width: 8),
+                            const _RequestMetaPill(
+                              label: 'Selected',
+                              color: Color(0xFF7C3AED),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        entry.specialization.trim().isEmpty
+                            ? 'Specialization not specified'
+                            : entry.specialization,
+                        style: const TextStyle(
+                          color: Color(0xFF44556F),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${entry.sessionMode} • ${entry.languages.isEmpty ? 'Languages not listed' : entry.languages.join(', ')}',
+                        style: const TextStyle(
+                          color: Color(0xFF6E84A3),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () => onOpenCounselor(entry.counselorId),
+                            icon: const Icon(Icons.person_outline_rounded),
+                            label: const Text('Open profile'),
+                          ),
+                          if (!isSelected &&
+                              onSelectCounselor != null &&
+                              request.status !=
+                                  SessionReassignmentStatus.patientSelected &&
+                              request.status !=
+                                  SessionReassignmentStatus.transferred &&
+                              request.status !=
+                                  SessionReassignmentStatus.declined &&
+                              request.status !=
+                                  SessionReassignmentStatus.expired &&
+                              request.status !=
+                                  SessionReassignmentStatus.cancelled)
+                            ElevatedButton.icon(
+                              onPressed: () =>
+                                  onSelectCounselor!(entry.counselorId),
+                              icon: const Icon(
+                                Icons.check_circle_outline_rounded,
+                              ),
+                              label: const Text('Choose counselor'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4F46E5),
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          if (onDecline != null &&
+              request.status != SessionReassignmentStatus.patientSelected &&
+              request.status != SessionReassignmentStatus.transferred &&
+              request.status != SessionReassignmentStatus.declined) ...[
+            const SizedBox(height: 6),
+            OutlinedButton.icon(
+              onPressed: onDecline,
+              icon: const Icon(Icons.close_rounded),
+              label: const Text('Decline transfer options'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestMetaPill extends StatelessWidget {
+  const _RequestMetaPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
     );
   }
 }

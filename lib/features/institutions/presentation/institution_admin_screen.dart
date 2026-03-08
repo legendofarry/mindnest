@@ -8,6 +8,7 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/data/institution_repository.dart';
+import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 enum AdminWorkspaceView {
@@ -904,6 +905,19 @@ class _InstitutionAdminScreenState
                                           onCreateInvite: _createInvite,
                                         ),
                                         const SizedBox(height: 14),
+                                        _CounselorWorkflowSettingsCard(
+                                          institutionRef: institutionRef,
+                                          onChanged: (settings) {
+                                            return ref
+                                                .read(
+                                                  institutionRepositoryProvider,
+                                                )
+                                                .updateCounselorWorkflowSettings(
+                                                  settings: settings,
+                                                );
+                                          },
+                                        ),
+                                        const SizedBox(height: 14),
                                         _ActionComponents(
                                           onOpenInvites: () {
                                             _setWorkspace(
@@ -939,17 +953,34 @@ class _InstitutionAdminScreenState
                                       const SizedBox(width: 14),
                                       Expanded(
                                         flex: 4,
-                                        child: _ActionComponents(
-                                          onOpenInvites: () {
-                                            _setWorkspace(
-                                              AdminWorkspaceView.allInvites,
-                                            );
-                                          },
-                                          onOpenMembers: () {
-                                            _setWorkspace(
-                                              AdminWorkspaceView.members,
-                                            );
-                                          },
+                                        child: Column(
+                                          children: [
+                                            _CounselorWorkflowSettingsCard(
+                                              institutionRef: institutionRef,
+                                              onChanged: (settings) {
+                                                return ref
+                                                    .read(
+                                                      institutionRepositoryProvider,
+                                                    )
+                                                    .updateCounselorWorkflowSettings(
+                                                      settings: settings,
+                                                    );
+                                              },
+                                            ),
+                                            const SizedBox(height: 14),
+                                            _ActionComponents(
+                                              onOpenInvites: () {
+                                                _setWorkspace(
+                                                  AdminWorkspaceView.allInvites,
+                                                );
+                                              },
+                                              onOpenMembers: () {
+                                                _setWorkspace(
+                                                  AdminWorkspaceView.members,
+                                                );
+                                              },
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
@@ -3215,6 +3246,288 @@ class _RoleChip extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CounselorWorkflowSettingsCard extends StatefulWidget {
+  const _CounselorWorkflowSettingsCard({
+    required this.institutionRef,
+    required this.onChanged,
+  });
+
+  final DocumentReference<Map<String, dynamic>> institutionRef;
+  final Future<void> Function(CounselorWorkflowSettings settings) onChanged;
+
+  @override
+  State<_CounselorWorkflowSettingsCard> createState() =>
+      _CounselorWorkflowSettingsCardState();
+}
+
+class _CounselorWorkflowSettingsCardState
+    extends State<_CounselorWorkflowSettingsCard> {
+  bool _savingDirectory = false;
+  bool _savingReassignment = false;
+
+  Future<void> _toggleDirectory(CounselorWorkflowSettings current) async {
+    if (_savingDirectory) {
+      return;
+    }
+    setState(() => _savingDirectory = true);
+    try {
+      await widget.onChanged(
+        CounselorWorkflowSettings(
+          directoryEnabled: !current.directoryEnabled,
+          reassignmentEnabled: current.reassignmentEnabled,
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            !current.directoryEnabled
+                ? 'Internal counselor directory enabled.'
+                : 'Internal counselor directory disabled.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _savingDirectory = false);
+      }
+    }
+  }
+
+  Future<void> _toggleReassignment(CounselorWorkflowSettings current) async {
+    if (_savingReassignment) {
+      return;
+    }
+    setState(() => _savingReassignment = true);
+    try {
+      await widget.onChanged(
+        CounselorWorkflowSettings(
+          directoryEnabled: current.directoryEnabled,
+          reassignmentEnabled: !current.reassignmentEnabled,
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            !current.reassignmentEnabled
+                ? 'Counselor reassignment requests enabled.'
+                : 'Counselor reassignment requests disabled.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _savingReassignment = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: widget.institutionRef.snapshots(),
+      builder: (context, snapshot) {
+        final settings = CounselorWorkflowSettings.fromInstitutionData(
+          snapshot.data?.data(),
+        );
+        return Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: const Color(0xFFDDE6EE)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x120F172A),
+                blurRadius: 24,
+                offset: Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _ModuleEyebrow(
+                label: 'COUNSELOR OPERATIONS',
+                color: Color(0xFF0E9B90),
+                background: Color(0xFFE7FAF8),
+                border: Color(0xFFB8F0E9),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Counselor collaboration controls',
+                style: TextStyle(
+                  color: Color(0xFF081A30),
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Turn on the internal counselor directory and counselor-to-counselor reassignment requests only if this institution wants that collaboration model.',
+                style: TextStyle(
+                  color: Color(0xFF6A7C93),
+                  fontWeight: FontWeight.w500,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _SettingToggleTile(
+                title: 'Allow counselors to view internal counselor directory',
+                subtitle:
+                    'Counselors in this institution can browse a limited internal directory with professional identity details only.',
+                value: settings.directoryEnabled,
+                busy: _savingDirectory,
+                onTap: () => _toggleDirectory(settings),
+              ),
+              const SizedBox(height: 12),
+              _SettingToggleTile(
+                title: 'Allow counselor-to-counselor reassignment requests',
+                subtitle:
+                    'Assigned counselors can open controlled replacement requests, collect interested counselors, and finalize the handoff only after patient approval.',
+                value: settings.reassignmentEnabled,
+                busy: _savingReassignment,
+                onTap: () => _toggleReassignment(settings),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SettingToggleTile extends StatelessWidget {
+  const _SettingToggleTile({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool value;
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(22),
+      onTap: busy ? null : onTap,
+      child: Ink(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FBFE),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: value ? const Color(0xFF93E2D8) : const Color(0xFFD9E5EF),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Color(0xFF0C2233),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Color(0xFF6A7C93),
+                      fontWeight: FontWeight.w500,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            busy
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                  )
+                : Switch.adaptive(value: value, onChanged: (_) => onTap()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ModuleEyebrow extends StatelessWidget {
+  const _ModuleEyebrow({
+    required this.label,
+    required this.color,
+    required this.background,
+    required this.border,
+  });
+
+  final String label;
+  final Color color;
+  final Color background;
+  final Color border;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1,
         ),
       ),
     );
