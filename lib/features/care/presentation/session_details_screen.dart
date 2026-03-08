@@ -25,6 +25,36 @@ class SessionDetailsScreen extends ConsumerStatefulWidget {
 
 class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
   bool _notesExpanded = false;
+  String? _reassignmentFeedbackMessage;
+  bool _reassignmentFeedbackIsError = true;
+
+  void _setReassignmentFeedback(String message, {required bool isError}) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _reassignmentFeedbackMessage = message.trim();
+      _reassignmentFeedbackIsError = isError;
+    });
+  }
+
+  void _clearReassignmentFeedback() {
+    if (!mounted || _reassignmentFeedbackMessage == null) {
+      return;
+    }
+    setState(() {
+      _reassignmentFeedbackMessage = null;
+      _reassignmentFeedbackIsError = true;
+    });
+  }
+
+  String _formatActionError(Object error) {
+    final raw = error.toString().trim();
+    return raw
+        .replaceFirst('Exception: ', '')
+        .replaceFirst('FirebaseException: ', '')
+        .trim();
+  }
 
   String _formatDateLabel(DateTime value) {
     const monthNames = <String>[
@@ -379,40 +409,95 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
               if (workflowSettings.reassignmentEnabled &&
                   appointment.counselorId == profile.id) ...[
                 const SizedBox(height: 18),
+                if ((_reassignmentFeedbackMessage ?? '').isNotEmpty) ...[
+                  _InlineReassignmentFeedback(
+                    message: _reassignmentFeedbackMessage!,
+                    isError: _reassignmentFeedbackIsError,
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 _CounselorReassignmentManagerCard(
                   appointment: appointment,
                   request: reassignmentRequest,
                   onCreateRequest: () async {
-                    await ref
-                        .read(careRepositoryProvider)
-                        .createReassignmentRequest(appointment: appointment);
+                    try {
+                      _clearReassignmentFeedback();
+                      await ref
+                          .read(careRepositoryProvider)
+                          .createReassignmentRequest(appointment: appointment);
+                      _setReassignmentFeedback(
+                        'Coverage request opened successfully.',
+                        isError: false,
+                      );
+                    } catch (error) {
+                      _setReassignmentFeedback(
+                        'Open coverage request failed: ${_formatActionError(error)}',
+                        isError: true,
+                      );
+                    }
                   },
                   onRecommend: (counselorId) async {
-                    await ref
-                        .read(careRepositoryProvider)
-                        .recommendInterestedCounselor(
-                          requestId: appointment.id,
-                          counselorId: counselorId,
-                        );
+                    try {
+                      _clearReassignmentFeedback();
+                      await ref
+                          .read(careRepositoryProvider)
+                          .recommendInterestedCounselor(
+                            requestId: appointment.id,
+                            counselorId: counselorId,
+                          );
+                      _setReassignmentFeedback(
+                        'Recommended counselor saved.',
+                        isError: false,
+                      );
+                    } catch (error) {
+                      _setReassignmentFeedback(
+                        'Recommendation failed: ${_formatActionError(error)}',
+                        isError: true,
+                      );
+                    }
                   },
                   onCancelRequest: reassignmentRequest == null
                       ? null
                       : () async {
-                          await ref
-                              .read(careRepositoryProvider)
-                              .cancelReassignmentRequest(
-                                reassignmentRequest.id,
-                              );
+                          try {
+                            _clearReassignmentFeedback();
+                            await ref
+                                .read(careRepositoryProvider)
+                                .cancelReassignmentRequest(
+                                  reassignmentRequest.id,
+                                );
+                            _setReassignmentFeedback(
+                              'Coverage request cancelled.',
+                              isError: false,
+                            );
+                          } catch (error) {
+                            _setReassignmentFeedback(
+                              'Cancel request failed: ${_formatActionError(error)}',
+                              isError: true,
+                            );
+                          }
                         },
                   onConfirmTransfer:
                       reassignmentRequest?.status ==
                           SessionReassignmentStatus.patientSelected
                       ? () async {
-                          await ref
-                              .read(careRepositoryProvider)
-                              .confirmReassignmentTransfer(
-                                reassignmentRequest!.id,
-                              );
+                          try {
+                            _clearReassignmentFeedback();
+                            await ref
+                                .read(careRepositoryProvider)
+                                .confirmReassignmentTransfer(
+                                  reassignmentRequest!.id,
+                                );
+                            _setReassignmentFeedback(
+                              'Transfer confirmed successfully.',
+                              isError: false,
+                            );
+                          } catch (error) {
+                            _setReassignmentFeedback(
+                              'Confirm transfer failed: ${_formatActionError(error)}',
+                              isError: true,
+                            );
+                          }
                         }
                       : null,
                 ),
@@ -1680,6 +1765,57 @@ class _CounselorReassignmentManagerCard extends StatelessWidget {
                   ),
                 ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineReassignmentFeedback extends StatelessWidget {
+  const _InlineReassignmentFeedback({
+    required this.message,
+    required this.isError,
+  });
+
+  final String message;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = isError ? const Color(0xFFDC2626) : const Color(0xFF0E9B90);
+    final background = isError
+        ? const Color(0xFFFFF1F2)
+        : const Color(0xFFECFDF5);
+    final border = isError ? const Color(0xFFFECACA) : const Color(0xFFA7F3D0);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(
+              isError ? Icons.error_outline_rounded : Icons.check_circle,
+              color: accent,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: accent,
+                fontWeight: FontWeight.w700,
+                height: 1.45,
+              ),
+            ),
           ),
         ],
       ),
