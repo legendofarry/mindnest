@@ -5,13 +5,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
-import 'package:mindnest/core/ui/back_to_home_button.dart';
-import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
+import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 
 class CounselorProfileSettingsScreen extends ConsumerStatefulWidget {
   const CounselorProfileSettingsScreen({super.key});
@@ -247,28 +247,45 @@ class _CounselorProfileSettingsScreenState
     }
   }
 
+  void _navigateSection(
+    BuildContext context,
+    CounselorWorkspaceNavSection section,
+  ) {
+    switch (section) {
+      case CounselorWorkspaceNavSection.dashboard:
+        context.go(AppRoute.counselorDashboard);
+      case CounselorWorkspaceNavSection.sessions:
+        context.go(AppRoute.counselorAppointments);
+      case CounselorWorkspaceNavSection.availability:
+        context.go(AppRoute.counselorAvailability);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(currentUserProfileProvider);
-    return MindNestShell(
-      maxWidth: 980,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text('Counselor Profile & Settings'),
-        leading: const BackToHomeButton(),
-      ),
-      child: profileAsync.when(
-        data: (profile) {
-          if (profile == null || profile.role != UserRole.counselor) {
-            return const GlassCard(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Only counselors can access this page.'),
-              ),
-            );
-          }
-          return StreamBuilder<CounselorProfile?>(
+    return profileAsync.when(
+      data: (profile) {
+        if (profile == null || profile.role != UserRole.counselor) {
+          return const Scaffold(
+            body: Center(child: Text('Only counselors can access this page.')),
+          );
+        }
+        final unreadCount =
+            ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
+        return CounselorWorkspaceScaffold(
+          profile: profile,
+          activeSection: CounselorWorkspaceNavSection.dashboard,
+          unreadNotifications: unreadCount,
+          profileHighlighted: true,
+          title: 'Profile Settings',
+          subtitle:
+              'Manage the professional profile students see, tune booking rules, and update counselor account controls from one workspace.',
+          onSelectSection: (section) => _navigateSection(context, section),
+          onNotifications: () => context.go(AppRoute.notifications),
+          onProfile: () {},
+          onLogout: () => confirmAndLogout(context: context, ref: ref),
+          child: StreamBuilder<CounselorProfile?>(
             stream: ref
                 .read(careRepositoryProvider)
                 .watchCounselorProfile(profile.id),
@@ -279,304 +296,621 @@ class _CounselorProfileSettingsScreenState
                     .watchNotificationSettings(profile.id),
                 builder: (context, nSnap) {
                   _seed(profile, cpSnap.data, nSnap.data ?? const {});
-                  return SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _Section(
-                          title: 'Public Profile',
-                          child: SwitchListTile.adaptive(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              _active
-                                  ? 'Visible to students'
-                                  : 'Hidden from students',
-                            ),
-                            subtitle: Text(
-                              profile.institutionName ?? 'Institution not set',
-                            ),
-                            value: _active,
-                            onChanged: (value) =>
-                                setState(() => _active = value),
-                          ),
-                        ),
-                        _Section(
-                          title: 'Professional Details',
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              children: [
-                                TextFormField(
-                                  controller: _name,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Display Name',
-                                    prefixIcon: Icon(Icons.person),
-                                  ),
-                                  validator: (value) =>
-                                      (value ?? '').trim().length < 2
-                                      ? 'Enter at least 2 characters.'
-                                      : null,
-                                ),
-                                const SizedBox(height: 10),
-                                TextFormField(
-                                  controller: _title,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Professional Title',
-                                    prefixIcon: Icon(Icons.badge),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                DropdownButtonFormField<String>(
-                                  initialValue: _specialization,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Specialization',
-                                    prefixIcon: Icon(Icons.psychology_alt),
-                                  ),
-                                  items: _specs
-                                      .map(
-                                        (e) => DropdownMenuItem(
-                                          value: e,
-                                          child: Text(e),
-                                        ),
-                                      )
-                                      .toList(growable: false),
-                                  onChanged: (value) => setState(
-                                    () => _specialization =
-                                        value ?? _specialization,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: TextFormField(
-                                        controller: _years,
-                                        keyboardType: TextInputType.number,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Years',
-                                          prefixIcon: Icon(Icons.timeline),
-                                        ),
-                                      ),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _SettingsHero(
+                        profile: profile,
+                        specialization: _specialization,
+                        isActive: _active,
+                        duration: _duration,
+                        directBooking: _direct,
+                      ),
+                      const SizedBox(height: 20),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final useTwoColumns = constraints.maxWidth >= 980;
+                          final halfWidth = useTwoColumns
+                              ? (constraints.maxWidth - 18) / 2
+                              : constraints.maxWidth;
+                          return Wrap(
+                            spacing: 18,
+                            runSpacing: 18,
+                            children: [
+                              SizedBox(
+                                width: halfWidth,
+                                child: _SettingsSectionCard(
+                                  title: 'Public Profile',
+                                  description:
+                                      'Control whether students can discover and book you from the institution directory.',
+                                  child: SwitchListTile.adaptive(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(
+                                      _active
+                                          ? 'Visible to students'
+                                          : 'Hidden from students',
                                     ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: DropdownButtonFormField<String>(
-                                        initialValue: _mode,
+                                    subtitle: Text(
+                                      profile.institutionName ??
+                                          'Institution not set',
+                                    ),
+                                    value: _active,
+                                    onChanged: (value) =>
+                                        setState(() => _active = value),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: halfWidth,
+                                child: _SettingsSectionCard(
+                                  title: 'Practice Settings',
+                                  description:
+                                      'Define the default session rhythm and how booking requests should behave.',
+                                  child: Column(
+                                    children: [
+                                      DropdownButtonFormField<int>(
+                                        initialValue: _duration,
                                         decoration: const InputDecoration(
-                                          labelText: 'Mode',
-                                          prefixIcon: Icon(Icons.video_call),
+                                          labelText: 'Default Session Duration',
+                                          prefixIcon: Icon(
+                                            Icons.timer_outlined,
+                                          ),
                                         ),
-                                        items: _modes
+                                        items: _durations
                                             .map(
                                               (e) => DropdownMenuItem(
                                                 value: e,
-                                                child: Text(e),
+                                                child: Text('$e min'),
                                               ),
                                             )
                                             .toList(growable: false),
                                         onChanged: (value) => setState(
-                                          () => _mode = value ?? _mode,
+                                          () => _duration = value ?? _duration,
                                         ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          const Expanded(
+                                            child: Text(
+                                              'Break Between Sessions',
+                                            ),
+                                          ),
+                                          Text('$_breakMins min'),
+                                        ],
+                                      ),
+                                      Slider(
+                                        value: _breakMins.toDouble(),
+                                        min: 0,
+                                        max: 30,
+                                        divisions: 6,
+                                        onChanged: (value) => setState(
+                                          () => _breakMins = value.round(),
+                                        ),
+                                      ),
+                                      SwitchListTile.adaptive(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text(
+                                          'Allow Direct Booking',
+                                        ),
+                                        value: _direct,
+                                        onChanged: (value) =>
+                                            setState(() => _direct = value),
+                                      ),
+                                      SwitchListTile.adaptive(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text(
+                                          'Auto-approve Follow-ups',
+                                        ),
+                                        value: _followUps,
+                                        onChanged: (value) =>
+                                            setState(() => _followUps = value),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: useTwoColumns
+                                    ? constraints.maxWidth
+                                    : halfWidth,
+                                child: _SettingsSectionCard(
+                                  title: 'Professional Details',
+                                  description:
+                                      'Edit the professional identity and public profile content students see in your counselor listing.',
+                                  trailing: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: ElevatedButton.icon(
+                                      onPressed: _savingProfile
+                                          ? null
+                                          : () => _save(profile),
+                                      icon: const Icon(Icons.save_rounded),
+                                      label: Text(
+                                        _savingProfile
+                                            ? 'Saving...'
+                                            : 'Save All Changes',
                                       ),
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                DropdownButtonFormField<String>(
-                                  initialValue: _timezone,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Timezone',
-                                    prefixIcon: Icon(Icons.public),
                                   ),
-                                  items: _zones
-                                      .map(
-                                        (e) => DropdownMenuItem(
-                                          value: e,
-                                          child: Text(e),
+                                  child: Form(
+                                    key: _formKey,
+                                    child: Column(
+                                      children: [
+                                        TextFormField(
+                                          controller: _name,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Display Name',
+                                            prefixIcon: Icon(Icons.person),
+                                          ),
+                                          validator: (value) =>
+                                              (value ?? '').trim().length < 2
+                                              ? 'Enter at least 2 characters.'
+                                              : null,
                                         ),
-                                      )
-                                      .toList(growable: false),
-                                  onChanged: (value) => setState(
-                                    () => _timezone = value ?? _timezone,
+                                        const SizedBox(height: 12),
+                                        TextFormField(
+                                          controller: _title,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Professional Title',
+                                            prefixIcon: Icon(Icons.badge),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        DropdownButtonFormField<String>(
+                                          initialValue: _specialization,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Specialization',
+                                            prefixIcon: Icon(
+                                              Icons.psychology_alt,
+                                            ),
+                                          ),
+                                          items: _specs
+                                              .map(
+                                                (e) => DropdownMenuItem(
+                                                  value: e,
+                                                  child: Text(e),
+                                                ),
+                                              )
+                                              .toList(growable: false),
+                                          onChanged: (value) => setState(
+                                            () => _specialization =
+                                                value ?? _specialization,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: TextFormField(
+                                                controller: _years,
+                                                keyboardType:
+                                                    TextInputType.number,
+                                                decoration:
+                                                    const InputDecoration(
+                                                      labelText: 'Years',
+                                                      prefixIcon: Icon(
+                                                        Icons.timeline,
+                                                      ),
+                                                    ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child:
+                                                  DropdownButtonFormField<
+                                                    String
+                                                  >(
+                                                    initialValue: _mode,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                          labelText: 'Mode',
+                                                          prefixIcon: Icon(
+                                                            Icons.video_call,
+                                                          ),
+                                                        ),
+                                                    items: _modes
+                                                        .map(
+                                                          (e) =>
+                                                              DropdownMenuItem(
+                                                                value: e,
+                                                                child: Text(e),
+                                                              ),
+                                                        )
+                                                        .toList(
+                                                          growable: false,
+                                                        ),
+                                                    onChanged: (value) =>
+                                                        setState(
+                                                          () => _mode =
+                                                              value ?? _mode,
+                                                        ),
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        DropdownButtonFormField<String>(
+                                          initialValue: _timezone,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Timezone',
+                                            prefixIcon: Icon(Icons.public),
+                                          ),
+                                          items: _zones
+                                              .map(
+                                                (e) => DropdownMenuItem(
+                                                  value: e,
+                                                  child: Text(e),
+                                                ),
+                                              )
+                                              .toList(growable: false),
+                                          onChanged: (value) => setState(
+                                            () =>
+                                                _timezone = value ?? _timezone,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        TextFormField(
+                                          controller: _langs,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Languages',
+                                            hintText: 'English, Swahili',
+                                            prefixIcon: Icon(Icons.language),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        TextFormField(
+                                          controller: _bio,
+                                          minLines: 3,
+                                          maxLines: 5,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Bio',
+                                            alignLabelWithHint: true,
+                                            prefixIcon: Icon(Icons.notes),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                                const SizedBox(height: 10),
-                                TextFormField(
-                                  controller: _langs,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Languages',
-                                    hintText: 'English, Swahili',
-                                    prefixIcon: Icon(Icons.language),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                TextFormField(
-                                  controller: _bio,
-                                  minLines: 3,
-                                  maxLines: 5,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Bio',
-                                    alignLabelWithHint: true,
-                                    prefixIcon: Icon(Icons.notes),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        _Section(
-                          title: 'Practice Settings',
-                          child: Column(
-                            children: [
-                              DropdownButtonFormField<int>(
-                                initialValue: _duration,
-                                decoration: const InputDecoration(
-                                  labelText: 'Default Session Duration',
-                                  prefixIcon: Icon(Icons.timer_outlined),
-                                ),
-                                items: _durations
-                                    .map(
-                                      (e) => DropdownMenuItem(
-                                        value: e,
-                                        child: Text('$e min'),
+                              ),
+                              SizedBox(
+                                width: halfWidth,
+                                child: _SettingsSectionCard(
+                                  title: 'Notifications',
+                                  description:
+                                      'Choose which counselor workflow alerts should be pushed into your notification center.',
+                                  trailing: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _savingNotif
+                                          ? null
+                                          : () => _saveNotif(profile),
+                                      icon: const Icon(
+                                        Icons.notifications_active,
                                       ),
-                                    )
-                                    .toList(growable: false),
-                                onChanged: (value) => setState(
-                                  () => _duration = value ?? _duration,
+                                      label: Text(
+                                        _savingNotif
+                                            ? 'Saving...'
+                                            : 'Save Notifications',
+                                      ),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      SwitchListTile.adaptive(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('Booking Updates'),
+                                        value: _bookingUpdates,
+                                        onChanged: (value) => setState(
+                                          () => _bookingUpdates = value,
+                                        ),
+                                      ),
+                                      SwitchListTile.adaptive(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('Reminders'),
+                                        value: _reminders,
+                                        onChanged: (value) =>
+                                            setState(() => _reminders = value),
+                                      ),
+                                      SwitchListTile.adaptive(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('Cancellations'),
+                                        value: _cancellations,
+                                        onChanged: (value) => setState(
+                                          () => _cancellations = value,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  const Expanded(
-                                    child: Text('Break Between Sessions'),
-                                  ),
-                                  Text('$_breakMins min'),
-                                ],
-                              ),
-                              Slider(
-                                value: _breakMins.toDouble(),
-                                min: 0,
-                                max: 30,
-                                divisions: 6,
-                                onChanged: (value) =>
-                                    setState(() => _breakMins = value.round()),
-                              ),
-                              SwitchListTile.adaptive(
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text('Allow Direct Booking'),
-                                value: _direct,
-                                onChanged: (value) =>
-                                    setState(() => _direct = value),
-                              ),
-                              SwitchListTile.adaptive(
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text('Auto-approve Follow-ups'),
-                                value: _followUps,
-                                onChanged: (value) =>
-                                    setState(() => _followUps = value),
-                              ),
-                            ],
-                          ),
-                        ),
-                        _Section(
-                          title: 'Notifications',
-                          child: Column(
-                            children: [
-                              SwitchListTile.adaptive(
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text('Booking Updates'),
-                                value: _bookingUpdates,
-                                onChanged: (value) =>
-                                    setState(() => _bookingUpdates = value),
-                              ),
-                              SwitchListTile.adaptive(
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text('Reminders'),
-                                value: _reminders,
-                                onChanged: (value) =>
-                                    setState(() => _reminders = value),
-                              ),
-                              SwitchListTile.adaptive(
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text('Cancellations'),
-                                value: _cancellations,
-                                onChanged: (value) =>
-                                    setState(() => _cancellations = value),
-                              ),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: OutlinedButton.icon(
-                                  onPressed: _savingNotif
-                                      ? null
-                                      : () => _saveNotif(profile),
-                                  icon: const Icon(Icons.notifications_active),
-                                  label: Text(
-                                    _savingNotif
-                                        ? 'Saving...'
-                                        : 'Save Notifications',
+                              SizedBox(
+                                width: halfWidth,
+                                child: _SettingsSectionCard(
+                                  title: 'Account',
+                                  description:
+                                      'Security, privacy, and export actions for your counselor account.',
+                                  child: Column(
+                                    children: [
+                                      _ActionTile(
+                                        icon: Icons.lock_reset,
+                                        title: 'Send Password Reset Link',
+                                        subtitle: profile.email,
+                                        onTap: _sendingReset
+                                            ? null
+                                            : () => _sendReset(profile),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      _ActionTile(
+                                        icon: Icons.privacy_tip_outlined,
+                                        title: 'Privacy & Data Controls',
+                                        subtitle:
+                                            'Open privacy controls and account data settings.',
+                                        onTap: () => context.go(
+                                          AppRoute.privacyControls,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      _ActionTile(
+                                        icon: Icons.download_rounded,
+                                        title: 'Export My Data',
+                                        subtitle:
+                                            'Copy the current account export to the clipboard.',
+                                        onTap: _exporting ? null : _exportData,
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                        _Section(
-                          title: 'Account',
-                          child: Column(
-                            children: [
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.lock_reset),
-                                title: const Text('Send Password Reset Link'),
-                                subtitle: Text(profile.email),
-                                onTap: _sendingReset
-                                    ? null
-                                    : () => _sendReset(profile),
-                              ),
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.privacy_tip),
-                                title: const Text('Privacy & Data Controls'),
-                                onTap: () =>
-                                    context.go(AppRoute.privacyControls),
-                              ),
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.download),
-                                title: const Text('Export My Data'),
-                                onTap: _exporting ? null : _exportData,
-                              ),
-                            ],
-                          ),
-                        ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: ElevatedButton.icon(
-                            onPressed: _savingProfile
-                                ? null
-                                : () => _save(profile),
-                            icon: const Icon(Icons.save),
-                            label: Text(
-                              _savingProfile ? 'Saving...' : 'Save All Changes',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                      ],
-                    ),
+                          );
+                        },
+                      ),
+                    ],
                   );
                 },
               );
             },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => GlassCard(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(error.toString()),
+          ),
+        );
+      },
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (error, _) =>
+          Scaffold(body: Center(child: Text(error.toString()))),
+    );
+  }
+}
+
+class _SettingsHero extends StatelessWidget {
+  const _SettingsHero({
+    required this.profile,
+    required this.specialization,
+    required this.isActive,
+    required this.duration,
+    required this.directBooking,
+  });
+
+  final UserProfile profile;
+  final String specialization;
+  final bool isActive;
+  final int duration;
+  final bool directBooking;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = profile.name.trim().isNotEmpty
+        ? profile.name.trim()
+        : 'Counselor';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F172A), Color(0xFF1D4ED8), Color(0xFF0E9B90)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(34),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1D1D4ED8),
+            blurRadius: 28,
+            offset: Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _HeroPill(
+                label: isActive
+                    ? 'VISIBLE TO STUDENTS'
+                    : 'HIDDEN FROM STUDENTS',
+                background: isActive
+                    ? const Color(0x3310B981)
+                    : const Color(0x33F97316),
+              ),
+              _HeroPill(
+                label: specialization.toUpperCase(),
+                background: const Color(0x22FFFFFF),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            displayName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 38,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1.4,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            profile.institutionName ?? 'Institution workspace',
+            style: const TextStyle(
+              color: Color(0xFFE3F2FF),
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: [
+              _HeroMetricCard(label: 'Session default', value: '$duration min'),
+              _HeroMetricCard(
+                label: 'Direct booking',
+                value: directBooking ? 'Enabled' : 'Manual review',
+              ),
+              _HeroMetricCard(label: 'Email', value: profile.email),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsSectionCard extends StatelessWidget {
+  const _SettingsSectionCard({
+    required this.title,
+    required this.description,
+    required this.child,
+    this.trailing,
+  });
+
+  final String title;
+  final String description;
+  final Widget child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 18,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                color: Color(0xFF081A30),
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: const TextStyle(
+                color: Color(0xFF6A7C93),
+                fontSize: 14.5,
+                height: 1.45,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 18),
+            child,
+            if (trailing != null) ...[const SizedBox(height: 16), trailing!],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FBFE),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFDDE6EE)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0E9B90).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: const Color(0xFF0E9B90)),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Color(0xFF081A30),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: Color(0xFF6A7C93),
+                        fontSize: 13.5,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: Color(0xFF7B8CA4),
+              ),
+            ],
           ),
         ),
       ),
@@ -584,34 +918,74 @@ class _CounselorProfileSettingsScreenState
   }
 }
 
-class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.child});
+class _HeroPill extends StatelessWidget {
+  const _HeroPill({required this.label, required this.background});
 
-  final String title;
-  final Widget child;
+  final String label;
+  final Color background;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 17,
-                ),
-              ),
-              const SizedBox(height: 10),
-              child,
-            ],
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x30FFFFFF)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1,
         ),
+      ),
+    );
+  }
+}
+
+class _HeroMetricCard extends StatelessWidget {
+  const _HeroMetricCard({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 180),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: const Color(0x1FFFFFFF),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x33FFFFFF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              color: Color(0xFFDDEBFF),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
