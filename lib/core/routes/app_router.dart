@@ -615,6 +615,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.counselorSettings,
         builder: (context, state) => const CounselorProfileSettingsScreen(),
       ),
+      GoRoute(
+        path: AppRoute.counselorDirectory,
+        builder: (context, state) => const CounselorDirectoryScreen(),
+      ),
       ShellRoute(
         builder: (context, state, child) => DesktopPrimaryShell(child: child),
         routes: [
@@ -622,11 +626,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: AppRoute.home,
             builder: (context, state) =>
                 const HomeScreen(embeddedInDesktopShell: true),
-          ),
-          GoRoute(
-            path: AppRoute.counselorDirectory,
-            builder: (context, state) =>
-                const CounselorDirectoryScreen(embeddedInDesktopShell: true),
           ),
           GoRoute(
             path: AppRoute.studentAppointments,
