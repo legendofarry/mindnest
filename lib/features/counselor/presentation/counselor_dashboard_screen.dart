@@ -1243,16 +1243,6 @@ class _HeroPanel extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 18),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  _GhostMetric(label: 'Title', value: summary.title),
-                  _GhostMetric(label: 'Mode', value: summary.sessionMode),
-                  _GhostMetric(label: 'Timezone', value: summary.timezone),
-                ],
-              ),
               const SizedBox(height: 20),
               Wrap(
                 spacing: 12,
@@ -2269,47 +2259,6 @@ class _Eyebrow extends StatelessWidget {
           fontWeight: FontWeight.w800,
           letterSpacing: 1.4,
         ),
-      ),
-    );
-  }
-}
-
-class _GhostMetric extends StatelessWidget {
-  const _GhostMetric({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0x24FFFFFF),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0x50FFFFFF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: const TextStyle(
-              color: Color(0xFFD6E4EE),
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.1,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
       ),
     );
   }
