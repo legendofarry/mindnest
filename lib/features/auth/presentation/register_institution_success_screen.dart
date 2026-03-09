@@ -398,28 +398,6 @@ class _HeroPanel extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                SizedBox(height: compact ? 18 : 22),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: const [
-                    _MiniStatCard(
-                      value: 'READY',
-                      label: 'Account state',
-                      accent: Color(0xFF3FE3C4),
-                    ),
-                    _MiniStatCard(
-                      value: 'LIVE',
-                      label: 'Welcome access',
-                      accent: Color(0xFF7BA8FF),
-                    ),
-                    _MiniStatCard(
-                      value: 'NEXT',
-                      label: 'Workspace review',
-                      accent: Color(0xFFFFC96C),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
@@ -520,45 +498,6 @@ class _ActionPanel extends StatelessWidget {
             description:
                 'Join codes, counselor invites, and member workflows are all staged in one place.',
             accent: Color(0xFF17C3B2),
-          ),
-          const SizedBox(height: 12),
-          const _StepCard(
-            step: '03',
-            title: 'Move into the workspace',
-            description:
-                'Continue only when you are done reading this screen. It will not flash away anymore.',
-            accent: Color(0xFFFF9B71),
-          ),
-          SizedBox(height: compact ? 18 : 22),
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              gradient: const LinearGradient(
-                colors: [Color(0xFFF8FBFF), Color(0xFFF7FFFD)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              border: Border.all(color: const Color(0xFFDCEAFE)),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_rounded, color: Color(0xFF2E86FF), size: 22),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'This welcome screen now stays visible until you press continue. '
-                    'That makes it a real acknowledgment step instead of a transient redirect.',
-                    style: TextStyle(
-                      color: Color(0xFF4C617C),
-                      height: 1.45,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
           SizedBox(height: compact ? 20 : 26),
           _ContinueButton(
@@ -762,59 +701,6 @@ class _MetaPill extends StatelessWidget {
             style: const TextStyle(
               color: Color(0xFF314661),
               fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniStatCard extends StatelessWidget {
-  const _MiniStatCard({
-    required this.value,
-    required this.label,
-    required this.accent,
-  });
-
-  final String value;
-  final String label;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: 130),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.4,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFFBFD0EC),
-              fontWeight: FontWeight.w600,
             ),
           ),
         ],
