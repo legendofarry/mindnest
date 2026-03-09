@@ -111,19 +111,19 @@ class _RegisterContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showSideBySideMobileChoices = !isDesktop && !_hasInviteContext;
+    final showSideBySideChoices = !_hasInviteContext;
     final createAccountCard = _AccountTypeCard(
       icon: Icons.account_circle_outlined,
       title: 'Create Account',
       description: 'Use wellness tools and access resources.',
-      compact: showSideBySideMobileChoices,
+      compact: showSideBySideChoices,
       onTap: () => context.go(_registerDetailsRoute()),
     );
     final counselorCard = _AccountTypeCard(
       icon: Icons.psychology_alt_outlined,
       title: 'I am a Counselor',
       description: 'Create your account for institution counselor.',
-      compact: showSideBySideMobileChoices,
+      compact: showSideBySideChoices,
       onTap: () => context.go(
         _registerDetailsRoute(
           routeRegistrationIntent: UserProfile.counselorRegistrationIntent,
@@ -178,12 +178,12 @@ class _RegisterContent extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        if (showSideBySideMobileChoices) ...[
+        if (showSideBySideChoices) ...[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(child: createAccountCard),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(child: counselorCard),
             ],
           ),
