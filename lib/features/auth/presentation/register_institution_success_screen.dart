@@ -558,7 +558,7 @@ class _ContinueButton extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Continue to Institution Workspace',
+                    'WELCOME',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16.6,
