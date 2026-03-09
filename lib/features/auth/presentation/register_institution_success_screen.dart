@@ -19,43 +19,51 @@ class RegisterInstitutionSuccessScreen extends ConsumerStatefulWidget {
 class _RegisterInstitutionSuccessScreenState
     extends ConsumerState<RegisterInstitutionSuccessScreen> {
   static const _desktopBreakpoint = 1100.0;
-  bool _dismissAttempted = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _dismissWelcomeIfNeeded();
-    });
-  }
+  bool _isContinuing = false;
 
   Future<void> _dismissWelcomeIfNeeded() async {
-    if (_dismissAttempted || !mounted) {
+    if (_isContinuing || !mounted) {
       return;
     }
-    _dismissAttempted = true;
+    setState(() => _isContinuing = true);
     try {
       await ref.read(institutionRepositoryProvider).dismissInstitutionWelcome();
-    } catch (_) {
-      // Ignore cleanup failure; the screen should still be usable.
+      if (!mounted) {
+        return;
+      }
+      context.go(AppRoute.institutionAdmin);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+      setState(() => _isContinuing = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= _desktopBreakpoint;
-    final content = _SuccessCard(institutionName: widget.institutionName);
+    final content = _SuccessCard(
+      institutionName: widget.institutionName,
+      isContinuing: _isContinuing,
+      onContinue: _dismissWelcomeIfNeeded,
+    );
 
     if (isDesktop) {
       return AuthDesktopShell(
-        heroHighlightText: 'Institution request',
+        heroHighlightText: 'Institution workspace',
         heroBaseText: 'ready.',
         heroDescription:
-            'Your email is verified and your workspace request is now in '
-            'review. Enter the institution workspace to track approval and '
-            'next steps.',
+            'Your institution-admin account is ready. Continue when you are '
+            'done reviewing this summary and we will take you into the '
+            'workspace.',
         metrics: const [
-          AuthDesktopMetric(value: '30m', label: 'REVIEW TARGET'),
+          AuthDesktopMetric(value: 'READY', label: 'ACCOUNT STATUS'),
           AuthDesktopMetric(value: 'READY', label: 'EMAIL STATUS'),
         ],
         formChild: content,
@@ -84,9 +92,15 @@ class _RegisterInstitutionSuccessScreenState
 }
 
 class _SuccessCard extends StatelessWidget {
-  const _SuccessCard({this.institutionName});
+  const _SuccessCard({
+    this.institutionName,
+    required this.isContinuing,
+    required this.onContinue,
+  });
 
   final String? institutionName;
+  final bool isContinuing;
+  final Future<void> Function() onContinue;
 
   @override
   Widget build(BuildContext context) {
@@ -184,22 +198,32 @@ class _SuccessCard extends StatelessWidget {
             ],
           ),
           child: ElevatedButton(
-            onPressed: () => context.go(AppRoute.institutionAdmin),
+            onPressed: isContinuing ? null : onContinue,
             style: ElevatedButton.styleFrom(
               shadowColor: Colors.transparent,
               backgroundColor: Colors.transparent,
+              disabledBackgroundColor: Colors.transparent,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
               ),
             ),
-            child: const Text(
-              'Enter Institution Workspace  ->',
-              style: TextStyle(
-                fontSize: 16.5,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
+            child: isContinuing
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Text(
+                    'Continue to Institution Workspace  ->',
+                    style: TextStyle(
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
           ),
         ),
       ],
