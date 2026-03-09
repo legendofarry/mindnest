@@ -10,7 +10,9 @@ import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
+import 'package:mindnest/features/care/models/session_reassignment_request.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 
 class CounselorDashboardScreen extends ConsumerStatefulWidget {
   const CounselorDashboardScreen({super.key});
@@ -30,9 +32,110 @@ enum _CounselorWorkspaceSection {
 }
 
 class _CounselorDashboardScreenState
-    extends ConsumerState<CounselorDashboardScreen> {
+    extends ConsumerState<CounselorDashboardScreen>
+    with SingleTickerProviderStateMixin {
   _CounselorWorkspaceSection _activeSection =
       _CounselorWorkspaceSection.overview;
+  late final AnimationController _reassignmentPulseController;
+  final Set<String> _homePendingRequestIds = <String>{};
+  String? _homeReassignmentFeedbackMessage;
+  bool _homeReassignmentFeedbackIsError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _reassignmentPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _reassignmentPulseController.dispose();
+    super.dispose();
+  }
+
+  void _setHomeReassignmentFeedback(String message, {required bool isError}) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _homeReassignmentFeedbackMessage = message;
+      _homeReassignmentFeedbackIsError = isError;
+    });
+  }
+
+  String _formatActionError(Object error, String fallback) {
+    final raw = error.toString().trim();
+    if (raw.isEmpty) {
+      return fallback;
+    }
+    return raw
+        .replaceFirst('Exception: ', '')
+        .replaceFirst('Bad state: ', '')
+        .trim();
+  }
+
+  Future<void> _handleHomeReassignmentInterest(
+    SessionReassignmentRequest request,
+  ) async {
+    if (_homePendingRequestIds.contains(request.id)) {
+      return;
+    }
+    setState(() {
+      _homePendingRequestIds.add(request.id);
+      _homeReassignmentFeedbackMessage = null;
+    });
+    try {
+      await ref
+          .read(careRepositoryProvider)
+          .expressInterestInReassignment(request.id);
+      _setHomeReassignmentFeedback(
+        'You were added to the interested counselors list.',
+        isError: false,
+      );
+    } catch (error) {
+      _setHomeReassignmentFeedback(
+        _formatActionError(
+          error,
+          'Unable to respond to this coverage request right now.',
+        ),
+        isError: true,
+      );
+    } finally {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _homePendingRequestIds.remove(request.id);
+      });
+    }
+  }
+
+  void _syncReassignmentLifecycle(
+    List<SessionReassignmentRequest> requests,
+    String institutionId,
+  ) {
+    if (institutionId.trim().isEmpty) {
+      return;
+    }
+    final nowUtc = DateTime.now().toUtc();
+    for (final request in requests) {
+      final responseExpired =
+          request.status == SessionReassignmentStatus.openForResponses &&
+          nowUtc.isAfter(request.responseDeadlineAt);
+      final choiceExpired =
+          request.status == SessionReassignmentStatus.awaitingPatientChoice &&
+          request.choiceDeadlineAt != null &&
+          nowUtc.isAfter(request.choiceDeadlineAt!);
+      if (responseExpired || choiceExpired) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(careRepositoryProvider).syncReassignmentLifecycle(request.id);
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,12 +175,19 @@ class _CounselorDashboardScreenState
                       .watch(unreadNotificationCountProvider(profile.id))
                       .value ??
                   0;
-              final showCounselorDirectory =
+              final workflowSettings =
                   ref
                       .watch(counselorWorkflowSettingsProvider(institutionId))
-                      .valueOrNull
-                      ?.directoryEnabled ??
-                  false;
+                      .valueOrNull ??
+                  const CounselorWorkflowSettings.disabled();
+              final showCounselorDirectory =
+                  workflowSettings.directoryEnabled;
+              final reassignmentRequests =
+                  ref
+                      .watch(institutionReassignmentBoardProvider(institutionId))
+                      .valueOrNull ??
+                  const <SessionReassignmentRequest>[];
+              _syncReassignmentLifecycle(reassignmentRequests, institutionId);
               final sidebarItems = _sidebarItems(showCounselorDirectory);
 
               return StreamBuilder<List<AppointmentRecord>>(
@@ -115,12 +225,16 @@ class _CounselorDashboardScreenState
                                   context: context,
                                   profile: profile,
                                   summary: summary,
+                                  workflowSettings: workflowSettings,
+                                  reassignmentRequests: reassignmentRequests,
                                   sidebarItems: sidebarItems,
                                 )
                               : _buildMobileWorkspace(
                                   context: context,
                                   profile: profile,
                                   summary: summary,
+                                  workflowSettings: workflowSettings,
+                                  reassignmentRequests: reassignmentRequests,
                                   isTablet: isTablet,
                                   sidebarItems: sidebarItems,
                                 );
@@ -147,6 +261,8 @@ class _CounselorDashboardScreenState
     required BuildContext context,
     required UserProfile profile,
     required _WorkspaceSummary summary,
+    required CounselorWorkflowSettings workflowSettings,
+    required List<SessionReassignmentRequest> reassignmentRequests,
     required List<_SidebarItem> sidebarItems,
   }) {
     final shell = _sectionShell(_activeSection);
@@ -214,6 +330,8 @@ class _CounselorDashboardScreenState
                           context: context,
                           profile: profile,
                           summary: summary,
+                          workflowSettings: workflowSettings,
+                          reassignmentRequests: reassignmentRequests,
                           isDesktop: true,
                         ),
                       ),
@@ -232,6 +350,8 @@ class _CounselorDashboardScreenState
     required BuildContext context,
     required UserProfile profile,
     required _WorkspaceSummary summary,
+    required CounselorWorkflowSettings workflowSettings,
+    required List<SessionReassignmentRequest> reassignmentRequests,
     required bool isTablet,
     required List<_SidebarItem> sidebarItems,
   }) {
@@ -294,6 +414,8 @@ class _CounselorDashboardScreenState
                   context: context,
                   profile: profile,
                   summary: summary,
+                  workflowSettings: workflowSettings,
+                  reassignmentRequests: reassignmentRequests,
                   isDesktop: false,
                 ),
               ),
@@ -308,6 +430,8 @@ class _CounselorDashboardScreenState
     required BuildContext context,
     required UserProfile profile,
     required _WorkspaceSummary summary,
+    required CounselorWorkflowSettings workflowSettings,
+    required List<SessionReassignmentRequest> reassignmentRequests,
     required bool isDesktop,
   }) {
     switch (_activeSection) {
@@ -315,6 +439,8 @@ class _CounselorDashboardScreenState
         return _buildOverviewSection(
           profile: profile,
           summary: summary,
+          workflowSettings: workflowSettings,
+          reassignmentRequests: reassignmentRequests,
           isDesktop: isDesktop,
           onOpenAppointments: () => context.go(AppRoute.counselorAppointments),
           onOpenAvailability: () => context.go(AppRoute.counselorAvailability),
@@ -354,6 +480,8 @@ class _CounselorDashboardScreenState
   Widget _buildOverviewSection({
     required UserProfile profile,
     required _WorkspaceSummary summary,
+    required CounselorWorkflowSettings workflowSettings,
+    required List<SessionReassignmentRequest> reassignmentRequests,
     required bool isDesktop,
     required VoidCallback onOpenAppointments,
     required VoidCallback onOpenAvailability,
@@ -386,9 +514,44 @@ class _CounselorDashboardScreenState
       ),
     ];
 
+    final activeRequests = reassignmentRequests
+        .where(
+          (entry) =>
+              entry.status == SessionReassignmentStatus.openForResponses ||
+              entry.status == SessionReassignmentStatus.awaitingPatientChoice ||
+              entry.status == SessionReassignmentStatus.patientSelected,
+        )
+        .toList(growable: false);
+    final actionableRequests = activeRequests
+        .where(
+          (entry) =>
+              entry.originalCounselorId != profile.id &&
+              entry.status == SessionReassignmentStatus.openForResponses &&
+              !entry.interestedCounselors.any(
+                (item) => item.counselorId == profile.id,
+              ),
+        )
+        .toList(growable: false);
+    final myActiveRequests = activeRequests
+        .where((entry) => entry.originalCounselorId == profile.id)
+        .toList(growable: false);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (workflowSettings.reassignmentEnabled && activeRequests.isNotEmpty) ...[
+          _HomeReassignmentAlertCard(
+            pulse: _reassignmentPulseController,
+            actionableRequests: actionableRequests,
+            myActiveRequests: myActiveRequests,
+            pendingRequestIds: _homePendingRequestIds,
+            feedbackMessage: _homeReassignmentFeedbackMessage,
+            feedbackIsError: _homeReassignmentFeedbackIsError,
+            onOpenBoard: onOpenAppointments,
+            onTakeRequest: _handleHomeReassignmentInterest,
+          ),
+          const SizedBox(height: 20),
+        ],
         _HeroPanel(
           summary: summary,
           onPrimaryTap: onOpenAppointments,
@@ -1418,6 +1581,329 @@ class _HeroPanel extends StatelessWidget {
                   ],
                 );
         },
+      ),
+    );
+  }
+}
+
+class _HomeReassignmentAlertCard extends StatelessWidget {
+  const _HomeReassignmentAlertCard({
+    required this.pulse,
+    required this.actionableRequests,
+    required this.myActiveRequests,
+    required this.pendingRequestIds,
+    required this.feedbackMessage,
+    required this.feedbackIsError,
+    required this.onOpenBoard,
+    required this.onTakeRequest,
+  });
+
+  final Animation<double> pulse;
+  final List<SessionReassignmentRequest> actionableRequests;
+  final List<SessionReassignmentRequest> myActiveRequests;
+  final Set<String> pendingRequestIds;
+  final String? feedbackMessage;
+  final bool feedbackIsError;
+  final VoidCallback onOpenBoard;
+  final Future<void> Function(SessionReassignmentRequest request) onTakeRequest;
+
+  String _formatWindow(DateTime startAt, DateTime endAt) {
+    final start = startAt.toLocal();
+    final end = endAt.toLocal();
+    return '${start.month}/${start.day} '
+        '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')} - '
+        '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}';
+  }
+
+  String _headline(SessionReassignmentRequest request) {
+    final specialization = request.requiredSpecialization.trim();
+    if (specialization.isNotEmpty) {
+      return specialization;
+    }
+    return 'Coverage request needs attention';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final previewRequest = actionableRequests.isNotEmpty
+        ? actionableRequests.first
+        : myActiveRequests.first;
+    final actionableCount = actionableRequests.length;
+    final myCount = myActiveRequests.length;
+
+    return AnimatedBuilder(
+      animation: pulse,
+      builder: (context, child) {
+        final glow = 0.16 + (pulse.value * 0.22);
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF5B21B6), Color(0xFF0F766E), Color(0xFF0F172A)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF7C3AED).withValues(alpha: glow),
+                blurRadius: 34 + (pulse.value * 18),
+                spreadRadius: 1.5 + (pulse.value * 3),
+                offset: const Offset(0, 16),
+              ),
+            ],
+          ),
+          child: Container(
+            margin: const EdgeInsets.all(1.2),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(29),
+              color: const Color(0xCC081A30),
+              border: Border.all(
+                color: const Color(0xFFDDD6FE).withValues(
+                  alpha: 0.62 + (pulse.value * 0.28),
+                ),
+              ),
+            ),
+            child: child,
+          ),
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const _Eyebrow(
+                text: 'ACTION NEEDED',
+                color: Color(0xFFFDE68A),
+              ),
+              _AlertPill(
+                icon: Icons.campaign_rounded,
+                label: actionableCount > 0
+                    ? '$actionableCount open request${actionableCount == 1 ? '' : 's'}'
+                    : '$myCount live coverage request${myCount == 1 ? '' : 's'}',
+              ),
+              if (myCount > 0)
+                _AlertPill(
+                  icon: Icons.flag_rounded,
+                  label: '$myCount yours live',
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            actionableCount > 0
+                ? 'Coverage request now live on your home screen.'
+                : 'Your reassignment request is still active.',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1,
+              height: 1.08,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            actionableCount > 0
+                ? 'A counselor in your institution needs replacement coverage. Respond from here or open the full board for the full queue.'
+                : 'Your coverage board is active. Keep it visible here while you wait for interested counselors or move into the full sessions board.',
+            style: const TextStyle(
+              color: Color(0xFFD7E5F0),
+              fontSize: 15,
+              height: 1.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: const Color(0x22FFFFFF),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0x44FFFFFF)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _headline(previewRequest),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.7,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _AlertPill(
+                      icon: Icons.schedule_rounded,
+                      label: _formatWindow(
+                        previewRequest.sessionStartAt,
+                        previewRequest.sessionEndAt,
+                      ),
+                    ),
+                    _AlertPill(
+                      icon: Icons.sync_alt_rounded,
+                      label: 'Mode: ${previewRequest.sessionMode}',
+                    ),
+                    _AlertPill(
+                      icon: Icons.groups_rounded,
+                      label:
+                          '${previewRequest.interestedCounselors.length}/${previewRequest.maxInterestedCounselors} interested',
+                    ),
+                  ],
+                ),
+                if (actionableCount > 1 || myCount > 1) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    actionableCount > 1
+                        ? '+${actionableCount - 1} more open request${actionableCount - 1 == 1 ? '' : 's'} waiting in the board.'
+                        : '+${myCount - 1} more live request${myCount - 1 == 1 ? '' : 's'} in your board.',
+                    style: const TextStyle(
+                      color: Color(0xFFE2E8F0),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (feedbackMessage != null) ...[
+            const SizedBox(height: 14),
+            _HomeReassignmentFeedbackBanner(
+              message: feedbackMessage!,
+              isError: feedbackIsError,
+            ),
+          ],
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              if (actionableCount > 0)
+                FilledButton.icon(
+                  onPressed: pendingRequestIds.contains(previewRequest.id)
+                      ? null
+                      : () => onTakeRequest(previewRequest),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF0C2233),
+                  ),
+                  icon: pendingRequestIds.contains(previewRequest.id)
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2.2),
+                        )
+                      : const Icon(Icons.volunteer_activism_outlined),
+                  label: Text(
+                    pendingRequestIds.contains(previewRequest.id)
+                        ? 'Adding You...'
+                        : 'I Can Take It',
+                  ),
+                ),
+              OutlinedButton.icon(
+                onPressed: onOpenBoard,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0x88FFFFFF)),
+                ),
+                icon: const Icon(Icons.open_in_new_rounded),
+                label: Text(
+                  actionableCount > 0 ? 'Open Coverage Board' : 'Open Sessions',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AlertPill extends StatelessWidget {
+  const _AlertPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0x1FFFFFFF),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x44FFFFFF)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFFF8FAFC)),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFFF8FAFC),
+              fontWeight: FontWeight.w700,
+              fontSize: 12.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeReassignmentFeedbackBanner extends StatelessWidget {
+  const _HomeReassignmentFeedbackBanner({
+    required this.message,
+    required this.isError,
+  });
+
+  final String message;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = isError
+        ? const Color(0xFF7F1D1D).withValues(alpha: 0.75)
+        : const Color(0xFF0F766E).withValues(alpha: 0.78);
+    final border = isError
+        ? const Color(0xFFFCA5A5)
+        : const Color(0xFFA7F3D0);
+    final icon = isError ? Icons.error_outline_rounded : Icons.check_circle;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: border.withValues(alpha: 0.78)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: Colors.white),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -224,9 +224,13 @@ class _RegisterContent extends StatelessWidget {
           alignment: Alignment.center,
           child: TextButton(
             onPressed: () => context.go(AppRoute.registerInstitution),
+            style: TextButton.styleFrom(
+              backgroundColor: const Color(0xFF0E9B90), // button background
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
             child: const Text(
-              'Institution Admin? Register Institution',
-              style: TextStyle(color: Color(0xFF6A7D96)),
+              'Register Institution',
+              style: TextStyle(color: Colors.white), // text color
             ),
           ),
         ),
