@@ -1702,6 +1702,20 @@ class _HeroCard extends StatefulWidget {
 class _HeroCardState extends State<_HeroCard> {
   String? _autoRefreshedCode;
 
+  Stream<Map<String, dynamic>?> _heroDataStream() {
+    return widget.institutionRef.snapshots().map((snapshot) => snapshot.data()).distinct((
+      previous,
+      next,
+    ) {
+      return (previous?['name'] as String?) == (next?['name'] as String?) &&
+          (previous?['joinCode'] as String?) == (next?['joinCode'] as String?) &&
+          ((previous?['joinCodeUsageCount'] as num?)?.toInt() ?? 0) ==
+              ((next?['joinCodeUsageCount'] as num?)?.toInt() ?? 0) &&
+          _parseTimestamp(previous?['joinCodeExpiresAt']) ==
+              _parseTimestamp(next?['joinCodeExpiresAt']);
+    });
+  }
+
   DateTime? _parseTimestamp(dynamic value) {
     if (value is Timestamp) {
       return value.toDate();
@@ -1727,10 +1741,10 @@ class _HeroCardState extends State<_HeroCard> {
   @override
   Widget build(BuildContext context) {
     return GlassCard(
-      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: widget.institutionRef.snapshots(),
+      child: StreamBuilder<Map<String, dynamic>?>(
+        stream: _heroDataStream(),
         builder: (context, snapshot) {
-          final data = snapshot.data?.data();
+          final data = snapshot.data;
           final name = (data?['name'] as String?) ?? widget.fallbackName;
           final joinCode = (data?['joinCode'] as String?) ?? '--';
           final usageCount =
@@ -3059,19 +3073,41 @@ class _CounselorWorkflowSettingsCardState
     extends State<_CounselorWorkflowSettingsCard> {
   bool _savingDirectory = false;
   bool _savingReassignment = false;
+  CounselorWorkflowSettings? _pendingSettings;
+
+  bool _sameSettings(
+    CounselorWorkflowSettings left,
+    CounselorWorkflowSettings right,
+  ) {
+    return left.directoryEnabled == right.directoryEnabled &&
+        left.reassignmentEnabled == right.reassignmentEnabled;
+  }
+
+  Stream<CounselorWorkflowSettings> _settingsStream() {
+    return widget.institutionRef
+        .snapshots()
+        .map(
+          (snapshot) => CounselorWorkflowSettings.fromInstitutionData(
+            snapshot.data(),
+          ),
+        )
+        .distinct((previous, next) => _sameSettings(previous, next));
+  }
 
   Future<void> _toggleDirectory(CounselorWorkflowSettings current) async {
     if (_savingDirectory) {
       return;
     }
-    setState(() => _savingDirectory = true);
+    final nextSettings = CounselorWorkflowSettings(
+      directoryEnabled: !current.directoryEnabled,
+      reassignmentEnabled: current.reassignmentEnabled,
+    );
+    setState(() {
+      _savingDirectory = true;
+      _pendingSettings = nextSettings;
+    });
     try {
-      await widget.onChanged(
-        CounselorWorkflowSettings(
-          directoryEnabled: !current.directoryEnabled,
-          reassignmentEnabled: current.reassignmentEnabled,
-        ),
-      );
+      await widget.onChanged(nextSettings);
       if (!mounted) {
         return;
       }
@@ -3088,6 +3124,7 @@ class _CounselorWorkflowSettingsCardState
       if (!mounted) {
         return;
       }
+      setState(() => _pendingSettings = null);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
@@ -3104,14 +3141,16 @@ class _CounselorWorkflowSettingsCardState
     if (_savingReassignment) {
       return;
     }
-    setState(() => _savingReassignment = true);
+    final nextSettings = CounselorWorkflowSettings(
+      directoryEnabled: current.directoryEnabled,
+      reassignmentEnabled: !current.reassignmentEnabled,
+    );
+    setState(() {
+      _savingReassignment = true;
+      _pendingSettings = nextSettings;
+    });
     try {
-      await widget.onChanged(
-        CounselorWorkflowSettings(
-          directoryEnabled: current.directoryEnabled,
-          reassignmentEnabled: !current.reassignmentEnabled,
-        ),
-      );
+      await widget.onChanged(nextSettings);
       if (!mounted) {
         return;
       }
@@ -3128,6 +3167,7 @@ class _CounselorWorkflowSettingsCardState
       if (!mounted) {
         return;
       }
+      setState(() => _pendingSettings = null);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
@@ -3142,12 +3182,24 @@ class _CounselorWorkflowSettingsCardState
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: widget.institutionRef.snapshots(),
+    return StreamBuilder<CounselorWorkflowSettings>(
+      stream: _settingsStream(),
       builder: (context, snapshot) {
-        final settings = CounselorWorkflowSettings.fromInstitutionData(
-          snapshot.data?.data(),
-        );
+        final remoteSettings = snapshot.data ?? const CounselorWorkflowSettings.disabled();
+        if (_pendingSettings != null &&
+            !_savingDirectory &&
+            !_savingReassignment &&
+            _sameSettings(_pendingSettings!, remoteSettings)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || _pendingSettings == null) {
+              return;
+            }
+            if (_sameSettings(_pendingSettings!, remoteSettings)) {
+              setState(() => _pendingSettings = null);
+            }
+          });
+        }
+        final settings = _pendingSettings ?? remoteSettings;
         return Container(
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
