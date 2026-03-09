@@ -663,7 +663,7 @@ class _InstitutionAdminScreenState
   String _workspaceTitle(AdminWorkspaceView view) {
     switch (view) {
       case AdminWorkspaceView.overview:
-        return 'Institution Admin Dashboard';
+        return 'Institution Admin';
       case AdminWorkspaceView.members:
         return 'Members';
       case AdminWorkspaceView.pendingInvites:
