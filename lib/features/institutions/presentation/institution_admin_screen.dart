@@ -21,6 +21,85 @@ enum AdminWorkspaceView {
   allInvites,
 }
 
+extension AdminWorkspaceViewX on AdminWorkspaceView {
+  String get navLabel {
+    switch (this) {
+      case AdminWorkspaceView.overview:
+        return 'Overview';
+      case AdminWorkspaceView.members:
+        return 'Members';
+      case AdminWorkspaceView.pendingInvites:
+        return 'Pending Invites';
+      case AdminWorkspaceView.students:
+        return 'Students';
+      case AdminWorkspaceView.staff:
+        return 'Staff';
+      case AdminWorkspaceView.counselors:
+        return 'Counselors';
+      case AdminWorkspaceView.allInvites:
+        return 'All Invites';
+    }
+  }
+
+  IconData get navIcon {
+    switch (this) {
+      case AdminWorkspaceView.overview:
+        return Icons.dashboard_rounded;
+      case AdminWorkspaceView.members:
+        return Icons.groups_rounded;
+      case AdminWorkspaceView.pendingInvites:
+        return Icons.mark_email_unread_rounded;
+      case AdminWorkspaceView.students:
+        return Icons.school_rounded;
+      case AdminWorkspaceView.staff:
+        return Icons.badge_rounded;
+      case AdminWorkspaceView.counselors:
+        return Icons.health_and_safety_rounded;
+      case AdminWorkspaceView.allInvites:
+        return Icons.send_rounded;
+    }
+  }
+
+  String get workspaceTitle {
+    switch (this) {
+      case AdminWorkspaceView.overview:
+        return 'Institution Admin';
+      case AdminWorkspaceView.members:
+        return 'Members';
+      case AdminWorkspaceView.pendingInvites:
+        return 'Pending Invites';
+      case AdminWorkspaceView.students:
+        return 'Students';
+      case AdminWorkspaceView.staff:
+        return 'Staff';
+      case AdminWorkspaceView.counselors:
+        return 'Counselors';
+      case AdminWorkspaceView.allInvites:
+        return 'All Invites';
+    }
+  }
+
+  String get workspaceSubtitle {
+    switch (this) {
+      case AdminWorkspaceView.overview:
+        return 'Control join code, invites, members, and institution operations from one persistent workspace.';
+      case AdminWorkspaceView.members:
+        return 'Review the full institution roster, inspect records, and take lifecycle actions from a single table.';
+      case AdminWorkspaceView.pendingInvites:
+        return 'Track outstanding invite demand and revoke pending role access when needed.';
+      case AdminWorkspaceView.students:
+        return 'Monitor the student population linked to this institution and inspect individual records quickly.';
+      case AdminWorkspaceView.staff:
+        return 'Keep staff membership visible and maintain operational access with fewer clicks.';
+      case AdminWorkspaceView.counselors:
+        return 'Watch counselor roster health and move quickly into detail records when changes are needed.';
+      case AdminWorkspaceView.allInvites:
+        return 'Review every invite state across the institution, not just the ones still pending.';
+    }
+  }
+
+}
+
 class InstitutionAdminScreen extends ConsumerStatefulWidget {
   const InstitutionAdminScreen({super.key});
 
@@ -660,44 +739,6 @@ class _InstitutionAdminScreenState
     });
   }
 
-  String _workspaceTitle(AdminWorkspaceView view) {
-    switch (view) {
-      case AdminWorkspaceView.overview:
-        return 'Institution Admin';
-      case AdminWorkspaceView.members:
-        return 'Members';
-      case AdminWorkspaceView.pendingInvites:
-        return 'Pending Invites';
-      case AdminWorkspaceView.students:
-        return 'Students';
-      case AdminWorkspaceView.staff:
-        return 'Staff';
-      case AdminWorkspaceView.counselors:
-        return 'Counselors';
-      case AdminWorkspaceView.allInvites:
-        return 'All Invites';
-    }
-  }
-
-  String _workspaceSubtitle(AdminWorkspaceView view) {
-    switch (view) {
-      case AdminWorkspaceView.overview:
-        return 'Control join code, invites, members, and institution operations from one persistent workspace.';
-      case AdminWorkspaceView.members:
-        return 'Review the full institution roster, inspect records, and take lifecycle actions from a single table.';
-      case AdminWorkspaceView.pendingInvites:
-        return 'Track outstanding invite demand and revoke pending role access when needed.';
-      case AdminWorkspaceView.students:
-        return 'Monitor the student population linked to this institution and inspect individual records quickly.';
-      case AdminWorkspaceView.staff:
-        return 'Keep staff membership visible and maintain operational access with fewer clicks.';
-      case AdminWorkspaceView.counselors:
-        return 'Watch counselor roster health and move quickly into detail records when changes are needed.';
-      case AdminWorkspaceView.allInvites:
-        return 'Review every invite state across the institution, not just the ones still pending.';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(currentUserProfileProvider);
@@ -770,31 +811,31 @@ class _InstitutionAdminScreenState
 
                       final stats = [
                         _DashboardStat(
-                          label: 'Members',
+                          label: AdminWorkspaceView.members.navLabel,
                           value: '${members.length}',
                           icon: Icons.groups_rounded,
                           view: AdminWorkspaceView.members,
                         ),
                         _DashboardStat(
-                          label: 'Pending Invites',
+                          label: AdminWorkspaceView.pendingInvites.navLabel,
                           value: '$pendingCount',
                           icon: Icons.mark_email_unread_rounded,
                           view: AdminWorkspaceView.pendingInvites,
                         ),
                         _DashboardStat(
-                          label: 'Students',
+                          label: AdminWorkspaceView.students.navLabel,
                           value: '$studentCount',
                           icon: Icons.school_rounded,
                           view: AdminWorkspaceView.students,
                         ),
                         _DashboardStat(
-                          label: 'Staff',
+                          label: AdminWorkspaceView.staff.navLabel,
                           value: '$staffCount',
                           icon: Icons.badge_rounded,
                           view: AdminWorkspaceView.staff,
                         ),
                         _DashboardStat(
-                          label: 'Counselors',
+                          label: AdminWorkspaceView.counselors.navLabel,
                           value: '$counselorCount',
                           icon: Icons.health_and_safety_rounded,
                           view: AdminWorkspaceView.counselors,
@@ -842,16 +883,26 @@ class _InstitutionAdminScreenState
                       return LayoutBuilder(
                         builder: (context, constraints) {
                           final isWide = constraints.maxWidth >= 980;
-                          final title = _workspaceTitle(_activeView);
-                          final subtitle = _workspaceSubtitle(_activeView);
+                          final title = _activeView.workspaceTitle;
+                          final subtitle = _activeView.workspaceSubtitle;
+                          final institutionName =
+                              profile.institutionName ?? 'Institution';
+                          final adminName = profile.name.isNotEmpty
+                              ? profile.name
+                              : profile.email;
+                          final onLogout = () =>
+                              confirmAndLogout(context: context, ref: ref);
+                          final openInvites = () =>
+                              _setWorkspace(AdminWorkspaceView.allInvites);
+                          final openMembers = () =>
+                              _setWorkspace(AdminWorkspaceView.members);
 
                           final content = Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               _HeroCard(
                                 institutionRef: institutionRef,
-                                fallbackName:
-                                    profile.institutionName ?? 'Institution',
+                                fallbackName: institutionName,
                                 isRegeneratingJoinCode: _isRegeneratingJoinCode,
                                 onRegenerateJoinCode: () =>
                                     _regenerateJoinCode(),
@@ -865,7 +916,6 @@ class _InstitutionAdminScreenState
                               const SizedBox(height: 14),
                               _WorkspacePanel(
                                 activeView: _activeView,
-                                onViewChange: _setWorkspace,
                                 searchController: _searchController,
                                 onSearchChanged: (_) => setState(() {}),
                                 activeFilter: _activeFilter,
@@ -882,7 +932,6 @@ class _InstitutionAdminScreenState
                                   setState(() => _rowsPerPage = value);
                                 },
                                 onRowTap: _openEntryDetails,
-                                onExportCsv: _exportCsv,
                                 sortColumnIndex: _sortColumnIndex,
                                 sortAscending: _sortAscending,
                                 onSort: _setSort,
@@ -919,16 +968,8 @@ class _InstitutionAdminScreenState
                                         ),
                                         const SizedBox(height: 14),
                                         _ActionComponents(
-                                          onOpenInvites: () {
-                                            _setWorkspace(
-                                              AdminWorkspaceView.allInvites,
-                                            );
-                                          },
-                                          onOpenMembers: () {
-                                            _setWorkspace(
-                                              AdminWorkspaceView.members,
-                                            );
-                                          },
+                                          onOpenInvites: openInvites,
+                                          onOpenMembers: openMembers,
                                         ),
                                       ],
                                     );
@@ -969,16 +1010,8 @@ class _InstitutionAdminScreenState
                                             ),
                                             const SizedBox(height: 14),
                                             _ActionComponents(
-                                              onOpenInvites: () {
-                                                _setWorkspace(
-                                                  AdminWorkspaceView.allInvites,
-                                                );
-                                              },
-                                              onOpenMembers: () {
-                                                _setWorkspace(
-                                                  AdminWorkspaceView.members,
-                                                );
-                                              },
+                                              onOpenInvites: openInvites,
+                                              onOpenMembers: openMembers,
                                             ),
                                           ],
                                         ),
@@ -1003,32 +1036,25 @@ class _InstitutionAdminScreenState
                                   _AdminWorkspaceHeader(
                                     title: title,
                                     subtitle: subtitle,
-                                    institutionName:
-                                        profile.institutionName ??
-                                        'Institution',
-                                    adminName: profile.name.isNotEmpty
-                                        ? profile.name
-                                        : profile.email,
+                                    institutionName: institutionName,
+                                    adminName: adminName,
                                     desktop: false,
-                                    onLogout: () => confirmAndLogout(
-                                      context: context,
-                                      ref: ref,
-                                    ),
+                                    onLogout: onLogout,
                                   ),
                                   const SizedBox(height: 14),
                                   SizedBox(
                                     height: 52,
                                     child: ListView.separated(
                                       scrollDirection: Axis.horizontal,
-                                      itemCount: _adminNavItems.length,
+                                      itemCount: _adminNavViews.length,
                                       separatorBuilder: (_, _) =>
                                           const SizedBox(width: 10),
                                       itemBuilder: (context, index) {
-                                        final item = _adminNavItems[index];
+                                        final view = _adminNavViews[index];
                                         return _AdminMobileNavChip(
-                                          item: item,
-                                          selected: _activeView == item.view,
-                                          onTap: () => _setWorkspace(item.view),
+                                          view: view,
+                                          selected: _activeView == view,
+                                          onTap: () => _setWorkspace(view),
                                         );
                                       },
                                     ),
@@ -1051,18 +1077,11 @@ class _InstitutionAdminScreenState
                                 SizedBox(
                                   width: 272,
                                   child: _AdminSidebarShell(
-                                    institutionName:
-                                        profile.institutionName ??
-                                        'Institution',
-                                    adminName: profile.name.isNotEmpty
-                                        ? profile.name
-                                        : profile.email,
+                                    institutionName: institutionName,
+                                    adminName: adminName,
                                     activeView: _activeView,
                                     onViewSelected: _setWorkspace,
-                                    onLogout: () => confirmAndLogout(
-                                      context: context,
-                                      ref: ref,
-                                    ),
+                                    onLogout: onLogout,
                                   ),
                                 ),
                                 const SizedBox(width: 18),
@@ -1089,17 +1108,10 @@ class _InstitutionAdminScreenState
                                         _AdminWorkspaceHeader(
                                           title: title,
                                           subtitle: subtitle,
-                                          institutionName:
-                                              profile.institutionName ??
-                                              'Institution',
-                                          adminName: profile.name.isNotEmpty
-                                              ? profile.name
-                                              : profile.email,
+                                          institutionName: institutionName,
+                                          adminName: adminName,
                                           desktop: true,
-                                          onLogout: () => confirmAndLogout(
-                                            context: context,
-                                            ref: ref,
-                                          ),
+                                          onLogout: onLogout,
                                         ),
                                         Expanded(
                                           child: SingleChildScrollView(
@@ -1511,12 +1523,12 @@ class _AdminSidebarShell extends StatelessWidget {
 
 class _AdminMobileNavChip extends StatelessWidget {
   const _AdminMobileNavChip({
-    required this.item,
+    required this.view,
     required this.selected,
     required this.onTap,
   });
 
-  final _NavItem item;
+  final AdminWorkspaceView view;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1544,12 +1556,12 @@ class _AdminMobileNavChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                item.icon,
+                view.navIcon,
                 color: selected ? Colors.white : const Color(0xFF4D647B),
               ),
               const SizedBox(width: 8),
               Text(
-                item.label,
+                view.navLabel,
                 style: TextStyle(
                   color: selected ? Colors.white : const Color(0xFF0C2233),
                   fontWeight: FontWeight.w700,
@@ -1573,14 +1585,14 @@ class _SideNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: _adminNavItems
+      children: _adminNavViews
           .map(
-            (item) => Padding(
+            (view) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _SideNavButton(
-                item: item,
-                selected: activeView == item.view,
-                onTap: () => onViewSelected(item.view),
+                view: view,
+                selected: activeView == view,
+                onTap: () => onViewSelected(view),
               ),
             ),
           )
@@ -1589,30 +1601,14 @@ class _SideNav extends StatelessWidget {
   }
 }
 
-class _NavItem {
-  const _NavItem(this.label, this.icon, this.view);
-
-  final String label;
-  final IconData icon;
-  final AdminWorkspaceView view;
-}
-
-const List<_NavItem> _adminNavItems = [
-  _NavItem('Overview', Icons.dashboard_rounded, AdminWorkspaceView.overview),
-  _NavItem('Members', Icons.groups_rounded, AdminWorkspaceView.members),
-  _NavItem(
-    'Pending Invites',
-    Icons.mark_email_unread_rounded,
-    AdminWorkspaceView.pendingInvites,
-  ),
-  _NavItem('Students', Icons.school_rounded, AdminWorkspaceView.students),
-  _NavItem('Staff', Icons.badge_rounded, AdminWorkspaceView.staff),
-  _NavItem(
-    'Counselors',
-    Icons.health_and_safety_rounded,
-    AdminWorkspaceView.counselors,
-  ),
-  _NavItem('All Invites', Icons.send_rounded, AdminWorkspaceView.allInvites),
+const List<AdminWorkspaceView> _adminNavViews = [
+  AdminWorkspaceView.overview,
+  AdminWorkspaceView.members,
+  AdminWorkspaceView.pendingInvites,
+  AdminWorkspaceView.students,
+  AdminWorkspaceView.staff,
+  AdminWorkspaceView.counselors,
+  AdminWorkspaceView.allInvites,
 ];
 
 String _adminInitials(String value) {
@@ -1634,12 +1630,12 @@ String _adminInitials(String value) {
 
 class _SideNavButton extends StatelessWidget {
   const _SideNavButton({
-    required this.item,
+    required this.view,
     required this.selected,
     required this.onTap,
   });
 
-  final _NavItem item;
+  final AdminWorkspaceView view;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1663,7 +1659,7 @@ class _SideNavButton extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                item.icon,
+                view.navIcon,
                 size: 18,
                 color: selected
                     ? const Color(0xFFF59E0B)
@@ -1672,7 +1668,7 @@ class _SideNavButton extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  item.label,
+                  view.navLabel,
                   style: TextStyle(
                     color: selected ? Colors.white : const Color(0xFFD3DEE7),
                     fontWeight: FontWeight.w700,
@@ -1798,25 +1794,10 @@ class _HeroCardState extends State<_HeroCard> {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: const Color(0x220F172A)),
                   ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.groups_rounded,
-                        color: Color(0xFF0D9488),
-                      ),
-                      const SizedBox(width: 8),
-                      const Text('Join code'),
-                      const SizedBox(width: 10),
-                      Text(
-                        joinCode,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              letterSpacing: 2,
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                      const Spacer(),
-                      FilledButton.tonalIcon(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isCompact = constraints.maxWidth < 560;
+                      final copyButton = FilledButton.tonalIcon(
                         onPressed: widget.isRegeneratingJoinCode
                             ? null
                             : () async {
@@ -1833,9 +1814,8 @@ class _HeroCardState extends State<_HeroCard> {
                               },
                         icon: const Icon(Icons.copy_rounded, size: 18),
                         label: const Text('Copy'),
-                      ),
-                      const SizedBox(width: 8),
-                      OutlinedButton.icon(
+                      );
+                      final regenerateButton = OutlinedButton.icon(
                         onPressed: widget.isRegeneratingJoinCode
                             ? null
                             : widget.onRegenerateJoinCode,
@@ -1849,8 +1829,73 @@ class _HeroCardState extends State<_HeroCard> {
                               )
                             : const Icon(Icons.autorenew_rounded, size: 18),
                         label: const Text('Regenerate'),
-                      ),
-                    ],
+                      );
+
+                      if (isCompact) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.groups_rounded,
+                                  color: Color(0xFF0D9488),
+                                ),
+                                const SizedBox(width: 8),
+                                const Text('Join code'),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    joinCode,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          letterSpacing: 2,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                copyButton,
+                                regenerateButton,
+                              ],
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          const Icon(
+                            Icons.groups_rounded,
+                            color: Color(0xFF0D9488),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('Join code'),
+                          const SizedBox(width: 10),
+                          Text(
+                            joinCode,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  letterSpacing: 2,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                          const Spacer(),
+                          copyButton,
+                          const SizedBox(width: 8),
+                          regenerateButton,
+                        ],
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -2062,7 +2107,6 @@ class _WorkspaceEntry {
 class _WorkspacePanel extends StatelessWidget {
   const _WorkspacePanel({
     required this.activeView,
-    required this.onViewChange,
     required this.searchController,
     required this.onSearchChanged,
     required this.activeFilter,
@@ -2072,14 +2116,12 @@ class _WorkspacePanel extends StatelessWidget {
     required this.rowsPerPage,
     required this.onRowsPerPageChanged,
     required this.onRowTap,
-    required this.onExportCsv,
     required this.sortColumnIndex,
     required this.sortAscending,
     required this.onSort,
   });
 
   final AdminWorkspaceView activeView;
-  final ValueChanged<AdminWorkspaceView> onViewChange;
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final String activeFilter;
@@ -2089,58 +2131,13 @@ class _WorkspacePanel extends StatelessWidget {
   final int rowsPerPage;
   final ValueChanged<int?> onRowsPerPageChanged;
   final ValueChanged<_WorkspaceEntry> onRowTap;
-  final ValueChanged<List<_WorkspaceEntry>> onExportCsv;
   final int? sortColumnIndex;
   final bool sortAscending;
   final void Function(int columnIndex, bool ascending) onSort;
 
-  String _titleForView(AdminWorkspaceView view) {
-    switch (view) {
-      case AdminWorkspaceView.overview:
-        return 'Overview Workspace';
-      case AdminWorkspaceView.members:
-        return 'Members Table';
-      case AdminWorkspaceView.pendingInvites:
-        return 'Pending Invites Table';
-      case AdminWorkspaceView.students:
-        return 'Students Table';
-      case AdminWorkspaceView.staff:
-        return 'Staff Table';
-      case AdminWorkspaceView.counselors:
-        return 'Counselors Table';
-      case AdminWorkspaceView.allInvites:
-        return 'All Invites Table';
-    }
-  }
-
-  String _subtitleForView(AdminWorkspaceView view) {
-    switch (view) {
-      case AdminWorkspaceView.overview:
-        return 'Use the stat cards to jump into live records, exports, and action-heavy admin tables.';
-      case AdminWorkspaceView.members:
-        return 'Inspect the entire institution roster, open raw records, and manage lifecycle state from one command panel.';
-      case AdminWorkspaceView.pendingInvites:
-        return 'Review the active invite queue and revoke outstanding access before it turns into membership.';
-      case AdminWorkspaceView.students:
-        return 'Keep student enrollment visible and searchable without leaving the workspace.';
-      case AdminWorkspaceView.staff:
-        return 'Use this table to watch staff access health and resolve lifecycle issues quickly.';
-      case AdminWorkspaceView.counselors:
-        return 'Stay on top of counselor roster coverage and open details when action is needed.';
-      case AdminWorkspaceView.allInvites:
-        return 'Search every invite record across status, source, and target role in one place.';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isOverview = activeView == AdminWorkspaceView.overview;
-    final surfaceTint = isOverview
-        ? const Color(0xFFE9FBF8)
-        : const Color(0xFFF5F8FF);
-    final surfaceBorder = isOverview
-        ? const Color(0xFFC8EEE7)
-        : const Color(0xFFD8E6F2);
 
     return Container(
       decoration: BoxDecoration(
@@ -2160,215 +2157,6 @@ class _WorkspacePanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: surfaceTint,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: surfaceBorder),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: isOverview
-                            ? const [Color(0xFF0E9B90), Color(0xFF18A89D)]
-                            : const [Color(0xFF2563EB), Color(0xFF38BDF8)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Icon(
-                      isOverview
-                          ? Icons.space_dashboard_rounded
-                          : Icons.table_chart_rounded,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.8),
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(color: surfaceBorder),
-                              ),
-                              child: Text(
-                                isOverview
-                                    ? 'WORKSPACE OVERVIEW'
-                                    : 'LIVE DATA PANEL',
-                                style: TextStyle(
-                                  color: isOverview
-                                      ? const Color(0xFF0E9B90)
-                                      : const Color(0xFF2563EB),
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ),
-                            if (!isOverview)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.78),
-                                  borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(color: surfaceBorder),
-                                ),
-                                child: Text(
-                                  '${entries.length} rows in view',
-                                  style: const TextStyle(
-                                    color: Color(0xFF50657E),
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.9,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _titleForView(activeView),
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF081A30),
-                              ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          _subtitleForView(activeView),
-                          style: const TextStyle(
-                            color: Color(0xFF6A7C93),
-                            height: 1.45,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (!isOverview) ...[
-                    const SizedBox(width: 16),
-                    SizedBox(
-                      width: 230,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.82),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: surfaceBorder),
-                            ),
-                            child: const Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'CONTROL STATUS',
-                                  style: TextStyle(
-                                    color: Color(0xFF7A8CA4),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                                SizedBox(height: 6),
-                                Text(
-                                  'Active panel',
-                                  style: TextStyle(
-                                    color: Color(0xFF081A30),
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                SizedBox(height: 6),
-                                Text(
-                                  'Search, filter, inspect rows, then export or return to overview.',
-                                  style: TextStyle(
-                                    color: Color(0xFF5E728D),
-                                    fontSize: 12.5,
-                                    height: 1.35,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF0D1B2A), Color(0xFF173D63)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: ElevatedButton.icon(
-                              onPressed: entries.isEmpty
-                                  ? null
-                                  : () => onExportCsv(entries),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                foregroundColor: Colors.white,
-                                disabledBackgroundColor: Colors.transparent,
-                                disabledForegroundColor: Colors.white54,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                              ),
-                              icon: const Icon(
-                                Icons.download_rounded,
-                                size: 18,
-                              ),
-                              label: const Text(
-                                'Export CSV',
-                                style: TextStyle(fontWeight: FontWeight.w800),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          OutlinedButton.icon(
-                            onPressed: () =>
-                                onViewChange(AdminWorkspaceView.overview),
-                            icon: const Icon(
-                              Icons.space_dashboard_rounded,
-                              size: 18,
-                            ),
-                            label: const Text('Back To Overview'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
             if (isOverview)
               const _OverviewEmptyState()
             else ...[
