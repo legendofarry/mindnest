@@ -2185,43 +2185,78 @@ class _WorkspacePanel extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 4,
-                          child: TextField(
-                            controller: searchController,
-                            decoration: const InputDecoration(
-                              prefixIcon: Icon(Icons.search_rounded),
-                              hintText: 'Search',
-                            ),
-                            onChanged: onSearchChanged,
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isCompact = constraints.maxWidth < 620;
+                        final searchField = TextField(
+                          controller: searchController,
+                          decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.search_rounded),
+                            hintText: 'Search',
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 1,
-                          child: DropdownButtonFormField<String>(
-                            initialValue: activeFilter,
-                            items: filterOptions
-                                .map(
-                                  (value) => DropdownMenuItem(
-                                    value: value,
-                                    child: Text(value == 'all' ? 'All' : value),
+                          onChanged: onSearchChanged,
+                        );
+                        final filterField = DropdownButtonFormField<String>(
+                          initialValue: activeFilter,
+                          isExpanded: true,
+                          items: filterOptions
+                              .map(
+                                (value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(
+                                    value == 'all' ? 'All' : value,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                )
-                                .toList(growable: false),
-                            onChanged: (value) {
-                              if (value != null) {
-                                onFilterChanged(value);
-                              }
-                            },
-                            decoration: const InputDecoration(
-                              prefixIcon: Icon(Icons.filter_alt_rounded),
-                            ),
+                                ),
+                              )
+                              .toList(growable: false),
+                          selectedItemBuilder: (context) => filterOptions
+                              .map(
+                                (value) => Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    value == 'all' ? 'All' : value,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (value) {
+                            if (value != null) {
+                              onFilterChanged(value);
+                            }
+                          },
+                          decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.filter_alt_rounded),
                           ),
-                        ),
-                      ],
+                        );
+
+                        if (isCompact) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              searchField,
+                              const SizedBox(height: 12),
+                              filterField,
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          children: [
+                            Expanded(
+                              flex: 4,
+                              child: searchField,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 1,
+                              child: filterField,
+                            ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 12),
                     const Wrap(
