@@ -2737,6 +2737,19 @@ class _InviteComposer extends StatelessWidget {
   final ValueChanged<UserRole> onRoleChanged;
   final VoidCallback onCreateInvite;
 
+  String _roleSummary(UserRole role) {
+    switch (role) {
+      case UserRole.student:
+        return 'Student invite uses enrollment via institution code.';
+      case UserRole.staff:
+        return 'Staff invite grants operational team access.';
+      case UserRole.counselor:
+        return 'Counselor invite enters approval into the care workspace.';
+      default:
+        return 'Select a role and send the in-app invite.';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -2834,34 +2847,6 @@ class _InviteComposer extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _RoleChip(
-                  label: 'Student',
-                  subtitle: 'Enrollment via invite and code',
-                  icon: Icons.school_rounded,
-                  selected: selectedRole == UserRole.student,
-                  onTap: () => onRoleChanged(UserRole.student),
-                ),
-                _RoleChip(
-                  label: 'Staff',
-                  subtitle: 'Operational access for team members',
-                  icon: Icons.badge_rounded,
-                  selected: selectedRole == UserRole.staff,
-                  onTap: () => onRoleChanged(UserRole.staff),
-                ),
-                _RoleChip(
-                  label: 'Counselor',
-                  subtitle: 'Pending approval into care workspace',
-                  icon: Icons.health_and_safety_rounded,
-                  selected: selectedRole == UserRole.counselor,
-                  onTap: () => onRoleChanged(UserRole.counselor),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -2872,18 +2857,38 @@ class _InviteComposer extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(
-                        Icons.phone_forwarded_rounded,
+                      const Icon(
+                        Icons.person_add_alt_1_rounded,
                         color: Color(0xFF0284C7),
                       ),
-                      SizedBox(width: 10),
-                      Expanded(
+                      const SizedBox(width: 10),
+                      const Expanded(
                         child: Text(
-                          'Invite delivery target',
+                          'Role and delivery target',
                           style: TextStyle(
                             color: Color(0xFF16324F),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: const Color(0xFFD8E6F2),
+                          ),
+                        ),
+                        child: Text(
+                          selectedRole.label,
+                          style: const TextStyle(
+                            color: Color(0xFF0C2233),
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -2891,8 +2896,8 @@ class _InviteComposer extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  const Text(
-                    'The user receives an in-app alert and continues onboarding with the institution code flow after accepting.',
+                  Text(
+                    _roleSummary(selectedRole),
                     style: TextStyle(
                       color: Color(0xFF5E728D),
                       fontSize: 12.8,
@@ -2900,6 +2905,31 @@ class _InviteComposer extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _CompactRoleChoice(
+                        label: 'Student',
+                        icon: Icons.school_rounded,
+                        selected: selectedRole == UserRole.student,
+                        onTap: () => onRoleChanged(UserRole.student),
+                      ),
+                      _CompactRoleChoice(
+                        label: 'Staff',
+                        icon: Icons.badge_rounded,
+                        selected: selectedRole == UserRole.staff,
+                        onTap: () => onRoleChanged(UserRole.staff),
+                      ),
+                      _CompactRoleChoice(
+                        label: 'Counselor',
+                        icon: Icons.health_and_safety_rounded,
+                        selected: selectedRole == UserRole.counselor,
+                        onTap: () => onRoleChanged(UserRole.counselor),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   TextFormField(
                     controller: phoneController,
                     keyboardType: TextInputType.phone,
@@ -2957,17 +2987,15 @@ class _InviteComposer extends StatelessWidget {
   }
 }
 
-class _RoleChip extends StatelessWidget {
-  const _RoleChip({
+class _CompactRoleChoice extends StatelessWidget {
+  const _CompactRoleChoice({
     required this.label,
-    required this.subtitle,
     required this.icon,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
-  final String subtitle;
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
@@ -2978,89 +3006,34 @@ class _RoleChip extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            gradient: selected
-                ? const LinearGradient(
-                    colors: [
-                      Color(0xFF0D1B2A),
-                      Color(0xFF173D63),
-                      Color(0xFF0E9B90),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : null,
-            color: selected ? null : const Color(0xFFF7FBFF),
-            borderRadius: BorderRadius.circular(20),
+            color: selected ? const Color(0xFF0E9B90) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected
-                  ? const Color(0xFF0E9B90)
-                  : const Color(0xFFD8E6F2),
+              color: selected ? const Color(0xFF0E9B90) : const Color(0xFFD8E6F2),
             ),
-            boxShadow: selected
-                ? const [
-                    BoxShadow(
-                      color: Color(0x220E9B90),
-                      blurRadius: 20,
-                      offset: Offset(0, 10),
-                    ),
-                  ]
-                : null,
           ),
-          child: SizedBox(
-            width: 188,
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? const Color(0x24FFFFFF)
-                        : const Color(0xFFE8F6FF),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: selected ? Colors.white : const Color(0xFF0284C7),
-                  ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: selected ? Colors.white : const Color(0xFF0284C7),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : const Color(0xFF16324F),
+                  fontWeight: FontWeight.w800,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: selected
-                              ? Colors.white
-                              : const Color(0xFF16324F),
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: selected
-                              ? const Color(0xFFD7E5F0)
-                              : const Color(0xFF6A7C93),
-                          fontSize: 12.4,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
