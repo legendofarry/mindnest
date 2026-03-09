@@ -592,7 +592,6 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             const SizedBox(height: 18),
             LayoutBuilder(
               builder: (context, constraints) {
-                final useSideBySide = constraints.maxWidth >= 430;
                 final primaryPhoneField = _LabeledFieldBlock(
                   label: 'MOBILE NUMBER',
                   child: _RoundedInput(
@@ -688,41 +687,23 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
 
                 return Column(
                   children: [
-                    if (useSideBySide)
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: primaryPhoneField),
-                          const SizedBox(width: 14),
-                          Expanded(child: additionalPhoneField),
-                        ],
-                      )
-                    else
-                      Column(
-                        children: [
-                          primaryPhoneField,
-                          const SizedBox(height: 18),
-                          additionalPhoneField,
-                        ],
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: primaryPhoneField),
+                        const SizedBox(width: 12),
+                        Expanded(child: additionalPhoneField),
+                      ],
+                    ),
                     const SizedBox(height: 18),
-                    if (useSideBySide)
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: passwordField),
-                          const SizedBox(width: 14),
-                          Expanded(child: confirmPasswordField),
-                        ],
-                      )
-                    else
-                      Column(
-                        children: [
-                          passwordField,
-                          const SizedBox(height: 18),
-                          confirmPasswordField,
-                        ],
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: passwordField),
+                        const SizedBox(width: 12),
+                        Expanded(child: confirmPasswordField),
+                      ],
+                    ),
                   ],
                 );
               },
