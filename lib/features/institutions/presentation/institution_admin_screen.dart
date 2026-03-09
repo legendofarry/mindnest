@@ -97,7 +97,6 @@ extension AdminWorkspaceViewX on AdminWorkspaceView {
         return 'Review every invite state across the institution, not just the ones still pending.';
     }
   }
-
 }
 
 class InstitutionAdminScreen extends ConsumerStatefulWidget {
@@ -1863,10 +1862,7 @@ class _HeroCardState extends State<_HeroCard> {
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
-                              children: [
-                                copyButton,
-                                regenerateButton,
-                              ],
+                              children: [copyButton, regenerateButton],
                             ),
                           ],
                         );
@@ -2192,29 +2188,26 @@ class _WorkspacePanel extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          flex: 3,
+                          flex: 4,
                           child: TextField(
                             controller: searchController,
                             decoration: const InputDecoration(
                               prefixIcon: Icon(Icons.search_rounded),
-                              hintText:
-                                  'Search by name, email, role, status, source',
+                              hintText: 'Search',
                             ),
                             onChanged: onSearchChanged,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          flex: 2,
+                          flex: 1,
                           child: DropdownButtonFormField<String>(
                             initialValue: activeFilter,
                             items: filterOptions
                                 .map(
                                   (value) => DropdownMenuItem(
                                     value: value,
-                                    child: Text(
-                                      value == 'all' ? 'All filters' : value,
-                                    ),
+                                    child: Text(value == 'all' ? 'All' : value),
                                   ),
                                 )
                                 .toList(growable: false),
