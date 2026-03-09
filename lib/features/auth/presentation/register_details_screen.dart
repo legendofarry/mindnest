@@ -446,68 +446,43 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 6),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: _isSubmitting
-                    ? null
-                    : () => context.go(
-                        _hasInviteContext
-                            ? AppRoute.withInviteQuery(
-                                AppRoute.login,
-                                _inviteQuery,
-                              )
-                            : _routeWithCurrentContext(AppRoute.register),
-                      ),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        size: 17,
-                        color: Color(0xFF93A3BA),
-                      ),
-                      SizedBox(width: 6),
+            const SizedBox(height: 12),
+            Builder(
+              builder: (context) {
+                final subtitle = _hasInviteContext
+                    ? 'Register with the invited email, then accept your invite instantly.'
+                    : _isCounselorIntent
+                    ? 'After verification, you will wait for an institution admin invite and skip basic onboarding questions.'
+                    : '';
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      _isCounselorIntent
+                          ? 'Create your counselor account'
+                          : 'Create your account',
+                      style: Theme.of(context).textTheme.displaySmall
+                          ?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF071937),
+                            letterSpacing: -0.5,
+                            fontSize: 24,
+                          ),
+                    ),
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 6),
                       Text(
-                        'Back',
-                        style: TextStyle(
-                          color: Color(0xFF93A3BA),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
+                        subtitle,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: const Color(0xFF516784),
+                              fontWeight: FontWeight.w500,
+                            ),
                       ),
                     ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              _isCounselorIntent
-                  ? 'Create your counselor account'
-                  : 'Create your account',
-              style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF071937),
-                letterSpacing: -0.5,
-                fontSize: 24,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _hasInviteContext
-                  ? 'Register with the invited email, then accept your invite instantly.'
-                  : _isCounselorIntent
-                  ? 'After verification, you will wait for an institution admin invite and skip basic onboarding questions.'
-                  : 'You can join your institution later from Home using a join code.',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF516784),
-                fontWeight: FontWeight.w500,
-              ),
+                  ],
+                );
+              },
             ),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 180),
