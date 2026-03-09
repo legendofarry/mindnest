@@ -289,32 +289,57 @@ class _HeroPanel extends StatelessWidget {
               ),
               const Spacer(),
               _SoftChip(
-                label: 'ONE-TIME WELCOME',
+                label: 'WELCOME',
                 color: const Color(0xFF0D8F83),
                 background: const Color(0xFFE3FFFB),
               ),
             ],
           ),
           SizedBox(height: compact ? 20 : 28),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _MetaPill(
-                icon: Icons.mark_email_read_rounded,
-                label: 'Email Verified',
-              ),
-              _MetaPill(
-                icon: Icons.space_dashboard_rounded,
-                label: 'Workspace Unlocked',
-              ),
-              if (hasInstitution)
-                _MetaPill(
-                  icon: Icons.account_balance_rounded,
-                  label: institutionName,
+          if (compact)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Flexible(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _MetaPill(
+                      icon: Icons.mark_email_read_rounded,
+                      label: 'Email Verified',
+                    ),
+                  ),
                 ),
-            ],
-          ),
+                if (hasInstitution) const SizedBox(width: 12),
+                if (hasInstitution)
+                  Flexible(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _MetaPill(
+                        icon: Icons.account_balance_rounded,
+                        label: institutionName,
+                      ),
+                    ),
+                  ),
+              ],
+            )
+          else
+            Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const _MetaPill(
+                    icon: Icons.mark_email_read_rounded,
+                    label: 'Email Verified',
+                  ),
+                  if (hasInstitution) const SizedBox(width: 18),
+                  if (hasInstitution)
+                    _MetaPill(
+                      icon: Icons.account_balance_rounded,
+                      label: institutionName,
+                    ),
+                ],
+              ),
+            ),
           SizedBox(height: compact ? 18 : 24),
           Text(
             hasInstitution
@@ -326,18 +351,6 @@ class _HeroPanel extends StatelessWidget {
               letterSpacing: -1.3,
               fontWeight: FontWeight.w800,
               color: const Color(0xFF071937),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'You are past verification. From here you can review institution '
-            'status, prepare your onboarding flow, and step into the admin '
-            'workspace when you are ready.',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: const Color(0xFF5C708A),
-              height: 1.5,
-              fontWeight: FontWeight.w600,
-              fontSize: compact ? 16 : 18,
             ),
           ),
           SizedBox(height: compact ? 22 : 28),
@@ -490,19 +503,6 @@ class _ActionPanel extends StatelessWidget {
               fontWeight: FontWeight.w800,
               color: const Color(0xFF071937),
               fontSize: compact ? 25 : 31,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            institutionName.isEmpty
-                ? 'Read the launch summary, then continue into your institution '
-                      'workspace.'
-                : 'Read the launch summary for $institutionName, then continue '
-                      'into your institution workspace.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: const Color(0xFF5E738C),
-              height: 1.45,
-              fontWeight: FontWeight.w600,
             ),
           ),
           SizedBox(height: compact ? 20 : 24),
