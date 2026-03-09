@@ -1072,28 +1072,30 @@ class _RegisterInstitutionScreenState
             const SizedBox(height: 24),
             Row(
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _isSubmitting ? null : _handleBackAction,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(58),
-                      side: const BorderSide(color: Color(0xFFBED0E4)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
+                if (_activeStep > 0) ...[
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _isSubmitting ? null : _handleBackAction,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(58),
+                        side: const BorderSide(color: Color(0xFFBED0E4)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      _activeStep == 0 ? 'Back to Login' : 'Back',
-                      style: const TextStyle(
-                        color: Color(0xFF4E627A),
-                        fontWeight: FontWeight.w700,
+                      child: const Text(
+                        'Back',
+                        style: TextStyle(
+                          color: Color(0xFF4E627A),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
+                  const SizedBox(width: 12),
+                ],
                 Expanded(
-                  flex: 2,
+                  flex: _activeStep > 0 ? 2 : 1,
                   child: Container(
                     height: 58,
                     decoration: BoxDecoration(
