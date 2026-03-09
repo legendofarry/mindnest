@@ -47,6 +47,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   final _phoneFocusNode = FocusNode();
   final _additionalPhoneFocusNode = FocusNode();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   bool _isSubmitting = false;
   bool _nameFieldError = false;
@@ -54,6 +55,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   bool _phoneFieldError = false;
   bool _additionalPhoneFieldError = false;
   bool _passwordFieldError = false;
+  bool _confirmPasswordFieldError = false;
 
   String? _phoneDuplicateError;
   String? _additionalPhoneDuplicateError;
@@ -110,13 +112,16 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
         additionalPhone == null || additionalPhone != primaryPhone;
 
     final hasPassword = _passwordController.text.length >= 8;
+    final hasMatchingPassword =
+        _confirmPasswordController.text == _passwordController.text;
 
     return hasName &&
         hasEmail &&
         hasPhone &&
         hasValidAdditional &&
         hasDistinctAdditional &&
-        hasPassword;
+        hasPassword &&
+        hasMatchingPassword;
   }
 
   bool get _canSubmit {
@@ -159,6 +164,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
     _phoneFocusNode.dispose();
     _additionalPhoneFocusNode.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -351,6 +357,8 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
         additionalPhone == null || additionalPhone != primaryPhone;
 
     final hasPassword = _passwordController.text.length >= 8;
+    final hasMatchingPassword =
+        _confirmPasswordController.text == _passwordController.text;
     final hasDuplicatePrimary = _phoneDuplicateError != null;
     final hasDuplicateAdditional = _additionalPhoneDuplicateError != null;
 
@@ -363,6 +371,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
           !hasDistinctAdditional ||
           hasDuplicateAdditional;
       _passwordFieldError = !hasPassword;
+      _confirmPasswordFieldError = !hasMatchingPassword;
     });
 
     if (!hasName ||
@@ -370,7 +379,8 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
         !hasPhone ||
         !hasValidAdditional ||
         !hasDistinctAdditional ||
-        !hasPassword) {
+        !hasPassword ||
+        !hasMatchingPassword) {
       setState(() {
         _formError = 'Please correct the highlighted fields.';
       });
@@ -580,67 +590,142 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
               ),
             ),
             const SizedBox(height: 18),
-            const _FieldLabel(text: 'MOBILE NUMBER'),
-            const SizedBox(height: 8),
-            _RoundedInput(
-              hasError: _phoneFieldError || _phoneDuplicateError != null,
-              child: TextFormField(
-                controller: _phoneController,
-                focusNode: _phoneFocusNode,
-                keyboardType: TextInputType.phone,
-                onChanged: (_) => setState(() {
-                  _phoneFieldError = false;
-                  _phoneDuplicateError = null;
-                  _formError = null;
-                }),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  hintText: '+254712345678',
-                  prefixIcon: Icon(Icons.phone_rounded),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            const _FieldLabel(text: 'ADDITIONAL MOBILE (OPTIONAL)'),
-            const SizedBox(height: 8),
-            _RoundedInput(
-              hasError:
-                  _additionalPhoneFieldError ||
-                  _additionalPhoneDuplicateError != null,
-              child: TextFormField(
-                controller: _additionalPhoneController,
-                focusNode: _additionalPhoneFocusNode,
-                keyboardType: TextInputType.phone,
-                onChanged: (_) => setState(() {
-                  _additionalPhoneFieldError = false;
-                  _additionalPhoneDuplicateError = null;
-                  _formError = null;
-                }),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  hintText: '+2547...',
-                  prefixIcon: Icon(Icons.phone_android_rounded),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            const _FieldLabel(text: 'PASSWORD'),
-            const SizedBox(height: 8),
-            _RoundedInput(
-              hasError: _passwordFieldError,
-              child: TextFormField(
-                controller: _passwordController,
-                obscureText: true,
-                onChanged: (_) => setState(() {
-                  _passwordFieldError = false;
-                  _formError = null;
-                }),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  hintText: '********',
-                  prefixIcon: Icon(Icons.lock_outline_rounded),
-                ),
-              ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final useSideBySide = constraints.maxWidth >= 430;
+                final primaryPhoneField = _LabeledFieldBlock(
+                  label: 'MOBILE NUMBER',
+                  child: _RoundedInput(
+                    hasError: _phoneFieldError || _phoneDuplicateError != null,
+                    child: TextFormField(
+                      controller: _phoneController,
+                      focusNode: _phoneFocusNode,
+                      keyboardType: TextInputType.phone,
+                      onChanged: (_) => setState(() {
+                        _phoneFieldError = false;
+                        _phoneDuplicateError = null;
+                        _formError = null;
+                      }),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        hintText: '+254712345678',
+                        prefixIcon: Icon(Icons.phone_rounded),
+                      ),
+                    ),
+                  ),
+                );
+
+                final additionalPhoneField = _LabeledFieldBlock(
+                  label: 'ADDITIONAL MOBILE',
+                  child: _RoundedInput(
+                    hasError:
+                        _additionalPhoneFieldError ||
+                        _additionalPhoneDuplicateError != null,
+                    child: TextFormField(
+                      controller: _additionalPhoneController,
+                      focusNode: _additionalPhoneFocusNode,
+                      keyboardType: TextInputType.phone,
+                      onChanged: (_) => setState(() {
+                        _additionalPhoneFieldError = false;
+                        _additionalPhoneDuplicateError = null;
+                        _formError = null;
+                      }),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        hintText: '+2547...',
+                        prefixIcon: Icon(Icons.phone_android_rounded),
+                      ),
+                    ),
+                  ),
+                );
+
+                final passwordField = _LabeledFieldBlock(
+                  label: 'PASSWORD',
+                  child: _RoundedInput(
+                    hasError: _passwordFieldError,
+                    child: TextFormField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      onChanged: (_) => setState(() {
+                        _passwordFieldError = false;
+                        _confirmPasswordFieldError =
+                            _confirmPasswordController.text.isNotEmpty &&
+                            _confirmPasswordController.text !=
+                                _passwordController.text;
+                        _formError = null;
+                      }),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        hintText: '********',
+                        prefixIcon: Icon(Icons.lock_outline_rounded),
+                      ),
+                    ),
+                  ),
+                );
+
+                final confirmPasswordField = _LabeledFieldBlock(
+                  label: 'CONFIRM PASSWORD',
+                  child: _RoundedInput(
+                    hasError: _confirmPasswordFieldError,
+                    child: TextFormField(
+                      controller: _confirmPasswordController,
+                      obscureText: true,
+                      onChanged: (_) => setState(() {
+                        _confirmPasswordFieldError =
+                            _confirmPasswordController.text.isNotEmpty &&
+                            _confirmPasswordController.text !=
+                            _passwordController.text;
+                        _formError = null;
+                      }),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        hintText: '********',
+                        prefixIcon: Icon(Icons.verified_user_outlined),
+                      ),
+                    ),
+                  ),
+                );
+
+                return Column(
+                  children: [
+                    if (useSideBySide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: primaryPhoneField),
+                          const SizedBox(width: 14),
+                          Expanded(child: additionalPhoneField),
+                        ],
+                      )
+                    else
+                      Column(
+                        children: [
+                          primaryPhoneField,
+                          const SizedBox(height: 18),
+                          additionalPhoneField,
+                        ],
+                      ),
+                    const SizedBox(height: 18),
+                    if (useSideBySide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: passwordField),
+                          const SizedBox(width: 14),
+                          Expanded(child: confirmPasswordField),
+                        ],
+                      )
+                    else
+                      Column(
+                        children: [
+                          passwordField,
+                          const SizedBox(height: 18),
+                          confirmPasswordField,
+                        ],
+                      ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 18),
             Container(
@@ -802,6 +887,25 @@ class _FieldLabel extends StatelessWidget {
         fontWeight: FontWeight.w800,
         fontSize: 12,
       ),
+    );
+  }
+}
+
+class _LabeledFieldBlock extends StatelessWidget {
+  const _LabeledFieldBlock({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _FieldLabel(text: label),
+        const SizedBox(height: 8),
+        child,
+      ],
     );
   }
 }
