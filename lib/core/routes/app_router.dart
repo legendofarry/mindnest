@@ -10,8 +10,10 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/forgot_password_screen.dart';
 import 'package:mindnest/features/auth/presentation/login_screen.dart';
 import 'package:mindnest/features/auth/presentation/register_details_screen.dart';
+import 'package:mindnest/features/auth/presentation/register_institution_school_request_screen.dart';
 import 'package:mindnest/features/auth/presentation/register_screen.dart';
 import 'package:mindnest/features/auth/presentation/register_institution_screen.dart';
+import 'package:mindnest/features/auth/presentation/register_institution_success_screen.dart';
 import 'package:mindnest/features/auth/presentation/verify_email_screen.dart';
 import 'package:mindnest/features/care/presentation/counselor_appointments_screen.dart';
 import 'package:mindnest/features/care/presentation/counselor_availability_screen.dart';
@@ -47,6 +49,9 @@ class AppRoute {
   static const register = '/register';
   static const registerDetails = '/register-details';
   static const registerInstitution = '/register-institution';
+  static const registerInstitutionSchoolRequest =
+      '/register-institution-school-request';
+  static const registerInstitutionSuccess = '/register-institution-success';
   static const forgotPassword = '/forgot-password';
   static const verifyEmail = '/verify-email';
   static const counselorInviteWaiting = '/counselor-invite-waiting';
@@ -207,7 +212,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.register ||
           location == AppRoute.registerDetails ||
           location == AppRoute.forgotPassword ||
-          location == AppRoute.registerInstitution;
+          location == AppRoute.registerInstitution ||
+          location == AppRoute.registerInstitutionSchoolRequest;
       final isPreVerificationOnboardingRoute =
           location == AppRoute.verifyEmail ||
           location == AppRoute.joinInstitution;
@@ -343,6 +349,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return AppRoute.home;
         }
 
+        if (role == UserRole.institutionAdmin &&
+            profile?.institutionWelcomePending == true &&
+            location != AppRoute.registerInstitutionSuccess) {
+          final institutionName = (profile?.institutionName ?? '').trim();
+          return institutionName.isEmpty
+              ? AppRoute.registerInstitutionSuccess
+              : Uri(
+                  path: AppRoute.registerInstitutionSuccess,
+                  queryParameters: <String, String>{
+                    AppRoute.institutionNameQuery: institutionName,
+                  },
+                ).toString();
+        }
+
         if (isOwnerRoute) {
           return AppRoute.home;
         }
@@ -351,7 +371,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final institutionStatus =
               (institutionRequest?['status'] as String?) ?? 'approved';
           final isInstitutionBlocked = institutionStatus != 'approved';
-          if (isInstitutionBlocked && location != AppRoute.institutionPending) {
+          if (isInstitutionBlocked &&
+              location != AppRoute.institutionPending &&
+              location != AppRoute.registerInstitutionSuccess) {
             return AppRoute.institutionPending;
           }
           if (!isInstitutionBlocked &&
@@ -447,7 +469,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         }
 
         if (role != UserRole.institutionAdmin &&
-            (isAuthRoute || location == AppRoute.verifyEmail)) {
+            (isAuthRoute ||
+                location == AppRoute.verifyEmail ||
+                location == AppRoute.registerInstitutionSuccess)) {
           return AppRoute.home;
         }
 
@@ -531,6 +555,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.registerInstitution,
         builder: (context, state) => const RegisterInstitutionScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.registerInstitutionSchoolRequest,
+        builder: (context, state) =>
+            const RegisterInstitutionSchoolRequestScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.registerInstitutionSuccess,
+        builder: (context, state) => RegisterInstitutionSuccessScreen(
+          institutionName:
+              state.uri.queryParameters[AppRoute.institutionNameQuery],
+        ),
       ),
       GoRoute(
         path: AppRoute.verifyEmail,

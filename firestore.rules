@@ -915,8 +915,6 @@ service cloud.firestore {
     match /school_requests/{requestId} {
       allow create: if request.resource.data.schoolName is string &&
         request.resource.data.schoolName.size() >= 2 &&
-        request.resource.data.mobileNumber is string &&
-        request.resource.data.mobileNumber.size() >= 6 &&
         request.resource.data.status == 'pending';
       allow read, update, delete: if isOwnerAccount();
     }

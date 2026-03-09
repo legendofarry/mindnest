@@ -260,6 +260,7 @@ class InstitutionRepository {
           'institutionId': institutionRef.id,
           'institutionName': trimmedInstitutionName,
           'institutionCatalogId': trimmedInstitutionCatalogId,
+          'institutionWelcomePending': true,
           'phoneNumber': normalizedAdminPhone,
           'additionalPhoneNumber': normalizedAdditionalAdminPhone,
           'phoneNumbers': phoneCandidates,
@@ -1181,17 +1182,14 @@ class InstitutionRepository {
 
   Future<void> submitSchoolRequest({
     required String schoolName,
-    required String mobileNumber,
+    String? mobileNumber,
     String? requesterName,
     String? requesterEmail,
   }) async {
     final normalizedSchoolName = schoolName.trim();
-    final normalizedMobile = mobileNumber.trim();
+    final normalizedMobile = (mobileNumber ?? '').trim();
     if (normalizedSchoolName.length < 2) {
       throw Exception('School name is required.');
-    }
-    if (normalizedMobile.length < 6) {
-      throw Exception('Mobile number is required.');
     }
 
     final currentUser = _auth.currentUser;
@@ -1210,7 +1208,7 @@ class InstitutionRepository {
     }
     final createdDoc = await _firestore.collection('school_requests').add({
       'schoolName': normalizedSchoolName,
-      'mobileNumber': normalizedMobile,
+      if (normalizedMobile.isNotEmpty) 'mobileNumber': normalizedMobile,
       'requesterUid': currentUser?.uid,
       'requesterName': (requesterName ?? currentUser?.displayName ?? '').trim(),
       'requesterEmail': (requesterEmail ?? currentUser?.email ?? '')
@@ -1237,6 +1235,18 @@ class InstitutionRepository {
         ),
       ]);
     }
+  }
+
+  Future<void> dismissInstitutionWelcome() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('You must be logged in.');
+    }
+
+    await _firestore.collection('users').doc(currentUser.uid).update({
+      'institutionWelcomePending': false,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> approveInstitutionRequest({

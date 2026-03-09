@@ -40,6 +40,7 @@ class UserProfile {
     this.additionalPhoneNumber,
     this.phoneNumbers = const [],
     this.registrationIntent,
+    this.institutionWelcomePending = false,
   });
 
   final String id;
@@ -57,6 +58,7 @@ class UserProfile {
   final String? additionalPhoneNumber;
   final List<String> phoneNumbers;
   final String? registrationIntent;
+  final bool institutionWelcomePending;
 
   bool get isCounselorRegistrationIntentPending {
     return role == UserRole.individual &&
@@ -79,6 +81,7 @@ class UserProfile {
       'additionalPhoneNumber': additionalPhoneNumber,
       'phoneNumbers': phoneNumbers,
       'registrationIntent': registrationIntent,
+      'institutionWelcomePending': institutionWelcomePending,
     };
   }
 
@@ -169,6 +172,8 @@ class UserProfile {
       additionalPhoneNumber: data['additionalPhoneNumber'] as String?,
       phoneNumbers: phoneNumbers,
       registrationIntent: (data['registrationIntent'] as String?)?.trim(),
+      institutionWelcomePending:
+          (data['institutionWelcomePending'] as bool?) ?? false,
     );
   }
 }

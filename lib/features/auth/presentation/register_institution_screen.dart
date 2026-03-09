@@ -35,12 +35,9 @@ class _RegisterInstitutionScreenState
   final _additionalAdminPhoneFocusNode = FocusNode();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _schoolRequestNameController = TextEditingController();
-  final _schoolRequestMobileController = TextEditingController();
   String? _selectedSchoolId;
   int? _currentStep = 0;
   bool _isSubmitting = false;
-  bool _isSubmittingSchoolRequest = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _schoolFieldError = false;
@@ -121,10 +118,8 @@ class _RegisterInstitutionScreenState
   void initState() {
     super.initState();
     _adminPhoneController.text = _kenyaPrefix;
-    _schoolRequestMobileController.text = _kenyaPrefix;
     _adminPhoneController.addListener(_enforceAdminPhonePrefix);
     _additionalAdminPhoneController.addListener(_enforceAdditionalAdminPhone);
-    _schoolRequestMobileController.addListener(_enforceSchoolMobilePrefix);
     _adminPhoneFocusNode.addListener(_onAdminPhoneFocusChange);
     _additionalAdminPhoneFocusNode.addListener(
       _onAdditionalAdminPhoneFocusChange,
@@ -138,7 +133,6 @@ class _RegisterInstitutionScreenState
     _additionalAdminPhoneController.removeListener(
       _enforceAdditionalAdminPhone,
     );
-    _schoolRequestMobileController.removeListener(_enforceSchoolMobilePrefix);
     _adminPhoneFocusNode.removeListener(_onAdminPhoneFocusChange);
     _additionalAdminPhoneFocusNode.removeListener(
       _onAdditionalAdminPhoneFocusChange,
@@ -151,17 +145,11 @@ class _RegisterInstitutionScreenState
     _additionalAdminPhoneFocusNode.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _schoolRequestNameController.dispose();
-    _schoolRequestMobileController.dispose();
     super.dispose();
   }
 
   void _enforceAdminPhonePrefix() {
     _enforceKenyaPrefix(_adminPhoneController);
-  }
-
-  void _enforceSchoolMobilePrefix() {
-    _enforceKenyaPrefix(_schoolRequestMobileController);
   }
 
   void _enforceAdditionalAdminPhone() {
@@ -360,17 +348,14 @@ class _RegisterInstitutionScreenState
             institutionName: selectedSchool.name,
           );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Institution request submitted. Approval usually takes about 30 minutes.',
-            ),
-          ),
+        context.go(
+          Uri(
+            path: AppRoute.verifyEmail,
+            queryParameters: <String, String>{
+              AppRoute.institutionNameQuery: selectedSchool.name,
+            },
+          ).toString(),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 700));
-      }
-      if (mounted) {
-        context.go(AppRoute.verifyEmail);
       }
     } on FirebaseAuthException catch (error) {
       await _showFormError(error.message ?? 'Institution registration failed.');
@@ -466,109 +451,6 @@ class _RegisterInstitutionScreenState
           return 'Passwords do not match.';
         }
         return null;
-    }
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _openSchoolNotListedDialog() async {
-    if (_isSubmittingSchoolRequest) {
-      return;
-    }
-    _schoolRequestNameController.text = _schoolRequestNameController.text
-        .trim();
-    _schoolRequestMobileController.text = _normalizeKenyaPhoneInput(
-      _schoolRequestMobileController.text,
-    );
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('School not listed?'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _schoolRequestNameController,
-                decoration: const InputDecoration(
-                  labelText: 'School name',
-                  hintText: 'Example High School',
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _schoolRequestMobileController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Mobile number',
-                  hintText: '+254...',
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: _isSubmittingSchoolRequest
-                  ? null
-                  : () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: _isSubmittingSchoolRequest
-                  ? null
-                  : _submitSchoolRequest,
-              child: Text(
-                _isSubmittingSchoolRequest ? 'Sending...' : 'Send request',
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _submitSchoolRequest() async {
-    final schoolName = _schoolRequestNameController.text.trim();
-    final mobileNumber = _normalizeKenyaPhoneInput(
-      _schoolRequestMobileController.text.trim(),
-    );
-    _schoolRequestMobileController.text = mobileNumber;
-    if (schoolName.length < 2 || !_isValidKenyaPhone(mobileNumber)) {
-      _showMessage(
-        'Enter school name and a valid mobile number (example: +254712345678).',
-      );
-      return;
-    }
-    setState(() => _isSubmittingSchoolRequest = true);
-    try {
-      await ref
-          .read(institutionRepositoryProvider)
-          .submitSchoolRequest(
-            schoolName: schoolName,
-            mobileNumber: mobileNumber,
-            requesterName: _adminNameController.text,
-            requesterEmail: _emailController.text,
-          );
-      if (mounted) {
-        Navigator.of(context).pop();
-        _showMessage(
-          'School request sent. We will review and contact you shortly.',
-        );
-        _schoolRequestNameController.clear();
-        _schoolRequestMobileController.text = _kenyaPrefix;
-      }
-    } catch (error) {
-      if (mounted) {
-        _showMessage(error.toString().replaceFirst('Exception: ', ''));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmittingSchoolRequest = false);
-      }
     }
   }
 
@@ -763,7 +645,9 @@ class _RegisterInstitutionScreenState
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            onPressed: _isSubmitting ? null : _openSchoolNotListedDialog,
+            onPressed: _isSubmitting
+                ? null
+                : () => context.go(AppRoute.registerInstitutionSchoolRequest),
             icon: const Icon(Icons.add_business_rounded, size: 18),
             label: const Text('School not listed?'),
           ),
@@ -816,50 +700,71 @@ class _RegisterInstitutionScreenState
           ),
         ),
         const SizedBox(height: 16),
-        const _FieldLabel(text: 'ADMIN PHONE NUMBER'),
-        const SizedBox(height: 8),
-        _RoundedInput(
-          hasError: _adminPhoneFieldError || _adminPhoneDuplicateError != null,
-          child: TextFormField(
-            controller: _adminPhoneController,
-            focusNode: _adminPhoneFocusNode,
-            keyboardType: TextInputType.phone,
-            textInputAction: TextInputAction.done,
-            onChanged: (_) => setState(() {
-              _adminPhoneFieldError = false;
-              _adminPhoneDuplicateError = null;
-              _formError = null;
-            }),
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              hintText: '+254...',
-              prefixIcon: const Icon(Icons.phone_rounded),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _FieldLabel(text: 'ADMIN PHONE NUMBER'),
+                  const SizedBox(height: 8),
+                  _RoundedInput(
+                    hasError:
+                        _adminPhoneFieldError ||
+                        _adminPhoneDuplicateError != null,
+                    child: TextFormField(
+                      controller: _adminPhoneController,
+                      focusNode: _adminPhoneFocusNode,
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.next,
+                      onChanged: (_) => setState(() {
+                        _adminPhoneFieldError = false;
+                        _adminPhoneDuplicateError = null;
+                        _formError = null;
+                      }),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        hintText: '+254...',
+                        prefixIcon: Icon(Icons.phone_rounded),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        const _FieldLabel(text: 'ADDITIONAL PHONE (OPTIONAL)'),
-        const SizedBox(height: 8),
-        _RoundedInput(
-          hasError:
-              _additionalAdminPhoneFieldError ||
-              _additionalAdminPhoneDuplicateError != null,
-          child: TextFormField(
-            controller: _additionalAdminPhoneController,
-            focusNode: _additionalAdminPhoneFocusNode,
-            keyboardType: TextInputType.phone,
-            textInputAction: TextInputAction.done,
-            onChanged: (_) => setState(() {
-              _additionalAdminPhoneFieldError = false;
-              _additionalAdminPhoneDuplicateError = null;
-              _formError = null;
-            }),
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              hintText: '+254...',
-              prefixIcon: const Icon(Icons.phone_android_rounded),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _FieldLabel(text: 'OTHER PHONE'),
+                  const SizedBox(height: 8),
+                  _RoundedInput(
+                    hasError:
+                        _additionalAdminPhoneFieldError ||
+                        _additionalAdminPhoneDuplicateError != null,
+                    child: TextFormField(
+                      controller: _additionalAdminPhoneController,
+                      focusNode: _additionalAdminPhoneFocusNode,
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.done,
+                      onChanged: (_) => setState(() {
+                        _additionalAdminPhoneFieldError = false;
+                        _additionalAdminPhoneDuplicateError = null;
+                        _formError = null;
+                      }),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        hintText: '+254...',
+                        prefixIcon: Icon(Icons.phone_android_rounded),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
         const SizedBox(height: 8),
         const Text(
@@ -879,82 +784,102 @@ class _RegisterInstitutionScreenState
       key: const ValueKey('security-step'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _FieldLabel(text: 'PASSWORD'),
-        const SizedBox(height: 8),
-        _RoundedInput(
-          hasError: _passwordFieldError,
-          child: TextFormField(
-            controller: _passwordController,
-            obscureText: !_isPasswordVisible,
-            textInputAction: TextInputAction.next,
-            onChanged: (_) {
-              setState(() {
-                _passwordFieldError = false;
-                _formError = null;
-                if (_confirmPasswordController.text.isNotEmpty &&
-                    _confirmPasswordController.text !=
-                        _passwordController.text) {
-                  _confirmPasswordFieldError = true;
-                } else {
-                  _confirmPasswordFieldError = false;
-                }
-              });
-            },
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              hintText: 'Minimum 8 characters',
-              prefixIcon: const Icon(Icons.lock_outline_rounded),
-              suffixIcon: IconButton(
-                onPressed: () {
-                  setState(() {
-                    _isPasswordVisible = !_isPasswordVisible;
-                  });
-                },
-                icon: Icon(
-                  _isPasswordVisible
-                      ? Icons.visibility_off_rounded
-                      : Icons.visibility_rounded,
-                ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _FieldLabel(text: 'PASSWORD'),
+                  const SizedBox(height: 8),
+                  _RoundedInput(
+                    hasError: _passwordFieldError,
+                    child: TextFormField(
+                      controller: _passwordController,
+                      obscureText: !_isPasswordVisible,
+                      textInputAction: TextInputAction.next,
+                      onChanged: (_) {
+                        setState(() {
+                          _passwordFieldError = false;
+                          _formError = null;
+                          if (_confirmPasswordController.text.isNotEmpty &&
+                              _confirmPasswordController.text !=
+                                  _passwordController.text) {
+                            _confirmPasswordFieldError = true;
+                          } else {
+                            _confirmPasswordFieldError = false;
+                          }
+                        });
+                      },
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        hintText: 'Minimum 8 characters',
+                        prefixIcon: const Icon(Icons.lock_outline_rounded),
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setState(() {
+                              _isPasswordVisible = !_isPasswordVisible;
+                            });
+                          },
+                          icon: Icon(
+                            _isPasswordVisible
+                                ? Icons.visibility_off_rounded
+                                : Icons.visibility_rounded,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        const _FieldLabel(text: 'CONFIRM PASSWORD'),
-        const SizedBox(height: 8),
-        _RoundedInput(
-          hasError: _confirmPasswordFieldError,
-          child: TextFormField(
-            controller: _confirmPasswordController,
-            obscureText: !_isConfirmPasswordVisible,
-            textInputAction: TextInputAction.done,
-            onChanged: (_) => setState(() {
-              _confirmPasswordFieldError = false;
-              _formError = null;
-            }),
-            onFieldSubmitted: (_) {
-              if (_isPrimaryActionEnabled) {
-                unawaited(_handlePrimaryAction());
-              }
-            },
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              hintText: 'Re-enter password',
-              prefixIcon: const Icon(Icons.verified_user_outlined),
-              suffixIcon: IconButton(
-                onPressed: () {
-                  setState(() {
-                    _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
-                  });
-                },
-                icon: Icon(
-                  _isConfirmPasswordVisible
-                      ? Icons.visibility_off_rounded
-                      : Icons.visibility_rounded,
-                ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _FieldLabel(text: 'CONFIRM PASSWORD'),
+                  const SizedBox(height: 8),
+                  _RoundedInput(
+                    hasError: _confirmPasswordFieldError,
+                    child: TextFormField(
+                      controller: _confirmPasswordController,
+                      obscureText: !_isConfirmPasswordVisible,
+                      textInputAction: TextInputAction.done,
+                      onChanged: (_) => setState(() {
+                        _confirmPasswordFieldError = false;
+                        _formError = null;
+                      }),
+                      onFieldSubmitted: (_) {
+                        if (_isPrimaryActionEnabled) {
+                          unawaited(_handlePrimaryAction());
+                        }
+                      },
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        hintText: 'Re-enter password',
+                        prefixIcon: const Icon(Icons.verified_user_outlined),
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setState(() {
+                              _isConfirmPasswordVisible =
+                                  !_isConfirmPasswordVisible;
+                            });
+                          },
+                          icon: Icon(
+                            _isConfirmPasswordVisible
+                                ? Icons.visibility_off_rounded
+                                : Icons.visibility_rounded,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
+          ],
         ),
         const SizedBox(height: 10),
         const Text(

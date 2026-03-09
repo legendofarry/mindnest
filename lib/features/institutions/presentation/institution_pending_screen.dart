@@ -18,59 +18,23 @@ class InstitutionPendingScreen extends ConsumerStatefulWidget {
 class _InstitutionPendingScreenState
     extends ConsumerState<InstitutionPendingScreen>
     with SingleTickerProviderStateMixin {
-  static const _kenyaPrefix = '+254';
   bool _isResubmitting = false;
-  bool _isSubmittingSchoolRequest = false;
   String? _selectedSchoolId;
-  final _schoolRequestNameController = TextEditingController();
-  final _schoolRequestMobileController = TextEditingController();
-  late final AnimationController _pulseController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1800),
-  )..repeat(reverse: true);
+  late final AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
-    _schoolRequestMobileController.text = _kenyaPrefix;
-    _schoolRequestMobileController.addListener(_enforceSchoolMobilePrefix);
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
-    _schoolRequestMobileController.removeListener(_enforceSchoolMobilePrefix);
-    _schoolRequestNameController.dispose();
-    _schoolRequestMobileController.dispose();
     super.dispose();
-  }
-
-  void _enforceSchoolMobilePrefix() {
-    final normalized = _normalizeKenyaPhoneInput(
-      _schoolRequestMobileController.text,
-    );
-    if (_schoolRequestMobileController.text == normalized) {
-      return;
-    }
-    _schoolRequestMobileController.value = TextEditingValue(
-      text: normalized,
-      selection: TextSelection.collapsed(offset: normalized.length),
-    );
-  }
-
-  String _normalizeKenyaPhoneInput(String input) {
-    var digits = input.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.startsWith('254')) {
-      digits = digits.substring(3);
-    }
-    if (digits.startsWith('0')) {
-      digits = digits.substring(1);
-    }
-    return '$_kenyaPrefix$digits';
-  }
-
-  bool _isValidKenyaPhone(String value) {
-    return RegExp(r'^\+254\d{9}$').hasMatch(value);
   }
 
   Future<void> _resubmit() async {
@@ -114,173 +78,6 @@ class _InstitutionPendingScreenState
         setState(() => _isResubmitting = false);
       }
     }
-  }
-
-  Future<void> _requestSchool() async {
-    final schoolName = _schoolRequestNameController.text.trim();
-    final mobile = _normalizeKenyaPhoneInput(
-      _schoolRequestMobileController.text.trim(),
-    );
-    _schoolRequestMobileController.text = mobile;
-    if (schoolName.length < 2 || !_isValidKenyaPhone(mobile)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Enter school name and a valid mobile number (example: +254712345678).',
-          ),
-        ),
-      );
-      return;
-    }
-    setState(() => _isSubmittingSchoolRequest = true);
-    try {
-      await ref
-          .read(institutionRepositoryProvider)
-          .submitSchoolRequest(schoolName: schoolName, mobileNumber: mobile);
-      if (!mounted) {
-        return;
-      }
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('School request sent to owner.')),
-      );
-      _schoolRequestNameController.clear();
-      _schoolRequestMobileController.text = _kenyaPrefix;
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmittingSchoolRequest = false);
-      }
-    }
-  }
-
-  Future<void> _openSchoolRequestSheet() async {
-    _schoolRequestNameController.clear();
-    _schoolRequestMobileController.text = _kenyaPrefix;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 14,
-            right: 14,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 14,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(26),
-            child: Material(
-              color: const Color(0xFFF7FCFF),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE0F2FE),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.add_business_rounded,
-                            color: Color(0xFF0369A1),
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        const Expanded(
-                          child: Text(
-                            'School Not Listed',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Share your school details and we will review quickly.',
-                      style: TextStyle(
-                        color: Color(0xFF516784),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _schoolRequestNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'School name',
-                        prefixIcon: Icon(Icons.school_rounded),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _schoolRequestMobileController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'Mobile number',
-                        prefixIcon: Icon(Icons.phone_rounded),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: _isSubmittingSchoolRequest
-                                ? null
-                                : () => Navigator.of(context).pop(),
-                            child: const Text('Cancel'),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _isSubmittingSchoolRequest
-                                ? null
-                                : _requestSchool,
-                            icon: Icon(
-                              _isSubmittingSchoolRequest
-                                  ? Icons.hourglass_top_rounded
-                                  : Icons.send_rounded,
-                            ),
-                            label: Text(
-                              _isSubmittingSchoolRequest
-                                  ? 'Sending...'
-                                  : 'Send Request',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 
   String _statusTitle(String status) {
@@ -578,7 +375,10 @@ class _InstitutionPendingScreenState
                                   OutlinedButton.icon(
                                     onPressed: _isResubmitting
                                         ? null
-                                        : _openSchoolRequestSheet,
+                                        : () => context.go(
+                                            AppRoute
+                                                .registerInstitutionSchoolRequest,
+                                          ),
                                     icon: const Icon(
                                       Icons.add_business_rounded,
                                       size: 18,
