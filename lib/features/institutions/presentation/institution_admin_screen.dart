@@ -120,6 +120,7 @@ class _InstitutionAdminScreenState
   String _activeFilter = 'all';
   bool _isSubmitting = false;
   bool _isRegeneratingJoinCode = false;
+  String? _inlineError;
   int _rowsPerPage = PaginatedDataTable.defaultRowsPerPage;
   int? _sortColumnIndex;
   bool _sortAscending = true;
@@ -166,19 +167,31 @@ class _InstitutionAdminScreenState
     return RegExp(r'^\+254\d{9}$').hasMatch(value);
   }
 
+  void _showInlineError(String message) {
+    setState(() => _inlineError = message);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _tableKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.05,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+  }
+
   Future<void> _createInvite() async {
     final phone = _phoneController.text.trim();
     if (!_isValidKenyaPhone(phone)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Enter a valid phone number after +254 (example: +254712345678).',
-          ),
-        ),
+      _showInlineError(
+        'Enter a valid phone number after +254 (example: +254712345678).',
       );
       return;
     }
 
+    setState(() => _inlineError = null);
     setState(() => _isSubmitting = true);
     try {
       final inviteDraft = await ref
@@ -188,22 +201,14 @@ class _InstitutionAdminScreenState
         return;
       }
       _phoneController.text = _kenyaPrefix;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${_inviteRole.label} invite created. Invite notification sent in-app.',
-          ),
-        ),
-      );
+      _inlineError = null;
       await _showInviteDeliveryDialog(inviteDraft);
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
+      _showInlineError(
+        error.toString().replaceFirst('Exception: ', ''),
       );
     } finally {
       if (mounted) {
@@ -909,6 +914,7 @@ class _InstitutionAdminScreenState
                                           phoneController: _phoneController,
                                           selectedRole: _inviteRole,
                                           isSubmitting: _isSubmitting,
+                                          errorMessage: _inlineError,
                                           onRoleChanged: (role) {
                                             setState(() => _inviteRole = role);
                                           },
@@ -941,6 +947,7 @@ class _InstitutionAdminScreenState
                                           phoneController: _phoneController,
                                           selectedRole: _inviteRole,
                                           isSubmitting: _isSubmitting,
+                                          errorMessage: _inlineError,
                                           onRoleChanged: (role) {
                                             setState(() => _inviteRole = role);
                                           },
@@ -2682,6 +2689,7 @@ class _InviteComposer extends StatelessWidget {
     required this.phoneController,
     required this.selectedRole,
     required this.isSubmitting,
+    required this.errorMessage,
     required this.onRoleChanged,
     required this.onCreateInvite,
   });
@@ -2689,6 +2697,7 @@ class _InviteComposer extends StatelessWidget {
   final TextEditingController phoneController;
   final UserRole selectedRole;
   final bool isSubmitting;
+  final String? errorMessage;
   final ValueChanged<UserRole> onRoleChanged;
   final VoidCallback onCreateInvite;
 
@@ -2885,6 +2894,36 @@ class _InviteComposer extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  if (errorMessage != null)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF2F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline,
+                              color: Color(0xFFDC2626)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              errorMessage ?? '',
+                              style: const TextStyle(
+                                color: Color(0xFFB91C1C),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   TextFormField(
                     controller: phoneController,
                     keyboardType: TextInputType.phone,

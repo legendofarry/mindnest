@@ -54,7 +54,7 @@ class DesktopPrimaryShell extends ConsumerWidget {
           ),
           title: const Text('Notifications unavailable'),
           content: const Text(
-            'Notifications are unavailable right now. An institution is '
+            'An institution is '
             'required for the full experience.',
           ),
         );

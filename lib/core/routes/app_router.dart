@@ -298,6 +298,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
         final profile = profileAsync.valueOrNull;
         final pendingInvite = pendingInviteAsync.valueOrNull;
+        final pendingInviteRole = pendingInvite?.intendedRole ?? UserRole.other;
         final role = profile?.role ?? UserRole.other;
         final roleResolved = role != UserRole.other;
         final hasCounselorRegistrationIntent =
@@ -322,6 +323,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
         // 4. Verified but invite pending -> invite accept screen.
         if (pendingInvite != null) {
+          if (pendingInviteRole == UserRole.student) {
+            if (location != AppRoute.home) {
+              return AppRoute.homeWithJoinCodeIntent();
+            }
+            return null;
+          }
           if (location != AppRoute.inviteAccept) {
             return AppRoute.withInviteQuery(AppRoute.inviteAccept, inviteQuery);
           }

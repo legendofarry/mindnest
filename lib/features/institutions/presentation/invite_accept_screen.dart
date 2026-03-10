@@ -101,31 +101,13 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
     final inviteId = widget.inviteId?.trim() ?? '';
 
     if (inviteId.isEmpty) {
-      return MindNestShell(
-        child: GlassCard(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Invalid invitation',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                const Text('Invite ID is missing.'),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: () => context.go(AppRoute.notifications),
-                  child: const Text('Back to notifications'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+      // Fallback: send the user to Home with join-code prompt so they can proceed.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.go(AppRoute.homeWithJoinCodeIntent());
+        }
+      });
+      return const SizedBox.shrink();
     }
 
     if (authUser == null) {

@@ -61,6 +61,60 @@ class HomeScreen extends ConsumerWidget {
   static const String _profileOpenTokenQueryKey = 'profileOpenTs';
   static const String _openJoinCodeQueryKey = AppRoute.openJoinCodeQuery;
 
+  void _showTopErrorBanner(BuildContext context, String message) {
+    final overlay = Overlay.of(context, rootOverlay: true);
+    if (overlay == null) return;
+
+    final entry = OverlayEntry(
+      builder: (context) {
+        final topPadding = MediaQuery.of(context).viewPadding.top;
+        return Positioned(
+          top: topPadding + 12,
+          left: 16,
+          right: 16,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x33000000),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    overlay.insert(entry);
+    Future.delayed(const Duration(seconds: 3), () {
+      entry.remove();
+    });
+  }
+
   String _formatInstitutionBadge(String? rawName) {
     const maxVisibleChars = 12;
     const stopWords = <String>{
@@ -209,6 +263,27 @@ class HomeScreen extends ConsumerWidget {
     final homeContext = context;
     final isDesktopPanel = MediaQuery.sizeOf(context).width >= 900;
 
+    void showComingSoonDialog() {
+      showDialog<void>(
+        context: homeContext,
+        barrierDismissible: true,
+        builder: (dialogContext) {
+          Future.delayed(const Duration(seconds: 2), () {
+            if (Navigator.of(dialogContext).canPop()) {
+              Navigator.of(dialogContext).pop();
+            }
+          });
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            title: const Text('Coming soon'),
+            content: const Text('Stay tuned!'),
+          );
+        },
+      );
+    }
+
     Widget panelFor(BuildContext panelContext, {required bool desktopPanel}) {
       final radius = desktopPanel
           ? const BorderRadius.only(
@@ -320,10 +395,7 @@ class HomeScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 6),
                   GestureDetector(
-                    onTap: () {
-                      Navigator.of(panelContext).pop();
-                      homeContext.push(AppRoute.crisisCounselorSupport);
-                    },
+                    onTap: showComingSoonDialog,
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 18),
                       decoration: BoxDecoration(
@@ -2774,24 +2846,22 @@ class _InstitutionJoinNudgeCard extends ConsumerStatefulWidget {
 
 class _InstitutionJoinNudgeCardState
     extends ConsumerState<_InstitutionJoinNudgeCard> {
+  String? _inlineError;
+
   Future<void> _submitJoinCode(BuildContext context) async {
     final code = ref.read(_joinCodeTextControllerProvider).text.trim();
     if (code.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Join code is required.')));
+      setState(() => _inlineError = 'Join code is required.');
       return;
     }
 
+    setState(() => _inlineError = null);
     ref.read(_joinCodeSubmittingProvider.notifier).state = true;
     try {
       await ref
           .read(institutionRepositoryProvider)
           .joinInstitutionByCode(code: code);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Institution joined successfully.')),
-      );
       ref.read(_joinCodeInlineExpandedProvider.notifier).state = false;
       ref.read(_joinCodeTextControllerProvider).clear();
       final isVerified =
@@ -2801,10 +2871,10 @@ class _InstitutionJoinNudgeCardState
       context.go(isVerified ? AppRoute.home : AppRoute.verifyEmail);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
+      final homeWidget = context.findAncestorWidgetOfExactType<HomeScreen>();
+      homeWidget?._showTopErrorBanner(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
       );
     } finally {
       ref.read(_joinCodeSubmittingProvider.notifier).state = false;
@@ -2867,6 +2937,32 @@ class _InstitutionJoinNudgeCardState
             ),
           ),
           const SizedBox(height: 12),
+          if (_inlineError != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF2F2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFCA5A5)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Color(0xFFDC2626)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _inlineError ?? '',
+                      style: const TextStyle(
+                        color: Color(0xFFB91C1C),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Row(
             children: [
               ElevatedButton.icon(
