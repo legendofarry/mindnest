@@ -38,6 +38,30 @@ class DesktopPrimaryShell extends ConsumerWidget {
     context.go(uri.toString());
   }
 
+  void _showNotificationsUnavailable(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        Future.delayed(const Duration(seconds: 2), () {
+          if (Navigator.of(dialogContext).canPop()) {
+            Navigator.of(dialogContext).pop();
+          }
+        });
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text('Notifications unavailable'),
+          content: const Text(
+            'Notifications are unavailable right now. An institution is '
+            'required for the full experience.',
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
@@ -137,7 +161,7 @@ class DesktopPrimaryShell extends ConsumerWidget {
             active: notificationsActive,
             onPressed: hasInstitution
                 ? () => context.go(AppRoute.notifications)
-                : null,
+                : () => _showNotificationsUnavailable(context),
             child: _HeaderBellIcon(
               unreadCount: unreadCount,
               active: notificationsActive,

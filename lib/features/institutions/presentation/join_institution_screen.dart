@@ -111,8 +111,12 @@ class _JoinInstitutionScreenState extends ConsumerState<JoinInstitutionScreen> {
                   onPressed: _isSubmitting
                       ? null
                       : () {
-                          final isVerified =
-                              ref
+                          if (context.canPop()) {
+                            context.pop();
+                            return;
+                          }
+
+                          final isVerified = ref
                                   .read(authRepositoryProvider)
                                   .currentAuthUser
                                   ?.emailVerified ??
