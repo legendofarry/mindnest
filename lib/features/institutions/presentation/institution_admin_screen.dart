@@ -112,6 +112,8 @@ class _InstitutionAdminScreenState
   static const _kenyaPrefix = '+254';
   final _phoneController = TextEditingController();
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
+  final _tableKey = GlobalKey();
 
   UserRole _inviteRole = UserRole.counselor;
   AdminWorkspaceView _activeView = AdminWorkspaceView.overview;
@@ -134,6 +136,7 @@ class _InstitutionAdminScreenState
     _phoneController.removeListener(_enforceInvitePhonePrefix);
     _phoneController.dispose();
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -336,6 +339,17 @@ class _InstitutionAdminScreenState
       _sortColumnIndex = null;
       _sortAscending = true;
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = _tableKey.currentContext;
+      if (context != null) {
+        Scrollable.ensureVisible(
+          context,
+          alignment: 0.05,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   void _setSort(int columnIndex, bool ascending) {
@@ -385,55 +399,6 @@ class _InstitutionAdminScreenState
     });
 
     return entries;
-  }
-
-  String _escapeCsv(String value) {
-    final shouldQuote =
-        value.contains(',') ||
-        value.contains('"') ||
-        value.contains('\n') ||
-        value.contains('\r');
-    if (!shouldQuote) {
-      return value;
-    }
-    return '"${value.replaceAll('"', '""')}"';
-  }
-
-  Future<void> _exportCsv(List<_WorkspaceEntry> entries) async {
-    if (entries.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No rows to export in this view.')),
-      );
-      return;
-    }
-
-    final lines = <String>[
-      'name,contact_or_id,type,status,source,created_at',
-      ...entries.map((entry) {
-        final created = entry.createdAt?.toIso8601String() ?? '';
-        return [
-          _escapeCsv(entry.primary),
-          _escapeCsv(entry.secondary),
-          _escapeCsv(entry.type),
-          _escapeCsv(entry.status),
-          _escapeCsv(entry.source),
-          _escapeCsv(created),
-        ].join(',');
-      }),
-    ];
-
-    final csv = lines.join('\n');
-    await Clipboard.setData(ClipboardData(text: csv));
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'CSV exported (${entries.length} rows). A copy is in your clipboard.',
-        ),
-      ),
-    );
   }
 
   DateTime? _parseDate(dynamic value) {
@@ -889,12 +854,8 @@ class _InstitutionAdminScreenState
                           final adminName = profile.name.isNotEmpty
                               ? profile.name
                               : profile.email;
-                          final onLogout = () =>
+                          void onLogout() =>
                               confirmAndLogout(context: context, ref: ref);
-                          final openInvites = () =>
-                              _setWorkspace(AdminWorkspaceView.allInvites);
-                          final openMembers = () =>
-                              _setWorkspace(AdminWorkspaceView.members);
 
                           final content = Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -914,6 +875,7 @@ class _InstitutionAdminScreenState
                               ),
                               const SizedBox(height: 14),
                               _WorkspacePanel(
+                                key: _tableKey,
                                 activeView: _activeView,
                                 searchController: _searchController,
                                 onSearchChanged: (_) => setState(() {}),
@@ -965,11 +927,6 @@ class _InstitutionAdminScreenState
                                                 );
                                           },
                                         ),
-                                        const SizedBox(height: 14),
-                                        _ActionComponents(
-                                          onOpenInvites: openInvites,
-                                          onOpenMembers: openMembers,
-                                        ),
                                       ],
                                     );
                                   }
@@ -1006,11 +963,6 @@ class _InstitutionAdminScreenState
                                                       settings: settings,
                                                     );
                                               },
-                                            ),
-                                            const SizedBox(height: 14),
-                                            _ActionComponents(
-                                              onOpenInvites: openInvites,
-                                              onOpenMembers: openMembers,
                                             ),
                                           ],
                                         ),
@@ -1061,6 +1013,7 @@ class _InstitutionAdminScreenState
                                   const SizedBox(height: 14),
                                   Expanded(
                                     child: SingleChildScrollView(
+                                      controller: _scrollController,
                                       child: content,
                                     ),
                                   ),
@@ -1114,6 +1067,7 @@ class _InstitutionAdminScreenState
                                         ),
                                         Expanded(
                                           child: SingleChildScrollView(
+                                            controller: _scrollController,
                                             padding: const EdgeInsets.fromLTRB(
                                               28,
                                               10,
@@ -2102,6 +2056,7 @@ class _WorkspaceEntry {
 
 class _WorkspacePanel extends StatelessWidget {
   const _WorkspacePanel({
+    super.key,
     required this.activeView,
     required this.searchController,
     required this.onSearchChanged,
@@ -3317,267 +3272,6 @@ class _ModuleEyebrow extends StatelessWidget {
           fontSize: 12,
           fontWeight: FontWeight.w800,
           letterSpacing: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _ActionComponents extends StatelessWidget {
-  const _ActionComponents({
-    required this.onOpenInvites,
-    required this.onOpenMembers,
-  });
-
-  final VoidCallback onOpenInvites;
-  final VoidCallback onOpenMembers;
-
-  @override
-  Widget build(BuildContext context) {
-    final components = <Widget>[
-      _ClickableComponentTile(
-        icon: Icons.table_rows_rounded,
-        eyebrow: 'Live table',
-        title: 'Open Members Table',
-        subtitle:
-            'Navigate directly to full member records and lifecycle actions.',
-        accent: const [Color(0xFF0E9B90), Color(0xFF18A89D)],
-        onTap: onOpenMembers,
-      ),
-      _ClickableComponentTile(
-        icon: Icons.mail_outline_rounded,
-        eyebrow: 'Invite queue',
-        title: 'Open Invites Table',
-        subtitle:
-            'Review all invite statuses, role targets, and acceptance outcomes.',
-        accent: const [Color(0xFF2563EB), Color(0xFF38BDF8)],
-        onTap: onOpenInvites,
-      ),
-      _ClickableComponentTile(
-        icon: Icons.event_note_rounded,
-        eyebrow: 'Preview module',
-        title: 'Appointments Overview',
-        subtitle:
-            'Reserved space for counselor scheduling and appointment visibility.',
-        accent: const [Color(0xFFF59E0B), Color(0xFFFB923C)],
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Appointments module coming soon.')),
-          );
-        },
-      ),
-      _ClickableComponentTile(
-        icon: Icons.library_books_rounded,
-        eyebrow: 'Preview module',
-        title: 'Resource Library',
-        subtitle:
-            'Reserved space for institution resources and student support materials.',
-        accent: const [Color(0xFF7C3AED), Color(0xFFA855F7)],
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Resource module coming soon.')),
-          );
-        },
-      ),
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFDDE6EE)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x120F172A),
-            blurRadius: 24,
-            offset: Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FBFF),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xFFD8E6F2)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: const Icon(
-                      Icons.widgets_rounded,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Quick Components',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Focused tools that move you into the right admin workflow without hunting through the full dashboard.',
-                          style: TextStyle(
-                            color: Color(0xFF5E728D),
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final twoColumns = constraints.maxWidth >= 720;
-                if (!twoColumns) {
-                  return Column(
-                    children: [
-                      for (var i = 0; i < components.length; i++) ...[
-                        if (i > 0) const SizedBox(height: 10),
-                        components[i],
-                      ],
-                    ],
-                  );
-                }
-                return Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    for (final component in components)
-                      SizedBox(
-                        width: (constraints.maxWidth - 12) / 2,
-                        child: component,
-                      ),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ClickableComponentTile extends StatelessWidget {
-  const _ClickableComponentTile({
-    required this.icon,
-    required this.eyebrow,
-    required this.title,
-    required this.subtitle,
-    required this.accent,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String eyebrow;
-  final String title;
-  final String subtitle;
-  final List<Color> accent;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFD9E4F0)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: accent,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(icon, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      eyebrow.toUpperCase(),
-                      style: const TextStyle(
-                        color: Color(0xFF7A8CA4),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: Color(0xFF16324F),
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        color: Color(0xFF5E728D),
-                        fontSize: 12.5,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF4F7FB),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.chevron_right_rounded,
-                  color: Color(0xFF8FA0B6),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
