@@ -237,6 +237,9 @@ class _OnboardingQuestionnaireScreenState
           final question = questions[_currentStep];
           final progress = (_currentStep + 1) / questions.length;
           final isLastStep = _currentStep == questions.length - 1;
+          final viewportHeight = MediaQuery.of(context).size.height;
+          final listHeight =
+              (viewportHeight - 320).clamp(280.0, 520.0); // keeps buttons visible
 
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 22),
@@ -275,33 +278,60 @@ class _OnboardingQuestionnaireScreenState
                   ),
                 ),
                 const SizedBox(height: 22),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 280),
-                  transitionBuilder: (child, animation) {
-                    final slide =
-                        Tween<Offset>(
-                          begin: const Offset(0.06, 0),
-                          end: Offset.zero,
-                        ).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOutCubic,
-                          ),
-                        );
-                    return FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(position: slide, child: child),
-                    );
-                  },
-                  child: _QuestionStep(
-                    key: ValueKey(question.id),
-                    question: question,
-                    answers: _answers,
-                    onMultiToggle: (option) => _toggleMulti(question, option),
-                    onSingleSelect: (option) => _setSingle(question, option),
-                    onReminderSelect: (option) =>
-                        _setReminderSlot(question, option),
-                    onPickCustomTime: () => _pickCustomTime(question),
+                Text(
+                  question.title,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF071937),
+                    fontSize: 48 / 2,
+                    letterSpacing: -0.6,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  question.subtitle,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFF5E728D),
+                    height: 1.4,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: listHeight,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 280),
+                    transitionBuilder: (child, animation) {
+                      final slide =
+                          Tween<Offset>(
+                            begin: const Offset(0.06, 0),
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutCubic,
+                            ),
+                          );
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(position: slide, child: child),
+                      );
+                    },
+                    child: SingleChildScrollView(
+                      key: ValueKey(question.id),
+                      child: _QuestionStep(
+                        question: question,
+                        answers: _answers,
+                        onMultiToggle: (option) =>
+                            _toggleMulti(question, option),
+                        onSingleSelect: (option) => _setSingle(question, option),
+                        onReminderSelect: (option) =>
+                            _setReminderSlot(question, option),
+                        onPickCustomTime: () => _pickCustomTime(question),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -394,7 +424,6 @@ class _OnboardingQuestionnaireScreenState
 
 class _QuestionStep extends StatelessWidget {
   const _QuestionStep({
-    super.key,
     required this.question,
     required this.answers,
     required this.onMultiToggle,
@@ -413,30 +442,8 @@ class _QuestionStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      key: key,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          question.title,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF071937),
-            fontSize: 48 / 2,
-            letterSpacing: -0.6,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          question.subtitle,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: const Color(0xFF5E728D),
-            height: 1.4,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 20),
         if (question.id == 'today_mood')
           _buildMoodGrid(context)
         else
@@ -609,13 +616,42 @@ class _SelectableCard extends StatelessWidget {
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE9F2F6),
                     borderRadius: BorderRadius.circular(14),
+                    gradient: selected
+                        ? const LinearGradient(
+                            colors: [Color(0xFF0E9B90), Color(0xFF18A89D)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: selected ? null : const Color(0xFFE9F2F6),
                   ),
                   alignment: Alignment.center,
-                  child: Text(
-                    emoji ?? '•',
-                    style: const TextStyle(fontSize: 24),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    transitionBuilder: (child, animation) => ScaleTransition(
+                      scale: CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutBack,
+                      ),
+                      child: child,
+                    ),
+                    child: emoji != null
+                        ? Text(
+                            emoji!,
+                            key: ValueKey('emoji-$emoji-$selected'),
+                            style: const TextStyle(fontSize: 24),
+                          )
+                        : Icon(
+                            selected
+                                ? Icons.bolt_rounded
+                                : Icons.blur_circular_rounded,
+                            key: ValueKey('icon-$selected'),
+                            color: selected
+                                ? Colors.white
+                                : const Color(0xFF7A8CA4),
+                            size: 26,
+                          ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -658,13 +694,21 @@ class _SelectableCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(
-                  selected
-                      ? Icons.check_circle_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  color: selected
-                      ? const Color(0xFF0E9B90)
-                      : const Color(0xFFA3B3C9),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(scale: animation, child: child),
+                  ),
+                  child: Icon(
+                    selected
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    key: ValueKey('tail-$selected'),
+                    color: selected
+                        ? const Color(0xFF0E9B90)
+                        : const Color(0xFFA3B3C9),
+                  ),
                 ),
               ],
             ),

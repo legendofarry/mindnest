@@ -108,16 +108,44 @@ class OnboardingQuestionBank {
     type: OnboardingQuestionType.multiSelect,
     minSelections: 1,
     options: [
-      OnboardingOption(id: 'stress', label: 'Stress', recommended: true),
-      OnboardingOption(id: 'anxiety', label: 'Anxiety', recommended: true),
-      OnboardingOption(id: 'burnout', label: 'Burnout', recommended: true),
+      OnboardingOption(
+        id: 'stress',
+        label: 'Stress',
+        recommended: true,
+        emoji: '💧',
+      ),
+      OnboardingOption(
+        id: 'anxiety',
+        label: 'Anxiety',
+        recommended: true,
+        emoji: '💭',
+      ),
+      OnboardingOption(
+        id: 'burnout',
+        label: 'Burnout',
+        recommended: true,
+        emoji: '🔥',
+      ),
       OnboardingOption(
         id: 'depression_low_mood',
         label: 'Depression / low mood',
+        emoji: '🌥️',
       ),
-      OnboardingOption(id: 'academic_pressure', label: 'Academic pressure'),
-      OnboardingOption(id: 'work_pressure', label: 'Work pressure'),
-      OnboardingOption(id: 'relationship_issues', label: 'Relationship issues'),
+      OnboardingOption(
+        id: 'academic_pressure',
+        label: 'Academic pressure',
+        emoji: '📚',
+      ),
+      OnboardingOption(
+        id: 'work_pressure',
+        label: 'Work pressure',
+        emoji: '💼',
+      ),
+      OnboardingOption(
+        id: 'relationship_issues',
+        label: 'Relationship issues',
+        emoji: '💬',
+      ),
     ],
   );
 
