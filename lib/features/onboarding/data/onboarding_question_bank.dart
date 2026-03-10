@@ -118,13 +118,6 @@ class OnboardingQuestionBank {
       OnboardingOption(id: 'academic_pressure', label: 'Academic pressure'),
       OnboardingOption(id: 'work_pressure', label: 'Work pressure'),
       OnboardingOption(id: 'relationship_issues', label: 'Relationship issues'),
-      OnboardingOption(id: 'sleep_problems', label: 'Sleep problems'),
-      OnboardingOption(
-        id: 'motivation_productivity',
-        label: 'Motivation / productivity',
-      ),
-      OnboardingOption(id: 'self_improvement', label: 'Self improvement'),
-      OnboardingOption(id: 'other', label: 'Other'),
     ],
   );
 
