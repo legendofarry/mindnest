@@ -34,6 +34,18 @@ const _slate = Color(0xFF1E293B);
 const _muted = Color(0xFF64748B);
 
 final _homeProfileAutoOpenTokenProvider = StateProvider<String?>((_) => null);
+final _joinCodeInlineExpandedProvider = StateProvider.autoDispose<bool>(
+  (_) => false,
+);
+final _joinCodeSubmittingProvider = StateProvider.autoDispose<bool>(
+  (_) => false,
+);
+final _joinCodeTextControllerProvider =
+    Provider.autoDispose<TextEditingController>((ref) {
+      final controller = TextEditingController();
+      ref.onDispose(controller.dispose);
+      return controller;
+    });
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -47,6 +59,7 @@ class HomeScreen extends ConsumerWidget {
   static const String _profileSourceValue = 'profile';
   static const String _openProfileQueryKey = 'openProfile';
   static const String _profileOpenTokenQueryKey = 'profileOpenTs';
+  static const String _openJoinCodeQueryKey = AppRoute.openJoinCodeQuery;
 
   String _formatInstitutionBadge(String? rawName) {
     const maxVisibleChars = 12;
@@ -297,18 +310,12 @@ class HomeScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 20),
                   _crisisContactTile(
-                    'US & Canada',
-                    '988',
-                    'Suicide & Crisis Lifeline',
-                  ),
-                  _crisisContactTile('UK & ROI', '116 123', 'Samaritans'),
-                  _crisisContactTile(
                     'Kenya',
-                    '999 / 112',
+                    '999 / 0800 723 253',
                     'Emergency Services',
                     onTap: () => _openDialerForNumber(
                       context: homeContext,
-                      number: '999',
+                      number: '0800723253',
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -757,7 +764,7 @@ class HomeScreen extends ConsumerWidget {
                                       Navigator.of(sheetContext).pop();
                                       parentContext.go(
                                         _withProfileSource(
-                                          AppRoute.joinInstitution,
+                                          AppRoute.homeWithJoinCodeIntent(),
                                         ),
                                       );
                                     },
@@ -1134,7 +1141,7 @@ class HomeScreen extends ConsumerWidget {
         context.go(AppRoute.carePlan);
         return;
       case AssistantActionType.openJoinInstitution:
-        context.go(AppRoute.joinInstitution);
+        context.go(AppRoute.homeWithJoinCodeIntent());
         return;
       case AssistantActionType.openPrivacy:
         context.go(AppRoute.privacyControls);
@@ -1199,6 +1206,17 @@ class HomeScreen extends ConsumerWidget {
           _openProfilePanel(context, ref, loadedProfile);
         });
       }
+    }
+
+    final shouldAutoOpenJoin =
+        uri.queryParameters[_openJoinCodeQueryKey] == '1';
+    if (shouldAutoOpenJoin) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final notifier = ref.read(_joinCodeInlineExpandedProvider.notifier);
+        if (!ref.read(_joinCodeInlineExpandedProvider)) {
+          notifier.state = true;
+        }
+      });
     }
 
     if (useDesktopShell) {
@@ -1288,8 +1306,6 @@ class HomeScreen extends ConsumerWidget {
                       if (showJoinInstitutionNudge) ...[
                         const SizedBox(height: 14),
                         _InstitutionJoinNudgeCard(
-                          onJoinCode: () =>
-                              context.go(AppRoute.joinInstitution),
                           onHowItWorks: () =>
                               _showInstitutionJoinGuide(context),
                         ),
@@ -1467,8 +1483,6 @@ class HomeScreen extends ConsumerWidget {
                       if (showJoinInstitutionNudge) ...[
                         const SizedBox(height: 14),
                         _InstitutionJoinNudgeCard(
-                          onJoinCode: () =>
-                              context.go(AppRoute.joinInstitution),
                           onHowItWorks: () =>
                               _showInstitutionJoinGuide(context),
                         ),
@@ -2748,18 +2762,62 @@ class _AppBarIconBtn extends StatelessWidget {
   }
 }
 
-class _InstitutionJoinNudgeCard extends StatelessWidget {
-  const _InstitutionJoinNudgeCard({
-    required this.onJoinCode,
-    required this.onHowItWorks,
-  });
+class _InstitutionJoinNudgeCard extends ConsumerStatefulWidget {
+  const _InstitutionJoinNudgeCard({required this.onHowItWorks});
 
-  final VoidCallback onJoinCode;
   final VoidCallback onHowItWorks;
+
+  @override
+  ConsumerState<_InstitutionJoinNudgeCard> createState() =>
+      _InstitutionJoinNudgeCardState();
+}
+
+class _InstitutionJoinNudgeCardState
+    extends ConsumerState<_InstitutionJoinNudgeCard> {
+  Future<void> _submitJoinCode(BuildContext context) async {
+    final code = ref.read(_joinCodeTextControllerProvider).text.trim();
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Join code is required.')));
+      return;
+    }
+
+    ref.read(_joinCodeSubmittingProvider.notifier).state = true;
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .joinInstitutionByCode(code: code);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Institution joined successfully.')),
+      );
+      ref.read(_joinCodeInlineExpandedProvider.notifier).state = false;
+      ref.read(_joinCodeTextControllerProvider).clear();
+      final isVerified =
+          ref.read(authRepositoryProvider).currentAuthUser?.emailVerified ??
+          false;
+      if (!mounted) return;
+      context.go(isVerified ? AppRoute.home : AppRoute.verifyEmail);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      ref.read(_joinCodeSubmittingProvider.notifier).state = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final expanded = ref.watch(_joinCodeInlineExpandedProvider);
+    final isSubmitting = ref.watch(_joinCodeSubmittingProvider);
+    final controller = ref.watch(_joinCodeTextControllerProvider);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -2812,9 +2870,14 @@ class _InstitutionJoinNudgeCard extends StatelessWidget {
           Row(
             children: [
               ElevatedButton.icon(
-                onPressed: onJoinCode,
+                onPressed: () {
+                  final notifier = ref.read(
+                    _joinCodeInlineExpandedProvider.notifier,
+                  );
+                  notifier.state = !expanded;
+                },
                 icon: const Icon(Icons.key_rounded, size: 16),
-                label: const Text('Enter Join Code'),
+                label: Text(expanded ? 'Hide Join Code' : 'Enter Join Code'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0E9B90),
                   foregroundColor: Colors.white,
@@ -2826,7 +2889,7 @@ class _InstitutionJoinNudgeCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
-                onPressed: onHowItWorks,
+                onPressed: widget.onHowItWorks,
                 icon: const Icon(Icons.help_outline_rounded, size: 16),
                 label: const Text('How it works'),
                 style: OutlinedButton.styleFrom(
@@ -2838,6 +2901,86 @@ class _InstitutionJoinNudgeCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            child: expanded
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF0F1C2C)
+                            : const Color(0xFFF7FBFF),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFF223449)
+                              : const Color(0xFFC8D9EB),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextField(
+                            controller: controller,
+                            enabled: !isSubmitting,
+                            textCapitalization: TextCapitalization.characters,
+                            decoration: const InputDecoration(
+                              labelText: 'Join code',
+                              hintText: 'e.g. ABCD1234',
+                            ),
+                            onSubmitted: (_) {
+                              if (!isSubmitting) {
+                                _submitJoinCode(context);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              ElevatedButton(
+                                onPressed: isSubmitting
+                                    ? null
+                                    : () => _submitJoinCode(context),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF0E7490),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                ),
+                                child: Text(
+                                  isSubmitting ? 'Joining...' : 'Connect',
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              TextButton(
+                                onPressed: isSubmitting
+                                    ? null
+                                    : () {
+                                        controller.clear();
+                                        ref
+                                                .read(
+                                                  _joinCodeInlineExpandedProvider
+                                                      .notifier,
+                                                )
+                                                .state =
+                                            false;
+                                      },
+                                child: const Text('Cancel'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),

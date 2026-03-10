@@ -158,7 +158,7 @@ class _StudentAppointmentsScreenState
         context.go(AppRoute.carePlan);
         return;
       case AssistantActionType.openJoinInstitution:
-        context.go(AppRoute.joinInstitution);
+        context.go(AppRoute.homeWithJoinCodeIntent());
         return;
       case AssistantActionType.openPrivacy:
         context.go(AppRoute.privacyControls);

@@ -1,4 +1,5 @@
 // core/routes/app_router.dart
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/config/owner_config.dart';
@@ -35,7 +36,6 @@ import 'package:mindnest/features/home/presentation/privacy_controls_screen.dart
 import 'package:mindnest/features/institutions/presentation/institution_admin_screen.dart';
 import 'package:mindnest/features/institutions/presentation/institution_pending_screen.dart';
 import 'package:mindnest/features/institutions/presentation/invite_accept_screen.dart';
-import 'package:mindnest/features/institutions/presentation/join_institution_screen.dart';
 import 'package:mindnest/features/institutions/presentation/owner_dashboard_screen.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/live/presentation/live_hub_screen.dart';
@@ -86,6 +86,14 @@ class AppRoute {
   static const institutionNameQuery = 'institutionName';
   static const intendedRoleQuery = 'intendedRole';
   static const registrationIntentQuery = 'registrationIntent';
+  static const openJoinCodeQuery = 'openJoinCode';
+
+  static String homeWithJoinCodeIntent() {
+    return Uri(
+      path: AppRoute.home,
+      queryParameters: const <String, String>{openJoinCodeQuery: '1'},
+    ).toString();
+  }
 
   static Map<String, String> inviteQueryFromRaw(Map<String, String> raw) {
     final inviteId = (raw[inviteIdQuery] ?? '').trim();
@@ -727,7 +735,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoute.joinInstitution,
-        builder: (context, state) => const JoinInstitutionScreen(),
+        redirect: (context, state) => AppRoute.homeWithJoinCodeIntent(),
+        builder: (context, state) => const SizedBox.shrink(),
       ),
       GoRoute(
         path: AppRoute.institutionAdmin,
