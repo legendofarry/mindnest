@@ -125,14 +125,11 @@ class _BrandGlyph extends StatelessWidget {
         if (withBlob)
           Container(
             width: size + 50,
-            height: size + 50,
+            height: size,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
               gradient: RadialGradient(
-                colors: [
-                  Color(0x330E9B90),
-                  Color(0x000E9B90),
-                ],
+                colors: [Color(0x330E9B90), Color(0x000E9B90)],
                 stops: [0.25, 1.0],
               ),
             ),
