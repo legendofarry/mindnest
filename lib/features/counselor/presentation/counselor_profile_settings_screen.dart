@@ -34,7 +34,8 @@ class _CounselorProfileSettingsScreenState
   bool _seeded = false;
   bool _seededNotif = false;
 
-  String _specialization = 'General Counseling';
+  String _specialization = _specs.first;
+  Set<String> _specializations = {_specs.first};
   String _mode = 'Hybrid';
   String _timezone = 'UTC';
   bool _active = true;
@@ -109,10 +110,17 @@ class _CounselorProfileSettingsScreenState
               .join(', ');
       _bio.text = cp?.bio ?? (setup['bio'] as String? ?? '');
 
-      _specialization =
-          cp?.specialization ??
-          (setup['specialization'] as String? ?? _specialization);
-      if (!_specs.contains(_specialization)) _specialization = _specs.first;
+      final specializationRaw =
+          cp?.specialization ?? (setup['specialization'] as String? ?? '');
+      final parsedSpecs = specializationRaw
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty && _specs.contains(e))
+          .toSet();
+      _specializations = parsedSpecs.isNotEmpty ? parsedSpecs : {_specs.first};
+      _specialization = _specializations.isNotEmpty
+          ? _specializations.first
+          : _specs.first;
 
       _mode = cp?.sessionMode ?? (setup['sessionMode'] as String? ?? _mode);
       if (!_modes.contains(_mode)) _mode = _modes.first;
@@ -152,7 +160,7 @@ class _CounselorProfileSettingsScreenState
           .updateProfileAndSettings(
             displayName: _name.text,
             title: _title.text,
-            specialization: _specialization,
+            specialization: _specializations.join(', '),
             yearsExperience: years,
             sessionMode: _mode,
             timezone: _timezone,
@@ -475,26 +483,16 @@ class _CounselorProfileSettingsScreenState
                                           ),
                                         ),
                                         const SizedBox(height: 12),
-                                        DropdownButtonFormField<String>(
-                                          initialValue: _specialization,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Specialization',
-                                            prefixIcon: Icon(
-                                              Icons.psychology_alt,
-                                            ),
-                                          ),
-                                          items: _specs
-                                              .map(
-                                                (e) => DropdownMenuItem(
-                                                  value: e,
-                                                  child: Text(e),
-                                                ),
-                                              )
-                                              .toList(growable: false),
-                                          onChanged: (value) => setState(
-                                            () => _specialization =
-                                                value ?? _specialization,
-                                          ),
+                                        _SpecializationChips(
+                                          options: _specs,
+                                          selected: _specializations,
+                                          onChanged: (set) => setState(() {
+                                            _specializations = set.isNotEmpty
+                                                ? set
+                                                : {_specs.first};
+                                            _specialization =
+                                                _specializations.first;
+                                          }),
                                         ),
                                         const SizedBox(height: 12),
                                         Row(
@@ -794,6 +792,58 @@ class _SettingsHero extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SpecializationChips extends StatelessWidget {
+  const _SpecializationChips({
+    required this.options,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final List<String> options;
+  final Set<String> selected;
+  final ValueChanged<Set<String>> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 12, bottom: 6),
+          child: Text(
+            'Specializations',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+        ),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: options
+              .map(
+                (item) => FilterChip(
+                  label: Text(item),
+                  selected: selected.contains(item),
+                  onSelected: (value) {
+                    final next = Set<String>.from(selected);
+                    if (value) {
+                      next.add(item);
+                    } else {
+                      next.remove(item);
+                    }
+                    onChanged(next);
+                  },
+                ),
+              )
+              .toList(growable: false),
+        ),
+      ],
     );
   }
 }

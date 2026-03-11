@@ -124,6 +124,7 @@ class _InstitutionAdminScreenState
   int _rowsPerPage = PaginatedDataTable.defaultRowsPerPage;
   int? _sortColumnIndex;
   bool _sortAscending = true;
+  String? _highlightRecordId;
 
   @override
   void initState() {
@@ -907,6 +908,19 @@ class _InstitutionAdminScreenState
     });
   }
 
+  void _focusUnresolved(List<_WorkspaceEntry> unresolved) {
+    if (unresolved.isEmpty) return;
+    final target = unresolved.first;
+    _searchController.text = target.primary;
+    setState(() {
+      _highlightRecordId = target.recordId;
+    });
+    Future.delayed(const Duration(milliseconds: 1600), () {
+      if (!mounted) return;
+      setState(() => _highlightRecordId = null);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(currentUserProfileProvider);
@@ -976,6 +990,44 @@ class _InstitutionAdminScreenState
                       final pendingCount = invites
                           .where((doc) => _isPendingInviteData(doc.data()))
                           .length;
+
+                      List<_WorkspaceEntry> memberEntriesAll() {
+                        return members
+                            .map((doc) {
+                              final data = doc.data();
+                              final userId =
+                                  (data['userId'] as String?) ?? '--';
+                              final roleName =
+                                  (data['role'] as String?) ?? 'member';
+                              final displayName =
+                                  (data['userName'] as String?) ??
+                                  (data['name'] as String?) ??
+                                  'Member ${userId.length > 6 ? userId.substring(0, 6) : userId}';
+                              final secondary =
+                                  (data['email'] as String?) ??
+                                  (data['userId'] as String?) ??
+                                  '--';
+                              return _WorkspaceEntry(
+                                recordId: doc.id,
+                                primary: displayName,
+                                secondary: secondary,
+                                type: roleName,
+                                status: (data['status'] as String?) ?? 'active',
+                                source: 'member',
+                                createdAt: _parseDate(
+                                  data['joinedAt'] ?? data['createdAt'],
+                                ),
+                                raw: data,
+                              );
+                            })
+                            .toList(growable: false);
+                      }
+
+                      final allMemberEntries = memberEntriesAll();
+                      final unresolvedMembers = allMemberEntries
+                          .where((e) => e.status.toLowerCase() != 'active')
+                          .toList(growable: false);
+                      final hasUnresolvedMembers = unresolvedMembers.isNotEmpty;
 
                       final stats = [
                         _DashboardStat(
@@ -1100,6 +1152,9 @@ class _InstitutionAdminScreenState
                                 sortColumnIndex: _sortColumnIndex,
                                 sortAscending: _sortAscending,
                                 onSort: _setSort,
+                                unresolvedMembers: unresolvedMembers,
+                                onFocusUnresolved: _focusUnresolved,
+                                highlightedRecordId: _highlightRecordId,
                               ),
                               const SizedBox(height: 14),
                               LayoutBuilder(
@@ -1240,6 +1295,7 @@ class _InstitutionAdminScreenState
                                     activeView: _activeView,
                                     onViewSelected: _setWorkspace,
                                     onLogout: onLogout,
+                                    hasUnresolvedMembers: hasUnresolvedMembers,
                                   ),
                                 ),
                                 const SizedBox(width: 18),
@@ -1532,6 +1588,7 @@ class _AdminSidebarShell extends StatelessWidget {
     required this.activeView,
     required this.onViewSelected,
     required this.onLogout,
+    required this.hasUnresolvedMembers,
   });
 
   final String institutionName;
@@ -1539,6 +1596,7 @@ class _AdminSidebarShell extends StatelessWidget {
   final AdminWorkspaceView activeView;
   final ValueChanged<AdminWorkspaceView> onViewSelected;
   final VoidCallback onLogout;
+  final bool hasUnresolvedMembers;
 
   @override
   Widget build(BuildContext context) {
@@ -1609,7 +1667,11 @@ class _AdminSidebarShell extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 26),
-            _SideNav(activeView: activeView, onViewSelected: onViewSelected),
+            _SideNav(
+              activeView: activeView,
+              onViewSelected: onViewSelected,
+              hasUnresolvedMembers: hasUnresolvedMembers,
+            ),
             const Spacer(),
             Container(
               padding: const EdgeInsets.all(16),
@@ -1735,10 +1797,15 @@ class _AdminMobileNavChip extends StatelessWidget {
 }
 
 class _SideNav extends StatelessWidget {
-  const _SideNav({required this.activeView, required this.onViewSelected});
+  const _SideNav({
+    required this.activeView,
+    required this.onViewSelected,
+    this.hasUnresolvedMembers = false,
+  });
 
   final AdminWorkspaceView activeView;
   final ValueChanged<AdminWorkspaceView> onViewSelected;
+  final bool hasUnresolvedMembers;
 
   @override
   Widget build(BuildContext context) {
@@ -1751,6 +1818,8 @@ class _SideNav extends StatelessWidget {
               child: _SideNavButton(
                 view: view,
                 selected: activeView == view,
+                showDot:
+                    view == AdminWorkspaceView.members && hasUnresolvedMembers,
                 onTap: () => onViewSelected(view),
               ),
             ),
@@ -1792,11 +1861,13 @@ class _SideNavButton extends StatelessWidget {
     required this.view,
     required this.selected,
     required this.onTap,
+    this.showDot = false,
   });
 
   final AdminWorkspaceView view;
   final bool selected;
   final VoidCallback onTap;
+  final bool showDot;
 
   @override
   Widget build(BuildContext context) {
@@ -1834,6 +1905,15 @@ class _SideNavButton extends StatelessWidget {
                   ),
                 ),
               ),
+              if (showDot)
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
             ],
           ),
         ),
@@ -2276,6 +2356,9 @@ class _WorkspacePanel extends StatelessWidget {
     required this.sortColumnIndex,
     required this.sortAscending,
     required this.onSort,
+    required this.unresolvedMembers,
+    required this.onFocusUnresolved,
+    required this.highlightedRecordId,
   });
 
   final AdminWorkspaceView activeView;
@@ -2291,6 +2374,9 @@ class _WorkspacePanel extends StatelessWidget {
   final int? sortColumnIndex;
   final bool sortAscending;
   final void Function(int columnIndex, bool ascending) onSort;
+  final List<_WorkspaceEntry> unresolvedMembers;
+  final void Function(List<_WorkspaceEntry>) onFocusUnresolved;
+  final String? highlightedRecordId;
 
   @override
   Widget build(BuildContext context) {
@@ -2414,6 +2500,45 @@ class _WorkspacePanel extends StatelessWidget {
                       },
                     ),
                     const SizedBox(height: 12),
+                    if (activeView == AdminWorkspaceView.members &&
+                        unresolvedMembers.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: const Color(0xFFFDE68A)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.info_outline_rounded,
+                              color: Color(0xFF854D0E),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                '${unresolvedMembers.length} member(s) need activation or review. First: ${unresolvedMembers.first.primary}.',
+                                style: const TextStyle(
+                                  color: Color(0xFF854D0E),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () =>
+                                  onFocusUnresolved(unresolvedMembers),
+                              icon: const Icon(Icons.search_rounded),
+                              label: const Text('Check'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF854D0E),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -2470,6 +2595,7 @@ class _WorkspacePanel extends StatelessWidget {
                   sortColumnIndex: sortColumnIndex,
                   sortAscending: sortAscending,
                   onSort: onSort,
+                  highlightedRecordId: highlightedRecordId,
                 ),
             ],
           ],
@@ -2609,6 +2735,7 @@ class _PaginatedWorkspaceTable extends StatelessWidget {
     required this.sortColumnIndex,
     required this.sortAscending,
     required this.onSort,
+    this.highlightedRecordId,
   });
 
   final List<_WorkspaceEntry> entries;
@@ -2618,10 +2745,15 @@ class _PaginatedWorkspaceTable extends StatelessWidget {
   final int? sortColumnIndex;
   final bool sortAscending;
   final void Function(int columnIndex, bool ascending) onSort;
+  final String? highlightedRecordId;
 
   @override
   Widget build(BuildContext context) {
-    final source = _WorkspaceDataSource(entries: entries, onRowTap: onRowTap);
+    final source = _WorkspaceDataSource(
+      entries: entries,
+      onRowTap: onRowTap,
+      highlightedRecordId: highlightedRecordId,
+    );
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -2770,10 +2902,15 @@ class _PaginatedWorkspaceTable extends StatelessWidget {
 }
 
 class _WorkspaceDataSource extends DataTableSource {
-  _WorkspaceDataSource({required this.entries, required this.onRowTap});
+  _WorkspaceDataSource({
+    required this.entries,
+    required this.onRowTap,
+    this.highlightedRecordId,
+  });
 
   final List<_WorkspaceEntry> entries;
   final ValueChanged<_WorkspaceEntry> onRowTap;
+  final String? highlightedRecordId;
 
   String _formatDate(DateTime? dt) {
     if (dt == null) {
@@ -2814,6 +2951,9 @@ class _WorkspaceDataSource extends DataTableSource {
     final status = entry.status.toLowerCase();
     return DataRow.byIndex(
       index: index,
+      color: entry.recordId == highlightedRecordId
+          ? MaterialStateProperty.all(const Color(0x332563EB))
+          : null,
       cells: [
         DataCell(
           Text(
