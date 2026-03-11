@@ -412,7 +412,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 26),
+                const SizedBox(),
                 Text(
                   'Counselor Setup',
                   style: Theme.of(context).textTheme.displaySmall?.copyWith(
