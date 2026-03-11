@@ -812,7 +812,20 @@ service cloud.firestore {
         request.resource.data.threadKey ==
           (request.resource.data.adminId + '|' + request.resource.data.counselorId);
 
-      allow update, delete: if false;
+      allow update: if isSignedIn() &&
+        (request.auth.uid == resource.data.adminId ||
+         request.auth.uid == resource.data.counselorId) &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['isRead']) &&
+        request.resource.data.isRead is bool &&
+        request.resource.data.threadKey == resource.data.threadKey &&
+        request.resource.data.adminId == resource.data.adminId &&
+        request.resource.data.counselorId == resource.data.counselorId &&
+        request.resource.data.senderId == resource.data.senderId &&
+        request.resource.data.senderRole == resource.data.senderRole;
+
+      allow delete: if isSignedIn() &&
+        (request.auth.uid == resource.data.adminId ||
+         request.auth.uid == resource.data.counselorId);
     }
 
     match /institution_name_registry/{nameKey} {

@@ -21,6 +21,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
   String? _selectedCounselorId;
   String? _selectedCounselorName;
   final _message = TextEditingController();
+  final _search = TextEditingController();
   bool _sending = false;
   String? _inlineError;
   final Set<String> _markingThreads = {};
@@ -33,6 +34,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
   void dispose() {
     _unreadSub?.cancel();
     _message.dispose();
+    _search.dispose();
     super.dispose();
   }
 
@@ -319,19 +321,56 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     final isWide = MediaQuery.sizeOf(context).width >= 960;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F7FB),
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        centerTitle: false,
-        titleSpacing: 14,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        title: const Text(
-          'Counselor Messages',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-      ),
+              backgroundColor: const Color(0xFFF3F7FB),
+              appBar: AppBar(
+                automaticallyImplyLeading: false,
+                centerTitle: false,
+                titleSpacing: 14,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                surfaceTintColor: Colors.transparent,
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Counselor Messages',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    SizedBox(height: 2),
+                  ],
+                ),
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(58),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: TextField(
+                      controller: _search,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: 'Search counselor name or email',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide:
+                              const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide:
+                              const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
@@ -363,6 +402,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                           },
                           unreadCounts: _unreadCounts,
                           onMenu: _showConversationMenu,
+                          filterText: _search.text,
                         ),
                       ),
                       GestureDetector(
@@ -466,6 +506,7 @@ class _CounselorListPane extends StatelessWidget {
     required this.onSelected,
     required this.unreadCounts,
     required this.onMenu,
+    required this.filterText,
   });
 
   final Stream<QuerySnapshot<Map<String, dynamic>>> stream;
@@ -477,6 +518,7 @@ class _CounselorListPane extends StatelessWidget {
     String counselorName,
     Offset globalPosition,
   ) onMenu;
+  final String filterText;
 
   @override
   Widget build(BuildContext context) {
@@ -499,10 +541,23 @@ class _CounselorListPane extends StatelessWidget {
         if (docs.isEmpty) {
           return const Center(child: Text('No counselors found.'));
         }
+        final query = filterText.trim().toLowerCase();
+        final filtered = query.isEmpty
+            ? docs
+            : docs.where((doc) {
+                final data = doc.data();
+                final name = (data['name'] as String?) ?? '';
+                final email = (data['email'] as String?) ?? '';
+                final target = '$name $email'.toLowerCase();
+                return target.contains(query);
+              }).toList(growable: false);
+        if (filtered.isEmpty) {
+          return const Center(child: Text('No matches.'));
+        }
         return ListView.separated(
           padding: const EdgeInsets.all(12),
           itemBuilder: (context, index) {
-            final doc = docs[index];
+            final doc = filtered[index];
             final data = doc.data();
             final name =
                 (data['name'] as String?) ?? (data['email'] as String?) ?? '';
@@ -563,7 +618,7 @@ class _CounselorListPane extends StatelessWidget {
             );
           },
           separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemCount: docs.length,
+          itemCount: filtered.length,
         );
       },
     );
