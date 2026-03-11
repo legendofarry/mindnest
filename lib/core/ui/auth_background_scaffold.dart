@@ -78,44 +78,71 @@ class _AuthBackgroundScaffoldState extends State<AuthBackgroundScaffold>
 }
 
 class BrandMark extends StatelessWidget {
-  const BrandMark({super.key, this.compact = false});
+  const BrandMark({
+    super.key,
+    this.compact = false,
+    this.showText = true,
+    this.withBlob = false,
+  });
 
   final bool compact;
+  final bool showText;
+  final bool withBlob;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _BrandGlyph(compact: compact),
-        const SizedBox(height: 10),
-        Text(
-          'MindNest',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF071937),
-            letterSpacing: -0.4,
+        _BrandGlyph(compact: compact, withBlob: withBlob),
+        if (showText) ...[
+          const SizedBox(),
+          Text(
+            'MindNest',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF071937),
+              letterSpacing: -0.4,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
 }
 
 class _BrandGlyph extends StatelessWidget {
-  const _BrandGlyph({required this.compact});
+  const _BrandGlyph({required this.compact, this.withBlob = false});
 
   final bool compact;
+  final bool withBlob;
 
   @override
   Widget build(BuildContext context) {
-    final size = compact ? 56.0 : 66.0;
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Image.asset(
-        'assets/logo.png',
-        fit: BoxFit.contain,
-      ),
+    final size = compact ? 150.0 : 150.0;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        if (withBlob)
+          Container(
+            width: size + 50,
+            height: size + 50,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  Color(0x330E9B90),
+                  Color(0x000E9B90),
+                ],
+                stops: [0.25, 1.0],
+              ),
+            ),
+          ),
+        SizedBox(
+          width: size,
+          height: size,
+          child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+        ),
+      ],
     );
   }
 }
@@ -219,7 +246,11 @@ class _SnowDotsPainter extends CustomPainter {
           ) ??
           const Color(0x330BA4FF);
 
-      canvas.drawCircle(Offset(x * size.width, y * size.height), point.r, paint);
+      canvas.drawCircle(
+        Offset(x * size.width, y * size.height),
+        point.r,
+        paint,
+      );
     }
   }
 

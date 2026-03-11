@@ -308,16 +308,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (showBrand) ...[
-              const SizedBox(height: 16),
-              const BrandMark(),
-              const SizedBox(height: 38),
+              const SizedBox(height: 8),
+              BrandMark(
+                showText:
+                    MediaQuery.sizeOf(context).width >= _desktopBreakpoint,
+                compact: false,
+                withBlob: MediaQuery.sizeOf(context).width < _desktopBreakpoint,
+              ),
+              SizedBox(
+                height: MediaQuery.sizeOf(context).width >= _desktopBreakpoint
+                    ? 14
+                    : 2,
+              ),
             ] else ...[
               const SizedBox(height: 8),
             ],
             Text(
               'Welcome Back',
               style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w900,
                 color: const Color(0xFF071937),
                 letterSpacing: -0.7,
               ),
@@ -965,7 +974,7 @@ class _DesktopMarketingPanelState
                 style: TextStyle(
                   color: Color(0xFF0F172A),
                   fontSize: 41,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w900,
                   letterSpacing: -0.8,
                 ),
               ),
@@ -976,19 +985,18 @@ class _DesktopMarketingPanelState
             text: const TextSpan(
               children: [
                 TextSpan(
-                  text: 'Your safe space\n',
+                  text: 'Your safe space',
                   style: TextStyle(
                     color: Color(0xFF0E9B90),
                     fontSize: 62,
                     fontWeight: FontWeight.w800,
                     height: 0,
-                    letterSpacing: -1.9,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(),
+          const SizedBox(height: 4),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: _buildDidYouKnowCard(context),
@@ -1100,7 +1108,7 @@ class _DesktopMarketingPanelState
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           Row(
             children: [
               Container(
