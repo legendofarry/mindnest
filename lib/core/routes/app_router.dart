@@ -37,6 +37,7 @@ import 'package:mindnest/features/institutions/presentation/institution_admin_sc
 import 'package:mindnest/features/institutions/presentation/institution_pending_screen.dart';
 import 'package:mindnest/features/institutions/presentation/invite_accept_screen.dart';
 import 'package:mindnest/features/institutions/presentation/owner_dashboard_screen.dart';
+import 'package:mindnest/features/institutions/presentation/admin_messages_screen.dart';
 import 'package:mindnest/features/institutions/presentation/institution_admin_profile_screen.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/live/presentation/live_hub_screen.dart';
@@ -79,6 +80,7 @@ class AppRoute {
   static const joinInstitution = '/join-institution';
   static const institutionAdmin = '/institution-admin';
   static const institutionAdminProfile = '/institution-admin/profile';
+  static const institutionAdminMessages = '/institution-admin/messages';
   static const institutionPending = '/institution-pending';
   static const ownerDashboard = '/owner-dashboard';
 
@@ -247,7 +249,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isOwnerRoute = location == AppRoute.ownerDashboard;
       final isInstitutionAdminRoute =
           location == AppRoute.institutionAdmin ||
-          location == AppRoute.institutionAdminProfile;
+          location == AppRoute.institutionAdminProfile ||
+          location == AppRoute.institutionAdminMessages;
 
       try {
         if (authState == null) {
@@ -757,6 +760,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.institutionAdminProfile,
         builder: (context, state) =>
             const InstitutionAdminProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.institutionAdminMessages,
+        builder: (context, state) => const AdminMessagesScreen(),
       ),
       GoRoute(
         path: AppRoute.institutionPending,

@@ -188,15 +188,9 @@ class _InstitutionAdminProfileScreenState
               ),
               actions: [
                 IconButton(
-                  tooltip: 'Notifications',
-                  onPressed: () => context.push(AppRoute.notifications),
-                  icon: const Icon(Icons.notifications_none_rounded),
-                ),
-                const SizedBox(width: 4),
-                IconButton(
-                  tooltip: 'Privacy & data',
-                  onPressed: () => context.push(AppRoute.privacyControls),
-                  icon: const Icon(Icons.privacy_tip_outlined),
+                  tooltip: 'Message counselors',
+                  onPressed: () => context.push(AppRoute.institutionAdminMessages),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded),
                 ),
                 const SizedBox(width: 12),
               ],
