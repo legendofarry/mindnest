@@ -125,6 +125,8 @@ class _InstitutionAdminScreenState
   int? _sortColumnIndex;
   bool _sortAscending = true;
   String? _highlightRecordId;
+  bool _inviteExpanded = true;
+  bool _collabExpanded = true;
 
   @override
   void initState() {
@@ -1159,34 +1161,50 @@ class _InstitutionAdminScreenState
                               const SizedBox(height: 14),
                               LayoutBuilder(
                                 builder: (context, innerConstraints) {
+                                  final inviteSection = _CollapsibleSection(
+                                    title: 'Invite Flow',
+                                    expanded: _inviteExpanded,
+                                    onToggle: () => setState(
+                                      () => _inviteExpanded = !_inviteExpanded,
+                                    ),
+                                    child: _InviteComposer(
+                                      phoneController: _phoneController,
+                                      selectedRole: _inviteRole,
+                                      isSubmitting: _isSubmitting,
+                                      errorMessage: _inlineError,
+                                      onRoleChanged: (role) {
+                                        setState(() => _inviteRole = role);
+                                      },
+                                      onCreateInvite: _createInvite,
+                                    ),
+                                  );
+
+                                  final collabSection = _CollapsibleSection(
+                                    title: 'Counselor operations',
+                                    expanded: _collabExpanded,
+                                    onToggle: () => setState(
+                                      () => _collabExpanded = !_collabExpanded,
+                                    ),
+                                    child: _CounselorWorkflowSettingsCard(
+                                      institutionRef: institutionRef,
+                                      onChanged: (settings) {
+                                        return ref
+                                            .read(institutionRepositoryProvider)
+                                            .updateCounselorWorkflowSettings(
+                                              settings: settings,
+                                            );
+                                      },
+                                    ),
+                                  );
+
                                   if (innerConstraints.maxWidth < 860) {
                                     return Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.stretch,
                                       children: [
-                                        _InviteComposer(
-                                          phoneController: _phoneController,
-                                          selectedRole: _inviteRole,
-                                          isSubmitting: _isSubmitting,
-                                          errorMessage: _inlineError,
-                                          onRoleChanged: (role) {
-                                            setState(() => _inviteRole = role);
-                                          },
-                                          onCreateInvite: _createInvite,
-                                        ),
+                                        inviteSection,
                                         const SizedBox(height: 14),
-                                        _CounselorWorkflowSettingsCard(
-                                          institutionRef: institutionRef,
-                                          onChanged: (settings) {
-                                            return ref
-                                                .read(
-                                                  institutionRepositoryProvider,
-                                                )
-                                                .updateCounselorWorkflowSettings(
-                                                  settings: settings,
-                                                );
-                                          },
-                                        ),
+                                        collabSection,
                                       ],
                                     );
                                   }
@@ -1195,39 +1213,9 @@ class _InstitutionAdminScreenState
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(
-                                        flex: 5,
-                                        child: _InviteComposer(
-                                          phoneController: _phoneController,
-                                          selectedRole: _inviteRole,
-                                          isSubmitting: _isSubmitting,
-                                          errorMessage: _inlineError,
-                                          onRoleChanged: (role) {
-                                            setState(() => _inviteRole = role);
-                                          },
-                                          onCreateInvite: _createInvite,
-                                        ),
-                                      ),
+                                      Expanded(flex: 5, child: inviteSection),
                                       const SizedBox(width: 14),
-                                      Expanded(
-                                        flex: 4,
-                                        child: Column(
-                                          children: [
-                                            _CounselorWorkflowSettingsCard(
-                                              institutionRef: institutionRef,
-                                              onChanged: (settings) {
-                                                return ref
-                                                    .read(
-                                                      institutionRepositoryProvider,
-                                                    )
-                                                    .updateCounselorWorkflowSettings(
-                                                      settings: settings,
-                                                    );
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                                      Expanded(flex: 4, child: collabSection),
                                     ],
                                   );
                                 },
@@ -3903,6 +3891,68 @@ class _TagChip extends StatelessWidget {
           letterSpacing: 0.8,
           fontSize: 12,
         ),
+      ),
+    );
+  }
+}
+
+class _CollapsibleSection extends StatelessWidget {
+  const _CollapsibleSection({
+    required this.title,
+    required this.expanded,
+    required this.onToggle,
+    required this.child,
+  });
+
+  final String title;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD8E6F2)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F0F172A),
+            blurRadius: 14,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            dense: true,
+            title: Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0C2233),
+              ),
+            ),
+            trailing: Icon(
+              expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+              color: const Color(0xFF0C2233),
+            ),
+            onTap: onToggle,
+          ),
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 180),
+            crossFadeState: expanded
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            firstChild: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: child,
+            ),
+            secondChild: const SizedBox.shrink(),
+          ),
+        ],
       ),
     );
   }
