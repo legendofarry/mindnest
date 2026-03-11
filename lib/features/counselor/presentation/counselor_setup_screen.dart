@@ -59,7 +59,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     'Substance Abuse',
     'Bullying',
     'Grief & Loss',
-    'General Counseling',
   ];
 
   static const List<String> _sessionModes = <String>[
@@ -81,7 +80,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     'Woman',
     'Man',
     'Non-binary',
-    'Prefer not to say',
   ];
 
   static const List<_StepItem> _steps = <_StepItem>[
