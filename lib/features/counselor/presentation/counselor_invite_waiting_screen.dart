@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
+import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/models/user_invite.dart';
@@ -20,20 +21,27 @@ class CounselorInviteWaitingScreen extends ConsumerStatefulWidget {
 class _CounselorInviteWaitingScreenState
     extends ConsumerState<CounselorInviteWaitingScreen>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 6),
-  )..repeat();
-  late final Animation<double> _pulse = Tween<double>(
-    begin: 0.96,
-    end: 1.04,
-  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  late final AnimationController _controller;
+  late final Animation<double> _pulse;
 
   final _codeController = TextEditingController();
   bool _isSubmitting = false;
   String? _banner;
   bool _bannerIsError = false;
   String? _codeError;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
+    )..repeat();
+    _pulse = Tween<double>(
+      begin: 0.96,
+      end: 1.04,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
 
   @override
   void dispose() {
@@ -176,6 +184,15 @@ class _CounselorInviteWaitingScreenState
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Align(
+          alignment: Alignment.centerRight,
+          child: _LogoutIcon(
+            onTap: () {
+              confirmAndLogout(context: context, ref: ref);
+            },
+          ),
+        ),
+        const SizedBox(height: 6),
+        Align(
           alignment: isDesktop ? Alignment.centerLeft : Alignment.center,
           child: _StatusPill(
             controller: _controller,
@@ -239,6 +256,15 @@ class _CounselorInviteWaitingScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: _LogoutIcon(
+            onTap: () {
+              confirmAndLogout(context: context, ref: ref);
+            },
+          ),
+        ),
+        const SizedBox(height: 6),
         Align(
           alignment: isDesktop ? Alignment.centerLeft : Alignment.center,
           child: _StatusPill(
@@ -1167,6 +1193,28 @@ class _StatusPill extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _LogoutIcon extends StatelessWidget {
+  const _LogoutIcon({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(Icons.logout_rounded, color: const Color(0xFF6B7B93)),
+        ),
+      ),
     );
   }
 }

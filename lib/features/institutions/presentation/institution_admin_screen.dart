@@ -183,6 +183,19 @@ class _InstitutionAdminScreenState
     setState(() => _inlineError = null);
     setState(() => _isSubmitting = true);
     try {
+      final counselorIntentName = await ref
+          .read(institutionRepositoryProvider)
+          .counselorIntentNameByPhone(phone);
+      if (counselorIntentName != null && _inviteRole != UserRole.counselor) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '$counselorIntentName registered with counselor intent. You are inviting them as ${_inviteRole.label}.',
+            ),
+          ),
+        );
+      }
+
       final inviteDraft = await ref
           .read(institutionRepositoryProvider)
           .createRoleInvite(inviteePhoneNumber: phone, role: _inviteRole);
@@ -196,9 +209,7 @@ class _InstitutionAdminScreenState
       if (!mounted) {
         return;
       }
-      _showInlineError(
-        error.toString().replaceFirst('Exception: ', ''),
-      );
+      _showInlineError(error.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -2196,15 +2207,9 @@ class _WorkspacePanel extends StatelessWidget {
 
                         return Row(
                           children: [
-                            Expanded(
-                              flex: 4,
-                              child: searchField,
-                            ),
+                            Expanded(flex: 4, child: searchField),
                             const SizedBox(width: 12),
-                            Expanded(
-                              flex: 1,
-                              child: filterField,
-                            ),
+                            Expanded(flex: 1, child: filterField),
                           ],
                         );
                       },
@@ -2834,9 +2839,7 @@ class _InviteComposer extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: const Color(0xFFD8E6F2),
-                          ),
+                          border: Border.all(color: const Color(0xFFD8E6F2)),
                         ),
                         child: Text(
                           selectedRole.label,
@@ -2898,8 +2901,10 @@ class _InviteComposer extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.error_outline,
-                              color: Color(0xFFDC2626)),
+                          const Icon(
+                            Icons.error_outline,
+                            color: Color(0xFFDC2626),
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -2997,7 +3002,9 @@ class _CompactRoleChoice extends StatelessWidget {
             color: selected ? const Color(0xFF0E9B90) : Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? const Color(0xFF0E9B90) : const Color(0xFFD8E6F2),
+              color: selected
+                  ? const Color(0xFF0E9B90)
+                  : const Color(0xFFD8E6F2),
             ),
           ),
           child: Row(

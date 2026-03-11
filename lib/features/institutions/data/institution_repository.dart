@@ -506,6 +506,31 @@ class InstitutionRepository {
     );
   }
 
+  Future<String?> counselorIntentNameByPhone(String inviteePhoneNumber) async {
+    String normalized;
+    try {
+      normalized = _normalizePhoneE164(inviteePhoneNumber);
+    } catch (_) {
+      return null;
+    }
+    final phoneCandidates = _buildPhoneCandidates(primaryPhone: normalized);
+    final snapshot = await _firestore
+        .collection('users')
+        .where('phoneNumbers', arrayContainsAny: phoneCandidates)
+        .limit(1)
+        .get();
+    if (snapshot.docs.isEmpty) {
+      return null;
+    }
+    final data = snapshot.docs.first.data();
+    final intent = (data['registrationIntent'] as String?)?.trim();
+    if (intent != UserProfile.counselorRegistrationIntent) {
+      return null;
+    }
+    final name = (data['name'] as String?)?.trim();
+    return name?.isNotEmpty == true ? name! : 'This user';
+  }
+
   Future<void> declineInvite(UserInvite invite) async {
     if (!invite.isPending) {
       throw Exception('Only pending invites can be declined.');
