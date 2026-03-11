@@ -21,6 +21,8 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
   bool _sending = false;
   String? _inlineError;
   final Set<String> _markingThreads = {};
+  Map<String, int> _unreadCounts = const {};
+  bool _listeningUnread = false;
 
   @override
   void dispose() {
@@ -47,6 +49,30 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
               .map((doc) => _ChatMessage.fromMap(doc.id, doc.data()))
               .toList(growable: false),
         );
+  }
+
+  void _listenUnread(String adminId) {
+    if (_listeningUnread) return;
+    _listeningUnread = true;
+    final firestore = ref.read(firestoreProvider);
+    firestore
+        .collection('admin_counselor_messages')
+        .where('adminId', isEqualTo: adminId)
+        .where('senderRole', isEqualTo: 'counselor')
+        .where('isRead', isEqualTo: false)
+        .snapshots()
+        .listen((snap) {
+      final counts = <String, int>{};
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final cid = (data['counselorId'] as String?) ?? '';
+        if (cid.isEmpty) continue;
+        counts[cid] = (counts[cid] ?? 0) + 1;
+      }
+      if (mounted) {
+        setState(() => _unreadCounts = counts);
+      }
+    });
   }
 
   Future<void> _markThreadRead({
@@ -77,6 +103,57 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     } finally {
       _markingThreads.remove(threadKey);
     }
+  }
+
+  void _showConversationMenu(String counselorId, String counselorName) {
+    final profile = ref.read(currentUserProfileProvider).valueOrNull;
+    if (profile == null) return;
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.mark_email_read_outlined),
+                title: const Text('Mark as read'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _markThreadRead(
+                    adminId: profile.id,
+                    counselorId: counselorId,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.person_outline_rounded),
+                title: const Text('View counselor profile'),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Hook up to counselor profile route if available.
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded),
+                title: const Text('Delete conversation'),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Delete conversation is not available yet.'),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _send({
@@ -146,6 +223,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     }
 
     final institutionId = profile.institutionId ?? '';
+    _listenUnread(profile.id);
     final firestore = ref.watch(firestoreProvider);
     final counselorsQuery = firestore
         .collection('users')
@@ -197,6 +275,8 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                               _selectedCounselorName = name;
                             });
                           },
+                          unreadCounts: _unreadCounts,
+                          onMenu: _showConversationMenu,
                         ),
                       ),
                       const VerticalDivider(width: 1),
@@ -273,11 +353,15 @@ class _CounselorListPane extends StatelessWidget {
     required this.stream,
     required this.selectedId,
     required this.onSelected,
+    required this.unreadCounts,
+    required this.onMenu,
   });
 
   final Stream<QuerySnapshot<Map<String, dynamic>>> stream;
   final String? selectedId;
   final void Function(String id, String name) onSelected;
+  final Map<String, int> unreadCounts;
+  final void Function(String counselorId, String counselorName) onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -308,22 +392,39 @@ class _CounselorListPane extends StatelessWidget {
             final name =
                 (data['name'] as String?) ?? (data['email'] as String?) ?? '';
             final selected = doc.id == selectedId;
+            final unread = unreadCounts[doc.id] ?? 0;
             return ListTile(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
-              tileColor: selected ? const Color(0xFFEFF6FF) : null,
+              tileColor: selected
+                  ? const Color(0xFFEFF6FF)
+                  : (unread > 0 ? const Color(0xFFFEF3C7) : null),
               title: Text(
                 name.isEmpty ? 'Counselor' : name,
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
-                  color: selected ? const Color(0xFF0F172A) : null,
+                  color: selected
+                      ? const Color(0xFF0F172A)
+                      : (unread > 0 ? const Color(0xFF92400E) : null),
                 ),
               ),
               subtitle: Text(
                 data['email'] as String? ?? '',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (unread > 0)
+                    _Badge(count: unread, color: const Color(0xFFDC2626)),
+                  IconButton(
+                    tooltip: 'Conversation options',
+                    onPressed: () => onMenu(doc.id, name.isEmpty ? 'Counselor' : name),
+                    icon: const Icon(Icons.more_vert_rounded),
+                  ),
+                ],
               ),
               onTap: () =>
                   onSelected(doc.id, name.isEmpty ? 'Counselor' : name),
@@ -729,6 +830,34 @@ class _ChatError extends StatelessWidget {
               style: const TextStyle(color: Color(0xFF64748B)),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.count, this.color = const Color(0xFF0E9B90)});
+
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = count > 99 ? '99+' : count.toString();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white, width: 1),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
