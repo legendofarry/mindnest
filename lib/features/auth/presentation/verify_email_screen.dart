@@ -199,11 +199,12 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              'A verification email was sent to\n${user?.email ?? 'your email address'}.',
+              'Link sent to, ${user?.email ?? 'your email address'}.',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: const Color(0xFF516784),
-                height: 1.35,
-                fontWeight: FontWeight.w500,
+                height: 1,
+                fontWeight: FontWeight.w800,
+                fontSize: 38 / 2,
               ),
             ),
             AnimatedSwitcher(
