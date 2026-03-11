@@ -40,6 +40,24 @@ final pendingUserInviteByIdProvider =
           .pendingInviteByIdForUid(inviteId: inviteId, uid: uid);
     });
 
+/// Raw invite fetch (no UID filtering) so we can show useful errors when
+/// the invite exists but belongs to another account.
+final inviteByIdProvider =
+    StreamProvider.family<UserInvite?, String>((ref, inviteId) {
+      final trimmed = inviteId.trim();
+      if (trimmed.isEmpty) {
+        return Stream<UserInvite?>.value(null);
+      }
+      return ref
+          .watch(firestoreProvider)
+          .collection('user_invites')
+          .doc(trimmed)
+          .snapshots()
+          .map((doc) => doc.exists
+              ? UserInvite.fromMap(doc.id, doc.data() ?? const {})
+              : null);
+    });
+
 final currentAdminInstitutionRequestProvider =
     StreamProvider<Map<String, dynamic>?>((ref) {
       final authUser = ref.watch(authStateChangesProvider).valueOrNull;

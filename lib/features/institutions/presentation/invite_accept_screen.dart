@@ -7,6 +7,7 @@ import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/models/user_invite.dart';
+import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 
 class InviteAcceptScreen extends ConsumerStatefulWidget {
   const InviteAcceptScreen({super.key, this.inviteId});
@@ -14,8 +15,7 @@ class InviteAcceptScreen extends ConsumerStatefulWidget {
   final String? inviteId;
 
   @override
-  ConsumerState<InviteAcceptScreen> createState() =>
-      _InviteAcceptScreenState();
+  ConsumerState<InviteAcceptScreen> createState() => _InviteAcceptScreenState();
 }
 
 class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
@@ -44,8 +44,9 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
           .acceptInvite(invite: invite, institutionCode: institutionCode);
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Invite accepted.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invite accepted.')));
 
       if (invite.intendedRole == UserRole.counselor) {
         context.go(AppRoute.counselorSetup);
@@ -69,8 +70,9 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
     try {
       await ref.read(institutionRepositoryProvider).declineInvite(invite);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Invite declined.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invite declined.')));
       context.go(AppRoute.home);
     } catch (error) {
       if (!mounted) return;
@@ -89,6 +91,9 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
     final authUser = ref.watch(authStateChangesProvider).valueOrNull;
     final inviteId = widget.inviteId?.trim() ?? '';
     final fallbackInviteAsync = ref.watch(pendingUserInviteProvider);
+    final rawInviteAsync = inviteId.isEmpty
+        ? const AsyncValue<UserInvite?>.data(null)
+        : ref.watch(inviteByIdProvider(inviteId));
 
     if (authUser == null) {
       return MindNestShell(
@@ -100,10 +105,9 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
               children: [
                 Text(
                   'Sign in to continue',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 const Text(
@@ -129,8 +133,38 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
       child: inviteAsync.when(
         data: (invite) {
           final resolvedInvite = invite ?? fallbackInviteAsync.valueOrNull;
+          final rawInvite = rawInviteAsync.valueOrNull;
 
           if (resolvedInvite == null) {
+            if (rawInvite != null && rawInvite.inviteeUid != authUser.uid) {
+              return GlassCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Invite belongs to another account',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'This invite is linked to a different user. Please sign out and open the link after signing in as the invited account.',
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: () =>
+                            confirmAndLogout(context: context, ref: ref),
+                        child: const Text('Sign out'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
             return GlassCard(
               child: Padding(
                 padding: const EdgeInsets.all(20),
@@ -139,10 +173,9 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
                   children: [
                     Text(
                       'Invite unavailable',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     const Text(
@@ -175,10 +208,9 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
                 children: [
                   Text(
                     'Institution Invitation',
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text('Institution: ${resolvedInvite.institutionName}'),

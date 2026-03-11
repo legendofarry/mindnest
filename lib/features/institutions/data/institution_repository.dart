@@ -397,6 +397,19 @@ class InstitutionRepository {
       throw Exception('You cannot invite your own account.');
     }
     final inviteeData = inviteeUser.data();
+    if (role == UserRole.counselor) {
+      final inviteeRole = (inviteeData['role'] as String?) ?? '';
+      final registrationIntent =
+          (inviteeData['registrationIntent'] as String?) ?? '';
+      final hasCounselorIntent =
+          registrationIntent == UserProfile.counselorRegistrationIntent;
+      final isCounselor = inviteeRole == UserRole.counselor.name;
+      if (!hasCounselorIntent && !isCounselor) {
+        throw Exception(
+          'This user is not set up as a counselor. Ask them to register using "I am a counselor" first, then invite again.',
+        );
+      }
+    }
     final invitedName =
         ((inviteeData['name'] as String?) ?? '').trim().isNotEmpty
         ? ((inviteeData['name'] as String?) ?? '').trim()
