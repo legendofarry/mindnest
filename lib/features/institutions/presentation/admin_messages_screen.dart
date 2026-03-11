@@ -169,10 +169,6 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
         if (confirm == true) {
           await _deleteConversation(adminId: adminId, counselorId: counselorId);
         }
-      } else if (action == 'profile') {
-        context.push(
-          '${AppRoute.counselorProfile}?counselorId=$counselorId&from=adminMessages',
-        );
       }
     }
 
@@ -194,16 +190,6 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                 Icon(Icons.mark_email_read_outlined, size: 18),
                 SizedBox(width: 10),
                 Text('Mark as read'),
-              ],
-            ),
-          ),
-          PopupMenuItem(
-            value: 'profile',
-            child: Row(
-              children: const [
-                Icon(Icons.person_outline_rounded, size: 18),
-                SizedBox(width: 10),
-                Text('View counselor profile'),
               ],
             ),
           ),
@@ -236,11 +222,6 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                   leading: const Icon(Icons.mark_email_read_outlined),
                   title: const Text('Mark as read'),
                   onTap: () => Navigator.pop(context, 'mark_read'),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.person_outline_rounded),
-                  title: const Text('View counselor profile'),
-                  onTap: () => Navigator.pop(context, 'profile'),
                 ),
                 ListTile(
                   leading: const Icon(
