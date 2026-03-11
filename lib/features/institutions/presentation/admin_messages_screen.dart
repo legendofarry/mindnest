@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -19,6 +18,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
   String? _selectedCounselorName;
   final _message = TextEditingController();
   bool _sending = false;
+  String? _inlineError;
 
   @override
   void dispose() {
@@ -54,6 +54,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     final text = _message.text.trim();
     if (text.isEmpty) return;
     setState(() => _sending = true);
+    setState(() => _inlineError = null);
     final firestore = ref.read(firestoreProvider);
     try {
       final threadKey = _threadKey(admin.id, counselorId);
@@ -92,14 +93,10 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
       await batch.commit();
       _message.clear();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Message sent to counselor.')),
-      );
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      if (mounted) {
+        setState(() => _inlineError = error.toString());
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -110,7 +107,9 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     if (profile == null || profile.role != UserRole.institutionAdmin) {
       return const Scaffold(
-        body: Center(child: Text('Only institution admins can message counselors.')),
+        body: Center(
+          child: Text('Only institution admins can message counselors.'),
+        ),
       );
     }
 
@@ -119,178 +118,471 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     final counselorsQuery = firestore
         .collection('users')
         .where('role', isEqualTo: UserRole.counselor.name)
-        .where('institutionId', isEqualTo: institutionId)
-        .orderBy('name');
+        .where('institutionId', isEqualTo: institutionId);
 
-    final isWide = MediaQuery.sizeOf(context).width >= 900;
+    final isWide = MediaQuery.sizeOf(context).width >= 960;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF3F7FB),
       appBar: AppBar(
-        title: const Text('Counselor Messages'),
+        automaticallyImplyLeading: false,
+        centerTitle: false,
+        titleSpacing: 14,
         backgroundColor: Colors.transparent,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
+        title: const Text(
+          'Counselor Messages',
+          style: TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-          child: Column(
-            children: [
-              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: counselorsQuery.snapshots(),
-                builder: (context, snapshot) {
-                  final docs = snapshot.data?.docs ?? const [];
-                  return DropdownButtonFormField<String>(
-                    initialValue: _selectedCounselorId,
-                    decoration: const InputDecoration(
-                      labelText: 'Select counselor',
-                      prefixIcon: Icon(Icons.person_rounded),
-                      filled: true,
-                    ),
-                    items: docs
-                        .map(
-                          (doc) => DropdownMenuItem(
-                            value: doc.id,
-                            child: Text(doc.data()['name'] ?? doc.data()['email'] ?? 'Counselor'),
-                            onTap: () {
-                              _selectedCounselorName =
-                                  (doc.data()['name'] as String?) ??
-                                      (doc.data()['email'] as String?) ??
-                                      'Counselor';
-                            },
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedCounselorId = value;
-                      });
-                    },
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              if (_selectedCounselorId != null)
-                Expanded(
-                  child: StreamBuilder<List<_ChatMessage>>(
-                    stream: _messages(
-                      adminId: profile.id,
-                      counselorId: _selectedCounselorId!,
-                    ),
-                    builder: (context, snapshot) {
-                      final messages = snapshot.data ?? const [];
-                      if (messages.isEmpty) {
-                        return const Center(
-                          child: Text('No messages yet.'),
-                        );
-                      }
-                      return ListView.separated(
-                        reverse: true,
-                        itemCount: messages.length,
-                        separatorBuilder: (context, _) =>
-                            const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final msg = messages[index];
-                          final isAdmin = msg.senderRole == 'admin';
-                          return Align(
-                            alignment: isAdmin
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Container(
-                              constraints: BoxConstraints(
-                                maxWidth: isWide ? 520 : MediaQuery.sizeOf(context).width * 0.8,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isAdmin
-                                    ? const Color(0xFF0E9B90)
-                                    : const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    msg.body,
-                                    style: TextStyle(
-                                      color: isAdmin
-                                          ? Colors.white
-                                          : const Color(0xFF0F172A),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    msg.createdAt?.toLocal().toString() ??
-                                        'pending...',
-                                    style: TextStyle(
-                                      color: isAdmin
-                                          ? Colors.white70
-                                          : const Color(0xFF64748B),
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x140F172A),
+                  blurRadius: 28,
+                  offset: Offset(0, 14),
                 ),
-              const SizedBox(height: 10),
-              if (_selectedCounselorId != null)
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _message,
-                        maxLines: 3,
-                        minLines: 1,
-                        decoration: const InputDecoration(
-                          hintText: 'Type a message to the counselor...',
-                          filled: true,
-                          prefixIcon: Icon(Icons.chat_rounded),
+              ],
+            ),
+            child: isWide
+                ? Row(
+                    children: [
+                      SizedBox(
+                        width: 280,
+                        child: _CounselorListPane(
+                          stream: counselorsQuery.snapshots(),
+                          selectedId: _selectedCounselorId,
+                          onSelected: (id, name) {
+                            setState(() {
+                              _selectedCounselorId = id;
+                              _selectedCounselorName = name;
+                            });
+                          },
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    FilledButton.icon(
-                      onPressed: _sending
-                          ? null
-                          : () => _send(
-                                admin: profile,
-                                counselorId: _selectedCounselorId!,
-                                counselorName: _selectedCounselorName ??
-                                    'Counselor',
-                              ),
-                      icon: _sending
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.4,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.send_rounded),
-                      label: Text(_sending ? 'Sending...' : 'Send'),
-                    ),
-                  ],
-                ),
-            ],
+                      const VerticalDivider(width: 1),
+                      Expanded(
+                        child: _ChatPane(
+                          profile: profile,
+                          counselorId: _selectedCounselorId,
+                          counselorName: _selectedCounselorName,
+                          messagesBuilder: (cid) => _messages(
+                            adminId: profile.id,
+                            counselorId: cid,
+                          ),
+                          messageController: _message,
+                          sending: _sending,
+                          inlineError: _inlineError,
+                          onSend: () => _send(
+                            admin: profile,
+                            counselorId: _selectedCounselorId!,
+                            counselorName:
+                                _selectedCounselorName ?? 'Counselor',
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      _MobileCounselorDropdown(
+                        stream: counselorsQuery.snapshots(),
+                        selectedId: _selectedCounselorId,
+                        onSelected: (id, name) {
+                          setState(() {
+                            _selectedCounselorId = id;
+                            _selectedCounselorName = name;
+                          });
+                        },
+                      ),
+                      const Divider(height: 24),
+                      Expanded(
+                        child: _ChatPane(
+                          profile: profile,
+                          counselorId: _selectedCounselorId,
+                          counselorName: _selectedCounselorName,
+                          messagesBuilder: (cid) => _messages(
+                            adminId: profile.id,
+                            counselorId: cid,
+                          ),
+                          messageController: _message,
+                          sending: _sending,
+                          inlineError: _inlineError,
+                          onSend: () => _send(
+                            admin: profile,
+                            counselorId: _selectedCounselorId!,
+                            counselorName:
+                                _selectedCounselorName ?? 'Counselor',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ),
       ),
     );
+  }
+}
+
+class _CounselorListPane extends StatelessWidget {
+  const _CounselorListPane({
+    required this.stream,
+    required this.selectedId,
+    required this.onSelected,
+  });
+
+  final Stream<QuerySnapshot<Map<String, dynamic>>> stream;
+  final String? selectedId;
+  final void Function(String id, String name) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Unable to load counselors.\n${snapshot.error}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF6B7280)),
+            ),
+          );
+        }
+        final docs = snapshot.data?.docs ?? const [];
+        if (docs.isEmpty) {
+          return const Center(child: Text('No counselors found.'));
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.all(12),
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final data = doc.data();
+            final name =
+                (data['name'] as String?) ?? (data['email'] as String?) ?? '';
+            final selected = doc.id == selectedId;
+            return ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              tileColor: selected ? const Color(0xFFEFF6FF) : null,
+              title: Text(
+                name.isEmpty ? 'Counselor' : name,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: selected ? const Color(0xFF0F172A) : null,
+                ),
+              ),
+              subtitle: Text(
+                data['email'] as String? ?? '',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () => onSelected(doc.id, name.isEmpty ? 'Counselor' : name),
+              leading: CircleAvatar(
+                backgroundColor: const Color(0xFF0E9B90),
+                child: Text(
+                  _initials(name.isEmpty ? 'C' : name),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            );
+          },
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemCount: docs.length,
+        );
+      },
+    );
+  }
+
+  String _initials(String value) {
+    final parts = value.trim().split(RegExp(r'\\s+')).where((e) => e.isNotEmpty);
+    return parts.take(2).map((e) => e[0].toUpperCase()).join();
+  }
+}
+
+class _MobileCounselorDropdown extends StatelessWidget {
+  const _MobileCounselorDropdown({
+    required this.stream,
+    required this.selectedId,
+    required this.onSelected,
+  });
+
+  final Stream<QuerySnapshot<Map<String, dynamic>>> stream;
+  final String? selectedId;
+  final void Function(String id, String name) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? const [];
+        return DropdownButtonFormField<String>(
+          value: selectedId,
+          decoration: const InputDecoration(
+            labelText: 'Select counselor',
+            prefixIcon: Icon(Icons.person_rounded),
+            filled: true,
+          ),
+          items: docs
+              .map(
+                (doc) => DropdownMenuItem(
+                  value: doc.id,
+                  child: Text(
+                    doc.data()['name'] ?? doc.data()['email'] ?? 'Counselor',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => onSelected(
+                    doc.id,
+                    (doc.data()['name'] as String?) ??
+                        (doc.data()['email'] as String?) ??
+                        'Counselor',
+                  ),
+                ),
+              )
+              .toList(growable: false),
+          onChanged: (value) {
+            if (value == null) return;
+            final doc = docs.firstWhere(
+              (element) => element.id == value,
+              orElse: () => docs.isNotEmpty
+                  ? docs.first
+                  : (throw StateError('No counselors')),
+            );
+            final name = (doc.data()['name'] as String?) ??
+                (doc.data()['email'] as String?) ??
+                'Counselor';
+            onSelected(value, name);
+          },
+        );
+      },
+    );
+  }
+}
+
+class _ChatPane extends StatelessWidget {
+  const _ChatPane({
+    required this.profile,
+    required this.counselorId,
+    required this.counselorName,
+    required this.messagesBuilder,
+    required this.messageController,
+    required this.sending,
+    required this.onSend,
+    required this.inlineError,
+  });
+
+  final UserProfile profile;
+  final String? counselorId;
+  final String? counselorName;
+  final Stream<List<_ChatMessage>> Function(String counselorId) messagesBuilder;
+  final TextEditingController messageController;
+  final bool sending;
+  final VoidCallback onSend;
+  final String? inlineError;
+
+  @override
+  Widget build(BuildContext context) {
+    if (counselorId == null) {
+      return const Center(
+        child: Text(
+          'Select a counselor to start chatting.',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: const Color(0xFF0E9B90),
+                child: Text(
+                  _initials(counselorName ?? 'Counselor'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    counselorName ?? 'Counselor',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Direct line • secure',
+                    style: TextStyle(
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: StreamBuilder<List<_ChatMessage>>(
+            stream: messagesBuilder(counselorId!),
+            builder: (context, snapshot) {
+              final messages = snapshot.data ?? const [];
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  messages.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (messages.isEmpty) {
+                return const Center(child: Text('No messages yet.'));
+              }
+              return ListView.separated(
+                reverse: true,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                itemCount: messages.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final msg = messages[index];
+                  final isAdmin = msg.senderRole == 'admin';
+                  return Align(
+                    alignment:
+                        isAdmin ? Alignment.centerRight : Alignment.centerLeft,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: isAdmin
+                              ? const Color(0xFF0E9B90)
+                              : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                msg.body,
+                                style: TextStyle(
+                                  color: isAdmin
+                                      ? Colors.white
+                                      : const Color(0xFF0F172A),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                msg.createdAt?.toLocal().toString() ??
+                                    'pending...',
+                                style: TextStyle(
+                                  color: isAdmin
+                                      ? Colors.white70
+                                      : const Color(0xFF64748B),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        const Divider(height: 1),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: messageController,
+                  maxLines: 3,
+                  minLines: 1,
+                  decoration: InputDecoration(
+                    hintText: 'Send a secure note to the counselor...',
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    prefixIcon: const Icon(Icons.chat_rounded),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide:
+                          const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              FilledButton.icon(
+                onPressed: sending ? null : onSend,
+                icon: sending
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.send_rounded),
+                label: Text(sending ? 'Sending...' : 'Send'),
+              ),
+            ],
+          ),
+        ),
+        if (inlineError != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              inlineError!,
+              style: const TextStyle(
+                color: Color(0xFFB91C1C),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _initials(String value) {
+    final parts = value.trim().split(RegExp(r'\\s+')).where((e) => e.isNotEmpty);
+    return parts.take(2).map((e) => e[0].toUpperCase()).join();
   }
 }
 

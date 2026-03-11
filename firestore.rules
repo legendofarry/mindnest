@@ -789,6 +789,20 @@ service cloud.firestore {
         isDevClearAccount();
     }
 
+    // Admin <-> Counselor direct messages
+    match /admin_counselor_messages/{msgId} {
+      allow read: if isSignedIn() &&
+        (request.auth.uid == resource.data.adminId ||
+         request.auth.uid == resource.data.counselorId);
+
+      allow create: if isSignedIn() &&
+        request.resource.data.adminId == request.auth.uid &&
+        isInstitutionAdminRole(currentUserRole()) &&
+        request.resource.data.institutionId == currentInstitutionId();
+
+      allow update, delete: if false;
+    }
+
     match /institution_name_registry/{nameKey} {
       allow read: if true;
       allow create, update: if isSignedIn() &&
