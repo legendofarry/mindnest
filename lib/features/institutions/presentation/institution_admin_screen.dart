@@ -187,13 +187,29 @@ class _InstitutionAdminScreenState
           .read(institutionRepositoryProvider)
           .counselorIntentNameByPhone(phone);
       if (counselorIntentName != null && _inviteRole != UserRole.counselor) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Role mismatch'),
             content: Text(
-              '$counselorIntentName registered with counselor intent. You are inviting them as ${_inviteRole.label}.',
+              '$counselorIntentName registered with counselor intent. You are inviting them as ${_inviteRole.label}. Continue?',
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('I understand'),
+              ),
+            ],
           ),
         );
+        if (proceed != true) {
+          setState(() => _isSubmitting = false);
+          return;
+        }
       }
 
       final inviteDraft = await ref
