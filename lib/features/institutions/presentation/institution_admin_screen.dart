@@ -1266,7 +1266,8 @@ class _InstitutionAdminScreenState
                                         return _AdminMobileNavChip(
                                           view: view,
                                           selected: _activeView == view,
-                                          showDot: view ==
+                                          showDot:
+                                              view ==
                                                   AdminWorkspaceView.members &&
                                               hasUnresolvedMembers,
                                           onTap: () => _setWorkspace(view),
@@ -2535,7 +2536,7 @@ class _WorkspacePanel extends StatelessWidget {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                '${unresolvedMembers.length} member(s) need activation or review. First: ${unresolvedMembers.first.primary}.',
+                                '${unresolvedMembers.length} member(s) need review.',
                                 style: const TextStyle(
                                   color: Color(0xFF854D0E),
                                   fontWeight: FontWeight.w700,
