@@ -405,6 +405,12 @@ class InstitutionRepository {
         .trim()
         .toLowerCase();
 
+    await _assertInviteeNotAlreadyMember(
+      targetInstitutionId: institutionId,
+      inviteeUid: inviteeUser.id,
+      inviteeInstitutionId: (inviteeData['institutionId'] as String?) ?? '',
+    );
+
     await _assertNoActivePendingInvite(
       institutionId: institutionId,
       inviteeUid: inviteeUser.id,
@@ -529,6 +535,74 @@ class InstitutionRepository {
     }
     final name = (data['name'] as String?)?.trim();
     return name?.isNotEmpty == true ? name! : 'This user';
+  }
+
+  Future<void> _assertInviteeNotAlreadyMember({
+    required String targetInstitutionId,
+    required String inviteeUid,
+    required String inviteeInstitutionId,
+  }) async {
+    // Check active/pending membership documents.
+    final existingMembership = await _firestore
+        .collection('institution_members')
+        .where('userId', isEqualTo: inviteeUid)
+        .where('status', whereIn: ['active', 'pending'])
+        .limit(1)
+        .get();
+
+    String? blockingInstitutionId;
+    String? blockingRole;
+    if (existingMembership.docs.isNotEmpty) {
+      final data = existingMembership.docs.first.data();
+      blockingInstitutionId = (data['institutionId'] as String?) ?? '';
+      blockingRole = (data['role'] as String?) ?? '';
+    } else if (inviteeInstitutionId.isNotEmpty) {
+      // Fallback to profile flag if membership doc not found.
+      blockingInstitutionId = inviteeInstitutionId;
+    }
+
+    if (blockingInstitutionId == null || blockingInstitutionId.isEmpty) {
+      return;
+    }
+
+    // Resolve institution name for clearer error.
+    String institutionName = blockingInstitutionId;
+    try {
+      final instSnap = await _firestore
+          .collection('institutions')
+          .doc(blockingInstitutionId)
+          .get();
+      institutionName =
+          (instSnap.data()?['name'] as String?)?.trim().isNotEmpty == true
+              ? (instSnap.data()!['name'] as String)
+              : institutionName;
+    } catch (_) {
+      // Keep fallback ID if lookup fails.
+    }
+
+    if (blockingInstitutionId == targetInstitutionId) {
+      final roleLabel = _roleLabel(blockingRole);
+      throw Exception(
+        'This user is already in your institution${roleLabel != null ? ' as $roleLabel' : ''}.',
+      );
+    }
+
+    throw Exception(
+      'This user already belongs to $institutionName. Ask them to leave that institution before inviting.',
+    );
+  }
+
+  String? _roleLabel(String? roleName) {
+    if (roleName == null) return null;
+    try {
+      final roleEnum = UserRole.values.firstWhere(
+        (r) => r.name == roleName,
+        orElse: () => UserRole.other,
+      );
+      return roleEnum.label;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> declineInvite(UserInvite invite) async {
