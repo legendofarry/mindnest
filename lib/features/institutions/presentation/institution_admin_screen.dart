@@ -1266,6 +1266,9 @@ class _InstitutionAdminScreenState
                                         return _AdminMobileNavChip(
                                           view: view,
                                           selected: _activeView == view,
+                                          showDot: view ==
+                                                  AdminWorkspaceView.members &&
+                                              hasUnresolvedMembers,
                                           onTap: () => _setWorkspace(view),
                                         );
                                       },
@@ -1747,11 +1750,13 @@ class _AdminMobileNavChip extends StatelessWidget {
     required this.view,
     required this.selected,
     required this.onTap,
+    this.showDot = false,
   });
 
   final AdminWorkspaceView view;
   final bool selected;
   final VoidCallback onTap;
+  final bool showDot;
 
   @override
   Widget build(BuildContext context) {
@@ -1788,6 +1793,17 @@ class _AdminMobileNavChip extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              if (showDot) ...[
+                const SizedBox(width: 6),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: selected ? Colors.white : const Color(0xFFF59E0B),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
