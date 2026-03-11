@@ -23,6 +23,7 @@ class _InstitutionAdminProfileScreenState
   final _name = TextEditingController();
   final _primaryPhone = TextEditingController(text: '+254');
   final _additionalPhone = TextEditingController();
+  Stream<int>? _unreadMessageCount;
 
   bool _seeded = false;
   bool _saving = false;
@@ -39,6 +40,14 @@ class _InstitutionAdminProfileScreenState
 
   void _seed(UserProfile profile) {
     if (_seeded) return;
+    _unreadMessageCount ??= ref
+        .read(firestoreProvider)
+        .collection('admin_counselor_messages')
+        .where('adminId', isEqualTo: profile.id)
+        .where('senderRole', isEqualTo: 'counselor')
+        .where('isRead', isEqualTo: false)
+        .snapshots()
+        .map((snap) => snap.size);
     _name.text = profile.name;
     _primaryPhone.text = (profile.phoneNumber ?? '').isNotEmpty
         ? profile.phoneNumber!
@@ -187,10 +196,28 @@ class _InstitutionAdminProfileScreenState
                 ],
               ),
               actions: [
-                IconButton(
-                  tooltip: 'Message counselors',
-                  onPressed: () => context.push(AppRoute.institutionAdminMessages),
-                  icon: const Icon(Icons.chat_bubble_outline_rounded),
+                StreamBuilder<int>(
+                  stream: _unreadMessageCount,
+                  builder: (context, snapshot) {
+                    final unread = snapshot.data ?? 0;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        IconButton(
+                          tooltip: 'Message counselors',
+                          onPressed: () =>
+                              context.push(AppRoute.institutionAdminMessages),
+                          icon: const Icon(Icons.chat_bubble_outline_rounded),
+                        ),
+                        if (unread > 0)
+                          Positioned(
+                            top: 6,
+                            right: 6,
+                            child: _Badge(count: unread),
+                          ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(width: 12),
               ],
@@ -538,6 +565,33 @@ class _ProfileBackdrop extends StatelessWidget {
           ),
           Positioned.fill(child: child),
         ],
+      ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = count > 99 ? '99+' : count.toString();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFDC2626),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white, width: 1),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }

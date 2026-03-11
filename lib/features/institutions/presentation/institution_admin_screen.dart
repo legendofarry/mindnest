@@ -1258,7 +1258,6 @@ class _InstitutionAdminScreenState
                                     desktop: false,
                                     onLogout: onLogout,
                                     onProfileTap: onProfile,
-                                    onMessagesTap: onMessages,
                                     unreadMessages: unread,
                                   );
                                 },
@@ -1345,7 +1344,6 @@ class _InstitutionAdminScreenState
                                               desktop: true,
                                               onProfileTap: onProfile,
                                               onLogout: onLogout,
-                                              onMessagesTap: onMessages,
                                               unreadMessages: unread,
                                             );
                                           },
@@ -1465,7 +1463,6 @@ class _AdminWorkspaceHeader extends StatelessWidget {
     required this.desktop,
     required this.onLogout,
     required this.onProfileTap,
-    required this.onMessagesTap,
     required this.unreadMessages,
   });
 
@@ -1476,7 +1473,6 @@ class _AdminWorkspaceHeader extends StatelessWidget {
   final bool desktop;
   final VoidCallback onLogout;
   final VoidCallback onProfileTap;
-  final VoidCallback onMessagesTap;
   final int unreadMessages;
 
   @override
@@ -1558,29 +1554,13 @@ class _AdminWorkspaceHeader extends StatelessWidget {
                   ),
                   if (unreadMessages > 0)
                     Positioned(
-                      top: -4,
-                      right: -4,
+                      top: -6,
+                      right: -6,
                       child: _Badge(count: unreadMessages),
                     ),
                 ],
               ),
               const SizedBox(width: 10),
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  IconButton(
-                    onPressed: onMessagesTap,
-                    icon: const Icon(Icons.chat_rounded),
-                    tooltip: 'Messages',
-                  ),
-                  if (unreadMessages > 0)
-                    Positioned(
-                      top: 2,
-                      right: 2,
-                      child: _Badge(count: unreadMessages),
-                    ),
-                ],
-              ),
               IconButton(
                 onPressed: onLogout,
                 icon: const Icon(Icons.logout_rounded),
