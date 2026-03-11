@@ -31,6 +31,7 @@ class VerifyEmailScreen extends ConsumerStatefulWidget {
 
 class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   bool _isResending = false;
+  bool _isContinuing = false;
 
   Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
     inviteId: widget.inviteId ?? '',
@@ -82,6 +83,41 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     } finally {
       if (mounted) {
         setState(() => _isResending = false);
+      }
+    }
+  }
+
+  Future<void> _handleContinue(UserProfile? profile) async {
+    if (_isContinuing) return;
+    setState(() => _isContinuing = true);
+    try {
+      final authRepo = ref.read(authRepositoryProvider);
+      await authRepo.reloadCurrentUser();
+      final user = authRepo.currentAuthUser;
+      if (user == null) {
+        if (!mounted) return;
+        await confirmAndLogout(context: context, ref: ref);
+        return;
+      }
+      if (!(user.emailVerified)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Still not verified. Check your inbox then tap Continue.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+      // Refresh profile so role/institution is current before routing.
+      await ref.refresh(currentUserProfileProvider.future);
+      final refreshedProfile =
+          ref.read(currentUserProfileProvider).valueOrNull ?? profile;
+      if (!mounted) return;
+      context.go(_resolveNextRoute(refreshedProfile));
+    } finally {
+      if (mounted) {
+        setState(() => _isContinuing = false);
       }
     }
   }
@@ -229,7 +265,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 ],
               ),
               child: ElevatedButton(
-                onPressed: () => context.go(_resolveNextRoute(profile)),
+                onPressed: _isContinuing ? null : () => _handleContinue(profile),
                 style: ElevatedButton.styleFrom(
                   shadowColor: Colors.transparent,
                   backgroundColor: Colors.transparent,
@@ -239,7 +275,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   ),
                 ),
                 child: Text(
-                  'Continue',
+                  _isContinuing ? 'Checking...' : 'Continue',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,

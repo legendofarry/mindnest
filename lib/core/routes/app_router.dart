@@ -313,6 +313,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             profile?.isCounselorRegistrationIntentPending ?? false;
         final needsCounselorSetup = counselorRepository.requiresSetup(profile);
         final institutionRequest = currentAdminInstitutionAsync.valueOrNull;
+        final alreadyInInstitution =
+            (profile?.institutionId ?? '').trim().isNotEmpty;
+        final pendingInviteInstitutionId =
+            (pendingInvite?.institutionId ?? '').trim();
 
         // 3. Verified but counselor-registration users stay on the waiting
         // screen even after an invite arrives so they can respond there or
@@ -330,7 +334,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         }
 
         // 4. Verified but invite pending -> invite accept screen.
-        if (pendingInvite != null) {
+        //    Skip this block if the user already belongs to an institution.
+        if (pendingInvite != null && !alreadyInInstitution) {
           if (pendingInviteRole == UserRole.student) {
             if (location != AppRoute.home) {
               return AppRoute.homeWithJoinCodeIntent();
