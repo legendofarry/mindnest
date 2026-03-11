@@ -1118,6 +1118,15 @@ class _InstitutionAdminScreenState
                               confirmAndLogout(context: context, ref: ref);
                           void onProfile() =>
                               context.push(AppRoute.institutionAdminProfile);
+                          final unreadMessagesStream = firestore
+                              .collection('admin_counselor_messages')
+                              .where('adminId', isEqualTo: profile.id)
+                              .where('senderRole', isEqualTo: 'counselor')
+                              .where('isRead', isEqualTo: false)
+                              .snapshots()
+                              .map((snap) => snap.size);
+                          void onMessages() =>
+                              context.push(AppRoute.institutionAdminMessages);
 
                           final content = Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1237,14 +1246,22 @@ class _InstitutionAdminScreenState
                               ),
                               child: Column(
                                 children: [
-                              _AdminWorkspaceHeader(
-                                title: title,
-                                subtitle: subtitle,
-                                institutionName: institutionName,
-                                adminName: adminName,
-                                desktop: false,
-                                onLogout: onLogout,
-                                onProfileTap: onProfile,
+                              StreamBuilder<int>(
+                                stream: unreadMessagesStream,
+                                builder: (context, snap) {
+                                  final unread = snap.data ?? 0;
+                                  return _AdminWorkspaceHeader(
+                                    title: title,
+                                    subtitle: subtitle,
+                                    institutionName: institutionName,
+                                    adminName: adminName,
+                                    desktop: false,
+                                    onLogout: onLogout,
+                                    onProfileTap: onProfile,
+                                    onMessagesTap: onMessages,
+                                    unreadMessages: unread,
+                                  );
+                                },
                               ),
                                   const SizedBox(height: 14),
                                   SizedBox(
@@ -1316,14 +1333,22 @@ class _InstitutionAdminScreenState
                                     ),
                                     child: Column(
                                       children: [
-                                        _AdminWorkspaceHeader(
-                                          title: title,
-                                          subtitle: subtitle,
-                                          institutionName: institutionName,
-                                          adminName: adminName,
-                                          desktop: true,
-                                          onProfileTap: onProfile,
-                                          onLogout: onLogout,
+                                        StreamBuilder<int>(
+                                          stream: unreadMessagesStream,
+                                          builder: (context, snap) {
+                                            final unread = snap.data ?? 0;
+                                            return _AdminWorkspaceHeader(
+                                              title: title,
+                                              subtitle: subtitle,
+                                              institutionName: institutionName,
+                                              adminName: adminName,
+                                              desktop: true,
+                                              onProfileTap: onProfile,
+                                              onLogout: onLogout,
+                                              onMessagesTap: onMessages,
+                                              unreadMessages: unread,
+                                            );
+                                          },
                                         ),
                                         Expanded(
                                           child: SingleChildScrollView(
@@ -1440,6 +1465,8 @@ class _AdminWorkspaceHeader extends StatelessWidget {
     required this.desktop,
     required this.onLogout,
     required this.onProfileTap,
+    required this.onMessagesTap,
+    required this.unreadMessages,
   });
 
   final String title;
@@ -1449,6 +1476,8 @@ class _AdminWorkspaceHeader extends StatelessWidget {
   final bool desktop;
   final VoidCallback onLogout;
   final VoidCallback onProfileTap;
+  final VoidCallback onMessagesTap;
+  final int unreadMessages;
 
   @override
   Widget build(BuildContext context) {
@@ -1509,22 +1538,49 @@ class _AdminWorkspaceHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              InkWell(
-                onTap: onProfileTap,
-                borderRadius: BorderRadius.circular(desktop ? 20 : 18),
-                child: CircleAvatar(
-                  radius: desktop ? 20 : 18,
-                  backgroundColor: const Color(0xFF0E9B90),
-                  child: Text(
-                    _adminInitials(adminName),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  InkWell(
+                    onTap: onProfileTap,
+                    borderRadius: BorderRadius.circular(desktop ? 20 : 18),
+                    child: CircleAvatar(
+                      radius: desktop ? 20 : 18,
+                      backgroundColor: const Color(0xFF0E9B90),
+                      child: Text(
+                        _adminInitials(adminName),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  if (unreadMessages > 0)
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: _Badge(count: unreadMessages),
+                    ),
+                ],
               ),
               const SizedBox(width: 10),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    onPressed: onMessagesTap,
+                    icon: const Icon(Icons.chat_rounded),
+                    tooltip: 'Messages',
+                  ),
+                  if (unreadMessages > 0)
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: _Badge(count: unreadMessages),
+                    ),
+                ],
+              ),
               IconButton(
                 onPressed: onLogout,
                 icon: const Icon(Icons.logout_rounded),
@@ -3965,6 +4021,33 @@ class _CollapsibleSection extends StatelessWidget {
             secondChild: const SizedBox.shrink(),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = count > 99 ? '99+' : count.toString();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFDC2626),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white, width: 1),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }

@@ -20,6 +20,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
   final _message = TextEditingController();
   bool _sending = false;
   String? _inlineError;
+  final Set<String> _markingThreads = {};
 
   @override
   void dispose() {
@@ -46,6 +47,36 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
               .map((doc) => _ChatMessage.fromMap(doc.id, doc.data()))
               .toList(growable: false),
         );
+  }
+
+  Future<void> _markThreadRead({
+    required String adminId,
+    required String counselorId,
+  }) async {
+    final threadKey = _threadKey(adminId, counselorId);
+    if (_markingThreads.contains(threadKey)) return;
+    _markingThreads.add(threadKey);
+    final firestore = ref.read(firestoreProvider);
+    try {
+      final unreadSnap = await firestore
+          .collection('admin_counselor_messages')
+          .where('adminId', isEqualTo: adminId)
+          .where('counselorId', isEqualTo: counselorId)
+          .where('senderRole', isEqualTo: 'counselor')
+          .where('isRead', isEqualTo: false)
+          .limit(50)
+          .get();
+      if (unreadSnap.docs.isEmpty) return;
+      final batch = firestore.batch();
+      for (final doc in unreadSnap.docs) {
+        batch.update(doc.reference, {'isRead': true});
+      }
+      await batch.commit();
+    } catch (_) {
+      // ignore to keep UI responsive
+    } finally {
+      _markingThreads.remove(threadKey);
+    }
   }
 
   Future<void> _send({
@@ -176,6 +207,10 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                           counselorName: _selectedCounselorName,
                           messagesBuilder: (cid) =>
                               _messages(adminId: profile.id, counselorId: cid),
+                          onThreadSeen: (cid) => _markThreadRead(
+                            adminId: profile.id,
+                            counselorId: cid,
+                          ),
                           messageController: _message,
                           sending: _sending,
                           inlineError: _inlineError,
@@ -209,6 +244,10 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                           counselorName: _selectedCounselorName,
                           messagesBuilder: (cid) =>
                               _messages(adminId: profile.id, counselorId: cid),
+                          onThreadSeen: (cid) => _markThreadRead(
+                            adminId: profile.id,
+                            counselorId: cid,
+                          ),
                           messageController: _message,
                           sending: _sending,
                           inlineError: _inlineError,
@@ -380,6 +419,7 @@ class _ChatPane extends StatelessWidget {
     required this.counselorId,
     required this.counselorName,
     required this.messagesBuilder,
+    required this.onThreadSeen,
     required this.messageController,
     required this.sending,
     required this.onSend,
@@ -390,6 +430,7 @@ class _ChatPane extends StatelessWidget {
   final String? counselorId;
   final String? counselorName;
   final Stream<List<_ChatMessage>> Function(String counselorId) messagesBuilder;
+  final void Function(String counselorId) onThreadSeen;
   final TextEditingController messageController;
   final bool sending;
   final VoidCallback onSend;
@@ -457,6 +498,9 @@ class _ChatPane extends StatelessWidget {
                 return _ChatError(message: snapshot.error.toString());
               }
               final messages = snapshot.data ?? const [];
+              if (messages.isNotEmpty) {
+                onThreadSeen(counselorId!);
+              }
               if (snapshot.connectionState == ConnectionState.waiting &&
                   messages.isEmpty) {
                 return const Center(child: CircularProgressIndicator());
