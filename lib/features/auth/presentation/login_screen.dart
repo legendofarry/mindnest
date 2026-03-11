@@ -42,6 +42,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   bool _rememberMe = true;
   bool _isSubmitting = false;
+  bool _isGoogleSubmitting = false;
   bool _isPasswordVisible = false;
   bool _emailFieldError = false;
   bool _passwordFieldError = false;
@@ -87,7 +88,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     await _shakeController.forward(from: 0);
   }
 
+  bool get _isBusy => _isSubmitting || _isGoogleSubmitting;
+
   Future<void> _submit() async {
+    if (_isBusy) return;
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     final emailInvalid = email.isEmpty || !email.contains('@');
@@ -133,6 +137,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    if (_isBusy) return;
+    setState(() {
+      _formError = null;
+      _isGoogleSubmitting = true;
+    });
+    try {
+      final credential = await ref
+          .read(authRepositoryProvider)
+          .signInWithGoogle(rememberMe: _rememberMe);
+      final email = credential.user?.email?.trim().toLowerCase() ?? '';
+      if (email.isNotEmpty) {
+        await _saveLastEmail(email);
+      }
+    } on FirebaseAuthException catch (error) {
+      setState(() {
+        _formError = error.message ?? 'Google sign-in failed.';
+      });
+      await _triggerShake();
+    } catch (error) {
+      setState(() {
+        _formError = error.toString().replaceFirst('Exception: ', '');
+      });
+      await _triggerShake();
+    } finally {
+      if (mounted) {
+        setState(() => _isGoogleSubmitting = false);
       }
     }
   }
@@ -412,7 +447,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 const _FieldLabel(text: 'PASSWORD'),
                 const Spacer(),
                 TextButton(
-                  onPressed: _isSubmitting
+                  onPressed: _isBusy
                       ? null
                       : () => context.go(
                           AppRoute.withInviteQuery(
@@ -471,7 +506,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   children: [
                     Checkbox(
                       value: _rememberMe,
-                      onChanged: _isSubmitting
+                      onChanged: _isBusy
                           ? null
                           : (value) {
                               setState(() => _rememberMe = value ?? false);
@@ -500,6 +535,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ],
             ),
             const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _isBusy ? null : _signInWithGoogle,
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF0F172A),
+                shadowColor: Colors.transparent,
+                side: const BorderSide(color: Color(0xFFD0D9E6)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: _isGoogleSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Image.asset(
+                      'assets/google_g.png',
+                      height: 20,
+                      width: 20,
+                      fit: BoxFit.contain,
+                    ),
+              label: Text(
+                _isGoogleSubmitting
+                    ? 'Connecting to Google...'
+                    : 'Continue with Google',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             Container(
               height: 62,
               decoration: BoxDecoration(
@@ -518,7 +590,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ],
               ),
               child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _submit,
+                onPressed: _isBusy ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   shadowColor: Colors.transparent,
                   backgroundColor: Colors.transparent,
@@ -530,8 +602,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 200),
                   child: Text(
-                    _isSubmitting ? 'Signing in...' : 'Log In  ->',
-                    key: ValueKey(_isSubmitting),
+                    _isSubmitting
+                        ? 'Signing in...'
+                        : (_isGoogleSubmitting
+                            ? 'Please wait...'
+                            : 'Log In  ->'),
+                    key: ValueKey(_isBusy),
                     style: const TextStyle(
                       fontSize: 17.5,
                       fontWeight: FontWeight.w700,
@@ -552,7 +628,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   ),
                 ),
                 GestureDetector(
-                  onTap: _isSubmitting
+                  onTap: _isBusy
                       ? null
                       : () => context.go(
                           _hasInviteContext

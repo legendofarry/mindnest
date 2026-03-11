@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mindnest/features/auth/data/auth_session_manager.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 
@@ -251,6 +252,55 @@ class AuthRepository {
     await _ensureProfileExists(user);
     await _backfillPhoneRegistryForCurrentUser(user.uid);
     await AuthSessionManager.markLogin(rememberMe: rememberMe);
+  }
+
+  Future<UserCredential> signInWithGoogle({bool rememberMe = true}) async {
+    if (kIsWeb) {
+      await _auth.setPersistence(
+        rememberMe ? Persistence.LOCAL : Persistence.SESSION,
+      );
+      final provider = GoogleAuthProvider()
+        ..setCustomParameters(<String, String>{'prompt': 'select_account'});
+      final credential = await _auth.signInWithPopup(provider);
+      final user = credential.user;
+      if (user == null) {
+        throw Exception('Unable to complete Google sign-in.');
+      }
+      await AuthSessionManager.markLogin(rememberMe: rememberMe);
+      await _ensureProfileExists(user);
+      return credential;
+    }
+
+    final googleSignIn = GoogleSignIn(scopes: const <String>['email']);
+    final googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      throw Exception('Google sign-in was cancelled.');
+    }
+    final googleAuth = await googleUser.authentication;
+    final providerCredential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    try {
+      final credential =
+          await _auth.signInWithCredential(providerCredential);
+      final user = credential.user;
+      if (user == null) {
+        throw Exception('Unable to complete Google sign-in.');
+      }
+      await AuthSessionManager.markLogin(rememberMe: rememberMe);
+      await _ensureProfileExists(user);
+      return credential;
+    } on FirebaseAuthException catch (error) {
+      if (error.code == 'account-exists-with-different-credential') {
+        throw Exception(
+          'This email already exists with another sign-in method. '
+          'Sign in with that method, then link Google in your profile settings.',
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<void> signOut() async {
