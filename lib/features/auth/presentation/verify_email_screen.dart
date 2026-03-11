@@ -288,7 +288,8 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   border: Border.all(color: const Color(0xFFB3ECDD)),
                 ),
                 child: const Text(
-                  'After verification, we will take you to counselor invite waiting.',
+                  "Didn't receive the email? Please check your Spam or Junk folder. "
+                  "If you find it there, mark it as \"Not Spam\" so future emails arrive in your inbox.",
                   style: TextStyle(
                     color: Color(0xFF0D6F69),
                     fontWeight: FontWeight.w600,
