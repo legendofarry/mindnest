@@ -100,28 +100,12 @@ class DesktopPrimaryShell extends ConsumerWidget {
         titleSpacing: 24,
         title: Row(
           children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF15A39A), Color(0xFF1F6BFF)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x2615A39A),
-                    blurRadius: 16,
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.psychology_alt_rounded,
-                color: Colors.white,
-                size: 24,
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: Image.asset(
+                'assets/logo.png',
+                fit: BoxFit.contain,
               ),
             ),
             const SizedBox(width: 14),

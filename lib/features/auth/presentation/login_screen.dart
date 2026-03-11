@@ -543,8 +543,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 foregroundColor: const Color(0xFF0F172A),
                 shadowColor: Colors.transparent,
                 side: const BorderSide(color: Color(0xFFD0D9E6)),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -610,8 +612,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     _isSubmitting
                         ? 'Signing in...'
                         : (_isGoogleSubmitting
-                            ? 'Please wait...'
-                            : 'Log In  ->'),
+                              ? 'Please wait...'
+                              : 'Log In  ->'),
                     key: ValueKey(_isBusy),
                     style: const TextStyle(
                       fontSize: 17.5,
@@ -948,7 +950,7 @@ class _DesktopMarketingPanelState
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 28, 24, 20),
+      padding: const EdgeInsets.fromLTRB(12, 2, 16, 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -957,7 +959,7 @@ class _DesktopMarketingPanelState
             mainAxisSize: MainAxisSize.min,
             children: const [
               _DesktopBrandIcon(),
-              SizedBox(width: 14),
+              SizedBox(width: 6),
               Text(
                 'MindNest',
                 style: TextStyle(
@@ -969,7 +971,7 @@ class _DesktopMarketingPanelState
               ),
             ],
           ),
-          const SizedBox(height: 42),
+          const SizedBox(),
           RichText(
             text: const TextSpan(
               children: [
@@ -977,26 +979,16 @@ class _DesktopMarketingPanelState
                   text: 'Your safe space\n',
                   style: TextStyle(
                     color: Color(0xFF0E9B90),
-                    fontSize: 74,
+                    fontSize: 62,
                     fontWeight: FontWeight.w800,
-                    height: 0.98,
-                    letterSpacing: -1.9,
-                  ),
-                ),
-                TextSpan(
-                  text: 'for mental wellness.',
-                  style: TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontSize: 74,
-                    fontWeight: FontWeight.w800,
-                    height: 0.98,
+                    height: 0,
                     letterSpacing: -1.9,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: _buildDidYouKnowCard(context),
@@ -1266,18 +1258,10 @@ class _DesktopBrandIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: const Color(0xFF15CFC2),
-      ),
-      child: const Icon(
-        Icons.psychology_alt_rounded,
-        color: Color(0xFF0A3B37),
-        size: 25,
-      ),
+    return SizedBox(
+      width: 150,
+      height: 150,
+      child: Image.asset('assets/logo.png', fit: BoxFit.contain),
     );
   }
 }

@@ -86,30 +86,7 @@ class BrandMark extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
-          width: compact ? 56 : 66,
-          height: compact ? 56 : 66,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: const LinearGradient(
-              colors: [Color(0xFF15A39A), Color(0xFF0E9B90)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x3315A39A),
-                blurRadius: 22,
-                offset: Offset(0, 10),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.psychology_alt_rounded,
-            color: Colors.white,
-            size: 34,
-          ),
-        ),
+        _BrandGlyph(compact: compact),
         const SizedBox(height: 10),
         Text(
           'MindNest',
@@ -120,6 +97,25 @@ class BrandMark extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BrandGlyph extends StatelessWidget {
+  const _BrandGlyph({required this.compact});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = compact ? 56.0 : 66.0;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Image.asset(
+        'assets/logo.png',
+        fit: BoxFit.contain,
+      ),
     );
   }
 }

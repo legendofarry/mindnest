@@ -186,20 +186,9 @@ class DesktopSectionNav extends StatelessWidget {
                     SizedBox(
                       width: 38,
                       height: 38,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFF15A39A), Color(0xFF1F6BFF)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.all(Radius.circular(12)),
-                        ),
-                        child: Icon(
-                          Icons.psychology_alt_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
+                      child: Image(
+                        image: AssetImage('assets/logo.png'),
+                        fit: BoxFit.contain,
                       ),
                     ),
                     SizedBox(width: 10),
