@@ -136,7 +136,7 @@ class _RegisterContent extends StatelessWidget {
       children: [
         if (showBrand) ...[
           const SizedBox(height: 6),
-          const BrandMark(compact: true),
+          const BrandMark(compact: true, withBlob: true),
           const SizedBox(height: 20),
         ] else ...[
           const SizedBox(height: 8),
