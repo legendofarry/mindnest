@@ -308,7 +308,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (showBrand) ...[
-              const SizedBox(height: 8),
+              const SizedBox(),
               BrandMark(
                 showText:
                     MediaQuery.sizeOf(context).width >= _desktopBreakpoint,
