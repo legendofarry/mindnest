@@ -34,7 +34,7 @@ class RegisterScreen extends StatelessWidget {
         heroHighlightText: 'Start your journey',
         heroBaseText: 'to better mental wellness.',
         heroDescription:
-            'Create one account first, then join your institution later with '
+            'Create one account first, then join an institution later with '
             'a join code from your admin.',
         metrics: [
           AuthDesktopMetric(value: '3+', label: 'USERS HELPED'),
@@ -121,8 +121,8 @@ class _RegisterContent extends StatelessWidget {
     );
     final counselorCard = _AccountTypeCard(
       icon: Icons.psychology_alt_outlined,
-      title: 'I am a Counselor',
-      description: 'Create your account for institution counselor.',
+      title: "I'm a Counselor",
+      description: 'Create your account as a counselor.',
       compact: showSideBySideChoices,
       onTap: () => context.go(
         _registerDetailsRoute(
@@ -154,7 +154,7 @@ class _RegisterContent extends StatelessWidget {
         Text(
           _inviteQuery.isNotEmpty
               ? 'Finish registration to accept your invitation${(institutionName ?? '').trim().isNotEmpty ? ' to ${(institutionName ?? '').trim()}' : ''}.'
-              : 'Create your MindNest account first, then join your institution from Home if you have a join code.',
+              : 'Create your MindNest account first, then join an institution later if you have a join code.',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: const Color(0xFF516784),
             height: 1.35,
