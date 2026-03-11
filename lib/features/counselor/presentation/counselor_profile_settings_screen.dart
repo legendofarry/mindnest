@@ -53,12 +53,17 @@ class _CounselorProfileSettingsScreenState
   bool _exporting = false;
 
   static const _specs = <String>[
-    'General Counseling',
-    'Academic Counseling',
-    'Workplace Wellbeing',
-    'Anxiety & Stress Support',
-    'Burnout Recovery',
-    'Relationship Counseling',
+    'Academic Stress',
+    'Career Guidance',
+    'Anxiety',
+    'Depression',
+    'Relationship Issues',
+    'Family Problems',
+    'Self-Esteem',
+    'Trauma',
+    'Substance Abuse',
+    'Bullying',
+    'Grief & Loss',
   ];
   static const _modes = <String>['In-person', 'Online', 'Hybrid'];
   static const _zones = <String>[
