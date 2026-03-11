@@ -400,35 +400,15 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
               children: [
                 Center(
                   child: SizedBox(
-                    height: 120,
-                    width: 120,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Container(
-                          width: 118,
-                          height: 118,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(
-                              colors: [
-                                Color(0xFFEFFFF8),
-                                Color(0xFFD8F3FF),
-                                Color(0xB3C5E4FF),
-                              ],
-                              stops: [0.2, 0.65, 1.0],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Color(0x330E9B90),
-                                blurRadius: 28,
-                                offset: Offset(0, 16),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const BrandMark(compact: true),
-                      ],
+                    height: 200,
+                    width: 200,
+                    child: const FittedBox(
+                      fit: BoxFit.contain,
+                      child: BrandMark(
+                        compact: true,
+                        showText: false,
+                        withBlob: true,
+                      ),
                     ),
                   ),
                 ),
