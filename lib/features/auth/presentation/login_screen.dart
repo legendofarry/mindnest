@@ -318,7 +318,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               SizedBox(
                 height: MediaQuery.sizeOf(context).width >= _desktopBreakpoint
                     ? 14
-                    : 2,
+                    : 0,
               ),
             ] else ...[
               const SizedBox(height: 8),
