@@ -349,32 +349,6 @@ class _CounselorInviteWaitingScreenState
                   ),
                 ),
               ),
-              Positioned(
-                left: 18,
-                right: 18,
-                bottom: 16,
-                child: Row(
-                  children: [
-                    _metric(
-                      isDesktop,
-                      hasInvite ? 'NOW' : '1',
-                      hasInvite ? 'REVIEW INVITE' : 'WAITING STEP',
-                    ),
-                    const SizedBox(width: 10),
-                    _metric(
-                      isDesktop,
-                      hasInvite ? 'CODE' : 'ADMIN',
-                      hasInvite ? 'VERIFY ACCESS' : 'TRIGGERS INVITE',
-                    ),
-                    const SizedBox(width: 10),
-                    _metric(
-                      isDesktop,
-                      hasInvite ? 'GO' : 'APP',
-                      hasInvite ? 'RESPOND HERE' : 'LIVE SWITCH HERE',
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         ),
@@ -1022,45 +996,6 @@ class _CounselorInviteWaitingScreenState
         shape: BoxShape.circle,
         color: color,
         boxShadow: [BoxShadow(color: color, blurRadius: 46, spreadRadius: 12)],
-      ),
-    );
-  }
-
-  Widget _metric(bool isDesktop, String value, String label) {
-    return Expanded(
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: isDesktop ? 12 : 10,
-          vertical: isDesktop ? 12 : 10,
-        ),
-        decoration: BoxDecoration(
-          color: const Color(0x1FFFFFFF),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0x26FFFFFF)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: isDesktop ? 17 : 14,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: const Color(0xD9E6FFFD),
-                fontSize: isDesktop ? 11.5 : 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
