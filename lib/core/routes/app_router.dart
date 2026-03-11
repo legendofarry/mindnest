@@ -37,6 +37,7 @@ import 'package:mindnest/features/institutions/presentation/institution_admin_sc
 import 'package:mindnest/features/institutions/presentation/institution_pending_screen.dart';
 import 'package:mindnest/features/institutions/presentation/invite_accept_screen.dart';
 import 'package:mindnest/features/institutions/presentation/owner_dashboard_screen.dart';
+import 'package:mindnest/features/institutions/presentation/institution_admin_profile_screen.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/live/presentation/live_hub_screen.dart';
 import 'package:mindnest/features/live/presentation/live_room_screen.dart';
@@ -77,6 +78,7 @@ class AppRoute {
   static const home = '/home';
   static const joinInstitution = '/join-institution';
   static const institutionAdmin = '/institution-admin';
+  static const institutionAdminProfile = '/institution-admin/profile';
   static const institutionPending = '/institution-pending';
   static const ownerDashboard = '/owner-dashboard';
 
@@ -243,6 +245,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLiveRoute =
           location == AppRoute.liveHub || location == AppRoute.liveRoom;
       final isOwnerRoute = location == AppRoute.ownerDashboard;
+      final isInstitutionAdminRoute =
+          location == AppRoute.institutionAdmin ||
+          location == AppRoute.institutionAdminProfile;
 
       try {
         if (authState == null) {
@@ -443,8 +448,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               : AppRoute.counselorDashboard;
         }
 
-        if (role != UserRole.institutionAdmin &&
-            location == AppRoute.institutionAdmin) {
+        if (role != UserRole.institutionAdmin && isInstitutionAdminRoute) {
           if (role == UserRole.counselor) {
             return needsCounselorSetup
                 ? AppRoute.counselorSetup
@@ -748,6 +752,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.institutionAdmin,
         builder: (context, state) => const InstitutionAdminScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.institutionAdminProfile,
+        builder: (context, state) =>
+            const InstitutionAdminProfileScreen(),
       ),
       GoRoute(
         path: AppRoute.institutionPending,

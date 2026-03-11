@@ -319,6 +319,113 @@ class AuthRepository {
     }
   }
 
+  Future<void> updateAccountProfile({
+    required String name,
+    required String phoneNumber,
+    String? additionalPhoneNumber,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('You must be logged in.');
+    }
+
+    final trimmedName = name.trim();
+    if (trimmedName.length < 2) {
+      throw Exception('Please enter your full name.');
+    }
+
+    final normalizedPrimary = _normalizeRequiredKenyaPhone(phoneNumber);
+    final normalizedAdditional =
+        _normalizeOptionalKenyaPhone(additionalPhoneNumber);
+    if (normalizedAdditional == normalizedPrimary) {
+      throw Exception(
+        'Additional mobile number must be different from primary mobile number.',
+      );
+    }
+    final phoneCandidates = _buildPhoneCandidates(
+      primaryPhone: normalizedPrimary,
+      additionalPhone: normalizedAdditional,
+    );
+
+    final userRef = _firestore.collection('users').doc(user.uid);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(userRef);
+      if (!snapshot.exists) {
+        throw Exception('Profile not found.');
+      }
+      final existing = snapshot.data() ?? const <String, dynamic>{};
+
+      final previousPhones = <String>{};
+      void addPrevious(String? raw) {
+        final normalized = _normalizeOptionalKenyaPhone(raw);
+        if (normalized != null) {
+          previousPhones.add(normalized);
+        }
+      }
+
+      addPrevious(existing['phoneNumber'] as String?);
+      addPrevious(existing['additionalPhoneNumber'] as String?);
+      final rawPhoneList = existing['phoneNumbers'];
+      if (rawPhoneList is List) {
+        for (final value in rawPhoneList) {
+          addPrevious(value?.toString());
+        }
+      }
+
+      final registryRefs = _phoneRegistryRefsForRegistration(
+        primaryPhoneNumber: normalizedPrimary,
+        additionalPhoneNumber: normalizedAdditional,
+      );
+
+      for (final ref in registryRefs) {
+        final registrySnapshot = await transaction.get(ref);
+        if (registrySnapshot.exists) {
+          final ownerUid = (registrySnapshot.data()?['uid'] as String?) ?? '';
+          if (ownerUid.isNotEmpty && ownerUid != user.uid) {
+            final claimedPhone =
+                (registrySnapshot.data()?['phoneNumber'] as String?) ??
+                _phoneFromRegistryDocId(ref.id);
+            throw _PhoneNumberAlreadyInUseException(
+              'The mobile number $claimedPhone is already linked to another account.',
+            );
+          }
+        }
+      }
+
+      transaction.update(userRef, {
+        'name': trimmedName,
+        'phoneNumber': normalizedPrimary,
+        'additionalPhoneNumber': normalizedAdditional,
+        'phoneNumbers': phoneCandidates,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      for (final ref in registryRefs) {
+        transaction.set(ref, {
+          'uid': user.uid,
+          'phoneNumber': _phoneFromRegistryDocId(ref.id),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      final registryIds = registryRefs.map((ref) => ref.id).toSet();
+      for (final phone in previousPhones) {
+        final docId = _phoneRegistryDocId(phone);
+        if (registryIds.contains(docId)) continue;
+        final staleRef =
+            _firestore.collection('phone_number_registry').doc(docId);
+        final staleSnapshot = await transaction.get(staleRef);
+        final ownerUid = (staleSnapshot.data()?['uid'] as String?) ?? '';
+        if (ownerUid == user.uid) {
+          transaction.delete(staleRef);
+        }
+      }
+    });
+
+    await user.updateDisplayName(trimmedName);
+  }
+
   Future<void> reloadCurrentUser() async {
     await _auth.currentUser?.reload();
   }

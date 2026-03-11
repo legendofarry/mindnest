@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -1114,6 +1116,8 @@ class _InstitutionAdminScreenState
                               : profile.email;
                           void onLogout() =>
                               confirmAndLogout(context: context, ref: ref);
+                          void onProfile() =>
+                              context.push(AppRoute.institutionAdminProfile);
 
                           final content = Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1233,14 +1237,15 @@ class _InstitutionAdminScreenState
                               ),
                               child: Column(
                                 children: [
-                                  _AdminWorkspaceHeader(
-                                    title: title,
-                                    subtitle: subtitle,
-                                    institutionName: institutionName,
-                                    adminName: adminName,
-                                    desktop: false,
-                                    onLogout: onLogout,
-                                  ),
+                              _AdminWorkspaceHeader(
+                                title: title,
+                                subtitle: subtitle,
+                                institutionName: institutionName,
+                                adminName: adminName,
+                                desktop: false,
+                                onLogout: onLogout,
+                                onProfileTap: onProfile,
+                              ),
                                   const SizedBox(height: 14),
                                   SizedBox(
                                     height: 52,
@@ -1317,6 +1322,7 @@ class _InstitutionAdminScreenState
                                           institutionName: institutionName,
                                           adminName: adminName,
                                           desktop: true,
+                                          onProfileTap: onProfile,
                                           onLogout: onLogout,
                                         ),
                                         Expanded(
@@ -1433,6 +1439,7 @@ class _AdminWorkspaceHeader extends StatelessWidget {
     required this.adminName,
     required this.desktop,
     required this.onLogout,
+    required this.onProfileTap,
   });
 
   final String title;
@@ -1441,6 +1448,7 @@ class _AdminWorkspaceHeader extends StatelessWidget {
   final String adminName;
   final bool desktop;
   final VoidCallback onLogout;
+  final VoidCallback onProfileTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1501,14 +1509,18 @@ class _AdminWorkspaceHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              CircleAvatar(
-                radius: desktop ? 20 : 18,
-                backgroundColor: const Color(0xFF0E9B90),
-                child: Text(
-                  _adminInitials(adminName),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
+              InkWell(
+                onTap: onProfileTap,
+                borderRadius: BorderRadius.circular(desktop ? 20 : 18),
+                child: CircleAvatar(
+                  radius: desktop ? 20 : 18,
+                  backgroundColor: const Color(0xFF0E9B90),
+                  child: Text(
+                    _adminInitials(adminName),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
