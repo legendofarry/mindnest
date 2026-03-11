@@ -162,13 +162,29 @@ class _InstitutionAdminProfileScreenState
             backgroundColor: Colors.transparent,
             appBar: AppBar(
               automaticallyImplyLeading: false,
-              titleSpacing: 0,
+              titleSpacing: 8,
               elevation: 0,
               backgroundColor: Colors.transparent,
               surfaceTintColor: Colors.transparent,
-              title: const Text(
-                'Admin Profile',
-                style: TextStyle(fontWeight: FontWeight.w800),
+              title: Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0x33FFFFFF)),
+                    ),
+                    child: const Text(
+                      'Admin Profile',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               actions: [
                 IconButton(
@@ -190,8 +206,7 @@ class _InstitutionAdminProfileScreenState
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1100),
                   child: SingleChildScrollView(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 26),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -203,218 +218,284 @@ class _InstitutionAdminProfileScreenState
                               ? profile.name
                               : profile.email),
                         ),
-                        const SizedBox(height: 16),
-                        _SettingsCard(
-                          title: 'Account',
-                          subtitle:
-                              'Update your display name and mobile contacts.',
-                          child: Column(
-                            children: [
-                              TextField(
-                                controller: _name,
-                                decoration: const InputDecoration(
-                                  labelText: 'Full name',
-                                  prefixIcon: Icon(Icons.badge_rounded),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              TextField(
-                                controller: _primaryPhone,
-                                keyboardType: TextInputType.phone,
-                                decoration: const InputDecoration(
-                                  labelText: 'Primary mobile (+254...)',
-                                  prefixIcon: Icon(Icons.phone_rounded),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              TextField(
-                                controller: _additionalPhone,
-                                keyboardType: TextInputType.phone,
-                                decoration: const InputDecoration(
-                                  labelText: 'Additional mobile (optional)',
-                                  prefixIcon: Icon(Icons.smartphone_rounded),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  'Use Kenya mobile numbers in +254 format.',
-                                  style: TextStyle(
-                                    color:
-                                        Theme.of(context).colorScheme.outline,
-                                    fontSize: 12.5,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 18),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed:
-                                      _saving ? null : () => _save(profile),
-                                  icon: _saving
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.4,
-                                            color: Colors.white,
+                        const SizedBox(height: 18),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isWide = constraints.maxWidth >= 920;
+                            final cardWidth =
+                                isWide ? (constraints.maxWidth - 14) / 2 : null;
+                            return Wrap(
+                              spacing: 14,
+                              runSpacing: 14,
+                              children: [
+                                SizedBox(
+                                  width: cardWidth,
+                                  child: _SettingsCard(
+                                    title: 'Account',
+                                    subtitle:
+                                        'Edit your display identity and mobile reach.',
+                                    child: Column(
+                                      children: [
+                                        _LabeledField(
+                                          label: 'Full name',
+                                          icon: Icons.badge_rounded,
+                                          controller: _name,
+                                          hint: 'e.g. Jane Doe',
+                                        ),
+                                        const SizedBox(height: 12),
+                                        _LabeledField(
+                                          label: 'Primary mobile',
+                                          icon: Icons.phone_rounded,
+                                          controller: _primaryPhone,
+                                          keyboardType: TextInputType.phone,
+                                          hint: '+2547...',
+                                        ),
+                                        const SizedBox(height: 12),
+                                        _LabeledField(
+                                          label: 'Additional mobile (optional)',
+                                          icon: Icons.smartphone_rounded,
+                                          controller: _additionalPhone,
+                                          keyboardType: TextInputType.phone,
+                                          hint: '+254...',
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: Text(
+                                            'Use Kenya mobile numbers in +254 format.',
+                                            style: TextStyle(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .outline,
+                                              fontSize: 12.5,
+                                            ),
                                           ),
-                                        )
-                                      : const Icon(Icons.save_rounded),
-                                  label: Text(_saving ? 'Saving...' : 'Save'),
-                                  style: ElevatedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                    textStyle: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _SettingsCard(
-                          title: 'App settings',
-                          subtitle: 'Personalize how MindNest feels for you.',
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Text(
-                                'Theme',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 10,
-                                children: [
-                                  ChoiceChip(
-                                    label: const Text('Light'),
-                                    selected: themeMode == ThemeMode.light,
-                                    onSelected: (_) => ref
-                                        .read(
-                                          themeModeControllerProvider.notifier,
-                                        )
-                                        .setMode(ThemeMode.light),
-                                  ),
-                                  ChoiceChip(
-                                    label: const Text('Dark'),
-                                    selected: themeMode == ThemeMode.dark,
-                                    onSelected: (_) => ref
-                                        .read(
-                                          themeModeControllerProvider.notifier,
-                                        )
-                                        .setMode(ThemeMode.dark),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              OutlinedButton.icon(
-                                onPressed: () =>
-                                    context.push(AppRoute.privacyControls),
-                                icon: const Icon(Icons.verified_user_outlined),
-                                label: const Text('Privacy controls'),
-                              ),
-                              const SizedBox(height: 10),
-                              OutlinedButton.icon(
-                                onPressed: _exporting
-                                    ? null
-                                    : () => _export(profile),
-                                icon: _exporting
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.4,
                                         ),
-                                      )
-                                    : const Icon(Icons.download_rounded),
-                                label: Text(
-                                  _exporting
-                                      ? 'Preparing export...'
-                                      : 'Export my data (JSON)',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _SettingsCard(
-                          title: 'Security',
-                          subtitle:
-                              'Manage sign-in and account protections.',
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.mail_outline_rounded),
-                                title: const Text('Email'),
-                                subtitle: Text(profile.email),
-                                trailing: IconButton(
-                                  tooltip: 'Copy email',
-                                  icon: const Icon(Icons.copy_rounded),
-                                  onPressed: () async {
-                                    await Clipboard.setData(
-                                      ClipboardData(text: profile.email),
-                                    );
-                                    if (!context.mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Email copied.'),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              ElevatedButton.icon(
-                                onPressed: _sendingReset
-                                    ? null
-                                    : () => _sendReset(profile),
-                                icon: _sendingReset
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.4,
-                                          color: Colors.white,
+                                        const SizedBox(height: 16),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: FilledButton.icon(
+                                            onPressed: _saving
+                                                ? null
+                                                : () => _save(profile),
+                                            icon: _saving
+                                                ? const SizedBox(
+                                                    width: 18,
+                                                    height: 18,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2.4,
+                                                      color: Colors.white,
+                                                    ),
+                                                  )
+                                                : const Icon(Icons.save_rounded),
+                                            label: Text(
+                                              _saving
+                                                  ? 'Saving...'
+                                                  : 'Save changes',
+                                            ),
+                                            style: FilledButton.styleFrom(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                vertical: 14,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                              ),
+                                            ),
+                                          ),
                                         ),
-                                      )
-                                    : const Icon(Icons.lock_reset_rounded),
-                                label: Text(
-                                  _sendingReset
-                                      ? 'Sending reset...'
-                                      : 'Send password reset',
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                                style: ElevatedButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 14),
-                                  backgroundColor: const Color(0xFF0E9B90),
-                                  foregroundColor: Colors.white,
+                                SizedBox(
+                                  width: cardWidth,
+                                  child: _SettingsCard(
+                                    title: 'App settings',
+                                    subtitle:
+                                        'Personalize how MindNest feels for you.',
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        const Text(
+                                          'Theme',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Wrap(
+                                          spacing: 10,
+                                          runSpacing: 10,
+                                          children: [
+                                            ChoiceChip(
+                                              label: const Text('Light'),
+                                              selected:
+                                                  themeMode == ThemeMode.light,
+                                              onSelected: (_) => ref
+                                                  .read(
+                                                    themeModeControllerProvider
+                                                        .notifier,
+                                                  )
+                                                  .setMode(ThemeMode.light),
+                                            ),
+                                            ChoiceChip(
+                                              label: const Text('Dark'),
+                                              selected:
+                                                  themeMode == ThemeMode.dark,
+                                              onSelected: (_) => ref
+                                                  .read(
+                                                    themeModeControllerProvider
+                                                        .notifier,
+                                                  )
+                                                  .setMode(ThemeMode.dark),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 18),
+                                        Wrap(
+                                          spacing: 10,
+                                          runSpacing: 10,
+                                          children: [
+                                            OutlinedButton.icon(
+                                              onPressed: () => context.push(
+                                                AppRoute.privacyControls,
+                                              ),
+                                              icon: const Icon(
+                                                Icons.verified_user_outlined,
+                                              ),
+                                              label:
+                                                  const Text('Privacy controls'),
+                                            ),
+                                            OutlinedButton.icon(
+                                              onPressed: _exporting
+                                                  ? null
+                                                  : () => _export(profile),
+                                              icon: _exporting
+                                                  ? const SizedBox(
+                                                      width: 18,
+                                                      height: 18,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                        strokeWidth: 2.4,
+                                                      ),
+                                                    )
+                                                  : const Icon(
+                                                      Icons.download_rounded),
+                                              label: Text(
+                                                _exporting
+                                                    ? 'Preparing export...'
+                                                    : 'Export my data (JSON)',
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 10),
-                              OutlinedButton.icon(
-                                onPressed: () => confirmAndLogout(
-                                  context: context,
-                                  ref: ref,
+                                SizedBox(
+                                  width: cardWidth,
+                                  child: _SettingsCard(
+                                    title: 'Security',
+                                    subtitle:
+                                        'Manage sign-in and account protections.',
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: const Icon(
+                                            Icons.mail_outline_rounded,
+                                          ),
+                                        title: const Text('Email'),
+                                          subtitle: Text(profile.email),
+                                          trailing: IconButton(
+                                            tooltip: 'Copy email',
+                                            icon: const Icon(Icons.copy_rounded),
+                                            onPressed: () async {
+                                              await Clipboard.setData(
+                                                ClipboardData(
+                                                  text: profile.email,
+                                                ),
+                                              );
+                                              if (!context.mounted) return;
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Email copied.',
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        FilledButton.icon(
+                                          onPressed: _sendingReset
+                                              ? null
+                                              : () => _sendReset(profile),
+                                          icon: _sendingReset
+                                              ? const SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2.4,
+                                                    color: Colors.white,
+                                                  ),
+                                                )
+                                              : const Icon(
+                                                  Icons.lock_reset_rounded),
+                                          label: Text(
+                                            _sendingReset
+                                                ? 'Sending reset...'
+                                                : 'Send password reset',
+                                          ),
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 14,
+                                            ),
+                                            backgroundColor:
+                                                const Color(0xFF0E9B90),
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        OutlinedButton.icon(
+                                          onPressed: () => confirmAndLogout(
+                                            context: context,
+                                            ref: ref,
+                                          ),
+                                          icon:
+                                              const Icon(Icons.logout_rounded),
+                                          label: const Text('Log out'),
+                                          style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 14,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                                icon: const Icon(Icons.logout_rounded),
-                                label: const Text('Log out'),
-                                style: OutlinedButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 14),
-                                ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -510,7 +591,7 @@ class _ProfileHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF0E9B90), Color(0xFF0B7D73)],
@@ -526,71 +607,156 @@ class _ProfileHero extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: Colors.white,
-            child: Text(
-              initials,
-              style: const TextStyle(
-                color: Color(0xFF0E9B90),
-                fontWeight: FontWeight.w800,
-                fontSize: 20,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 32,
+                backgroundColor: Colors.white,
+                child: Text(
+                  initials,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: Color(0xFF0E9B90),
                     fontWeight: FontWeight.w800,
                     fontSize: 20,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  email,
-                  style: const TextStyle(
-                    color: Color(0xFFE0F2F1),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (institution.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0B6B63),
-                      borderRadius: BorderRadius.circular(20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 20,
+                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.apartment_rounded,
-                          size: 16,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          institution,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
+                    const SizedBox(height: 4),
+                    Text(
+                      email,
+                      style: const TextStyle(
+                        color: Color(0xFFE0F2F1),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (institution.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0B6B63),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.apartment_rounded,
+                                size: 16,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                institution,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              _HeroPill(
+                icon: Icons.shield_rounded,
+                label: 'Institution Admin',
+              ),
+              _HeroPill(
+                icon: Icons.verified_user_rounded,
+                label: 'Secure account',
+              ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white70),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                ],
-              ],
+                ),
+                onPressed: () =>
+                    Clipboard.setData(ClipboardData(text: email)),
+                icon: const Icon(Icons.copy_rounded, size: 18),
+                label: const Text('Copy email'),
+              ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white70),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: null,
+                icon: const Icon(Icons.timer_rounded, size: 18),
+                label: const Text('Last sync • live'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroPill extends StatelessWidget {
+  const _HeroPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -615,13 +781,13 @@ class _SettingsCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: const Color(0x33CBD5E1)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x120F172A),
-            blurRadius: 24,
+            color: Color(0x140F172A),
+            blurRadius: 20,
             offset: Offset(0, 12),
           ),
         ],
@@ -651,6 +817,58 @@ class _SettingsCard extends StatelessWidget {
           child,
         ],
       ),
+    );
+  }
+}
+
+class _LabeledField extends StatelessWidget {
+  const _LabeledField({
+    required this.label,
+    required this.icon,
+    required this.controller,
+    this.hint,
+    this.keyboardType,
+  });
+
+  final String label;
+  final IconData icon;
+  final TextEditingController controller;
+  final String? hint;
+  final TextInputType? keyboardType;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: Icon(icon),
+            filled: true,
+            fillColor: const Color(0xFFF8FAFC),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFF0EA5E9)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
