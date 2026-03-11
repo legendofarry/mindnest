@@ -34,6 +34,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   bool _isResending = false;
   String? _topBannerMessage;
   bool _topBannerIsError = false;
+  int _verifyAttempts = 0;
 
   Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
     inviteId: widget.inviteId ?? '',
@@ -61,10 +62,12 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       }
 
       if (!isVerified) {
+        _verifyAttempts += 1;
         setState(() {
           _topBannerIsError = true;
-          _topBannerMessage =
-              'Your email is not verified yet. Open the link in your inbox, then try again.';
+          _topBannerMessage = _verifyAttempts == 1
+              ? 'Not yet—click the verify link in your inbox, then come back for a victory lap.'
+              : 'Still waiting on that email click. Pop back to your inbox and give the verify link a tap.';
         });
         return;
       }
