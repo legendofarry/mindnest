@@ -189,22 +189,85 @@ class _InstitutionAdminScreenState
       if (counselorIntentName != null && _inviteRole != UserRole.counselor) {
         final proceed = await showDialog<bool>(
           context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Role mismatch'),
-            content: Text(
-              '$counselorIntentName registered with counselor intent. You are inviting them as ${_inviteRole.label}. Continue?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
+          builder: (context) {
+            const accent = Color(0xFF0E9B90);
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
               ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('I understand'),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 26),
+              backgroundColor: Colors.white,
+              titlePadding: const EdgeInsets.fromLTRB(22, 18, 22, 4),
+              contentPadding: const EdgeInsets.fromLTRB(22, 0, 22, 14),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              title: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFFEFFFF8),
+                    ),
+                    child: const Icon(
+                      Icons.warning_amber_rounded,
+                      color: accent,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Role mismatch',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ],
               ),
-            ],
-          ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$counselorIntentName registered with counselor intent.',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'You are inviting them as ${_inviteRole.label}. Do you want to continue?',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF334155),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('I understand'),
+                ),
+              ],
+            );
+          },
         );
         if (proceed != true) {
           setState(() => _isSubmitting = false);
@@ -273,51 +336,93 @@ class _InstitutionAdminScreenState
   Future<void> _showInviteDeliveryDialog(InAppInviteDraft inviteDraft) {
     return showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Invite Created'),
-        content: SizedBox(
-          width: 520,
-          child: Column(
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 26),
+          backgroundColor: Colors.white,
+          titlePadding: const EdgeInsets.fromLTRB(22, 18, 22, 4),
+          contentPadding: const EdgeInsets.fromLTRB(22, 0, 22, 18),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          title: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFFEFFFF8),
+                ),
+                child: const Icon(
+                  Icons.check_circle_outline_rounded,
+                  color: Color(0xFF0E9B90),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Invite created',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '${inviteDraft.invitedName} was invited as ${inviteDraft.role.label}.',
+              _InviteMetaRow(
+                label: 'Invitee',
+                value:
+                    '${inviteDraft.invitedName} • ${inviteDraft.role.label.toUpperCase()}',
               ),
-              const SizedBox(height: 6),
-              Text('Phone: ${inviteDraft.inviteePhoneE164}'),
+              const SizedBox(height: 8),
+              _InviteMetaRow(
+                label: 'Phone',
+                value: inviteDraft.inviteePhoneE164,
+              ),
+              const SizedBox(height: 8),
+              _InviteMetaRow(
+                label: 'Institution code',
+                value: inviteDraft.joinCode,
+                accent: true,
+              ),
               const SizedBox(height: 10),
-              SelectableText('Institution code: ${inviteDraft.joinCode}'),
-              const SizedBox(height: 6),
-              const Text('Invite is highlighted in-app for the target user.'),
+              const Text(
+                'Invite is highlighted in-app for the target user.',
+                style: TextStyle(fontSize: 14, color: Color(0xFF334155)),
+              ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => _copyTextWithFeedback(
-              text: inviteDraft.joinCode,
-              successMessage: 'Institution code copied.',
+          actions: [
+            _InviteActionButton(
+              label: 'Copy Code',
+              icon: Icons.copy_rounded,
+              onPressed: () => _copyTextWithFeedback(
+                text: inviteDraft.joinCode,
+                successMessage: 'Institution code copied.',
+              ),
             ),
-            child: const Text('Copy Code'),
-          ),
-          TextButton(
-            onPressed: () => _copyTextWithFeedback(
-              text: inviteDraft.whatsAppMessage,
-              successMessage: 'WhatsApp message copied.',
+            _InviteActionButton(
+              label: 'Copy WhatsApp',
+              icon: Icons.chat_rounded,
+              onPressed: () => _copyTextWithFeedback(
+                text: inviteDraft.whatsAppMessage,
+                successMessage: 'WhatsApp message copied.',
+              ),
             ),
-            child: const Text('Copy WhatsApp Message'),
-          ),
-          TextButton(
-            onPressed: () => _openWhatsAppDraft(inviteDraft.whatsAppDeepLink),
-            child: const Text('Open WhatsApp'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+            _InviteActionButton(
+              label: 'Open WhatsApp',
+              icon: Icons.send_rounded,
+              onPressed: () => _openWhatsAppDraft(inviteDraft.whatsAppDeepLink),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -640,41 +745,38 @@ class _InstitutionAdminScreenState
     showDialog<String>(
       context: context,
       builder: (context) {
-        final keys = entry.raw.keys.toList()..sort();
+        String _initials(String value) {
+          final parts = value
+              .trim()
+              .split(RegExp(r'\\s+'))
+              .where((e) => e.isNotEmpty);
+          return parts.take(2).map((e) => e[0].toUpperCase()).join();
+        }
+
+        String? _rawString(String key) {
+          final value = entry.raw[key];
+          if (value == null) return null;
+          final text = value.toString().trim();
+          return text.isEmpty ? null : text;
+        }
+
+        final institutionName = _rawString('institutionName');
+        final intendedRole = _rawString('intendedRole');
+        final inviteePhone = _rawString('inviteePhoneE164');
+        final invitedEmail = _rawString('invitedEmail');
+        final deliveryChannel = _rawString('deliveryChannel');
+        final created = entry.createdAt == null
+            ? '--'
+            : entry.createdAt!.toLocal().toString();
+
         return AlertDialog(
-          title: Text(entry.primary),
-          content: SizedBox(
-            width: 460,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _DetailLine(label: 'Secondary', value: entry.secondary),
-                  _DetailLine(label: 'Type', value: entry.type),
-                  _DetailLine(label: 'Status', value: entry.status),
-                  _DetailLine(label: 'Source', value: entry.source),
-                  _DetailLine(
-                    label: 'Created',
-                    value: entry.createdAt == null
-                        ? '--'
-                        : entry.createdAt!.toLocal().toString(),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Raw record',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 6),
-                  ...keys.map(
-                    (key) => _DetailLine(
-                      label: key,
-                      value: (entry.raw[key] ?? '--').toString(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
           ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 26),
+          backgroundColor: Colors.white,
+          titlePadding: const EdgeInsets.fromLTRB(22, 18, 22, 10),
+          contentPadding: const EdgeInsets.fromLTRB(22, 0, 22, 18),
           actions: [
             if (canRevokeInvite)
               TextButton(
@@ -701,6 +803,87 @@ class _InstitutionAdminScreenState
               child: const Text('Close'),
             ),
           ],
+          title: Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: const Color(0xFFEFFFF8),
+                child: Text(
+                  _initials(entry.primary),
+                  style: const TextStyle(
+                    color: Color(0xFF0E9B90),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.primary,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 20,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    if (institutionName != null)
+                      Text(
+                        institutionName,
+                        style: const TextStyle(
+                          color: Color(0xFF475569),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _TagChip(
+                        label: entry.status,
+                        color: const Color(0xFF0E9B90),
+                      ),
+                      _TagChip(
+                        label: entry.type,
+                        color: const Color(0xFF155EEF),
+                      ),
+                      if (deliveryChannel != null)
+                        _TagChip(
+                          label: deliveryChannel,
+                          color: const Color(0xFF6366F1),
+                        ),
+                      _TagChip(
+                        label: entry.source,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _MetaRow(label: 'Secondary contact', value: entry.secondary),
+                  if (inviteePhone != null)
+                    _MetaRow(label: 'Phone', value: inviteePhone),
+                  if (invitedEmail != null)
+                    _MetaRow(label: 'Email', value: invitedEmail),
+                  if (intendedRole != null)
+                    _MetaRow(label: 'Role', value: intendedRole),
+                  _MetaRow(label: 'Created', value: created),
+                ],
+              ),
+            ),
+          ),
         );
       },
     ).then((action) {
@@ -3433,6 +3616,131 @@ class _MessageCard extends StatelessWidget {
         child: Text(
           message,
           style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+}
+
+class _InviteActionButton extends StatelessWidget {
+  const _InviteActionButton({
+    required this.label,
+    required this.onPressed,
+    required this.icon,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+    );
+  }
+}
+
+class _InviteMetaRow extends StatelessWidget {
+  const _InviteMetaRow({
+    required this.label,
+    required this.value,
+    this.accent = false,
+  });
+
+  final String label;
+  final String value;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 11,
+            letterSpacing: 0.8,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF94A3B8),
+          ),
+        ),
+        const SizedBox(height: 4),
+        SelectableText(
+          value,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: accent ? const Color(0xFF0E9B90) : const Color(0xFF0F172A),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MetaRow extends StatelessWidget {
+  const _MetaRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 11,
+              letterSpacing: 0.9,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF94A3B8),
+            ),
+          ),
+          const SizedBox(height: 4),
+          SelectableText(
+            value,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TagChip extends StatelessWidget {
+  const _TagChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+          fontSize: 12,
         ),
       ),
     );
