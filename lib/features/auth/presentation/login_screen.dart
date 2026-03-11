@@ -555,11 +555,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Image.asset(
-                      'assets/google_g.png',
+                  : Image.network(
+                      'https://developers.google.com/identity/images/g-logo.png',
                       height: 20,
                       width: 20,
                       fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.g_mobiledata_rounded,
+                        size: 24,
+                        color: Color(0xFFEA4335),
+                      ),
                     ),
               label: Text(
                 _isGoogleSubmitting
