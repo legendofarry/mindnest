@@ -30,11 +30,7 @@ class VerifyEmailScreen extends ConsumerStatefulWidget {
 }
 
 class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
-  bool _isChecking = false;
   bool _isResending = false;
-  String? _topBannerMessage;
-  bool _topBannerIsError = false;
-  int _verifyAttempts = 0;
 
   Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
     inviteId: widget.inviteId ?? '',
@@ -48,40 +44,6 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   bool get _isCounselorIntentFallback {
     return (widget.registrationIntent ?? '').trim() ==
         UserProfile.counselorRegistrationIntent;
-  }
-
-  Future<void> _refreshVerificationStatus(UserProfile? profile) async {
-    setState(() => _isChecking = true);
-    try {
-      final authRepository = ref.read(authRepositoryProvider);
-      await authRepository.reloadCurrentUser();
-      final isVerified = authRepository.currentAuthUser?.emailVerified ?? false;
-
-      if (!mounted) {
-        return;
-      }
-
-      if (!isVerified) {
-        _verifyAttempts += 1;
-        setState(() {
-          _topBannerIsError = true;
-          _topBannerMessage = _verifyAttempts == 1
-              ? 'Not yet—click the verify link in your inbox, then come back for a victory lap.'
-              : 'Still waiting on that email click. Pop back to your inbox and give the verify link a tap.';
-        });
-        return;
-      }
-
-      setState(() {
-        _topBannerIsError = false;
-        _topBannerMessage = 'Email verified successfully.';
-      });
-      context.go(_resolveNextRoute(profile));
-    } finally {
-      if (mounted) {
-        setState(() => _isChecking = false);
-      }
-    }
   }
 
   String _resolveNextRoute(UserProfile? profile) {
@@ -114,10 +76,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _topBannerIsError = false;
-        _topBannerMessage = 'Verification email sent.';
-      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Verification email sent.')));
     } finally {
       if (mounted) {
         setState(() => _isResending = false);
@@ -210,57 +171,6 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 fontSize: 38 / 2,
               ),
             ),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              child:
-                  (_topBannerMessage == null ||
-                      _topBannerMessage!.trim().isEmpty)
-                  ? const SizedBox(height: 12)
-                  : Container(
-                      key: ValueKey('${_topBannerIsError}_$_topBannerMessage'),
-                      margin: const EdgeInsets.only(top: 14, bottom: 4),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _topBannerIsError
-                            ? const Color(0xFFFFF1F2)
-                            : const Color(0xFFEFFFFC),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _topBannerIsError
-                              ? const Color(0xFFFECDD3)
-                              : const Color(0xFFB3ECDD),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            _topBannerIsError
-                                ? Icons.warning_amber_rounded
-                                : Icons.check_circle_outline_rounded,
-                            color: _topBannerIsError
-                                ? const Color(0xFFBE123C)
-                                : const Color(0xFF0D6F69),
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _topBannerMessage!,
-                              style: TextStyle(
-                                color: _topBannerIsError
-                                    ? const Color(0xFF9F1239)
-                                    : const Color(0xFF0D6F69),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-            ),
             if (_hasInviteContext) ...[
               const SizedBox(height: 12),
               Container(
@@ -319,9 +229,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 ],
               ),
               child: ElevatedButton(
-                onPressed: _isChecking
-                    ? null
-                    : () => _refreshVerificationStatus(profile),
+                onPressed: () => context.go(_resolveNextRoute(profile)),
                 style: ElevatedButton.styleFrom(
                   shadowColor: Colors.transparent,
                   backgroundColor: Colors.transparent,
@@ -331,7 +239,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   ),
                 ),
                 child: Text(
-                  _isChecking ? 'Checking...' : 'I Have Verified My Email',
+                  'Continue',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
