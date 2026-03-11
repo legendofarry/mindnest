@@ -797,8 +797,7 @@ service cloud.firestore {
 
       allow create: if isSignedIn() &&
         request.resource.data.adminId == request.auth.uid &&
-        isInstitutionAdminRole(currentUserRole()) &&
-        request.resource.data.institutionId == currentInstitutionId();
+        isInstitutionAdminRole(currentUserRole());
 
       allow update, delete: if false;
     }
