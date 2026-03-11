@@ -199,7 +199,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              'Link sent to, ${user?.email ?? 'your email address'}.',
+              'Link sent to ${user?.email ?? 'your email address'}',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: const Color(0xFF516784),
                 height: 1,
