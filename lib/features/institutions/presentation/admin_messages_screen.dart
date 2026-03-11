@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
@@ -36,7 +37,8 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     final firestore = ref.read(firestoreProvider);
     return firestore
         .collection('admin_counselor_messages')
-        .where('threadKey', isEqualTo: _threadKey(adminId, counselorId))
+        .where('adminId', isEqualTo: adminId)
+        .where('counselorId', isEqualTo: counselorId)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map(
@@ -173,10 +175,8 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                           profile: profile,
                           counselorId: _selectedCounselorId,
                           counselorName: _selectedCounselorName,
-                          messagesBuilder: (cid) => _messages(
-                            adminId: profile.id,
-                            counselorId: cid,
-                          ),
+                          messagesBuilder: (cid) =>
+                              _messages(adminId: profile.id, counselorId: cid),
                           messageController: _message,
                           sending: _sending,
                           inlineError: _inlineError,
@@ -208,10 +208,8 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                           profile: profile,
                           counselorId: _selectedCounselorId,
                           counselorName: _selectedCounselorName,
-                          messagesBuilder: (cid) => _messages(
-                            adminId: profile.id,
-                            counselorId: cid,
-                          ),
+                          messagesBuilder: (cid) =>
+                              _messages(adminId: profile.id, counselorId: cid),
                           messageController: _message,
                           sending: _sending,
                           inlineError: _inlineError,
@@ -289,7 +287,8 @@ class _CounselorListPane extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              onTap: () => onSelected(doc.id, name.isEmpty ? 'Counselor' : name),
+              onTap: () =>
+                  onSelected(doc.id, name.isEmpty ? 'Counselor' : name),
               leading: CircleAvatar(
                 backgroundColor: const Color(0xFF0E9B90),
                 child: Text(
@@ -310,7 +309,7 @@ class _CounselorListPane extends StatelessWidget {
   }
 
   String _initials(String value) {
-    final parts = value.trim().split(RegExp(r'\\s+')).where((e) => e.isNotEmpty);
+    final parts = value.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty);
     return parts.take(2).map((e) => e[0].toUpperCase()).join();
   }
 }
@@ -364,7 +363,8 @@ class _MobileCounselorDropdown extends StatelessWidget {
                   ? docs.first
                   : (throw StateError('No counselors')),
             );
-            final name = (doc.data()['name'] as String?) ??
+            final name =
+                (doc.data()['name'] as String?) ??
                 (doc.data()['email'] as String?) ??
                 'Counselor';
             onSelected(value, name);
@@ -454,6 +454,9 @@ class _ChatPane extends StatelessWidget {
           child: StreamBuilder<List<_ChatMessage>>(
             stream: messagesBuilder(counselorId!),
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return _ChatError(message: snapshot.error.toString());
+              }
               final messages = snapshot.data ?? const [];
               if (snapshot.connectionState == ConnectionState.waiting &&
                   messages.isEmpty) {
@@ -471,46 +474,62 @@ class _ChatPane extends StatelessWidget {
                   final msg = messages[index];
                   final isAdmin = msg.senderRole == 'admin';
                   return Align(
-                    alignment:
-                        isAdmin ? Alignment.centerRight : Alignment.centerLeft,
+                    alignment: isAdmin
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 520),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: isAdmin
-                              ? const Color(0xFF0E9B90)
-                              : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onLongPress: () async {
+                          await Clipboard.setData(
+                            ClipboardData(text: msg.body),
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Message copied to clipboard'),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        },
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: isAdmin
+                                ? const Color(0xFF0E9B90)
+                                : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                msg.body,
-                                style: TextStyle(
-                                  color: isAdmin
-                                      ? Colors.white
-                                      : const Color(0xFF0F172A),
-                                  fontWeight: FontWeight.w600,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  msg.body,
+                                  style: TextStyle(
+                                    color: isAdmin
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                msg.createdAt?.toLocal().toString() ??
-                                    'pending...',
-                                style: TextStyle(
-                                  color: isAdmin
-                                      ? Colors.white70
-                                      : const Color(0xFF64748B),
-                                  fontSize: 11,
+                                const SizedBox(height: 4),
+                                Text(
+                                  _formatTimestamp(msg.createdAt),
+                                  style: TextStyle(
+                                    color: isAdmin
+                                        ? Colors.white70
+                                        : const Color(0xFF64748B),
+                                    fontSize: 11,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -532,7 +551,7 @@ class _ChatPane extends StatelessWidget {
                   maxLines: 3,
                   minLines: 1,
                   decoration: InputDecoration(
-                    hintText: 'Send a secure note to the counselor...',
+                    hintText: 'typing...',
                     filled: true,
                     fillColor: const Color(0xFFF8FAFC),
                     prefixIcon: const Icon(Icons.chat_rounded),
@@ -541,26 +560,41 @@ class _ChatPane extends StatelessWidget {
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide:
-                          const BorderSide(color: Color(0xFFE2E8F0)),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
-              FilledButton.icon(
-                onPressed: sending ? null : onSend,
-                icon: sending
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.4,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.send_rounded),
-                label: Text(sending ? 'Sending...' : 'Send'),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: messageController,
+                builder: (context, value, _) {
+                  final hasText = value.text.trim().isNotEmpty;
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Clear message',
+                        onPressed: hasText ? messageController.clear : null,
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                      FilledButton.icon(
+                        onPressed: (!sending && hasText) ? onSend : null,
+                        icon: sending
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.send_rounded),
+                        label: Text(sending ? 'Sending...' : 'Send'),
+                      ),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -581,8 +615,18 @@ class _ChatPane extends StatelessWidget {
   }
 
   String _initials(String value) {
-    final parts = value.trim().split(RegExp(r'\\s+')).where((e) => e.isNotEmpty);
+    final parts = value.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty);
     return parts.take(2).map((e) => e[0].toUpperCase()).join();
+  }
+
+  String _formatTimestamp(DateTime? value) {
+    if (value == null) return 'pending...';
+    final local = value.toLocal();
+    final twoDigits = (int v) => v.toString().padLeft(2, '0');
+    final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final suffix = local.hour >= 12 ? 'PM' : 'AM';
+    final date = '${local.month}/${local.day}/${local.year}';
+    return '$date ${hour12}:${twoDigits(local.minute)} $suffix';
   }
 }
 
@@ -611,6 +655,39 @@ class _ChatMessage {
       body: (data['body'] as String?) ?? '',
       senderRole: (data['senderRole'] as String?) ?? 'admin',
       createdAt: parse(data['createdAt']),
+    );
+  }
+}
+
+class _ChatError extends StatelessWidget {
+  const _ChatError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Color(0xFFB91C1C), size: 40),
+            const SizedBox(height: 12),
+            const Text(
+              'Unable to load messages',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF64748B)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

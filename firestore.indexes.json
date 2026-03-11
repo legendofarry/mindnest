@@ -151,6 +151,38 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "admin_counselor_messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "threadKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "admin_counselor_messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "adminId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "counselorId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

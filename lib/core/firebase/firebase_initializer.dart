@@ -12,6 +12,11 @@ class FirebaseInitializer {
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
+    if (kIsWeb) {
+      FirebaseFirestore.instance.settings =
+          const Settings(persistenceEnabled: false);
+    }
+
     await _configureEmulatorsIfNeeded();
   }
 
