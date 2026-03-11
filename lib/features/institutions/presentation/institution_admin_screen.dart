@@ -169,17 +169,6 @@ class _InstitutionAdminScreenState
 
   void _showInlineError(String message) {
     setState(() => _inlineError = message);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = _tableKey.currentContext;
-      if (ctx != null) {
-        Scrollable.ensureVisible(
-          ctx,
-          alignment: 0.05,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        );
-      }
-    });
   }
 
   Future<void> _createInvite() async {
