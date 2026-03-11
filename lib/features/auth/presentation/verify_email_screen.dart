@@ -77,14 +77,62 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      _showModernBanner(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Verification email sent.')));
+        message: 'Verification email sent. Check your inbox.',
+        icon: Icons.mark_email_read_rounded,
+        color: const Color(0xFF0E9B90),
+      );
     } finally {
       if (mounted) {
         setState(() => _isResending = false);
       }
     }
+  }
+
+  void _showModernBanner(
+    BuildContext context, {
+    required String message,
+    IconData icon = Icons.info_outline_rounded,
+    Color color = const Color(0xFF0E9B90),
+  }) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.removeCurrentMaterialBanner();
+    messenger.showMaterialBanner(
+      MaterialBanner(
+        backgroundColor: Colors.white,
+        elevation: 8,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        leadingPadding: const EdgeInsets.only(right: 12),
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.14),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 18),
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: messenger.hideCurrentMaterialBanner,
+            child: const Text('Dismiss'),
+          ),
+        ],
+        surfaceTintColor: Colors.transparent,
+      ),
+    );
+    Future.delayed(const Duration(seconds: 3), () {
+      messenger.hideCurrentMaterialBanner();
+    });
   }
 
   Future<void> _handleContinue(UserProfile? profile) async {
@@ -101,11 +149,11 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       }
       if (!(user.emailVerified)) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Still not verified. Check your inbox then tap Continue.'),
-            duration: Duration(seconds: 3),
-          ),
+        _showModernBanner(
+          context,
+          message: 'Still not verified. Check your inbox then tap Continue.',
+          icon: Icons.mark_email_unread_outlined,
+          color: const Color(0xFFBE123C),
         );
         return;
       }

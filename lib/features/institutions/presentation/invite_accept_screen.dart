@@ -14,7 +14,8 @@ class InviteAcceptScreen extends ConsumerStatefulWidget {
   final String? inviteId;
 
   @override
-  ConsumerState<InviteAcceptScreen> createState() => _InviteAcceptScreenState();
+  ConsumerState<InviteAcceptScreen> createState() =>
+      _InviteAcceptScreenState();
 }
 
 class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
@@ -41,30 +42,25 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
       await ref
           .read(institutionRepositoryProvider)
           .acceptInvite(invite: invite, institutionCode: institutionCode);
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Invite accepted.')));
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Invite accepted.')));
+
       if (invite.intendedRole == UserRole.counselor) {
         context.go(AppRoute.counselorSetup);
       } else {
         context.go(AppRoute.home);
       }
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-      }
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -72,26 +68,19 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
     setState(() => _isSubmitting = true);
     try {
       await ref.read(institutionRepositoryProvider).declineInvite(invite);
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Invite declined.')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Invite declined.')));
       context.go(AppRoute.home);
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-      }
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -99,16 +88,7 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
   Widget build(BuildContext context) {
     final authUser = ref.watch(authStateChangesProvider).valueOrNull;
     final inviteId = widget.inviteId?.trim() ?? '';
-
-    if (inviteId.isEmpty) {
-      // Fallback: send the user to Home with join-code prompt so they can proceed.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          context.go(AppRoute.homeWithJoinCodeIntent());
-        }
-      });
-      return const SizedBox.shrink();
-    }
+    final fallbackInviteAsync = ref.watch(pendingUserInviteProvider);
 
     if (authUser == null) {
       return MindNestShell(
@@ -120,9 +100,10 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
               children: [
                 Text(
                   'Sign in to continue',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 const Text(
@@ -140,11 +121,16 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
       );
     }
 
-    final inviteAsync = ref.watch(pendingUserInviteByIdProvider(inviteId));
+    final inviteAsync = inviteId.isEmpty
+        ? fallbackInviteAsync
+        : ref.watch(pendingUserInviteByIdProvider(inviteId));
+
     return MindNestShell(
       child: inviteAsync.when(
         data: (invite) {
-          if (invite == null) {
+          final resolvedInvite = invite ?? fallbackInviteAsync.valueOrNull;
+
+          if (resolvedInvite == null) {
             return GlassCard(
               child: Padding(
                 padding: const EdgeInsets.all(20),
@@ -153,9 +139,10 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
                   children: [
                     Text(
                       'Invite unavailable',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 8),
                     const Text(
@@ -166,13 +153,20 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
                       onPressed: () => context.go(AppRoute.notifications),
                       child: const Text('Back to notifications'),
                     ),
+                    const SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: () =>
+                          context.go(AppRoute.homeWithJoinCodeIntent()),
+                      child: const Text('Go to Home'),
+                    ),
                   ],
                 ),
               ),
             );
           }
 
-          final roleLabel = invite.intendedRole.label;
+          final roleLabel = resolvedInvite.intendedRole.label;
+
           return GlassCard(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -181,16 +175,19 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
                 children: [
                   Text(
                     'Institution Invitation',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
-                  Text('Institution: ${invite.institutionName}'),
+                  Text('Institution: ${resolvedInvite.institutionName}'),
                   const SizedBox(height: 4),
                   Text('Role: $roleLabel'),
                   const SizedBox(height: 4),
-                  Text('Expires: ${invite.expiresAt?.toLocal() ?? '--'}'),
+                  Text(
+                    'Expires: ${resolvedInvite.expiresAt?.toLocal() ?? '--'}',
+                  ),
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: _codeController,
@@ -208,14 +205,18 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: _isSubmitting ? null : () => _accept(invite),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => _accept(resolvedInvite),
                     child: Text(
                       _isSubmitting ? 'Accepting...' : 'Accept invite',
                     ),
                   ),
                   const SizedBox(height: 8),
                   OutlinedButton(
-                    onPressed: _isSubmitting ? null : () => _decline(invite),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => _decline(resolvedInvite),
                     child: const Text('Decline invite'),
                   ),
                 ],
