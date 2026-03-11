@@ -658,7 +658,17 @@ class NotificationDetailsScreen extends ConsumerWidget {
     required AppNotification notification,
     required AppointmentRecord? appointment,
     required UserRole role,
+    required UserProfile profile,
   }) {
+    final isAdminMessage =
+        notification.type.toLowerCase().trim() == 'admin_message';
+    if (isAdminMessage) {
+      return _AdminMessageReplyCard(
+        notification: notification,
+        profile: profile,
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -796,6 +806,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
               notification: notification,
               appointment: appointment,
               role: role,
+              profile: profile!,
             );
           }
           return _buildDetails(
@@ -886,6 +897,308 @@ class _NotificationAction {
   final String route;
   final IconData icon;
   final bool primary;
+}
+
+class _AdminMessageReplyCard extends ConsumerStatefulWidget {
+  const _AdminMessageReplyCard({
+    required this.notification,
+    required this.profile,
+  });
+
+  final AppNotification notification;
+  final UserProfile profile;
+
+  @override
+  ConsumerState<_AdminMessageReplyCard> createState() =>
+      _AdminMessageReplyCardState();
+}
+
+class _AdminMessageReplyCardState
+    extends ConsumerState<_AdminMessageReplyCard> {
+  final _controller = TextEditingController();
+  bool _sending = false;
+  String? _inlineError;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _formatTimestamp(DateTime? value) {
+    if (value == null) return 'pending...';
+    final local = value.toLocal();
+    final twoDigits = (int v) => v.toString().padLeft(2, '0');
+    final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final suffix = local.hour >= 12 ? 'PM' : 'AM';
+    return '${local.month}/${local.day}/${local.year} ${twoDigits(hour12)}:${twoDigits(local.minute)} $suffix';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final relatedId = widget.notification.relatedId?.trim() ?? '';
+    final firestore = ref.watch(firestoreProvider);
+    final scheme = Theme.of(context).colorScheme;
+
+    if (relatedId.isEmpty) {
+      return const _CounselorDetailStateCard(
+        message: 'Message reference missing for this notification.',
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: firestore
+          .collection('admin_counselor_messages')
+          .doc(relatedId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _CounselorDetailStateCard(
+            message: snapshot.error.toString(),
+          );
+        }
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const _CounselorDetailStateCard(
+            message: 'The admin message could not be loaded.',
+          );
+        }
+
+        final root = snapshot.data!.data();
+        if (root == null) {
+          return const _CounselorDetailStateCard(
+            message: 'This message has no content.',
+          );
+        }
+
+        final adminId = (root['adminId'] as String?) ?? '';
+        final counselorId = (root['counselorId'] as String?) ?? '';
+        final institutionId = (root['institutionId'] as String?) ?? '';
+        final threadKey = '$adminId|$counselorId';
+
+        if (counselorId != widget.profile.id) {
+          return const _CounselorDetailStateCard(
+            message: 'This message is not assigned to your account.',
+          );
+        }
+
+        final messagesStream = firestore
+            .collection('admin_counselor_messages')
+            .where('adminId', isEqualTo: adminId)
+            .where('counselorId', isEqualTo: counselorId)
+            .orderBy('createdAt', descending: true)
+            .snapshots();
+
+        Future<void> send() async {
+          final text = _controller.text.trim();
+          if (text.isEmpty) return;
+          setState(() {
+            _sending = true;
+            _inlineError = null;
+          });
+          try {
+            final msgRef =
+                firestore.collection('admin_counselor_messages').doc();
+            await firestore.runTransaction((txn) async {
+              txn.set(msgRef, {
+                'threadKey': threadKey,
+                'adminId': adminId,
+                'counselorId': counselorId,
+                'institutionId': institutionId,
+                'senderRole': 'counselor',
+                'senderId': widget.profile.id,
+                'body': text,
+                'isRead': false,
+                'createdAt': FieldValue.serverTimestamp(),
+              });
+
+              final notifRef = firestore.collection('notifications').doc();
+              txn.set(notifRef, {
+                'userId': adminId,
+                'institutionId': institutionId,
+                'type': 'counselor_message',
+                'title': 'Reply from ${widget.profile.name}',
+                'body': text,
+                'priority': 'normal',
+                'actionRequired': false,
+                'relatedId': msgRef.id,
+                'createdAt': FieldValue.serverTimestamp(),
+                'updatedAt': FieldValue.serverTimestamp(),
+                'isRead': false,
+                'isPinned': false,
+                'isArchived': false,
+              });
+            });
+            _controller.clear();
+          } catch (error) {
+            setState(() => _inlineError = error.toString());
+          } finally {
+            if (mounted) setState(() => _sending = false);
+          }
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 10),
+            Text(
+              'Conversation with your institution admin',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF0F172A),
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              height: 360,
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: messagesStream,
+                builder: (context, msgSnapshot) {
+                  if (msgSnapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        msgSnapshot.error.toString(),
+                        style: const TextStyle(color: Color(0xFFB91C1C)),
+                      ),
+                    );
+                  }
+                  final docs = msgSnapshot.data?.docs ?? const [];
+                  if (msgSnapshot.connectionState ==
+                          ConnectionState.waiting &&
+                      docs.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (docs.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'No messages yet.',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    reverse: true,
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                    itemCount: docs.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final data = docs[index].data();
+                      final isCounselor =
+                          (data['senderRole'] as String?) == 'counselor';
+                      DateTime? created;
+                      final raw = data['createdAt'];
+                      if (raw is Timestamp) {
+                        created = raw.toDate();
+                      } else if (raw is DateTime) {
+                        created = raw;
+                      }
+                      return Align(
+                        alignment: isCounselor
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: isCounselor
+                                ? scheme.primary
+                                : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  (data['body'] as String?) ?? '',
+                                  style: TextStyle(
+                                    color: isCounselor
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _formatTimestamp(created),
+                                  style: TextStyle(
+                                    color: isCounselor
+                                        ? Colors.white70
+                                        : const Color(0xFF64748B),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    minLines: 1,
+                    maxLines: 4,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      hintText: 'Reply to the admin...',
+                      filled: true,
+                      fillColor: Color(0xFFF8FAFC),
+                      prefixIcon: Icon(Icons.chat_rounded),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(14)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                FilledButton.icon(
+                  onPressed: _sending || _controller.text.trim().isEmpty
+                      ? null
+                      : send,
+                  icon: _sending
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.send_rounded),
+                  label: Text(_sending ? 'Sending...' : 'Send'),
+                ),
+              ],
+            ),
+            if (_inlineError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _inlineError!,
+                style: const TextStyle(
+                  color: Color(0xFFB91C1C),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
 }
 
 class _HeroPill extends StatelessWidget {

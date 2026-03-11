@@ -796,8 +796,21 @@ service cloud.firestore {
          request.auth.uid == resource.data.counselorId);
 
       allow create: if isSignedIn() &&
-        request.resource.data.adminId == request.auth.uid &&
-        isInstitutionAdminRole(currentUserRole());
+        (
+          (
+            request.resource.data.adminId == request.auth.uid &&
+            isInstitutionAdminRole(currentUserRole())
+          ) ||
+          (
+            request.resource.data.counselorId == request.auth.uid &&
+            currentUserRole() == 'counselor' &&
+            currentMembershipIsActiveForRole('counselor')
+          )
+        ) &&
+        request.resource.data.senderId == request.auth.uid &&
+        request.resource.data.senderRole in ['admin', 'counselor'] &&
+        request.resource.data.threadKey ==
+          (request.resource.data.adminId + '|' + request.resource.data.counselorId);
 
       allow update, delete: if false;
     }

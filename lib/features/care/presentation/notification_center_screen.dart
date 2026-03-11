@@ -94,11 +94,17 @@ class _NotificationCenterScreenState
   }
 
   String _notificationTargetRoute(AppNotification notification) {
+    final normalizedType = notification.type.toLowerCase();
+    if (normalizedType == 'admin_message' ||
+        normalizedType == 'counselor_message') {
+      return _notificationDetailsRoute(notification.id);
+    }
+
     final rawRoute = (notification.route ?? '').trim();
     if (rawRoute.isNotEmpty) {
       return rawRoute;
     }
-    if (notification.type.toLowerCase() == 'institution_invite' &&
+    if (normalizedType == 'institution_invite' &&
         (notification.relatedId ?? '').trim().isNotEmpty) {
       return Uri(
         path: AppRoute.inviteAccept,

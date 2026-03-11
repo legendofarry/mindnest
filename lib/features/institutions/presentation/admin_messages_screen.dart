@@ -83,7 +83,6 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
         'body': text,
         'priority': 'normal',
         'actionRequired': false,
-        'route': AppRoute.notifications,
         'relatedId': msgRef.id,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
