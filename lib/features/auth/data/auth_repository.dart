@@ -474,7 +474,7 @@ class AuthRepository {
           .toList(growable: false);
     }
 
-    return <String, dynamic>{
+    final export = <String, dynamic>{
       'exportedAt': DateTime.now().toIso8601String(),
       'user': userDoc.data() ?? const <String, dynamic>{},
       'onboardingResponses': mapDocs(onboarding),
@@ -484,6 +484,7 @@ class AuthRepository {
       'careGoals': mapDocs(goals),
       'privacySettings': privacy.data() ?? const <String, dynamic>{},
     };
+    return export.map((key, value) => MapEntry(key, _jsonReady(value)));
   }
 
   Future<void> _ensureProfileExists(User user) async {
@@ -644,6 +645,32 @@ class AuthRepository {
     } catch (_) {
       // Registry backfill should not block authentication.
     }
+  }
+
+  dynamic _jsonReady(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate().toIso8601String();
+    }
+    if (value is DateTime) {
+      return value.toIso8601String();
+    }
+    if (value is GeoPoint) {
+      return {
+        'latitude': value.latitude,
+        'longitude': value.longitude,
+      };
+    }
+    if (value is Map) {
+      final result = <String, dynamic>{};
+      value.forEach((key, nested) {
+        result[key.toString()] = _jsonReady(nested);
+      });
+      return result;
+    }
+    if (value is Iterable) {
+      return value.map(_jsonReady).toList(growable: false);
+    }
+    return value;
   }
 }
 
