@@ -2504,7 +2504,7 @@ class _WorkspacePanel extends StatelessWidget {
                         unresolvedMembers.isNotEmpty) ...[
                       Container(
                         padding: const EdgeInsets.all(14),
-                        margin: const EdgeInsets.only(bottom: 10),
+                        margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFFBEB),
                           borderRadius: BorderRadius.circular(18),
@@ -2538,6 +2538,10 @@ class _WorkspacePanel extends StatelessWidget {
                           ],
                         ),
                       ),
+                    ],
+                    if (activeView == AdminWorkspaceView.members &&
+                        unresolvedMembers.isNotEmpty) ...[
+                      const SizedBox(height: 4),
                     ],
                     const Wrap(
                       spacing: 8,
