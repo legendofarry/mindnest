@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -23,9 +26,12 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
   final Set<String> _markingThreads = {};
   Map<String, int> _unreadCounts = const {};
   bool _listeningUnread = false;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _unreadSub;
+  double _listPaneWidth = 280;
 
   @override
   void dispose() {
+    _unreadSub?.cancel();
     _message.dispose();
     super.dispose();
   }
@@ -55,7 +61,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     if (_listeningUnread) return;
     _listeningUnread = true;
     final firestore = ref.read(firestoreProvider);
-    firestore
+    _unreadSub = firestore
         .collection('admin_counselor_messages')
         .where('adminId', isEqualTo: adminId)
         .where('senderRole', isEqualTo: 'counselor')
@@ -105,55 +111,154 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     }
   }
 
-  void _showConversationMenu(String counselorId, String counselorName) {
+  Future<void> _deleteConversation({
+    required String adminId,
+    required String counselorId,
+  }) async {
+    final firestore = ref.read(firestoreProvider);
+    Query<Map<String, dynamic>> query = firestore
+        .collection('admin_counselor_messages')
+        .where('adminId', isEqualTo: adminId)
+        .where('counselorId', isEqualTo: counselorId)
+        .limit(100);
+    final snap = await query.get();
+    if (snap.docs.isEmpty) return;
+    final batch = firestore.batch();
+    for (final doc in snap.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
+
+  void _showConversationMenu(
+    String counselorId,
+    String counselorName,
+    Offset globalPosition,
+  ) {
     final profile = ref.read(currentUserProfileProvider).valueOrNull;
     if (profile == null) return;
-    showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Wrap(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.mark_email_read_outlined),
-                title: const Text('Mark as read'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await _markThreadRead(
-                    adminId: profile.id,
-                    counselorId: counselorId,
-                  );
-                },
+    final adminId = profile.id;
+    final isWide = MediaQuery.of(context).size.width >= 960;
+
+    Future<void> handleAction(String action) async {
+      if (action == 'mark_read') {
+        await _markThreadRead(adminId: adminId, counselorId: counselorId);
+      } else if (action == 'delete') {
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+            ),
+            title: const Text('Delete conversation?'),
+            content: const Text(
+              'This will remove all messages in this conversation for both you and the counselor.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
               ),
-              ListTile(
-                leading: const Icon(Icons.person_outline_rounded),
-                title: const Text('View counselor profile'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // Hook up to counselor profile route if available.
-                },
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
               ),
-              ListTile(
-                leading: const Icon(Icons.delete_outline_rounded),
-                title: const Text('Delete conversation'),
-                onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Delete conversation is not available yet.'),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
             ],
           ),
         );
-      },
-    );
+        if (confirm == true) {
+          await _deleteConversation(adminId: adminId, counselorId: counselorId);
+        }
+      } else if (action == 'profile') {
+        context.push(
+          '${AppRoute.counselorProfile}?counselorId=$counselorId&from=adminMessages',
+        );
+      }
+    }
+
+    if (isWide) {
+      showMenu<String>(
+        context: context,
+        position: RelativeRect.fromLTRB(
+          globalPosition.dx,
+          globalPosition.dy,
+          globalPosition.dx,
+          globalPosition.dy,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        items: [
+          PopupMenuItem(
+            value: 'mark_read',
+            child: Row(
+              children: const [
+                Icon(Icons.mark_email_read_outlined, size: 18),
+                SizedBox(width: 10),
+                Text('Mark as read'),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'profile',
+            child: Row(
+              children: const [
+                Icon(Icons.person_outline_rounded, size: 18),
+                SizedBox(width: 10),
+                Text('View counselor profile'),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'delete',
+            child: Row(
+              children: const [
+                Icon(Icons.delete_outline_rounded,
+                    size: 18, color: Color(0xFFB91C1C)),
+                SizedBox(width: 10),
+                Text('Delete conversation'),
+              ],
+            ),
+          ),
+        ],
+      ).then((value) {
+        if (value != null) handleAction(value);
+      });
+    } else {
+      showModalBottomSheet<String>(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (context) {
+          return SafeArea(
+            child: Wrap(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.mark_email_read_outlined),
+                  title: const Text('Mark as read'),
+                  onTap: () => Navigator.pop(context, 'mark_read'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.person_outline_rounded),
+                  title: const Text('View counselor profile'),
+                  onTap: () => Navigator.pop(context, 'profile'),
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Color(0xFFB91C1C),
+                  ),
+                  title: const Text('Delete conversation'),
+                  onTap: () => Navigator.pop(context, 'delete'),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          );
+        },
+      ).then((value) {
+        if (value != null) handleAction(value);
+      });
+    }
   }
 
   Future<void> _send({
@@ -265,7 +370,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                 ? Row(
                     children: [
                       SizedBox(
-                        width: 280,
+                        width: _listPaneWidth,
                         child: _CounselorListPane(
                           stream: counselorsQuery.snapshots(),
                           selectedId: _selectedCounselorId,
@@ -279,7 +384,32 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                           onMenu: _showConversationMenu,
                         ),
                       ),
-                      const VerticalDivider(width: 1),
+                      GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onHorizontalDragUpdate: (details) {
+                          setState(() {
+                            _listPaneWidth = (_listPaneWidth + details.delta.dx)
+                                .clamp(220.0, 520.0);
+                          });
+                        },
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.resizeColumn,
+                          child: const SizedBox(
+                            width: 12,
+                            child: Center(
+                              child: SizedBox(
+                                width: 2,
+                                height: double.infinity,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                       Expanded(
                         child: _ChatPane(
                           profile: profile,
@@ -361,7 +491,11 @@ class _CounselorListPane extends StatelessWidget {
   final String? selectedId;
   final void Function(String id, String name) onSelected;
   final Map<String, int> unreadCounts;
-  final void Function(String counselorId, String counselorName) onMenu;
+  final void Function(
+    String counselorId,
+    String counselorName,
+    Offset globalPosition,
+  ) onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -419,10 +553,17 @@ class _CounselorListPane extends StatelessWidget {
                 children: [
                   if (unread > 0)
                     _Badge(count: unread, color: const Color(0xFFDC2626)),
-                  IconButton(
-                    tooltip: 'Conversation options',
-                    onPressed: () => onMenu(doc.id, name.isEmpty ? 'Counselor' : name),
-                    icon: const Icon(Icons.more_vert_rounded),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (details) => onMenu(
+                      doc.id,
+                      name.isEmpty ? 'Counselor' : name,
+                      details.globalPosition,
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.all(6),
+                      child: Icon(Icons.more_vert_rounded),
+                    ),
                   ),
                 ],
               ),
