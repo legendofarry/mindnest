@@ -28,7 +28,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   final _titleController = TextEditingController();
   final _yearsController = TextEditingController();
   final _languagesController = TextEditingController();
-  final _bioController = TextEditingController();
   final _aiPromptController = TextEditingController();
 
   final Set<String> _selectedSpecializations = <String>{};
@@ -108,7 +107,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     _titleController.dispose();
     _yearsController.dispose();
     _languagesController.dispose();
-    _bioController.dispose();
     _aiPromptController.dispose();
     super.dispose();
   }
@@ -150,8 +148,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       'Timezone: $_timezone',
       if (_languagesController.text.trim().isNotEmpty)
         'Languages: ${_languagesController.text.trim()}',
-      if (_bioController.text.trim().isNotEmpty)
-        'Bio draft: ${_bioController.text.trim()}',
     ].join('\n');
   }
 
@@ -225,7 +221,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
           _titleController.text = _extractSingleLine(cleaned, maxLength: 70);
           break;
         case _AiAssistTarget.bio:
-          _bioController.text = cleaned;
+          // Bio target removed; ignore.
           break;
         case _AiAssistTarget.custom:
           break;
@@ -270,8 +266,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
             'Return title only. No bullets, no quotes, no explanation. '
             'Keep it between 2 and 6 words.';
       case _AiAssistTarget.bio:
-        return '${base}Write a professional counselor bio for a school or institution setting. '
-            'Use 60 to 90 words. Return the bio only.';
+        return '${base}Return a short note.';
       case _AiAssistTarget.custom:
         return '${base}Answer this counselor setup question briefly and practically: '
             '${customPrompt.trim()}';
@@ -339,8 +334,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
             yearsExperience: years,
             sessionMode: _sessionMode,
             timezone: _timezone,
-            bio: _bioController.text,
             languages: languages,
+            bio: '',
           );
       if (!mounted) {
         return;
@@ -605,46 +600,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                   _buildLanguagesField(),
                 ],
                 const SizedBox(height: 18),
-                const _FieldLabel(text: 'PROFESSIONAL BIO'),
-                const SizedBox(height: 8),
-                _RoundedInput(
-                  child: TextFormField(
-                    controller: _bioController,
-                    minLines: 4,
-                    maxLines: 6,
-                    onChanged: (_) => _clearTopError(),
-                    decoration: InputDecoration(
-                      border: InputBorder.none,
-                      hintText:
-                          'Briefly explain your counseling approach, tone, and the kind of support students can expect.',
-                      hintStyle: _setupHintStyle,
-                      alignLabelWithHint: true,
-                      prefixIcon: const Padding(
-                        padding: EdgeInsets.only(bottom: 120),
-                        child: Icon(Icons.notes_rounded),
-                      ),
-                      suffixIconConstraints: const BoxConstraints(
-                        minWidth: 56,
-                        minHeight: 56,
-                      ),
-                      suffixIcon: Padding(
-                        padding: const EdgeInsets.only(right: 10, bottom: 105),
-                        child: Align(
-                          alignment: Alignment.bottomRight,
-                          child: _InlineAiIconButton(
-                            busy:
-                                _isAiWorking &&
-                                _activeAiTarget == _AiAssistTarget.bio,
-                            enabled: !_isAiWorking,
-                            tooltip: 'Draft bio',
-                            onTap: () =>
-                                _runAiAssist(target: _AiAssistTarget.bio),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
                 const SizedBox(height: 24),
                 Container(
                   height: 62,
