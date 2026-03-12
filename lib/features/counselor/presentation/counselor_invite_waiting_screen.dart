@@ -421,8 +421,8 @@ class _CounselorInviteWaitingScreenState
         _infoCard(
           isDesktop,
           '02',
-          'Watch this screen or Notifications',
-          'The invite appears in Notifications and this screen flips into an action state at the same time.',
+          'Watch this screen',
+          'This screen flips into an action state at the same time.',
           const Color(0xFF0D7FA1),
         ),
         const SizedBox(height: 12),
