@@ -458,7 +458,10 @@ class _NotificationCenterScreenState
         color: containerColor,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Row(
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           _segmentChip(
             context: context,
@@ -470,7 +473,6 @@ class _NotificationCenterScreenState
             onTap: () =>
                 setState(() => _activeFilter = _NotificationFilter.all),
           ),
-          const SizedBox(width: 8),
           _segmentChip(
             context: context,
             label: 'Unread',
@@ -481,7 +483,6 @@ class _NotificationCenterScreenState
             onTap: () =>
                 setState(() => _activeFilter = _NotificationFilter.unread),
           ),
-          const SizedBox(width: 8),
           _segmentChip(
             context: context,
             label: 'Archived',
@@ -492,7 +493,6 @@ class _NotificationCenterScreenState
             onTap: () =>
                 setState(() => _activeFilter = _NotificationFilter.archived),
           ),
-          const Spacer(),
           TextButton(
             onPressed:
                 (_activeFilter == _NotificationFilter.archived ||
