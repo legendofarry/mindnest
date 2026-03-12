@@ -1178,6 +1178,53 @@ class InstitutionRepository {
     } on _JoinCodeFlowException catch (error) {
       throw Exception(error.message);
     }
+
+    // Mark any pending invites for this institution as accepted now that the
+    // user joined via code, and relax action-required notifications.
+    final pendingInvitesSnapshot = await _firestore
+        .collection('user_invites')
+        .where('inviteeUid', isEqualTo: currentUser.uid)
+        .where('institutionId', isEqualTo: institutionDoc.id)
+        .where('status', isEqualTo: UserInviteStatus.pending.name)
+        .get();
+    if (pendingInvitesSnapshot.docs.isNotEmpty) {
+      final batch = _firestore.batch();
+      final inviteIds = <String>[];
+      for (final doc in pendingInvitesSnapshot.docs) {
+        inviteIds.add(doc.id);
+        batch.update(doc.reference, {
+          'status': UserInviteStatus.accepted.name,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+
+      // Best-effort notification soft-close.
+      final chunks = <List<String>>[];
+      for (var i = 0; i < inviteIds.length; i += 10) {
+        chunks.add(inviteIds.sublist(
+          i,
+          i + 10 > inviteIds.length ? inviteIds.length : i + 10,
+        ));
+      }
+      for (final chunk in chunks) {
+        final notifications = await _firestore
+            .collection('notifications')
+            .where('userId', isEqualTo: currentUser.uid)
+            .where('relatedId', whereIn: chunk)
+            .get();
+        if (notifications.docs.isEmpty) continue;
+        final nBatch = _firestore.batch();
+        for (final doc in notifications.docs) {
+          nBatch.update(doc.reference, {
+            'actionRequired': false,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+        await nBatch.commit();
+      }
+    }
+
     await _appendMembershipAudit(
       institutionId: institutionDoc.id,
       actorUid: currentUser.uid,
