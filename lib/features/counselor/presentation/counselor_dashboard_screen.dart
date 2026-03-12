@@ -468,6 +468,7 @@ class _CounselorDashboardScreenState
       case _CounselorWorkspaceSection.availability:
         return _buildAvailabilitySection(
           summary: summary,
+          isDesktop: isDesktop,
           onManageAvailability: () =>
               context.go(AppRoute.counselorAvailability),
         );
@@ -661,8 +662,10 @@ class _CounselorDashboardScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _ResponsiveStatRow(stats: stats, minCardWidth: isDesktop ? 170 : 150),
-        const SizedBox(height: 20),
+        if (isDesktop) ...[
+          _ResponsiveStatRow(stats: stats, minCardWidth: 170),
+          const SizedBox(height: 20),
+        ],
         _SpotlightPanel(
           eyebrow: 'SESSION CONTROL',
           title: summary.nextSession == null
@@ -691,6 +694,7 @@ class _CounselorDashboardScreenState
 
   Widget _buildAvailabilitySection({
     required _WorkspaceSummary summary,
+    required bool isDesktop,
     required VoidCallback onManageAvailability,
   }) {
     final stats = [
@@ -723,8 +727,10 @@ class _CounselorDashboardScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _ResponsiveStatRow(stats: stats, minCardWidth: 200),
-        const SizedBox(height: 20),
+        if (isDesktop) ...[
+          _ResponsiveStatRow(stats: stats, minCardWidth: 200),
+          const SizedBox(height: 20),
+        ],
         _SpotlightPanel(
           eyebrow: 'AVAILABILITY PULSE',
           title: summary.nextOpenSlot == null
