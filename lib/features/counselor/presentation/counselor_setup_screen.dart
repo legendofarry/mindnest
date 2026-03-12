@@ -416,15 +416,16 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Build your counselor profile before the workspace opens. Pick every specialization you actually handle and finish the last access details here.',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: const Color(0xFF5E728D),
-                    fontWeight: FontWeight.w500,
-                    height: 1.45,
+                if (isWide)
+                  Text(
+                    'Build your counselor profile before the workspace opens. Pick every specialization you actually handle and finish the last access details here.',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: const Color(0xFF5E728D),
+                      fontWeight: FontWeight.w500,
+                      height: 1.45,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
                 const SizedBox(height: 18),
                 _buildAiAssistantCard(),
                 if (isWide) ...[
@@ -514,14 +515,15 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                 const SizedBox(height: 18),
                 const _FieldLabel(text: 'SPECIALIZATIONS'),
                 const SizedBox(height: 6),
-                Text(
-                  'Choose every focus area you actively support.',
-                  style: const TextStyle(
-                    color: Color(0xFF7A8CA4),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                if (MediaQuery.sizeOf(context).width >= 720)
+                  const Text(
+                    'Choose every focus area you actively support.',
+                    style: TextStyle(
+                      color: Color(0xFF7A8CA4),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -691,15 +693,16 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       children: [
         const _FieldLabel(text: 'COUNSELOR GENDER (OPTIONAL)'),
         const SizedBox(height: 6),
-        const Text(
-          'Optional. Including this can support respectful preference-based matching when a student is specifically seeking care from a counselor of a particular gender.',
-          style: TextStyle(
-            color: Color(0xFF7A8CA4),
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            height: 1.45,
+        if (MediaQuery.sizeOf(context).width >= 720)
+          const Text(
+            'Optional. Including this can support respectful preference-based matching when a student is specifically seeking care from a counselor of a particular gender.',
+            style: TextStyle(
+              color: Color(0xFF7A8CA4),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              height: 1.45,
+            ),
           ),
-        ),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(14),
@@ -750,6 +753,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
               prefixIcon: Icon(Icons.meeting_room_outlined),
             ),
             icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            isExpanded: true,
             items: _sessionModes
                 .map(
                   (item) =>
@@ -785,6 +789,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
               prefixIcon: Icon(Icons.public_rounded),
             ),
             icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            isExpanded: true,
             items: _timezones
                 .map(
                   (item) =>
