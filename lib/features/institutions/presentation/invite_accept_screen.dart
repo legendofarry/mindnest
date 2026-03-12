@@ -181,17 +181,6 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
                     const Text(
                       'This invite is no longer pending. It may be expired, revoked, or already handled.',
                     ),
-                    const SizedBox(height: 12),
-                    ElevatedButton(
-                      onPressed: () => context.go(AppRoute.notifications),
-                      child: const Text('Back to notifications'),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton(
-                      onPressed: () =>
-                          context.go(AppRoute.homeWithJoinCodeIntent()),
-                      child: const Text('Go to Home'),
-                    ),
                   ],
                 ),
               ),
