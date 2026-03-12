@@ -156,11 +156,6 @@ class _CounselorInviteWaitingScreenState
                   message: error.toString().replaceFirst('Exception: ', ''),
                   isError: true,
                 ),
-                const SizedBox(height: 16),
-                _PrimaryButton(
-                  label: 'Open Notifications',
-                  onPressed: () => context.go(AppRoute.notifications),
-                ),
               ],
             ),
           ),
@@ -382,7 +377,7 @@ class _CounselorInviteWaitingScreenState
         Text(
           hasInvite
               ? 'Your institution invite is here.'
-              : 'Your counselor account is waiting for institution access.',
+              : 'Account is waiting for institution access.',
           textAlign: isDesktop ? TextAlign.left : TextAlign.center,
           style: theme.textTheme.headlineMedium?.copyWith(
             fontSize: isDesktop ? 40 : 30,
@@ -403,14 +398,6 @@ class _CounselorInviteWaitingScreenState
             color: const Color(0xFF4E627A),
             fontWeight: FontWeight.w500,
             height: 1.55,
-          ),
-        ),
-        const SizedBox(height: 24),
-        SizedBox(
-          width: isDesktop ? 330 : null,
-          child: _PrimaryButton(
-            label: hasInvite ? 'Open Notifications Too' : 'Open Notifications',
-            onPressed: () => context.go(AppRoute.notifications),
           ),
         ),
       ],
