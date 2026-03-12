@@ -343,7 +343,10 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    _LiveHubHeroCard(profile: profile),
+                                    _LiveHubHeroCard(
+                                      profile: profile,
+                                      showChips: useDesktopShell,
+                                    ),
                                     const SizedBox(height: 14),
                                     Align(
                                       alignment: Alignment.topRight,
@@ -482,9 +485,13 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
 }
 
 class _LiveHubHeroCard extends StatelessWidget {
-  const _LiveHubHeroCard({required this.profile});
+  const _LiveHubHeroCard({
+    required this.profile,
+    required this.showChips,
+  });
 
   final UserProfile profile;
+  final bool showChips;
 
   @override
   Widget build(BuildContext context) {
@@ -549,15 +556,16 @@ class _LiveHubHeroCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _LiveHeroChip(label: 'Join institution rooms'),
-              _LiveHeroChip(label: 'Mic requests'),
-              _LiveHeroChip(label: 'Realtime reactions'),
-            ],
-          ),
+          if (showChips)
+            const Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _LiveHeroChip(label: 'Join institution rooms'),
+                _LiveHeroChip(label: 'Mic requests'),
+                _LiveHeroChip(label: 'Realtime reactions'),
+              ],
+            ),
         ],
       ),
     );
