@@ -297,30 +297,13 @@ class _HeroPanel extends StatelessWidget {
           ),
           SizedBox(height: compact ? 20 : 28),
           if (compact)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Flexible(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: _MetaPill(
-                      icon: Icons.mark_email_read_rounded,
-                      label: 'Email Verified',
-                    ),
-                  ),
-                ),
-                if (hasInstitution) const SizedBox(width: 12),
-                if (hasInstitution)
-                  Flexible(
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: _MetaPill(
-                        icon: Icons.account_balance_rounded,
-                        label: institutionName,
-                      ),
-                    ),
-                  ),
-              ],
+            Center(
+              child: hasInstitution
+                  ? _MetaPill(
+                      icon: Icons.account_balance_rounded,
+                      label: institutionName,
+                    )
+                  : const SizedBox.shrink(),
             )
           else
             Center(
