@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lottie/lottie.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
@@ -168,18 +169,39 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
             return GlassCard(
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                child: Stack(
                   children: [
-                    Text(
-                      'Invite unavailable',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'This invite is no longer pending. It may be expired, revoked, or already handled.',
+                    const _InviteUnavailableBackground(),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: Lottie.asset(
+                            'assets/loading/loading.json',
+                            height: 160,
+                            repeat: true,
+                            frameRate: FrameRate.max,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Invite unavailable',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF0B1A2F),
+                              ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'This invite is no longer pending. It may be expired, revoked, or already handled.',
+                          style: TextStyle(
+                            color: Color(0xFF4B5563),
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -254,5 +276,89 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
         ),
       ),
     );
+  }
+}
+
+class _InviteUnavailableBackground extends StatefulWidget {
+  const _InviteUnavailableBackground();
+
+  @override
+  State<_InviteUnavailableBackground> createState() =>
+      _InviteUnavailableBackgroundState();
+}
+
+class _InviteUnavailableBackgroundState
+    extends State<_InviteUnavailableBackground>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          return CustomPaint(
+            painter: _InviteBlurPainter(progress: _controller.value),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _InviteBlurPainter extends CustomPainter {
+  const _InviteBlurPainter({required this.progress});
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60);
+
+    paint.color = Color.lerp(
+          const Color(0xFF9BDCF3),
+          const Color(0xFF8EEAD5),
+          progress,
+        ) ??
+        const Color(0xFF9BDCF3);
+    canvas.drawCircle(Offset(size.width * 0.25, size.height * 0.15), 120, paint);
+
+    paint.color = Color.lerp(
+          const Color(0xFF9AB5FF),
+          const Color(0xFFB3C7FF),
+          1 - progress,
+        ) ??
+        const Color(0xFF9AB5FF);
+    canvas.drawCircle(Offset(size.width * 0.78, size.height * 0.28), 110, paint);
+
+    paint.color = Color.lerp(
+          const Color(0xFFA5F3FC),
+          const Color(0xFF92FCE1),
+          progress,
+        ) ??
+        const Color(0xFFA5F3FC);
+    canvas.drawCircle(Offset(size.width * 0.35, size.height * 0.8), 140, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _InviteBlurPainter oldDelegate) {
+    return oldDelegate.progress != progress;
   }
 }
