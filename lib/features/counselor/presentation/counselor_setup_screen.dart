@@ -862,7 +862,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _FieldLabel(text: 'SESSION MODE'),
+        const _FieldLabel(text: 'SESSIONS'),
         const SizedBox(height: 8),
         _RoundedInput(
           child: DropdownButtonFormField<String>(
