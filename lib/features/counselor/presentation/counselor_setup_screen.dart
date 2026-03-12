@@ -691,7 +691,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _FieldLabel(text: 'COUNSELOR GENDER (OPTIONAL)'),
+        const _FieldLabel(text: 'COUNSELOR GENDER'),
         const SizedBox(height: 6),
         if (MediaQuery.sizeOf(context).width >= 720)
           const Text(
