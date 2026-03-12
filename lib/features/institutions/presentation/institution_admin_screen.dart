@@ -2625,11 +2625,21 @@ class _WorkspacePanel extends StatelessWidget {
   }
 }
 
-class _OverviewEmptyState extends StatelessWidget {
+class _OverviewEmptyState extends StatefulWidget {
   const _OverviewEmptyState();
 
   @override
+  State<_OverviewEmptyState> createState() => _OverviewEmptyStateState();
+}
+
+class _OverviewEmptyStateState extends State<_OverviewEmptyState> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 640;
+    final showContent = !isMobile || _expanded;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -2640,42 +2650,71 @@ class _OverviewEmptyState extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Overview Workspace',
-            style: TextStyle(
-              color: Color(0xFF081A30),
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
+          Row(
+            children: [
+              const Text(
+                'Overview Workspace',
+                style: TextStyle(
+                  color: Color(0xFF081A30),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Spacer(),
+              if (isMobile)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => setState(() => _expanded = !_expanded),
+                  icon: Icon(
+                    showContent
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 6),
           const Text(
             'This panel turns stats into action. Open a live table, filter the dataset, and inspect detailed records without leaving the workspace shell.',
             style: TextStyle(color: Color(0xFF5E728D), height: 1.45),
           ),
-          const SizedBox(height: 16),
-          const Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _MiniHint(
-                icon: Icons.touch_app_rounded,
-                title: 'Jump into records',
-                text: 'Tap any stat card to open its live table immediately.',
-              ),
-              _MiniHint(
-                icon: Icons.manage_search_rounded,
-                title: 'Narrow the table',
-                text:
-                    'Use search and filters to reach the exact admin target faster.',
-              ),
-              _MiniHint(
-                icon: Icons.table_rows_rounded,
-                title: 'Inspect raw details',
-                text:
-                    'Open rows to review the underlying data without leaving the dashboard.',
-              ),
-            ],
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: const SizedBox(height: 16),
+            crossFadeState: showContent
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 200),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: const Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _MiniHint(
+                  icon: Icons.touch_app_rounded,
+                  title: 'Jump into records',
+                  text: 'Tap any stat card to open its live table immediately.',
+                ),
+                _MiniHint(
+                  icon: Icons.manage_search_rounded,
+                  title: 'Narrow the table',
+                  text:
+                      'Use search and filters to reach the exact admin target faster.',
+                ),
+                _MiniHint(
+                  icon: Icons.table_rows_rounded,
+                  title: 'Inspect raw details',
+                  text:
+                      'Open rows to review the underlying data without leaving the dashboard.',
+                ),
+              ],
+            ),
+            crossFadeState: showContent
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 200),
           ),
         ],
       ),
@@ -2774,6 +2813,7 @@ class _PaginatedWorkspaceTable extends StatelessWidget {
       onRowTap: onRowTap,
       highlightedRecordId: highlightedRecordId,
     );
+    final isMobile = MediaQuery.sizeOf(context).width < 640;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -2783,77 +2823,78 @@ class _PaginatedWorkspaceTable extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF8FBFF),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
+          if (!isMobile)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FBFF),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF2563EB), Color(0xFF38BDF8)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.dataset_linked_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Live Records',
+                          style: TextStyle(
+                            color: Color(0xFF081A30),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Sortable rows, tap-to-open details, and export-ready admin data.',
+                          style: TextStyle(
+                            color: Color(0xFF5E728D),
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFFD9E4F0)),
+                    ),
+                    child: Text(
+                      '${entries.length} visible',
+                      style: const TextStyle(
+                        color: Color(0xFF415A77),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF2563EB), Color(0xFF38BDF8)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.dataset_linked_rounded,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Live Records',
-                        style: TextStyle(
-                          color: Color(0xFF081A30),
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Sortable rows, tap-to-open details, and export-ready admin data.',
-                        style: TextStyle(
-                          color: Color(0xFF5E728D),
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: const Color(0xFFD9E4F0)),
-                  ),
-                  child: Text(
-                    '${entries.length} visible',
-                    style: const TextStyle(
-                      color: Color(0xFF415A77),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
           Theme(
             data: Theme.of(context).copyWith(
               cardTheme: const CardThemeData(
