@@ -67,7 +67,9 @@ class _InstitutionAdminProfileScreenState
   Future<void> _save(UserProfile profile) async {
     setState(() => _saving = true);
     try {
-      await ref.read(authRepositoryProvider).updateAccountProfile(
+      await ref
+          .read(authRepositoryProvider)
+          .updateAccountProfile(
             name: _name.text.trim(),
             phoneNumber: _primaryPhone.text.trim(),
             additionalPhoneNumber: _additionalPhone.text.trim().isEmpty
@@ -75,16 +77,14 @@ class _InstitutionAdminProfileScreenState
                 : _additionalPhone.text.trim(),
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account updated.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Account updated.')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            error.toString().replaceFirst('Exception: ', ''),
-          ),
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
       );
     } finally {
@@ -100,17 +100,13 @@ class _InstitutionAdminProfileScreenState
           .sendPasswordReset(profile.email.trim());
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password reset email sent.'),
-        ),
+        const SnackBar(content: Text('Password reset email sent.')),
       );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            error.toString().replaceFirst('Exception: ', ''),
-          ),
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
       );
     } finally {
@@ -121,23 +117,20 @@ class _InstitutionAdminProfileScreenState
   Future<void> _export(UserProfile profile) async {
     setState(() => _exporting = true);
     try {
-      final export =
-          await ref.read(authRepositoryProvider).exportCurrentUserData();
+      final export = await ref
+          .read(authRepositoryProvider)
+          .exportCurrentUserData();
       final pretty = const JsonEncoder.withIndent('  ').convert(export);
       await Clipboard.setData(ClipboardData(text: pretty));
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Data export copied to clipboard.'),
-        ),
+        const SnackBar(content: Text('Data export copied to clipboard.')),
       );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            error.toString().replaceFirst('Exception: ', ''),
-          ),
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
       );
     } finally {
@@ -151,18 +144,14 @@ class _InstitutionAdminProfileScreenState
     final themeMode = ref.watch(themeModeControllerProvider);
 
     return profileAsync.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
-      error: (error, _) => Scaffold(
-        body: Center(child: Text(error.toString())),
-      ),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (error, _) =>
+          Scaffold(body: Center(child: Text(error.toString()))),
       data: (profile) {
         if (profile == null) {
           return const Scaffold(
-            body: Center(
-              child: Text('No profile found for this account.'),
-            ),
+            body: Center(child: Text('No profile found for this account.')),
           );
         }
         _seed(profile);
@@ -178,8 +167,10 @@ class _InstitutionAdminProfileScreenState
               title: Row(
                 children: [
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.65),
                       borderRadius: BorderRadius.circular(14),
@@ -235,16 +226,19 @@ class _InstitutionAdminProfileScreenState
                           name: profile.name,
                           email: profile.email,
                           institution: profile.institutionName ?? '',
-                          initials: _initials(profile.name.isNotEmpty
-                              ? profile.name
-                              : profile.email),
+                          initials: _initials(
+                            profile.name.isNotEmpty
+                                ? profile.name
+                                : profile.email,
+                          ),
                         ),
                         const SizedBox(height: 18),
                         LayoutBuilder(
                           builder: (context, constraints) {
                             final isWide = constraints.maxWidth >= 920;
-                            final cardWidth =
-                                isWide ? (constraints.maxWidth - 14) / 2 : null;
+                            final cardWidth = isWide
+                                ? (constraints.maxWidth - 14) / 2
+                                : null;
                             return Wrap(
                               spacing: 14,
                               runSpacing: 14,
@@ -285,9 +279,9 @@ class _InstitutionAdminProfileScreenState
                                           child: Text(
                                             'Use Kenya mobile numbers in +254 format.',
                                             style: TextStyle(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .outline,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.outline,
                                               fontSize: 12.5,
                                             ),
                                           ),
@@ -305,11 +299,13 @@ class _InstitutionAdminProfileScreenState
                                                     height: 18,
                                                     child:
                                                         CircularProgressIndicator(
-                                                      strokeWidth: 2.4,
-                                                      color: Colors.white,
-                                                    ),
+                                                          strokeWidth: 2.4,
+                                                          color: Colors.white,
+                                                        ),
                                                   )
-                                                : const Icon(Icons.save_rounded),
+                                                : const Icon(
+                                                    Icons.save_rounded,
+                                                  ),
                                             label: Text(
                                               _saving
                                                   ? 'Saving...'
@@ -318,8 +314,8 @@ class _InstitutionAdminProfileScreenState
                                             style: FilledButton.styleFrom(
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                vertical: 14,
-                                              ),
+                                                    vertical: 14,
+                                                  ),
                                               shape: RoundedRectangleBorder(
                                                 borderRadius:
                                                     BorderRadius.circular(14),
@@ -334,85 +330,43 @@ class _InstitutionAdminProfileScreenState
                                 SizedBox(
                                   width: cardWidth,
                                   child: _SettingsCard(
-                                    title: 'App settings',
+                                    title: 'Account tools',
                                     subtitle:
-                                        'Personalize how MindNest feels for you.',
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
+                                        'Manage your privacy and your data export.',
+                                    child: Wrap(
+                                      spacing: 10,
+                                      runSpacing: 10,
                                       children: [
-                                        const Text(
-                                          'Theme',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
+                                        OutlinedButton.icon(
+                                          onPressed: () => context.push(
+                                            AppRoute.privacyControls,
                                           ),
+                                          icon: const Icon(
+                                            Icons.verified_user_outlined,
+                                          ),
+                                          label: const Text('Privacy controls'),
                                         ),
-                                        const SizedBox(height: 10),
-                                        Wrap(
-                                          spacing: 10,
-                                          runSpacing: 10,
-                                          children: [
-                                            ChoiceChip(
-                                              label: const Text('Light'),
-                                              selected:
-                                                  themeMode == ThemeMode.light,
-                                              onSelected: (_) => ref
-                                                  .read(
-                                                    themeModeControllerProvider
-                                                        .notifier,
-                                                  )
-                                                  .setMode(ThemeMode.light),
-                                            ),
-                                            ChoiceChip(
-                                              label: const Text('Dark'),
-                                              selected:
-                                                  themeMode == ThemeMode.dark,
-                                              onSelected: (_) => ref
-                                                  .read(
-                                                    themeModeControllerProvider
-                                                        .notifier,
-                                                  )
-                                                  .setMode(ThemeMode.dark),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 18),
-                                        Wrap(
-                                          spacing: 10,
-                                          runSpacing: 10,
-                                          children: [
-                                            OutlinedButton.icon(
-                                              onPressed: () => context.push(
-                                                AppRoute.privacyControls,
-                                              ),
-                                              icon: const Icon(
-                                                Icons.verified_user_outlined,
-                                              ),
-                                              label:
-                                                  const Text('Privacy controls'),
-                                            ),
-                                            OutlinedButton.icon(
-                                              onPressed: _exporting
-                                                  ? null
-                                                  : () => _export(profile),
-                                              icon: _exporting
-                                                  ? const SizedBox(
-                                                      width: 18,
-                                                      height: 18,
-                                                      child:
-                                                          CircularProgressIndicator(
+                                        OutlinedButton.icon(
+                                          onPressed: _exporting
+                                              ? null
+                                              : () => _export(profile),
+                                          icon: _exporting
+                                              ? const SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
                                                         strokeWidth: 2.4,
                                                       ),
-                                                    )
-                                                  : const Icon(
-                                                      Icons.download_rounded),
-                                              label: Text(
-                                                _exporting
-                                                    ? 'Preparing export...'
-                                                    : 'Export my data (JSON)',
-                                              ),
-                                            ),
-                                          ],
+                                                )
+                                              : const Icon(
+                                                  Icons.download_rounded,
+                                                ),
+                                          label: Text(
+                                            _exporting
+                                                ? 'Preparing export...'
+                                                : 'Export my data (JSON)',
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -433,11 +387,13 @@ class _InstitutionAdminProfileScreenState
                                           leading: const Icon(
                                             Icons.mail_outline_rounded,
                                           ),
-                                        title: const Text('Email'),
+                                          title: const Text('Email'),
                                           subtitle: Text(profile.email),
                                           trailing: IconButton(
                                             tooltip: 'Copy email',
-                                            icon: const Icon(Icons.copy_rounded),
+                                            icon: const Icon(
+                                              Icons.copy_rounded,
+                                            ),
                                             onPressed: () async {
                                               await Clipboard.setData(
                                                 ClipboardData(
@@ -445,8 +401,9 @@ class _InstitutionAdminProfileScreenState
                                                 ),
                                               );
                                               if (!context.mounted) return;
-                                              ScaffoldMessenger.of(context)
-                                                  .showSnackBar(
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
                                                 const SnackBar(
                                                   content: Text(
                                                     'Email copied.',
@@ -467,12 +424,13 @@ class _InstitutionAdminProfileScreenState
                                                   height: 18,
                                                   child:
                                                       CircularProgressIndicator(
-                                                    strokeWidth: 2.4,
-                                                    color: Colors.white,
-                                                  ),
+                                                        strokeWidth: 2.4,
+                                                        color: Colors.white,
+                                                      ),
                                                 )
                                               : const Icon(
-                                                  Icons.lock_reset_rounded),
+                                                  Icons.lock_reset_rounded,
+                                                ),
                                           label: Text(
                                             _sendingReset
                                                 ? 'Sending reset...'
@@ -482,8 +440,9 @@ class _InstitutionAdminProfileScreenState
                                             padding: const EdgeInsets.symmetric(
                                               vertical: 14,
                                             ),
-                                            backgroundColor:
-                                                const Color(0xFF0E9B90),
+                                            backgroundColor: const Color(
+                                              0xFF0E9B90,
+                                            ),
                                             foregroundColor: Colors.white,
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
@@ -497,8 +456,9 @@ class _InstitutionAdminProfileScreenState
                                             context: context,
                                             ref: ref,
                                           ),
-                                          icon:
-                                              const Icon(Icons.logout_rounded),
+                                          icon: const Icon(
+                                            Icons.logout_rounded,
+                                          ),
                                           label: const Text('Log out'),
                                           style: OutlinedButton.styleFrom(
                                             padding: const EdgeInsets.symmetric(
@@ -611,13 +571,7 @@ class _Orb extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color,
-        boxShadow: [
-          BoxShadow(
-            color: color,
-            blurRadius: 90,
-            spreadRadius: 10,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: color, blurRadius: 90, spreadRadius: 10)],
       ),
     );
   }
@@ -735,10 +689,7 @@ class _ProfileHero extends StatelessWidget {
             spacing: 10,
             runSpacing: 8,
             children: [
-              _HeroPill(
-                icon: Icons.shield_rounded,
-                label: 'Institution Admin',
-              ),
+              _HeroPill(icon: Icons.shield_rounded, label: 'Institution Admin'),
               _HeroPill(
                 icon: Icons.verified_user_rounded,
                 label: 'Secure account',
@@ -747,14 +698,15 @@ class _ProfileHero extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
                   side: const BorderSide(color: Colors.white70),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                onPressed: () =>
-                    Clipboard.setData(ClipboardData(text: email)),
+                onPressed: () => Clipboard.setData(ClipboardData(text: email)),
                 icon: const Icon(Icons.copy_rounded, size: 18),
                 label: const Text('Copy email'),
               ),
@@ -762,8 +714,10 @@ class _ProfileHero extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
                   side: const BorderSide(color: Colors.white70),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),

@@ -1246,22 +1246,22 @@ class _InstitutionAdminScreenState
                               ),
                               child: Column(
                                 children: [
-                              StreamBuilder<int>(
-                                stream: unreadMessagesStream,
-                                builder: (context, snap) {
-                                  final unread = snap.data ?? 0;
-                                  return _AdminWorkspaceHeader(
-                                    title: title,
-                                    subtitle: subtitle,
-                                    institutionName: institutionName,
-                                    adminName: adminName,
-                                    desktop: false,
-                                    onLogout: onLogout,
-                                    onProfileTap: onProfile,
-                                    unreadMessages: unread,
-                                  );
-                                },
-                              ),
+                                  StreamBuilder<int>(
+                                    stream: unreadMessagesStream,
+                                    builder: (context, snap) {
+                                      final unread = snap.data ?? 0;
+                                      return _AdminWorkspaceHeader(
+                                        title: title,
+                                        subtitle: subtitle,
+                                        institutionName: institutionName,
+                                        adminName: adminName,
+                                        desktop: false,
+                                        onLogout: onLogout,
+                                        onProfileTap: onProfile,
+                                        unreadMessages: unread,
+                                      );
+                                    },
+                                  ),
                                   const SizedBox(height: 14),
                                   SizedBox(
                                     height: 52,
@@ -2466,25 +2466,6 @@ class _WorkspacePanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.manage_search_rounded,
-                          color: Color(0xFF0284C7),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Search and narrow this dataset before opening records.',
-                            style: TextStyle(
-                              color: Color(0xFF415A77),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final isCompact = constraints.maxWidth < 620;
@@ -2596,24 +2577,6 @@ class _WorkspacePanel extends StatelessWidget {
                         unresolvedMembers.isNotEmpty) ...[
                       const SizedBox(height: 4),
                     ],
-                    const Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _TableHintPill(
-                          icon: Icons.ads_click_rounded,
-                          label: 'Row tap enabled',
-                        ),
-                        _TableHintPill(
-                          icon: Icons.hub_rounded,
-                          label: 'Raw record detail',
-                        ),
-                        _TableHintPill(
-                          icon: Icons.swap_vert_rounded,
-                          label: 'Sortable columns',
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
@@ -3761,12 +3724,15 @@ class _InviteMetaPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: const Color(0xFFFDE68A)),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
