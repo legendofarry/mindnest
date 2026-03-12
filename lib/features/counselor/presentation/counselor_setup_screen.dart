@@ -741,7 +741,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _FieldLabel(text: 'YEARS OF EXPERIENCE'),
+        const _FieldLabel(text: 'EXPERIENCE'),
         const SizedBox(height: 8),
         _RoundedInput(
           hasError: _yearsError,
@@ -1052,16 +1052,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                         color: Color(0xFF071937),
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Use the star actions inside title and bio for direct drafting, or ask AI to help you phrase your profile.',
-                      style: TextStyle(
-                        color: Color(0xFF5D728D),
-                        fontSize: 12.8,
-                        fontWeight: FontWeight.w500,
-                        height: 1.35,
                       ),
                     ),
                   ],
