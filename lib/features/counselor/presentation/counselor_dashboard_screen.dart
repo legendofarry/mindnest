@@ -676,9 +676,7 @@ class _CounselorDashboardScreenState
           body:
               'Use the appointments workspace for confirmations, completions, cancellations, and detailed session notes. This dashboard keeps the signal visible while the deeper workflow stays in the appointments screen.',
           primaryLabel: 'Open Appointments',
-          secondaryLabel: 'Open Notifications',
           onPrimaryTap: onOpenAppointments,
-          onSecondaryTap: onOpenNotifications,
           accent: const [Color(0xFFF97316), Color(0xFFFB923C)],
         ),
         const SizedBox(height: 20),
