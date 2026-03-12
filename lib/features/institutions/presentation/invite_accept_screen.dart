@@ -195,7 +195,7 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'This invite is no longer pending. It may be expired, revoked, or already handled.',
+                          'This invite is no longer active. It may be expired, revoked, or already handled.',
                           style: TextStyle(
                             color: Color(0xFF4B5563),
                             height: 1.45,
@@ -332,23 +332,34 @@ class _InviteBlurPainter extends CustomPainter {
     final paint = Paint()
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60);
 
-    paint.color = Color.lerp(
+    paint.color =
+        Color.lerp(
           const Color(0xFF9BDCF3),
           const Color(0xFF8EEAD5),
           progress,
         ) ??
         const Color(0xFF9BDCF3);
-    canvas.drawCircle(Offset(size.width * 0.25, size.height * 0.15), 120, paint);
+    canvas.drawCircle(
+      Offset(size.width * 0.25, size.height * 0.15),
+      120,
+      paint,
+    );
 
-    paint.color = Color.lerp(
+    paint.color =
+        Color.lerp(
           const Color(0xFF9AB5FF),
           const Color(0xFFB3C7FF),
           1 - progress,
         ) ??
         const Color(0xFF9AB5FF);
-    canvas.drawCircle(Offset(size.width * 0.78, size.height * 0.28), 110, paint);
+    canvas.drawCircle(
+      Offset(size.width * 0.78, size.height * 0.28),
+      110,
+      paint,
+    );
 
-    paint.color = Color.lerp(
+    paint.color =
+        Color.lerp(
           const Color(0xFFA5F3FC),
           const Color(0xFF92FCE1),
           progress,

@@ -28,7 +28,6 @@ class _CounselorProfileSettingsScreenState
   final _name = TextEditingController();
   final _title = TextEditingController();
   final _years = TextEditingController();
-  final _langs = TextEditingController();
   final _bio = TextEditingController();
 
   bool _seeded = false;
@@ -76,13 +75,24 @@ class _CounselorProfileSettingsScreenState
     'Asia/Dubai',
   ];
   static const _durations = <int>[30, 45, 50, 60, 75, 90];
+  static const _languageOptions = <String>[
+    'English',
+    'Kiswahili',
+    'Kikuyu',
+    'Luo',
+    'Kalenjin',
+    'Luhya',
+    'Kamba',
+    'Somali',
+  ];
+
+  Set<String> _languages = {_languageOptions.first};
 
   @override
   void dispose() {
     _name.dispose();
     _title.dispose();
     _years.dispose();
-    _langs.dispose();
     _bio.dispose();
     super.dispose();
   }
@@ -102,12 +112,13 @@ class _CounselorProfileSettingsScreenState
                   (setup['yearsExperience'] as num?)?.toInt() ??
                   0))
               .toString();
-      _langs.text =
-          (cp?.languages ??
-                  ((setup['languages'] as List?) ?? const <dynamic>[])
-                      .map((e) => e.toString())
-                      .toList(growable: false))
-              .join(', ');
+      final langs = cp?.languages ??
+          ((setup['languages'] as List?) ?? const <dynamic>[])
+              .map((e) => e.toString())
+              .toList(growable: false);
+      _languages = langs.isNotEmpty
+          ? langs.toSet()
+          : {_languageOptions.first};
       _bio.text = cp?.bio ?? (setup['bio'] as String? ?? '');
 
       final specializationRaw =
@@ -150,11 +161,7 @@ class _CounselorProfileSettingsScreenState
     setState(() => _savingProfile = true);
     try {
       final years = int.tryParse(_years.text.trim()) ?? 0;
-      final languages = _langs.text
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList(growable: false);
+      final languages = _languages.toList(growable: false);
       await ref
           .read(counselorRepositoryProvider)
           .updateProfileAndSettings(
@@ -566,15 +573,20 @@ class _CounselorProfileSettingsScreenState
                                           ),
                                         ),
                                         const SizedBox(height: 12),
-                                        TextFormField(
-                                          controller: _langs,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Languages',
-                                            hintText: 'English, Swahili',
-                                            prefixIcon: Icon(Icons.language),
-                                          ),
+                                        _LanguageSelector(
+                                          options: _languageOptions,
+                                          selected: _languages,
+                                          onToggle: (lang) {
+                                            setState(() {
+                                              if (_languages.contains(lang)) {
+                                                _languages.remove(lang);
+                                              } else {
+                                                _languages.add(lang);
+                                              }
+                                            });
+                                          },
                                         ),
-                                        const SizedBox(height: 12),
+                                        const SizedBox(height: 16),
                                         TextFormField(
                                           controller: _bio,
                                           minLines: 3,
@@ -904,6 +916,139 @@ class _SettingsSectionCard extends StatelessWidget {
             child,
             if (trailing != null) ...[const SizedBox(height: 16), trailing!],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LanguageSelector extends StatelessWidget {
+  const _LanguageSelector({
+    required this.options,
+    required this.selected,
+    required this.onToggle,
+  });
+
+  final List<String> options;
+  final Set<String> selected;
+  final ValueChanged<String> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(bottom: 6),
+          child: Text(
+            'Languages',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0B2442),
+              letterSpacing: 0.3,
+            ),
+          ),
+        ),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: options
+              .asMap()
+              .entries
+              .map(
+                (entry) => _OptionPillSmall(
+                  label: entry.value,
+                  index: entry.key,
+                  selected: selected.contains(entry.value),
+                  onTap: () => onToggle(entry.value),
+                ),
+              )
+              .toList(growable: false),
+        ),
+      ],
+    );
+  }
+}
+
+class _OptionPillSmall extends StatelessWidget {
+  const _OptionPillSmall({
+    required this.label,
+    required this.index,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final int index;
+  final bool selected;
+  final VoidCallback onTap;
+
+  static const _gradients = [
+    [Color(0xFFE7F8F5), Color(0xFFD5F1EC)],
+    [Color(0xFFEAF2FF), Color(0xFFDCE8FF)],
+    [Color(0xFFFFF2DD), Color(0xFFFFE8B8)],
+    [Color(0xFFF2EAFE), Color(0xFFE7D8FF)],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _gradients[index % _gradients.length];
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            gradient: selected
+                ? const LinearGradient(
+                    colors: [Color(0xFF0E9B90), Color(0xFF2563EB)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : LinearGradient(
+                    colors: colors,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF0E9B90)
+                  : const Color(0xFFD6E2F1),
+            ),
+            boxShadow: selected
+                ? const [
+                    BoxShadow(
+                      color: Color(0x330E9B90),
+                      blurRadius: 10,
+                      offset: Offset(0, 6),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                selected
+                    ? Icons.check_rounded
+                    : Icons.add_circle_outline_rounded,
+                size: 16,
+                color: selected ? Colors.white : const Color(0xFF58708C),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : const Color(0xFF0B2442),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
