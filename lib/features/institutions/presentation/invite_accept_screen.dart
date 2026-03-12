@@ -143,7 +143,12 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
               userInstitutionId == resolvedInvite.institutionId) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
-              _showModernToast(context, 'You already joined this institution.');
+              _showModernBanner(
+                context,
+                message: 'You already joined this institution.',
+                icon: Icons.check_circle_rounded,
+                color: const Color(0xFF0E9B90),
+              );
               context.go(AppRoute.home);
             });
             return const SizedBox.shrink();
@@ -291,76 +296,49 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
     );
   }
 
-  void _showModernToast(BuildContext context, String message) {
-    final overlay = Overlay.of(context, rootOverlay: true);
-    if (overlay == null) return;
-
-    final entry = OverlayEntry(
-      builder: (context) => Positioned(
-        top: MediaQuery.of(context).viewPadding.top + 16,
-        left: 16,
-        right: 16,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          builder: (context, opacity, child) {
-            return Opacity(opacity: opacity, child: child);
-          },
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0EA5E9), Color(0xFF22C55E)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x33000000),
-                    blurRadius: 12,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: const Icon(
-                      Icons.check_circle_rounded,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      message,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+  void _showModernBanner(
+    BuildContext context, {
+    required String message,
+    IconData icon = Icons.info_outline_rounded,
+    Color color = const Color(0xFF0E9B90),
+  }) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.removeCurrentMaterialBanner();
+    messenger.showMaterialBanner(
+      MaterialBanner(
+        backgroundColor: Colors.white,
+        elevation: 8,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        leadingPadding: const EdgeInsets.only(right: 12),
+        leading: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.14),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 18),
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF0F172A),
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: messenger.hideCurrentMaterialBanner,
+            child: const Text('Dismiss'),
+          ),
+        ],
+        surfaceTintColor: Colors.transparent,
       ),
     );
-
-    overlay.insert(entry);
-    Future.delayed(const Duration(seconds: 2), entry.remove);
+    Future.delayed(const Duration(seconds: 6), () {
+      messenger.hideCurrentMaterialBanner();
+    });
   }
 }
 
