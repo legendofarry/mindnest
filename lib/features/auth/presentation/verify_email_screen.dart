@@ -130,7 +130,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
         surfaceTintColor: Colors.transparent,
       ),
     );
-    Future.delayed(const Duration(seconds: 3), () {
+    Future.delayed(const Duration(seconds: 6), () {
       messenger.hideCurrentMaterialBanner();
     });
   }
