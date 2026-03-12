@@ -86,7 +86,7 @@ class _CounselorProfileSettingsScreenState
     'Somali',
   ];
 
-  Set<String> _languages = {_languageOptions.first};
+  Set<String>? _languages;
 
   @override
   void dispose() {
@@ -158,10 +158,11 @@ class _CounselorProfileSettingsScreenState
 
   Future<void> _save(UserProfile profile) async {
     if (!_formKey.currentState!.validate()) return;
+    _languages ??= {_languageOptions.first};
     setState(() => _savingProfile = true);
     try {
       final years = int.tryParse(_years.text.trim()) ?? 0;
-      final languages = _languages.toList(growable: false);
+      final languages = _languages!.toList(growable: false);
       await ref
           .read(counselorRepositoryProvider)
           .updateProfileAndSettings(
@@ -330,9 +331,9 @@ class _CounselorProfileSettingsScreenState
                     .watchNotificationSettings(profile.id),
                 builder: (context, nSnap) {
                   _seed(profile, cpSnap.data, nSnap.data ?? const {});
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
                       _SettingsHero(
                         profile: profile,
                         specialization: _specialization,
@@ -575,13 +576,16 @@ class _CounselorProfileSettingsScreenState
                                         const SizedBox(height: 12),
                                         _LanguageSelector(
                                           options: _languageOptions,
-                                          selected: _languages,
+                                          selected:
+                                              _languages ?? {_languageOptions.first},
                                           onToggle: (lang) {
                                             setState(() {
-                                              if (_languages.contains(lang)) {
-                                                _languages.remove(lang);
+                                              _languages ??=
+                                                  {_languageOptions.first};
+                                              if (_languages!.contains(lang)) {
+                                                _languages!.remove(lang);
                                               } else {
-                                                _languages.add(lang);
+                                                _languages!.add(lang);
                                               }
                                             });
                                           },
