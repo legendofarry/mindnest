@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,19 +29,27 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _yearsController = TextEditingController();
-  final _languagesController = TextEditingController();
   final _aiPromptController = TextEditingController();
 
   final Set<String> _selectedSpecializations = <String>{};
+  final Set<String> _selectedLanguages = <String>{};
   final List<AssistantConversationMessage> _aiHistory =
       <AssistantConversationMessage>[];
 
   String _sessionMode = 'Hybrid';
   String _timezone = 'UTC';
   String? _selectedGender;
+  bool _specializationsExpanded = false;
+  bool _genderExpanded = false;
+  bool _languagesExpanded = false;
   bool _isSubmitting = false;
   bool _specializationsError = false;
-  String? _formError;
+  bool _titleError = false;
+  bool _yearsError = false;
+  bool _genderError = false;
+  List<String> _formErrors = <String>[];
+  int _formErrorIndex = 0;
+  Timer? _errorTicker;
   bool _isAiWorking = false;
   _AiAssistTarget? _activeAiTarget;
   String? _aiReply;
@@ -81,6 +91,17 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     'Non-binary',
   ];
 
+  static const List<String> _languageOptions = <String>[
+    'English',
+    'Kiswahili',
+    'Kikuyu',
+    'Luo',
+    'Kalenjin',
+    'Luhya',
+    'Kamba',
+    'Somali',
+  ];
+
   static const List<_StepItem> _steps = <_StepItem>[
     _StepItem(
       number: '01',
@@ -104,18 +125,27 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
 
   @override
   void dispose() {
+    _errorTicker?.cancel();
     _titleController.dispose();
     _yearsController.dispose();
-    _languagesController.dispose();
     _aiPromptController.dispose();
     super.dispose();
   }
 
-  void _clearTopError() {
-    if (_formError == null) {
-      return;
-    }
-    setState(() => _formError = null);
+  void _stopErrorTicker() {
+    _errorTicker?.cancel();
+    _errorTicker = null;
+  }
+
+  void _startErrorTicker() {
+    _stopErrorTicker();
+    if (_formErrors.length <= 1) return;
+    _errorTicker = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted) return;
+      setState(() {
+        _formErrorIndex = (_formErrorIndex + 1) % _formErrors.length;
+      });
+    });
   }
 
   void _toggleSpecialization(String value) {
@@ -128,7 +158,9 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       if (_selectedSpecializations.isNotEmpty) {
         _specializationsError = false;
       }
-      _formError = null;
+      _formErrors.clear();
+      _formErrorIndex = 0;
+      _stopErrorTicker();
     });
   }
 
@@ -146,8 +178,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         'Years of experience: ${_yearsController.text.trim()}',
       'Session mode: $_sessionMode',
       'Timezone: $_timezone',
-      if (_languagesController.text.trim().isNotEmpty)
-        'Languages: ${_languagesController.text.trim()}',
+      if (_selectedLanguages.isNotEmpty)
+        'Languages: ${_selectedLanguages.join(', ')}',
     ].join('\n');
   }
 
@@ -180,7 +212,9 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       _aiError = null;
       _aiReply = null;
       _aiReplyLabel = null;
-      _formError = null;
+      _formErrors.clear();
+      _formErrorIndex = 0;
+      _stopErrorTicker();
     });
 
     try {
@@ -295,31 +329,62 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   }
 
   Future<void> _submit() async {
-    final formValid = _formKey.currentState!.validate();
+    final isWide = MediaQuery.sizeOf(context).width >= 720;
+    final titleValid = _titleController.text.trim().length >= 2;
+    final parsedYears = int.tryParse(_yearsController.text.trim());
+    final yearsValid =
+        parsedYears != null && parsedYears >= 0 && parsedYears <= 60;
     final hasSpecializations = _selectedSpecializations.isNotEmpty;
+    final hasGender = (_selectedGender ?? '').trim().isNotEmpty;
 
-    if (!hasSpecializations || !formValid) {
+    if (!titleValid ||
+        !yearsValid ||
+        !hasSpecializations ||
+        !hasGender) {
+      final errors = <String>[];
+      if (!titleValid) {
+        errors.add('Please provide a professional title.');
+      }
+      if (!yearsValid) {
+        errors.add('Enter a valid number (0-60).');
+      }
+      if (!hasSpecializations) {
+        errors.add('Select at least one specialization.');
+      }
+      if (!hasGender) {
+        errors.add('Select counselor gender.');
+      }
       setState(() {
+        _titleError = !titleValid;
+        _yearsError = !yearsValid;
         _specializationsError = !hasSpecializations;
-        _formError = !hasSpecializations
-            ? 'Select at least one specialization.'
-            : 'Please correct the highlighted fields.';
+        _genderError = !hasGender;
+        _formErrors = errors;
+        _formErrorIndex = 0;
+        if (!isWide && !hasSpecializations) {
+          _specializationsExpanded = true;
+        }
+        if (!isWide && !hasGender) {
+          _genderExpanded = true;
+        }
+        _startErrorTicker();
       });
       return;
     }
 
     setState(() {
       _isSubmitting = true;
-      _formError = null;
+      _formErrors.clear();
+      _formErrorIndex = 0;
+      _stopErrorTicker();
+      _titleError = false;
+      _yearsError = false;
       _specializationsError = false;
+      _genderError = false;
     });
 
     try {
-      final languages = _languagesController.text
-          .split(',')
-          .map((value) => value.trim())
-          .where((value) => value.isNotEmpty)
-          .toList(growable: false);
+      final languages = _selectedLanguages.toList(growable: false);
       final years = int.tryParse(_yearsController.text.trim()) ?? 0;
       final specialization = _specializations
           .where(_selectedSpecializations.contains)
@@ -349,7 +414,11 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         return;
       }
       setState(() {
-        _formError = error.toString().replaceFirst('Exception: ', '');
+        _formErrors = [
+          error.toString().replaceFirst('Exception: ', '')
+        ];
+        _formErrorIndex = 0;
+        _startErrorTicker();
       });
     } finally {
       if (mounted) {
@@ -448,10 +517,12 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                 ],
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 180),
-                  child: (_formError == null || _formError!.trim().isEmpty)
+                  child: _formErrors.isEmpty
                       ? const SizedBox(height: 24)
                       : Container(
-                          key: ValueKey(_formError),
+                          key: ValueKey(
+                            'form-error-${_formErrorIndex}-${_formErrors[_formErrorIndex]}',
+                          ),
                           margin: const EdgeInsets.only(top: 16, bottom: 8),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -472,7 +543,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  _formError!,
+                                  _formErrors[_formErrorIndex],
                                   style: const TextStyle(
                                     color: Color(0xFF9F1239),
                                     fontWeight: FontWeight.w600,
@@ -486,9 +557,17 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                 const _FieldLabel(text: 'PROFESSIONAL TITLE'),
                 const SizedBox(height: 8),
                 _RoundedInput(
+                  hasError: _titleError,
                   child: TextFormField(
                     controller: _titleController,
-                    onChanged: (_) => _clearTopError(),
+                    onChanged: (_) {
+                      setState(() {
+                        _titleError = false;
+                        _formErrors.clear();
+                        _formErrorIndex = 0;
+                        _stopErrorTicker();
+                      });
+                    },
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: 'Licensed Professional Counselor',
@@ -504,18 +583,13 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                             _runAiAssist(target: _AiAssistTarget.title),
                       ),
                     ),
-                    validator: (value) {
-                      if ((value ?? '').trim().length < 2) {
-                        return 'Please provide a professional title.';
-                      }
-                      return null;
-                    },
+                    validator: (_) => null,
                   ),
                 ),
                 const SizedBox(height: 18),
                 const _FieldLabel(text: 'SPECIALIZATIONS'),
                 const SizedBox(height: 6),
-                if (MediaQuery.sizeOf(context).width >= 720)
+                if (isWide)
                   const Text(
                     'Choose every focus area you actively support.',
                     style: TextStyle(
@@ -524,51 +598,70 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: _specializationsError
-                        ? const Color(0xFFFFF7F7)
-                        : const Color(0xFFF7FBFF),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: _specializationsError
-                          ? const Color(0xFFFCA5A5)
-                          : const Color(0xFFD7E4F1),
+                if (!isWide)
+                  InkWell(
+                    onTap: () => setState(
+                      () => _specializationsExpanded = !_specializationsExpanded,
                     ),
-                  ),
-                  child: Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: _specializations
-                        .asMap()
-                        .entries
-                        .map(
-                          (entry) => _SpecializationPill(
-                            label: entry.value,
-                            selected: _selectedSpecializations.contains(
-                              entry.value,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Text(
+                            _specializationsExpanded
+                                ? 'Hide specializations'
+                                : 'Show specializations',
+                            style: const TextStyle(
+                              color: Color(0xFF0E9B90),
+                              fontWeight: FontWeight.w700,
                             ),
-                            index: entry.key,
-                            onTap: () => _toggleSpecialization(entry.value),
                           ),
-                        )
-                        .toList(growable: false),
-                  ),
-                ),
-                if (_specializationsError)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8, left: 4),
-                    child: Text(
-                      'Select at least one specialization.',
-                      style: TextStyle(
-                        color: Color(0xFFB91C1C),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12.5,
+                          const Spacer(),
+                          Icon(
+                            _specializationsExpanded
+                                ? Icons.keyboard_arrow_up_rounded
+                                : Icons.keyboard_arrow_down_rounded,
+                            color: const Color(0xFF0E9B90),
+                          ),
+                        ],
                       ),
                     ),
                   ),
+                if (isWide || _specializationsExpanded) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: _specializationsError
+                          ? const Color(0xFFFFF7F7)
+                          : const Color(0xFFF7FBFF),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: _specializationsError
+                            ? const Color(0xFFFCA5A5)
+                            : const Color(0xFFD7E4F1),
+                      ),
+                    ),
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: _specializations
+                          .asMap()
+                          .entries
+                          .map(
+                            (entry) => _SpecializationPill(
+                              label: entry.value,
+                              selected: _selectedSpecializations.contains(
+                                entry.value,
+                              ),
+                              index: entry.key,
+                              onTap: () => _toggleSpecialization(entry.value),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 18),
                 _buildGenderField(),
                 const SizedBox(height: 18),
@@ -661,26 +754,28 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         const _FieldLabel(text: 'YEARS OF EXPERIENCE'),
         const SizedBox(height: 8),
         _RoundedInput(
+          hasError: _yearsError,
           child: TextFormField(
             controller: _yearsController,
             keyboardType: TextInputType.number,
             inputFormatters: <TextInputFormatter>[
               FilteringTextInputFormatter.digitsOnly,
             ],
-            onChanged: (_) => _clearTopError(),
+            onChanged: (_) {
+              setState(() {
+                _yearsError = false;
+                _formErrors.clear();
+                _formErrorIndex = 0;
+                _stopErrorTicker();
+              });
+            },
             decoration: const InputDecoration(
               border: InputBorder.none,
               hintText: '3',
               hintStyle: _setupHintStyle,
               prefixIcon: Icon(Icons.timeline_rounded),
             ),
-            validator: (value) {
-              final years = int.tryParse((value ?? '').trim());
-              if (years == null || years < 0 || years > 60) {
-                return 'Enter a valid number (0-60).';
-              }
-              return null;
-            },
+            validator: (_) => null,
           ),
         ),
       ],
@@ -695,7 +790,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         const SizedBox(height: 6),
         if (MediaQuery.sizeOf(context).width >= 720)
           const Text(
-            'Optional. Including this can support respectful preference-based matching when a student is specifically seeking care from a counselor of a particular gender.',
+            'Including this can support respectful preference-based matching when a student is specifically seeking care from a counselor of a particular gender.',
             style: TextStyle(
               color: Color(0xFF7A8CA4),
               fontSize: 13,
@@ -703,38 +798,71 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
               height: 1.45,
             ),
           ),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF7FBFF),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: const Color(0xFFD7E4F1)),
-          ),
-          child: Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: _genderOptions
-                .asMap()
-                .entries
-                .map(
-                  (entry) => _OptionPill(
-                    label: entry.value,
-                    selected: _selectedGender == entry.value,
-                    index: entry.key,
-                    onTap: () {
-                      setState(() {
-                        _selectedGender = _selectedGender == entry.value
-                            ? null
-                            : entry.value;
-                        _formError = null;
-                      });
-                    },
+        if (MediaQuery.sizeOf(context).width < 720)
+          InkWell(
+            onTap: () => setState(() => _genderExpanded = !_genderExpanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Text(
+                    _genderExpanded ? 'Hide gender' : 'Show gender',
+                    style: const TextStyle(
+                      color: Color(0xFF0E9B90),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                )
-                .toList(growable: false),
+                  const Spacer(),
+                  Icon(
+                    _genderExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: const Color(0xFF0E9B90),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
+        if (MediaQuery.sizeOf(context).width >= 720 || _genderExpanded)
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _genderError
+                  ? const Color(0xFFFFF7F7)
+                  : const Color(0xFFF7FBFF),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color:
+                    _genderError ? const Color(0xFFFCA5A5) : const Color(0xFFD7E4F1),
+              ),
+            ),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: _genderOptions
+                  .asMap()
+                  .entries
+                  .map(
+                    (entry) => _OptionPill(
+                      label: entry.value,
+                      selected: _selectedGender == entry.value,
+                      index: entry.key,
+                      onTap: () {
+                        setState(() {
+                          _selectedGender = _selectedGender == entry.value
+                              ? null
+                              : entry.value;
+                          _formErrors.clear();
+                          _formErrorIndex = 0;
+                          _stopErrorTicker();
+                          _genderError = false;
+                        });
+                      },
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ),
       ],
     );
   }
@@ -766,7 +894,9 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
               }
               setState(() {
                 _sessionMode = value;
-                _formError = null;
+                _formErrors.clear();
+                _formErrorIndex = 0;
+                _stopErrorTicker();
               });
             },
           ),
@@ -802,7 +932,9 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
               }
               setState(() {
                 _timezone = value;
-                _formError = null;
+                _formErrors.clear();
+                _formErrorIndex = 0;
+                _stopErrorTicker();
               });
             },
           ),
@@ -812,23 +944,74 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   }
 
   Widget _buildLanguagesField() {
+    final isWide = MediaQuery.sizeOf(context).width >= 720;
+    final showContent = isWide || _languagesExpanded;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const _FieldLabel(text: 'LANGUAGES'),
-        const SizedBox(height: 8),
-        _RoundedInput(
-          child: TextFormField(
-            controller: _languagesController,
-            onChanged: (_) => _clearTopError(),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              hintText: 'English, Swahili',
-              hintStyle: _setupHintStyle,
-              prefixIcon: Icon(Icons.language_rounded),
+        if (!isWide)
+          InkWell(
+            onTap: () => setState(() => _languagesExpanded = !_languagesExpanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Text(
+                    showContent ? 'Hide languages' : 'Show languages',
+                    style: const TextStyle(
+                      color: Color(0xFF0E9B90),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    showContent
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: const Color(0xFF0E9B90),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
+        if (showContent) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7FBFF),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFD7E4F1)),
+            ),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: _languageOptions
+                  .map(
+                    (lang) => _SpecializationPill(
+                      label: lang,
+                      selected: _selectedLanguages.contains(lang),
+                      index: _languageOptions.indexOf(lang),
+                      onTap: () {
+                        setState(() {
+                          if (_selectedLanguages.contains(lang)) {
+                            _selectedLanguages.remove(lang);
+                          } else {
+                            _selectedLanguages.add(lang);
+                          }
+                          _formErrors.clear();
+                          _formErrorIndex = 0;
+                          _stopErrorTicker();
+                        });
+                      },
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1284,17 +1467,21 @@ class _FieldLabel extends StatelessWidget {
 }
 
 class _RoundedInput extends StatelessWidget {
-  const _RoundedInput({required this.child});
+  const _RoundedInput({required this.child, this.hasError = false});
 
   final Widget child;
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: hasError ? const Color(0xFFFFF7F7) : Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFD2DCE9), width: 1),
+        border: Border.all(
+          color: hasError ? const Color(0xFFFCA5A5) : const Color(0xFFD2DCE9),
+          width: 1,
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x120F172A),
