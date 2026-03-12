@@ -374,10 +374,14 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 14),
-                                    _LiveHubInfoCard(isDark: isDark),
-                                    const SizedBox(height: 18),
-                                    Expanded(
+                                    if (useDesktopShell) ...[
+                                      const SizedBox(height: 14),
+                                      _LiveHubInfoCard(isDark: isDark),
+                                      const SizedBox(height: 18),
+                                    ] else ...[
+                                      const SizedBox(height: 8),
+                                    ],
+                                    Flexible(
                                       child: sessions.isEmpty
                                           ? Center(
                                               child: FittedBox(
@@ -394,7 +398,7 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                                               physics:
                                                   const BouncingScrollPhysics(),
                                               padding: const EdgeInsets.only(
-                                                bottom: 6,
+                                                bottom: 12,
                                               ),
                                               itemCount: sessions.length,
                                               separatorBuilder:
