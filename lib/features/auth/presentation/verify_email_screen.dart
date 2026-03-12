@@ -221,47 +221,78 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 22),
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE6F3F1),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(
-                Icons.mark_email_read_outlined,
-                color: Color(0xFF0E9B90),
-                size: 33,
+            const SizedBox(height: 16),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6F3F1),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFFB3ECDD)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x140F172A),
+                      blurRadius: 12,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 6,
+                  children: [
+                    Text(
+                      'Link sent',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFF0D3A3A),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 18),
-            Text(
-              'Verify Email',
-              style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF071937),
-                fontSize: 48 / 2,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Link sent to ${user?.email ?? 'your email address'}',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: const Color(0xFF516784),
-                height: 1,
-                fontWeight: FontWeight.w800,
-                fontSize: 38 / 2,
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              "Didn't receive the email? Please check your Spam or Junk folder. If you find it there, mark it as \"Not Spam\" so future emails arrive in your inbox.",
-              style: TextStyle(
-                color: Color(0xFF6B7280),
-                fontWeight: FontWeight.w600,
-              ),
+            const SizedBox(height: 14),
+            Builder(
+              builder: (context) {
+                final showCounselorHint =
+                    !_hasInviteContext &&
+                    (profile?.isCounselorRegistrationIntentPending ??
+                        _isCounselorIntentFallback);
+
+                if (showCounselorHint) {
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFFFFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFB3ECDD)),
+                    ),
+                    child: const Text(
+                      "Didn't receive the email? Please check your Spam or Junk folder. "
+                      "If you find it there, mark it as \"Not Spam\" so future emails arrive in your inbox.",
+                      style: TextStyle(
+                        color: Color(0xFF0D6F69),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                }
+
+                return const Text(
+                  "Didn't receive the email? Please check your Spam or Junk folder. If you find it there, mark it as \"Not Spam\" so future emails arrive in your inbox.",
+                  style: TextStyle(
+                    color: Color(0xFF6B7280),
+                    fontWeight: FontWeight.w600,
+                  ),
+                );
+              },
             ),
             if (_hasInviteContext) ...[
               const SizedBox(height: 12),
@@ -275,27 +306,6 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 child: Text(
                   'After verification, you will continue to your invite${(widget.institutionName ?? '').trim().isNotEmpty ? ' for ${widget.institutionName!.trim()}' : ''}.',
                   style: const TextStyle(
-                    color: Color(0xFF0D6F69),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-            if (!_hasInviteContext &&
-                (profile?.isCounselorRegistrationIntentPending ??
-                    _isCounselorIntentFallback)) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFFFFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFB3ECDD)),
-                ),
-                child: const Text(
-                  "Didn't receive the email? Please check your Spam or Junk folder. "
-                  "If you find it there, mark it as \"Not Spam\" so future emails arrive in your inbox.",
-                  style: TextStyle(
                     color: Color(0xFF0D6F69),
                     fontWeight: FontWeight.w600,
                   ),
