@@ -600,7 +600,7 @@ class _CounselorInviteWaitingScreenState
           children: [
             Expanded(
               child: _PrimaryButton(
-                label: _isSubmitting ? 'Accepting...' : 'Accept Invite',
+                label: _isSubmitting ? 'Accepting...' : 'Accept',
                 onPressed: _isSubmitting ? null : () => _accept(invite),
                 gradient: const [Color(0xFF155EEF), Color(0xFF0E9B90)],
                 glowColor: const Color(0x33155EEF),
@@ -619,7 +619,7 @@ class _CounselorInviteWaitingScreenState
                   foregroundColor: const Color(0xFFB91C1C),
                 ),
                 child: Text(
-                  _isSubmitting ? 'Working...' : 'Reject Invite',
+                  _isSubmitting ? 'Working...' : 'Reject',
                   style: TextStyle(
                     fontSize: isDesktop ? 18 : 16,
                     fontWeight: FontWeight.w800,
