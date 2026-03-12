@@ -132,7 +132,9 @@ class _CounselorDashboardScreenState
           nowUtc.isAfter(request.choiceDeadlineAt!);
       if (responseExpired || choiceExpired) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          ref.read(careRepositoryProvider).syncReassignmentLifecycle(request.id);
+          ref
+              .read(careRepositoryProvider)
+              .syncReassignmentLifecycle(request.id);
         });
       }
     }
@@ -181,11 +183,12 @@ class _CounselorDashboardScreenState
                       .watch(counselorWorkflowSettingsProvider(institutionId))
                       .valueOrNull ??
                   const CounselorWorkflowSettings.disabled();
-              final showCounselorDirectory =
-                  workflowSettings.directoryEnabled;
+              final showCounselorDirectory = workflowSettings.directoryEnabled;
               final reassignmentRequests =
                   ref
-                      .watch(institutionReassignmentBoardProvider(institutionId))
+                      .watch(
+                        institutionReassignmentBoardProvider(institutionId),
+                      )
                       .valueOrNull ??
                   const <SessionReassignmentRequest>[];
               _syncReassignmentLifecycle(reassignmentRequests, institutionId);
@@ -550,7 +553,8 @@ class _CounselorDashboardScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (workflowSettings.reassignmentEnabled && activeRequests.isNotEmpty) ...[
+        if (workflowSettings.reassignmentEnabled &&
+            activeRequests.isNotEmpty) ...[
           _HomeReassignmentAlertCard(
             pulse: _reassignmentPulseController,
             actionableRequests: actionableRequests,
@@ -563,16 +567,18 @@ class _CounselorDashboardScreenState
           ),
           const SizedBox(height: 20),
         ],
-        _HeroPanel(
-          summary: summary,
-          onPrimaryTap: onOpenAppointments,
-          onSecondaryTap: onOpenAvailability,
-          primaryLabel: 'Open Sessions',
-          secondaryLabel: 'Manage Availability',
-        ),
-        const SizedBox(height: 20),
-        _ResponsiveStatRow(stats: stats, minCardWidth: isDesktop ? 170 : 150),
-        const SizedBox(height: 20),
+        if (isDesktop) ...[
+          _HeroPanel(
+            summary: summary,
+            onPrimaryTap: onOpenAppointments,
+            onSecondaryTap: onOpenAvailability,
+            primaryLabel: 'Open Sessions',
+            secondaryLabel: 'Manage Availability',
+          ),
+          const SizedBox(height: 20),
+          _ResponsiveStatRow(stats: stats, minCardWidth: isDesktop ? 170 : 150),
+          const SizedBox(height: 20),
+        ],
         if (isDesktop)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -811,7 +817,7 @@ class _CounselorDashboardScreenState
     switch (section) {
       case _CounselorWorkspaceSection.overview:
         return const _SectionShell(
-          title: 'Counselor Dashboard',
+          title: 'Dashboard',
           subtitle:
               'A fixed workspace frame with your live activity, quick actions, and daily priorities in one place.',
         );
@@ -1676,9 +1682,9 @@ class _HomeReassignmentAlertCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(29),
               color: const Color(0xCC081A30),
               border: Border.all(
-                color: const Color(0xFFDDD6FE).withValues(
-                  alpha: 0.62 + (pulse.value * 0.28),
-                ),
+                color: const Color(
+                  0xFFDDD6FE,
+                ).withValues(alpha: 0.62 + (pulse.value * 0.28)),
               ),
             ),
             child: child,
@@ -1693,10 +1699,7 @@ class _HomeReassignmentAlertCard extends StatelessWidget {
             runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const _Eyebrow(
-                text: 'ACTION NEEDED',
-                color: Color(0xFFFDE68A),
-              ),
+              const _Eyebrow(text: 'ACTION NEEDED', color: Color(0xFFFDE68A)),
               _AlertPill(
                 icon: Icons.campaign_rounded,
                 label: actionableCount > 0
@@ -1894,9 +1897,7 @@ class _HomeReassignmentFeedbackBanner extends StatelessWidget {
     final background = isError
         ? const Color(0xFF7F1D1D).withValues(alpha: 0.75)
         : const Color(0xFF0F766E).withValues(alpha: 0.78);
-    final border = isError
-        ? const Color(0xFFFCA5A5)
-        : const Color(0xFFA7F3D0);
+    final border = isError ? const Color(0xFFFCA5A5) : const Color(0xFFA7F3D0);
     final icon = isError ? Icons.error_outline_rounded : Icons.check_circle;
     return Container(
       padding: const EdgeInsets.all(14),
