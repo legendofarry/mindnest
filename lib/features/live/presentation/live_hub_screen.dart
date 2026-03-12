@@ -485,10 +485,7 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
 }
 
 class _LiveHubHeroCard extends StatelessWidget {
-  const _LiveHubHeroCard({
-    required this.profile,
-    required this.showChips,
-  });
+  const _LiveHubHeroCard({required this.profile, required this.showChips});
 
   final UserProfile profile;
   final bool showChips;
@@ -546,7 +543,7 @@ class _LiveHubHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '$firstName, discover live institution conversations, join in real time, or host one when your role allows it.',
+            '$firstName, discover live institution conversations, join in real time, or host one.',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 22,
