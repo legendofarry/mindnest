@@ -93,7 +93,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
 
   static const List<String> _languageOptions = <String>[
     'English',
-    'Kiswahili',
+    'Swahili',
     'Kikuyu',
     'Luo',
     'Kalenjin',
@@ -337,10 +337,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     final hasSpecializations = _selectedSpecializations.isNotEmpty;
     final hasGender = (_selectedGender ?? '').trim().isNotEmpty;
 
-    if (!titleValid ||
-        !yearsValid ||
-        !hasSpecializations ||
-        !hasGender) {
+    if (!titleValid || !yearsValid || !hasSpecializations || !hasGender) {
       final errors = <String>[];
       if (!titleValid) {
         errors.add('Please provide a professional title.');
@@ -414,9 +411,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         return;
       }
       setState(() {
-        _formErrors = [
-          error.toString().replaceFirst('Exception: ', '')
-        ];
+        _formErrors = [error.toString().replaceFirst('Exception: ', '')];
         _formErrorIndex = 0;
         _startErrorTicker();
       });
@@ -601,7 +596,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                 if (!isWide)
                   InkWell(
                     onTap: () => setState(
-                      () => _specializationsExpanded = !_specializationsExpanded,
+                      () =>
+                          _specializationsExpanded = !_specializationsExpanded,
                     ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -665,20 +661,14 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                 const SizedBox(height: 18),
                 _buildGenderField(),
                 const SizedBox(height: 18),
-                if (isWide)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildYearsField()),
-                      const SizedBox(width: 14),
-                      Expanded(child: _buildSessionModeField()),
-                    ],
-                  )
-                else ...[
-                  _buildYearsField(),
-                  const SizedBox(height: 18),
-                  _buildSessionModeField(),
-                ],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _buildYearsField()),
+                    const SizedBox(width: 14),
+                    Expanded(child: _buildSessionModeField()),
+                  ],
+                ),
                 const SizedBox(height: 18),
                 if (isWide)
                   Row(
@@ -832,8 +822,9 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                   : const Color(0xFFF7FBFF),
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                color:
-                    _genderError ? const Color(0xFFFCA5A5) : const Color(0xFFD7E4F1),
+                color: _genderError
+                    ? const Color(0xFFFCA5A5)
+                    : const Color(0xFFD7E4F1),
               ),
             ),
             child: Wrap(
@@ -953,7 +944,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         const _FieldLabel(text: 'LANGUAGES'),
         if (!isWide)
           InkWell(
-            onTap: () => setState(() => _languagesExpanded = !_languagesExpanded),
+            onTap: () =>
+                setState(() => _languagesExpanded = !_languagesExpanded),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Row(
