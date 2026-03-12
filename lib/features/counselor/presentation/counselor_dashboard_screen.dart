@@ -593,6 +593,7 @@ class _CounselorDashboardScreenState
                   title: 'Today\'s queue',
                   description:
                       'This fixed frame stays stable while the center content changes. Keep today\'s counseling queue moving here.',
+                  isDesktop: true,
                 ),
               ),
               const SizedBox(width: 18),
@@ -614,6 +615,7 @@ class _CounselorDashboardScreenState
             title: 'Today\'s queue',
             description:
                 'This fixed frame stays stable while the center content changes. Keep today\'s counseling queue moving here.',
+            isDesktop: false,
           ),
           const SizedBox(height: 16),
           _QuickActionsCard(
@@ -687,6 +689,7 @@ class _CounselorDashboardScreenState
           title: 'Today\'s counselor queue',
           description:
               'Today is where pending and confirmed counseling work becomes real. Keep this list moving and use the full session screen for detailed handling.',
+          isDesktop: isDesktop,
         ),
       ],
     );
@@ -1940,6 +1943,7 @@ class _TodayQueueCard extends StatelessWidget {
     required this.onOpenAppointments,
     required this.title,
     required this.description,
+    required this.isDesktop,
   });
 
   final List<AppointmentRecord> todayQueue;
@@ -1947,6 +1951,7 @@ class _TodayQueueCard extends StatelessWidget {
   final VoidCallback onOpenAppointments;
   final String title;
   final String description;
+  final bool isDesktop;
 
   @override
   Widget build(BuildContext context) {
@@ -1960,40 +1965,67 @@ class _TodayQueueCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: Color(0xFF081A30),
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.7,
+          if (isDesktop) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Color(0xFF081A30),
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.7,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      description,
-                      style: const TextStyle(
-                        color: Color(0xFF6A7C93),
-                        height: 1.45,
+                      const SizedBox(height: 6),
+                      Text(
+                        description,
+                        style: const TextStyle(
+                          color: Color(0xFF6A7C93),
+                          height: 1.45,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                OutlinedButton.icon(
+                  onPressed: onOpenAppointments,
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  label: const Text('Appointments'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+          ] else ...[
+            Text(
+              title,
+              style: const TextStyle(
+                color: Color(0xFF081A30),
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.6,
               ),
-              OutlinedButton.icon(
-                onPressed: onOpenAppointments,
-                icon: const Icon(Icons.open_in_new_rounded),
-                label: const Text('Appointments'),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: const TextStyle(
+                color: Color(0xFF6A7C93),
+                height: 1.45,
               ),
-            ],
-          ),
-          const SizedBox(height: 18),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onOpenAppointments,
+              icon: const Icon(Icons.open_in_new_rounded),
+              label: const Text('Appointments'),
+            ),
+            const SizedBox(height: 14),
+          ],
           if (todayQueue.isEmpty)
             _EmptyStateLine(
               message: nextSession == null
