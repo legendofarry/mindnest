@@ -413,67 +413,88 @@ class PrimaryMobileBottomNav extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
-          children: items.map((item) {
-            final active =
-                location == item.route ||
-                (item.route == AppRoute.liveHub &&
-                    location == AppRoute.liveRoom);
-            return Expanded(
-              child: GestureDetector(
-                onTap: () => _handlePrimaryNavTap(
-                  context,
-                  route: item.route,
-                  hasInstitution: hasInstitution,
-                  canAccessLive: canAccessLive,
-                ),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: active
-                        ? (isDark
-                              ? const Color(0xFF143440)
-                              : const Color(0xFFE7F3F1))
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        item.icon,
-                        size: 22,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // When space is tight, show labels only for the active tab.
+            final hideInactiveLabels = constraints.maxWidth < 360;
+            return Row(
+              children: items.map((item) {
+                final active =
+                    location == item.route ||
+                    (item.route == AppRoute.liveHub &&
+                        location == AppRoute.liveRoom);
+                final showLabel = !hideInactiveLabels || active;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => _handlePrimaryNavTap(
+                      context,
+                      route: item.route,
+                      hasInstitution: hasInstitution,
+                      canAccessLive: canAccessLive,
+                    ),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 6,
+                      ),
+                      decoration: BoxDecoration(
                         color: active
-                            ? const Color(0xFF0E9B90)
-                            : (isDark
-                                  ? const Color(0xFF8FA4C2)
-                                  : const Color(0xFF6A7D96)),
+                            ? (isDark
+                                  ? const Color(0xFF143440)
+                                  : const Color(0xFFE7F3F1))
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        item.label,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: active
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: active
-                              ? const Color(0xFF0E9B90)
-                              : (isDark
-                                    ? const Color(0xFF8FA4C2)
-                                    : const Color(0xFF6A7D96)),
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            item.icon,
+                            size: 22,
+                            color: active
+                                ? const Color(0xFF0E9B90)
+                                : (isDark
+                                      ? const Color(0xFF8FA4C2)
+                                      : const Color(0xFF6A7D96)),
+                          ),
+                          const SizedBox(height: 2),
+                          SizedBox(
+                            height: 16,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 180),
+                              child: showLabel
+                                  ? Text(
+                                      item.label,
+                                      key: ValueKey(item.label),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: active
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                        color: active
+                                            ? const Color(0xFF0E9B90)
+                                            : (isDark
+                                                  ? const Color(0xFF8FA4C2)
+                                                  : const Color(0xFF6A7D96)),
+                                      ),
+                                    )
+                                  : const SizedBox(
+                                      key: ValueKey('spacer'),
+                                    ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              }).toList(),
             );
-          }).toList(),
+          },
         ),
       ),
     );
