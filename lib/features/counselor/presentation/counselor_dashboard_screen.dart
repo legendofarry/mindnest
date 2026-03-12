@@ -481,6 +481,7 @@ class _CounselorDashboardScreenState
       case _CounselorWorkspaceSection.notifications:
         return _buildNotificationsSection(
           summary: summary,
+          isDesktop: isDesktop,
           onOpenNotifications: () => context.go(AppRoute.notifications),
         );
       case _CounselorWorkspaceSection.profile:
@@ -768,6 +769,7 @@ class _CounselorDashboardScreenState
 
   Widget _buildNotificationsSection({
     required _WorkspaceSummary summary,
+    required bool isDesktop,
     required VoidCallback onOpenNotifications,
   }) {
     return Column(
@@ -784,30 +786,32 @@ class _CounselorDashboardScreenState
           onPrimaryTap: onOpenNotifications,
           accent: const [Color(0xFF7C3AED), Color(0xFF2563EB)],
         ),
-        const SizedBox(height: 20),
-        _ResponsiveStatRow(
-          stats: [
-            _StatCardData(
-              'Unread',
-              '${summary.unreadNotifications}',
-              'still active',
-              const Color(0xFF7C3AED),
-            ),
-            _StatCardData(
-              'Pending',
-              '${summary.pendingRequests}',
-              'likely to notify',
-              const Color(0xFFF59E0B),
-            ),
-            _StatCardData(
-              'Today',
-              '${summary.todaySessions}',
-              'session-linked',
-              const Color(0xFF0E9B90),
-            ),
-          ],
-          minCardWidth: 200,
-        ),
+        if (isDesktop) ...[
+          const SizedBox(height: 20),
+          _ResponsiveStatRow(
+            stats: [
+              _StatCardData(
+                'Unread',
+                '${summary.unreadNotifications}',
+                'still active',
+                const Color(0xFF7C3AED),
+              ),
+              _StatCardData(
+                'Pending',
+                '${summary.pendingRequests}',
+                'likely to notify',
+                const Color(0xFFF59E0B),
+              ),
+              _StatCardData(
+                'Today',
+                '${summary.todaySessions}',
+                'session-linked',
+                const Color(0xFF0E9B90),
+              ),
+            ],
+            minCardWidth: 200,
+          ),
+        ],
       ],
     );
   }
