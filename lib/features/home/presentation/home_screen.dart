@@ -21,6 +21,7 @@ import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/features/institutions/models/user_invite.dart';
 import 'package:mindnest/features/live/data/live_providers.dart';
 import 'package:mindnest/features/live/models/live_session.dart';
 import 'package:mindnest/features/home/presentation/widgets/wellness_check_in_card.dart';
@@ -1280,8 +1281,16 @@ class HomeScreen extends ConsumerWidget {
       }
     }
 
+    final joinCodeFromQuery =
+        uri.queryParameters['joinCode']?.trim().toUpperCase();
     final shouldAutoOpenJoin =
         uri.queryParameters[_openJoinCodeQueryKey] == '1';
+    if (kDebugMode && shouldAutoOpenJoin) {
+      debugPrint(
+        '[JoinCodeIntent] openJoinCode=1 uri=$uri joinCodeParam='
+        '${joinCodeFromQuery ?? '<none>'}',
+      );
+    }
     if (shouldAutoOpenJoin) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final notifier = ref.read(_joinCodeInlineExpandedProvider.notifier);
@@ -1380,6 +1389,7 @@ class HomeScreen extends ConsumerWidget {
                         _InstitutionJoinNudgeCard(
                           onHowItWorks: () =>
                               _showInstitutionJoinGuide(context),
+                          prefilledCode: joinCodeFromQuery,
                         ),
                       ],
                       const SizedBox(height: 16),
@@ -1557,6 +1567,7 @@ class HomeScreen extends ConsumerWidget {
                         _InstitutionJoinNudgeCard(
                           onHowItWorks: () =>
                               _showInstitutionJoinGuide(context),
+                          prefilledCode: joinCodeFromQuery,
                         ),
                       ],
                       const SizedBox(height: 18),
@@ -2835,9 +2846,13 @@ class _AppBarIconBtn extends StatelessWidget {
 }
 
 class _InstitutionJoinNudgeCard extends ConsumerStatefulWidget {
-  const _InstitutionJoinNudgeCard({required this.onHowItWorks});
+  const _InstitutionJoinNudgeCard({
+    required this.onHowItWorks,
+    this.prefilledCode,
+  });
 
   final VoidCallback onHowItWorks;
+  final String? prefilledCode;
 
   @override
   ConsumerState<_InstitutionJoinNudgeCard> createState() =>
@@ -2847,11 +2862,38 @@ class _InstitutionJoinNudgeCard extends ConsumerStatefulWidget {
 class _InstitutionJoinNudgeCardState
     extends ConsumerState<_InstitutionJoinNudgeCard> {
   String? _inlineError;
+  bool _maskJoinCode = true;
+  String? _appliedPrefillCode;
+  String? _selectedInviteId;
 
-  Future<void> _submitJoinCode(BuildContext context) async {
+  Future<void> _submitJoinCode(
+    BuildContext context, {
+    required String? expectedJoinCode,
+    required UserInvite? selectedInvite,
+    required bool hasMultipleInvites,
+  }) async {
     final code = ref.read(_joinCodeTextControllerProvider).text.trim();
     if (code.isEmpty) {
       setState(() => _inlineError = 'Join code is required.');
+      return;
+    }
+
+    final normalizedInput = code.toUpperCase();
+
+    if (hasMultipleInvites && selectedInvite == null) {
+      setState(
+        () => _inlineError = 'Choose which institution invite to accept.',
+      );
+      return;
+    }
+
+    if ((selectedInvite != null) &&
+        (expectedJoinCode != null && expectedJoinCode.isNotEmpty) &&
+        normalizedInput != expectedJoinCode.toUpperCase()) {
+      setState(
+        () => _inlineError =
+            'This code belongs to another institution. Pick the matching invite or enter the correct code.',
+      );
       return;
     }
 
@@ -2887,6 +2929,56 @@ class _InstitutionJoinNudgeCardState
     final expanded = ref.watch(_joinCodeInlineExpandedProvider);
     final isSubmitting = ref.watch(_joinCodeSubmittingProvider);
     final controller = ref.watch(_joinCodeTextControllerProvider);
+    final pendingInvitesAsync = ref.watch(pendingUserInvitesProvider);
+    final pendingInvites = pendingInvitesAsync.value ?? const <UserInvite>[];
+    final hasMultipleInvites = pendingInvites.length > 1;
+    final effectiveInviteId = _selectedInviteId ??
+        (pendingInvites.isNotEmpty ? pendingInvites.first.id : null);
+    UserInvite? selectedInvite;
+    if (pendingInvites.isNotEmpty) {
+      selectedInvite = pendingInvites.firstWhere(
+        (invite) => invite.id == effectiveInviteId,
+        orElse: () => pendingInvites.first,
+      );
+    }
+    final selectedInstitutionId = selectedInvite?.institutionId.trim() ?? '';
+    final selectedInstitutionAsync = selectedInstitutionId.isNotEmpty
+        ? ref.watch(institutionDocumentProvider(selectedInstitutionId))
+        : const AsyncValue<Map<String, dynamic>?>.data(null);
+    final joinCodeFromInstitution =
+        (selectedInstitutionAsync.valueOrNull?['joinCode'] as String? ?? '')
+            .trim()
+            .toUpperCase();
+    if (kDebugMode &&
+        selectedInvite != null &&
+        selectedInstitutionId.isNotEmpty &&
+        joinCodeFromInstitution.isEmpty) {
+      debugPrint(
+        '[JoinCodeIntent] pending invite found for institution '
+        '$selectedInstitutionId but joinCode is empty on document.',
+      );
+    }
+
+    final normalizedPrefilled = (widget.prefilledCode ?? joinCodeFromInstitution)
+        .trim()
+        .toUpperCase();
+
+    if (normalizedPrefilled.isNotEmpty &&
+        _appliedPrefillCode != normalizedPrefilled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _appliedPrefillCode = normalizedPrefilled;
+        controller.text = normalizedPrefilled;
+        ref.read(_joinCodeInlineExpandedProvider.notifier).state = true;
+        if (kDebugMode) {
+          debugPrint(
+            '[JoinCodeIntent] applied join code from '
+            '${widget.prefilledCode?.isNotEmpty == true ? 'queryParam' : hasMultipleInvites ? 'selectedInvite' : 'pendingInvite'} '
+            '(length ${normalizedPrefilled.length}).',
+          );
+        }
+      });
+    }
 
     return Container(
       width: double.infinity,
@@ -2936,6 +3028,91 @@ class _InstitutionJoinNudgeCardState
               fontWeight: FontWeight.w600,
             ),
           ),
+          if (pendingInvites.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF102538)
+                    : const Color(0xFFF0F7FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color:
+                      isDark ? const Color(0xFF204262) : const Color(0xFFC7D8EE),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.school_outlined,
+                      size: 18, color: Color(0xFF0E7490)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Joining: ${selectedInvite?.institutionName ?? 'Institution'}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: isDark
+                            ? const Color(0xFFE2E8F0)
+                            : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  if (hasMultipleInvites)
+                    TextButton(
+                      onPressed: () {
+                        showModalBottomSheet<void>(
+                          context: context,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.vertical(top: Radius.circular(18)),
+                          ),
+                          builder: (sheetContext) {
+                            return SafeArea(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Choose invitation',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  for (final invite in pendingInvites)
+                                    ListTile(
+                                      leading: const Icon(
+                                        Icons.apartment_outlined,
+                                        color: Color(0xFF0E7490),
+                                      ),
+                                      title: Text(invite.institutionName),
+                                      subtitle: Text(
+                                        'Role: ${invite.intendedRole.label}',
+                                      ),
+                                      onTap: () {
+                                        setState(() {
+                                          _selectedInviteId = invite.id;
+                                          _inlineError = null;
+                                        });
+                                        Navigator.of(sheetContext).pop();
+                                      },
+                                    ),
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                      child: const Text('Switch'),
+                    ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           if (_inlineError != null)
             Container(
@@ -3025,13 +3202,20 @@ class _InstitutionJoinNudgeCardState
                             controller: controller,
                             enabled: !isSubmitting,
                             textCapitalization: TextCapitalization.characters,
+                            obscureText: _maskJoinCode,
+                            obscuringCharacter: '•',
                             decoration: const InputDecoration(
                               labelText: 'Join code',
                               hintText: 'e.g. ABCD1234',
                             ),
                             onSubmitted: (_) {
                               if (!isSubmitting) {
-                                _submitJoinCode(context);
+                                _submitJoinCode(
+                                  context,
+                                  expectedJoinCode: joinCodeFromInstitution,
+                                  selectedInvite: selectedInvite,
+                                  hasMultipleInvites: hasMultipleInvites,
+                                );
                               }
                             },
                           ),
@@ -3041,7 +3225,14 @@ class _InstitutionJoinNudgeCardState
                               ElevatedButton(
                                 onPressed: isSubmitting
                                     ? null
-                                    : () => _submitJoinCode(context),
+                                    : () => _submitJoinCode(
+                                          context,
+                                          expectedJoinCode:
+                                              joinCodeFromInstitution,
+                                          selectedInvite: selectedInvite,
+                                          hasMultipleInvites:
+                                              hasMultipleInvites,
+                                        ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF0E7490),
                                   foregroundColor: Colors.white,

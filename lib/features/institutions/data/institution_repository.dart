@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:mindnest/core/config/owner_config.dart';
+import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 import 'package:mindnest/features/institutions/models/user_invite.dart';
@@ -96,6 +97,35 @@ class InstitutionRepository {
             return invite;
           }
           return null;
+        });
+  }
+
+  /// Returns all active (pending and not expired/revoked) invites for a user.
+  Stream<List<UserInvite>> pendingInvitesForUid(String uid) {
+    final normalizedUid = uid.trim();
+    if (normalizedUid.isEmpty) {
+      return Stream<List<UserInvite>>.value(const []);
+    }
+    return _firestore
+        .collection('user_invites')
+        .where('inviteeUid', isEqualTo: normalizedUid)
+        .where('status', isEqualTo: UserInviteStatus.pending.name)
+        .snapshots()
+        .map((snapshot) {
+          final invites = <UserInvite>[];
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            final invite = UserInvite.fromMap(doc.id, data);
+            if (!invite.isPending) {
+              continue;
+            }
+            final revokedAt = _asUtcDate(data['revokedAt']);
+            if (revokedAt != null) {
+              continue;
+            }
+            invites.add(invite);
+          }
+          return invites;
         });
   }
 
@@ -465,10 +495,18 @@ class InstitutionRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    final inviteRoute = Uri(
-      path: '/invite-accept',
-      queryParameters: <String, String>{'inviteId': inviteRef.id},
-    ).toString();
+    final inviteRoute = role == UserRole.counselor
+        ? Uri(
+            path: AppRoute.inviteAccept,
+            queryParameters: <String, String>{AppRoute.inviteIdQuery: inviteRef.id},
+          ).toString()
+        : Uri(
+            path: AppRoute.home,
+            queryParameters: <String, String>{
+              AppRoute.openJoinCodeQuery: '1',
+              'joinCode': activeJoinCode,
+            },
+          ).toString();
     final waMessage = _buildWhatsAppInviteText(
       institutionName: institutionName,
       inviterName: inviterName,

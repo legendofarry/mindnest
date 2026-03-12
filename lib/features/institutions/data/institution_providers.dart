@@ -28,6 +28,15 @@ final pendingUserInviteProvider = StreamProvider<UserInvite?>((ref) {
   return ref.watch(institutionRepositoryProvider).pendingInviteForUid(uid);
 });
 
+final pendingUserInvitesProvider = StreamProvider<List<UserInvite>>((ref) {
+  final authUser = ref.watch(authStateChangesProvider).valueOrNull;
+  final uid = authUser?.uid;
+  if (uid == null || uid.isEmpty) {
+    return Stream<List<UserInvite>>.value(const []);
+  }
+  return ref.watch(institutionRepositoryProvider).pendingInvitesForUid(uid);
+});
+
 final pendingUserInviteByIdProvider =
     StreamProvider.family<UserInvite?, String>((ref, inviteId) {
       final authUser = ref.watch(authStateChangesProvider).valueOrNull;
