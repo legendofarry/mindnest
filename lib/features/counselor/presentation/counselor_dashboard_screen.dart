@@ -25,6 +25,7 @@ class CounselorDashboardScreen extends ConsumerStatefulWidget {
 enum _CounselorWorkspaceSection {
   overview,
   sessions,
+  live,
   availability,
   counselors,
   notifications,
@@ -283,6 +284,10 @@ class _CounselorDashboardScreenState
                   context.go(AppRoute.counselorDirectory);
                   return;
                 }
+                if (section == _CounselorWorkspaceSection.live) {
+                  context.go(AppRoute.liveHub);
+                  return;
+                }
                 setState(() => _activeSection = section);
               },
               onLogout: () => confirmAndLogout(context: context, ref: ref),
@@ -398,6 +403,10 @@ class _CounselorDashboardScreenState
                       context.go(AppRoute.counselorDirectory);
                       return;
                     }
+                    if (item.section == _CounselorWorkspaceSection.live) {
+                      context.go(AppRoute.liveHub);
+                      return;
+                    }
                     setState(() => _activeSection = item.section);
                   },
                 );
@@ -459,6 +468,8 @@ class _CounselorDashboardScreenState
           onManageAvailability: () =>
               context.go(AppRoute.counselorAvailability),
         );
+      case _CounselorWorkspaceSection.live:
+        return const _LiveRedirectPanel();
       case _CounselorWorkspaceSection.counselors:
         return _buildCounselorsSection(
           onOpenDirectory: () => context.go(AppRoute.counselorDirectory),
@@ -809,6 +820,12 @@ class _CounselorDashboardScreenState
           title: 'Sessions',
           subtitle:
               'Review pending demand, watch today\'s queue, and jump into the full appointments workflow when needed.',
+        );
+      case _CounselorWorkspaceSection.live:
+        return const _SectionShell(
+          title: 'Live',
+          subtitle:
+              'Join or host institution live sessions directly from your counselor workspace.',
         );
       case _CounselorWorkspaceSection.availability:
         return const _SectionShell(
@@ -2916,6 +2933,50 @@ class _SidebarItem {
   final IconData icon;
 }
 
+class _LiveRedirectPanel extends StatelessWidget {
+  const _LiveRedirectPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    // Redirect to Live Hub once the panel becomes active.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ModalRoute.of(context)?.isCurrent ?? true) {
+        context.go(AppRoute.liveHub);
+      }
+    });
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE1E8EF)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.podcasts_rounded, color: Color(0xFF0E9B90)),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Opening Live Hub…',
+              style: TextStyle(
+                color: Color(0xFF0C2233),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          SizedBox(width: 8),
+          SizedBox(
+            height: 18,
+            width: 18,
+            child: CircularProgressIndicator(strokeWidth: 2.4),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 List<_SidebarItem> _sidebarItems(bool showCounselorDirectory) {
   return [
     const _SidebarItem(
@@ -2927,6 +2988,11 @@ List<_SidebarItem> _sidebarItems(bool showCounselorDirectory) {
       section: _CounselorWorkspaceSection.sessions,
       label: 'Sessions',
       icon: Icons.event_note_rounded,
+    ),
+    const _SidebarItem(
+      section: _CounselorWorkspaceSection.live,
+      label: 'Live',
+      icon: Icons.podcasts_rounded,
     ),
     const _SidebarItem(
       section: _CounselorWorkspaceSection.availability,
