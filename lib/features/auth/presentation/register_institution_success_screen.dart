@@ -296,14 +296,13 @@ class _HeroPanel extends StatelessWidget {
             ],
           ),
           SizedBox(height: compact ? 20 : 28),
-          if (compact)
+          if (compact && hasInstitution) const SizedBox(height: 6),
+          if (compact && hasInstitution)
             Center(
-              child: hasInstitution
-                  ? _MetaPill(
-                      icon: Icons.account_balance_rounded,
-                      label: institutionName,
-                    )
-                  : const SizedBox.shrink(),
+              child: _MetaPill(
+                icon: Icons.account_balance_rounded,
+                label: institutionName,
+              ),
             )
           else
             Center(

@@ -284,37 +284,33 @@ class _InstitutionPendingScreenState
     return LayoutBuilder(
       builder: (context, constraints) {
         final useRow = constraints.maxWidth >= 820;
-        final cards = [
-          Expanded(
-            child: _PendingInfoCard(
-              icon: Icons.timeline_rounded,
-              title: 'What happens next',
-              description:
-                  'We verify institution identity and request details. Once the review completes, access updates automatically.',
-              accent: const Color(0xFF2563EB),
-            ),
-          ),
-          Expanded(
-            child: _PendingInfoCard(
-              icon: Icons.grid_view_rounded,
-              title: 'Why stay here',
-              description:
-                  'This screen is the live status surface for approval. You do not need to restart the flow or create another account.',
-              accent: const Color(0xFF0F9D8A),
-            ),
-          ),
-        ];
+        final cardA = _PendingInfoCard(
+          icon: Icons.timeline_rounded,
+          title: 'What happens next',
+          description:
+              'We verify institution identity and request details. Once the review completes, access updates automatically.',
+          accent: const Color(0xFF2563EB),
+        );
+        final cardB = _PendingInfoCard(
+          icon: Icons.grid_view_rounded,
+          title: 'Why stay here',
+          description:
+              'This screen is the live status surface for approval. You do not need to restart the flow or create another account.',
+          accent: const Color(0xFF0F9D8A),
+        );
 
         if (useRow) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [cards[0], const SizedBox(width: 14), cards[1]],
+            children: [
+              Expanded(child: cardA),
+              const SizedBox(width: 14),
+              Expanded(child: cardB),
+            ],
           );
         }
 
-        return Column(
-          children: [cards[0], const SizedBox(height: 14), cards[1]],
-        );
+        return Column(children: [cardA, const SizedBox(height: 14), cardB]);
       },
     );
   }
