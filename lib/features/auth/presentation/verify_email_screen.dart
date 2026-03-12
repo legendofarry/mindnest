@@ -255,6 +255,14 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 fontSize: 38 / 2,
               ),
             ),
+            const SizedBox(height: 10),
+            const Text(
+              "Didn't receive the email? Please check your Spam or Junk folder. If you find it there, mark it as \"Not Spam\" so future emails arrive in your inbox.",
+              style: TextStyle(
+                color: Color(0xFF6B7280),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             if (_hasInviteContext) ...[
               const SizedBox(height: 12),
               Container(
@@ -313,7 +321,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 ],
               ),
               child: ElevatedButton(
-                onPressed: _isContinuing ? null : () => _handleContinue(profile),
+                onPressed: _isContinuing
+                    ? null
+                    : () => _handleContinue(profile),
                 style: ElevatedButton.styleFrom(
                   shadowColor: Colors.transparent,
                   backgroundColor: Colors.transparent,
