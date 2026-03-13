@@ -1564,39 +1564,59 @@ class HomeScreen extends ConsumerWidget {
                     context.go(AppRoute.liveHub);
                   }
 
-                  final mainContent = Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _HeroCarousel(
-                        profile: profile,
-                        firstName: firstName,
-                        roleLabel: profile.role.label,
-                        institutionName: institutionLabel,
-                        hasInstitution: hasInstitution,
-                        canAccessLive: canAccessLive,
-                        isDark: isDark,
-                      ),
-                      if (showJoinInstitutionNudge) ...[
-                        const SizedBox(height: 14),
-                        _InstitutionJoinNudgeCard(
-                          onHowItWorks: () =>
-                              _showInstitutionJoinGuide(context),
-                          prefilledCode: joinCodeFromQuery,
-                        ),
-                      ],
-                      if (unreadCount > 0) ...[
-                        const SizedBox(height: 14),
-                        _NotificationsSummaryBar(
-                          unreadCount: unreadCount,
-                          onTap: () => context.go(AppRoute.notifications),
-                        ),
-                      ],
-                      const SizedBox(height: 14),
-                      isDesktop
-                          ? Row(
+                  final mainContent = isDesktop
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
+                                  flex: 2,
+                                  child: SizedBox(
+                                    height: 260,
+                                    child: _HeroCarousel(
+                                      profile: profile,
+                                      firstName: firstName,
+                                      roleLabel: profile.role.label,
+                                      institutionName: institutionLabel,
+                                      hasInstitution: hasInstitution,
+                                      canAccessLive: canAccessLive,
+                                      isDark: isDark,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                SizedBox(
+                                  width: 300,
+                                  child: _DesktopNextSessionCard(
+                                    profile: profile,
+                                    isDark: isDark,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (showJoinInstitutionNudge) ...[
+                              const SizedBox(height: 14),
+                              _InstitutionJoinNudgeCard(
+                                onHowItWorks: () =>
+                                    _showInstitutionJoinGuide(context),
+                                prefilledCode: joinCodeFromQuery,
+                              ),
+                            ],
+                            if (unreadCount > 0) ...[
+                              const SizedBox(height: 14),
+                              _NotificationsSummaryBar(
+                                unreadCount: unreadCount,
+                                onTap: () => context.go(AppRoute.notifications),
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 2,
                                   child: _QuickActionsCard(
                                     isDark: isDark,
                                     onBookSession: goAppointments,
@@ -1604,42 +1624,79 @@ class HomeScreen extends ConsumerWidget {
                                     onOpenLive: goLive,
                                   ),
                                 ),
-                                const SizedBox(width: 14),
+                                const SizedBox(width: 16),
                                 Expanded(
+                                  flex: 1,
                                   child: _ProgressMiniCard(
                                     isDark: isDark,
                                     firstName: firstName,
                                   ),
                                 ),
                               ],
-                            )
-                          : Column(
-                              children: [
-                                _QuickActionsCard(
-                                  isDark: isDark,
-                                  onBookSession: goAppointments,
-                                  onOpenCounselors: goCounselors,
-                                  onOpenLive: goLive,
-                                ),
-                                const SizedBox(height: 12),
-                                _ProgressMiniCard(
-                                  isDark: isDark,
-                                  firstName: firstName,
-                                ),
-                              ],
                             ),
-                      const SizedBox(height: 14),
-                      _ResourceSpotlightCard(
-                        isDark: isDark,
-                        onOpen: () => context.go(AppRoute.notifications),
-                      ),
-                      const SizedBox(height: 18),
-                      WellnessCheckInCard(profile: profile),
-                      const SizedBox(height: 14),
-                      _SosButton(onTap: () => _openCrisisSupport(context)),
-                      const SizedBox(height: 8),
-                    ],
-                  );
+                            const SizedBox(height: 16),
+                            _ResourceSpotlightCard(
+                              isDark: isDark,
+                              onOpen: () => context.go(AppRoute.notifications),
+                            ),
+                            const SizedBox(height: 16),
+                            WellnessCheckInCard(profile: profile),
+                            const SizedBox(height: 14),
+                            _SosButton(onTap: () => _openCrisisSupport(context)),
+                            const SizedBox(height: 8),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _HeroCarousel(
+                              profile: profile,
+                              firstName: firstName,
+                              roleLabel: profile.role.label,
+                              institutionName: institutionLabel,
+                              hasInstitution: hasInstitution,
+                              canAccessLive: canAccessLive,
+                              isDark: isDark,
+                            ),
+                            if (showJoinInstitutionNudge) ...[
+                              const SizedBox(height: 14),
+                              _InstitutionJoinNudgeCard(
+                                onHowItWorks: () =>
+                                    _showInstitutionJoinGuide(context),
+                                prefilledCode: joinCodeFromQuery,
+                              ),
+                            ],
+                            if (unreadCount > 0) ...[
+                              const SizedBox(height: 14),
+                              _NotificationsSummaryBar(
+                                unreadCount: unreadCount,
+                                onTap: () => context.go(AppRoute.notifications),
+                              ),
+                            ],
+                            const SizedBox(height: 14),
+                            _QuickActionsCard(
+                              isDark: isDark,
+                              onBookSession: goAppointments,
+                              onOpenCounselors: goCounselors,
+                              onOpenLive: goLive,
+                            ),
+                            const SizedBox(height: 12),
+                            _ProgressMiniCard(
+                              isDark: isDark,
+                              firstName: firstName,
+                            ),
+                            const SizedBox(height: 14),
+                            _ResourceSpotlightCard(
+                              isDark: isDark,
+                              onOpen: () => context.go(AppRoute.notifications),
+                            ),
+                            const SizedBox(height: 18),
+                            WellnessCheckInCard(profile: profile),
+                            const SizedBox(height: 14),
+                            _SosButton(onTap: () => _openCrisisSupport(context)),
+                            const SizedBox(height: 8),
+                          ],
+                        );
 
                   if (isDesktop) {
                     return Align(
@@ -2348,9 +2405,11 @@ class _HeroCardFrame extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: SizedBox(
+              height: 150,
+              width: double.infinity,
               child: child,
             ),
           ),
@@ -2722,35 +2781,30 @@ class _LiveNowPreviewCard extends ConsumerWidget {
     required this.profile,
     required this.canAccessLive,
     required this.onTapLive,
+    this.onTapHowTo,
+    this.onTapLocked,
   });
 
   final UserProfile profile;
   final bool canAccessLive;
   final ValueChanged<String> onTapLive;
+  final VoidCallback? onTapHowTo;
+  final VoidCallback? onTapLocked;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final institutionId = (profile.institutionId ?? '').trim();
     if (institutionId.isEmpty) {
-      return const Center(
-        child: Text(
-          'Join an institution to see live sessions.',
-          style: TextStyle(
-            color: Color(0xFF64748B),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+      return _LiveEmptyState(
+        message: 'Join an institution to see live sessions.',
+        onTap: onTapHowTo,
       );
     }
     if (!canAccessLive) {
-      return const Center(
-        child: Text(
-          'Live is available to student, staff, and counselor roles.',
-          style: TextStyle(
-            color: Color(0xFF64748B),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+      return _LiveEmptyState(
+        message:
+            'Live is available to student, staff, and counselor roles.',
+        onTap: onTapLocked,
       );
     }
 
@@ -2762,14 +2816,9 @@ class _LiveNowPreviewCard extends ConsumerWidget {
         final liveSessions = snapshot.data ?? const <LiveSession>[];
         final topSessions = liveSessions.take(8).toList(growable: false);
         if (topSessions.isEmpty) {
-          return const Center(
-            child: Text(
-              'No live sessions right now.',
-              style: TextStyle(
-                color: Color(0xFF64748B),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+          return _LiveEmptyState(
+            message: 'No live sessions right now.',
+            onTap: onTapHowTo,
           );
         }
         return ListView.separated(
@@ -3893,6 +3942,41 @@ class _WellnessCheckInCardState extends ConsumerState<_WellnessCheckInCard> {
           ),
         );
       },
+    );
+  }
+}
+
+class _LiveEmptyState extends StatelessWidget {
+  const _LiveEmptyState({
+    required this.message,
+    this.onTap,
+  });
+
+  final String message;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          message,
+          style: TextStyle(
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (onTap != null) ...[
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: onTap,
+            icon: const Icon(Icons.help_outline_rounded, size: 16),
+            label: const Text('How to join'),
+          ),
+        ],
+      ],
     );
   }
 }
