@@ -242,12 +242,7 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: content,
-      bottomNavigationBar: !isDesktop && isPrimaryUser
-          ? PrimaryMobileBottomNav(
-              hasInstitution: hasInstitution,
-              canAccessLive: canAccessLive,
-            )
-          : null,
+      bottomNavigationBar: null,
     );
   }
 }

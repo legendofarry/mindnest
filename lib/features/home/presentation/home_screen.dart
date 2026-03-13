@@ -1281,8 +1281,9 @@ class HomeScreen extends ConsumerWidget {
       }
     }
 
-    final joinCodeFromQuery =
-        uri.queryParameters['joinCode']?.trim().toUpperCase();
+    final joinCodeFromQuery = uri.queryParameters['joinCode']
+        ?.trim()
+        .toUpperCase();
     final shouldAutoOpenJoin =
         uri.queryParameters[_openJoinCodeQueryKey] == '1';
     if (kDebugMode && shouldAutoOpenJoin) {
@@ -1443,37 +1444,13 @@ class HomeScreen extends ConsumerWidget {
       extendBody: true,
       appBar: AppBar(
         elevation: 0,
-        titleSpacing: 16,
+        titleSpacing: 0,
         title: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF15A39A), Color(0xFF0E9B90)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.psychology_alt_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              'MindNest',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: isDark
-                    ? const Color(0xFFE2E8F0)
-                    : const Color(0xFF071937),
-                fontSize: 20,
-                letterSpacing: -0.4,
-              ),
+            SizedBox(
+              width: 100,
+              height: 100,
+              child: Image.asset('assets/logo.png', fit: BoxFit.contain),
             ),
           ],
         ),
@@ -2932,7 +2909,8 @@ class _InstitutionJoinNudgeCardState
     final pendingInvitesAsync = ref.watch(pendingUserInvitesProvider);
     final pendingInvites = pendingInvitesAsync.value ?? const <UserInvite>[];
     final hasMultipleInvites = pendingInvites.length > 1;
-    final effectiveInviteId = _selectedInviteId ??
+    final effectiveInviteId =
+        _selectedInviteId ??
         (pendingInvites.isNotEmpty ? pendingInvites.first.id : null);
     UserInvite? selectedInvite;
     if (pendingInvites.isNotEmpty) {
@@ -2959,9 +2937,8 @@ class _InstitutionJoinNudgeCardState
       );
     }
 
-    final normalizedPrefilled = (widget.prefilledCode ?? joinCodeFromInstitution)
-        .trim()
-        .toUpperCase();
+    final normalizedPrefilled =
+        (widget.prefilledCode ?? joinCodeFromInstitution).trim().toUpperCase();
 
     if (normalizedPrefilled.isNotEmpty &&
         _appliedPrefillCode != normalizedPrefilled) {
@@ -2973,7 +2950,11 @@ class _InstitutionJoinNudgeCardState
         if (kDebugMode) {
           debugPrint(
             '[JoinCodeIntent] applied join code from '
-            '${widget.prefilledCode?.isNotEmpty == true ? 'queryParam' : hasMultipleInvites ? 'selectedInvite' : 'pendingInvite'} '
+            '${widget.prefilledCode?.isNotEmpty == true
+                ? 'queryParam'
+                : hasMultipleInvites
+                ? 'selectedInvite'
+                : 'pendingInvite'} '
             '(length ${normalizedPrefilled.length}).',
           );
         }
@@ -3039,14 +3020,18 @@ class _InstitutionJoinNudgeCardState
                     : const Color(0xFFF0F7FF),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color:
-                      isDark ? const Color(0xFF204262) : const Color(0xFFC7D8EE),
+                  color: isDark
+                      ? const Color(0xFF204262)
+                      : const Color(0xFFC7D8EE),
                 ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.school_outlined,
-                      size: 18, color: Color(0xFF0E7490)),
+                  const Icon(
+                    Icons.school_outlined,
+                    size: 18,
+                    color: Color(0xFF0E7490),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -3065,8 +3050,9 @@ class _InstitutionJoinNudgeCardState
                         showModalBottomSheet<void>(
                           context: context,
                           shape: const RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.vertical(top: Radius.circular(18)),
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(18),
+                            ),
                           ),
                           builder: (sheetContext) {
                             return SafeArea(
@@ -3226,13 +3212,12 @@ class _InstitutionJoinNudgeCardState
                                 onPressed: isSubmitting
                                     ? null
                                     : () => _submitJoinCode(
-                                          context,
-                                          expectedJoinCode:
-                                              joinCodeFromInstitution,
-                                          selectedInvite: selectedInvite,
-                                          hasMultipleInvites:
-                                              hasMultipleInvites,
-                                        ),
+                                        context,
+                                        expectedJoinCode:
+                                            joinCodeFromInstitution,
+                                        selectedInvite: selectedInvite,
+                                        hasMultipleInvites: hasMultipleInvites,
+                                      ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF0E7490),
                                   foregroundColor: Colors.white,

@@ -761,12 +761,7 @@ class _NotificationCenterScreenState
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: content,
-      bottomNavigationBar: !isDesktop && isPrimaryUser
-          ? PrimaryMobileBottomNav(
-              hasInstitution: hasInstitution,
-              canAccessLive: canAccessLive,
-            )
-          : null,
+      bottomNavigationBar: null,
     );
   }
 
