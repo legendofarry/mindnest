@@ -416,7 +416,7 @@ class PrimaryMobileBottomNav extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             // When space is tight, show labels only for the active tab.
-            final hideInactiveLabels = constraints.maxWidth < 360;
+            final hideInactiveLabels = constraints.maxWidth < 300;
             return Row(
               children: items.map((item) {
                 final active =
@@ -482,9 +482,7 @@ class PrimaryMobileBottomNav extends StatelessWidget {
                                                   : const Color(0xFF6A7D96)),
                                       ),
                                     )
-                                  : const SizedBox(
-                                      key: ValueKey('spacer'),
-                                    ),
+                                  : const SizedBox(key: ValueKey('spacer')),
                             ),
                           ),
                         ],
