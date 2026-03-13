@@ -1531,6 +1531,39 @@ class HomeScreen extends ConsumerWidget {
                       : 'INDIVIDUAL';
                   final showJoinInstitutionNudge =
                       profile.role == UserRole.individual && !hasInstitution;
+                  void goAppointments() {
+                    if (!hasInstitution) {
+                      _showTopErrorBanner(
+                        context,
+                        'Join an institution to book sessions.',
+                      );
+                      return;
+                    }
+                    context.go(AppRoute.studentAppointments);
+                  }
+
+                  void goCounselors() {
+                    if (!hasInstitution) {
+                      _showTopErrorBanner(
+                        context,
+                        'Join an institution to view counselors.',
+                      );
+                      return;
+                    }
+                    context.go(AppRoute.counselorDirectory);
+                  }
+
+                  void goLive() {
+                    if (!canAccessLive) {
+                      _showTopErrorBanner(
+                        context,
+                        'Live is available after joining an institution.',
+                      );
+                      return;
+                    }
+                    context.go(AppRoute.liveHub);
+                  }
+
                   final mainContent = Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1551,6 +1584,55 @@ class HomeScreen extends ConsumerWidget {
                           prefilledCode: joinCodeFromQuery,
                         ),
                       ],
+                      if (unreadCount > 0) ...[
+                        const SizedBox(height: 14),
+                        _NotificationsSummaryBar(
+                          unreadCount: unreadCount,
+                          onTap: () => context.go(AppRoute.notifications),
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      isDesktop
+                          ? Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: _QuickActionsCard(
+                                    isDark: isDark,
+                                    onBookSession: goAppointments,
+                                    onOpenCounselors: goCounselors,
+                                    onOpenLive: goLive,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: _ProgressMiniCard(
+                                    isDark: isDark,
+                                    firstName: firstName,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              children: [
+                                _QuickActionsCard(
+                                  isDark: isDark,
+                                  onBookSession: goAppointments,
+                                  onOpenCounselors: goCounselors,
+                                  onOpenLive: goLive,
+                                ),
+                                const SizedBox(height: 12),
+                                _ProgressMiniCard(
+                                  isDark: isDark,
+                                  firstName: firstName,
+                                ),
+                              ],
+                            ),
+                      const SizedBox(height: 14),
+                      _ResourceSpotlightCard(
+                        isDark: isDark,
+                        onOpen: () => context.go(AppRoute.notifications),
+                      ),
                       const SizedBox(height: 18),
                       WellnessCheckInCard(profile: profile),
                       const SizedBox(height: 14),
@@ -3811,6 +3893,432 @@ class _WellnessCheckInCardState extends ConsumerState<_WellnessCheckInCard> {
           ),
         );
       },
+    );
+  }
+}
+
+class _NotificationsSummaryBar extends StatelessWidget {
+  const _NotificationsSummaryBar({
+    required this.unreadCount,
+    required this.onTap,
+  });
+
+  final int unreadCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE7F4FF),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFC7E4FF)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.notifications_active_rounded,
+                  color: Color(0xFF0EA5E9)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'You have $unreadCount unread update${unreadCount == 1 ? '' : 's'}.',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0B1A2F),
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded,
+                  color: Color(0xFF0B1A2F)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActionsCard extends StatelessWidget {
+  const _QuickActionsCard({
+    required this.isDark,
+    required this.onBookSession,
+    required this.onOpenCounselors,
+    required this.onOpenLive,
+  });
+
+  final bool isDark;
+  final VoidCallback onBookSession;
+  final VoidCallback onOpenCounselors;
+  final VoidCallback onOpenLive;
+
+  @override
+  Widget build(BuildContext context) {
+    final cardColor = isDark ? const Color(0xFF111B2B) : Colors.white;
+    final borderColor =
+        isDark ? const Color(0xFF1F2D44) : const Color(0xFFD9E3EE);
+    final actions = <_ActionItem>[
+      _ActionItem(
+        label: 'Book session',
+        icon: Icons.calendar_month_rounded,
+        onTap: onBookSession,
+      ),
+      _ActionItem(
+        label: 'Counselors',
+        icon: Icons.groups_rounded,
+        onTap: onOpenCounselors,
+      ),
+      _ActionItem(
+        label: 'Join live',
+        icon: Icons.podcasts_rounded,
+        onTap: onOpenLive,
+      ),
+      _ActionItem(
+        label: 'Messages',
+        icon: Icons.chat_bubble_outline_rounded,
+        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Messages coming soon.')),
+        ),
+      ),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? Colors.black : const Color(0x120F172A))
+                .withValues(alpha: isDark ? 0.22 : 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Quick actions',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF0B1A2F),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: actions
+                .map(
+                  (action) => _ActionPill(
+                    action: action,
+                    isDark: isDark,
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionItem {
+  const _ActionItem({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+}
+
+class _ActionPill extends StatelessWidget {
+  const _ActionPill({required this.action, required this.isDark});
+
+  final _ActionItem action;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isDark ? const Color(0xFF15233A) : const Color(0xFFF2F7FB),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: action.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                action.icon,
+                size: 18,
+                color: isDark
+                    ? const Color(0xFF93C5FD)
+                    : const Color(0xFF0E9B90),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                action.label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? const Color(0xFFE2E8F0)
+                      : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressMiniCard extends StatelessWidget {
+  const _ProgressMiniCard({
+    required this.isDark,
+    required this.firstName,
+  });
+
+  final bool isDark;
+  final String firstName;
+
+  @override
+  Widget build(BuildContext context) {
+    final cardColor = isDark ? const Color(0xFF111B2B) : Colors.white;
+    final borderColor =
+        isDark ? const Color(0xFF1F2D44) : const Color(0xFFD9E3EE);
+
+    final stats = [
+      _StatRow(
+        label: 'Today\'s check-in',
+        value: 'Try a 30s update',
+        icon: Icons.bolt_rounded,
+        color: const Color(0xFF0E9B90),
+      ),
+      _StatRow(
+        label: 'This week',
+        value: 'Build a 3-day streak',
+        icon: Icons.calendar_today_rounded,
+        color: const Color(0xFF0EA5E9),
+      ),
+      _StatRow(
+        label: 'Energy balance',
+        value: 'Aim for 3+ today',
+        icon: Icons.battery_charging_full_rounded,
+        color: const Color(0xFFF59E0B),
+      ),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? Colors.black : const Color(0x120F172A))
+                .withValues(alpha: isDark ? 0.22 : 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$firstName, keep momentum',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF0B1A2F),
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...stats.map(
+            (s) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _StatTile(stat: s, isDark: isDark),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatRow {
+  const _StatRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+}
+
+class _StatTile extends StatelessWidget {
+  const _StatTile({required this.stat, required this.isDark});
+
+  final _StatRow stat;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: stat.color.withOpacity(isDark ? 0.16 : 0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(stat.icon, color: stat.color, size: 18),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                stat.label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: isDark
+                      ? const Color(0xFFE2E8F0)
+                      : const Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                stat.value,
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: isDark
+                      ? const Color(0xFF9FB2CC)
+                      : const Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ResourceSpotlightCard extends StatelessWidget {
+  const _ResourceSpotlightCard({
+    required this.isDark,
+    required this.onOpen,
+  });
+
+  final bool isDark;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? const [Color(0xFF0E1A2C), Color(0xFF0C3B5E)]
+              : const [Color(0xFFEFF7FF), Color(0xFFE8FBF6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark ? const Color(0xFF1F2D44) : const Color(0xFFCFE5F3),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? Colors.black : const Color(0x120F172A))
+                .withValues(alpha: isDark ? 0.22 : 0.07),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0E9B90).withOpacity(0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.self_improvement_rounded,
+              color: Color(0xFF0E9B90),
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Take a 2‑minute reset',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0B1A2F),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Short guided breathing to steady your mood before the next task.',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark
+                        ? const Color(0xFFB7C6DA)
+                        : const Color(0xFF516784),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton.icon(
+                  onPressed: onOpen,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0E7490),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                  ),
+                  icon: const Icon(Icons.play_circle_fill_rounded, size: 18),
+                  label: const Text('Start quick reset'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
