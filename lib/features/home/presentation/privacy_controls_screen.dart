@@ -77,146 +77,153 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
                             }, SetOptions(merge: true));
                       }
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const _PrivacyHeroCard(),
-                          const SizedBox(height: 16),
-                          const _PrivacyStateCard(
-                            message:
-                                'Control what your institution can view and manage your personal data export preferences from one place.',
-                          ),
-                          const SizedBox(height: 12),
-                          _PrivacyModuleCard(
-                            title: 'Visibility & sharing',
-                            child: Column(
-                              children: [
-                                SwitchListTile(
-                                  value: shareMood,
-                                  onChanged: (value) => updateSetting(
-                                    'shareMoodWithInstitution',
-                                    value,
-                                  ),
-                                  title: const Text('Share mood insights'),
-                                  subtitle: const Text(
-                                    'Allow institution wellness team to view mood trends.',
-                                  ),
-                                ),
-                                SwitchListTile(
-                                  value: shareAssessments,
-                                  onChanged: (value) => updateSetting(
-                                    'shareAssessmentsWithInstitution',
-                                    value,
-                                  ),
-                                  title: const Text(
-                                    'Share assessment outcomes',
-                                  ),
-                                  subtitle: const Text(
-                                    'Allow staff to view high-level assessment summaries.',
-                                  ),
-                                ),
-                                SwitchListTile(
-                                  value: shareCarePlan,
-                                  onChanged: (value) => updateSetting(
-                                    'shareCarePlanWithCounselors',
-                                    value,
-                                  ),
-                                  title: const Text('Share care plan progress'),
-                                  subtitle: const Text(
-                                    'Allow counselors to monitor your goal completion.',
-                                  ),
-                                ),
-                                SwitchListTile(
-                                  value: anonymousForum,
-                                  onChanged: (value) => updateSetting(
-                                    'anonymousForumMode',
-                                    value,
-                                  ),
-                                  title: const Text('Anonymous forum mode'),
-                                  subtitle: const Text(
-                                    'Hide identifiable profile details in community forum.',
-                                  ),
-                                ),
-                              ],
+                      return SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const _PrivacyHeroCard(),
+                            const SizedBox(height: 16),
+                            const _PrivacyStateCard(
+                              message:
+                                  'Control what your institution can view and manage your personal data export preferences from one place.',
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          _PrivacyModuleCard(
-                            title: 'Data self-service',
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const Text(
-                                  'Export a copy of your current data package in JSON format.',
-                                  style: TextStyle(
-                                    color: Color(0xFF5A6E87),
-                                    fontWeight: FontWeight.w500,
+                            const SizedBox(height: 12),
+                            _PrivacyModuleCard(
+                              title: 'Visibility & sharing',
+                              child: Column(
+                                children: [
+                                  SwitchListTile(
+                                    value: shareMood,
+                                    onChanged: (value) => updateSetting(
+                                      'shareMoodWithInstitution',
+                                      value,
+                                    ),
+                                    title: const Text('Share mood insights'),
+                                    subtitle: const Text(
+                                      'Allow institution wellness team to view mood trends.',
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 12),
-                                OutlinedButton.icon(
-                                  onPressed: _isExporting
-                                      ? null
-                                      : () async {
-                                          setState(() => _isExporting = true);
-                                          try {
-                                            final export = await ref
-                                                .read(authRepositoryProvider)
-                                                .exportCurrentUserData();
-                                            final pretty =
-                                                const JsonEncoder.withIndent(
-                                                  '  ',
-                                                ).convert(export);
-                                            await Clipboard.setData(
-                                              ClipboardData(text: pretty),
-                                            );
-                                            if (!context.mounted) {
-                                              return;
-                                            }
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  'Your export JSON was copied to clipboard.',
-                                                ),
-                                              ),
-                                            );
-                                          } catch (error) {
-                                            if (!context.mounted) {
-                                              return;
-                                            }
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  error.toString().replaceFirst(
-                                                    'Exception: ',
-                                                    '',
+                                  SwitchListTile(
+                                    value: shareAssessments,
+                                    onChanged: (value) => updateSetting(
+                                      'shareAssessmentsWithInstitution',
+                                      value,
+                                    ),
+                                    title: const Text(
+                                      'Share assessment outcomes',
+                                    ),
+                                    subtitle: const Text(
+                                      'Allow staff to view high-level assessment summaries.',
+                                    ),
+                                  ),
+                                  SwitchListTile(
+                                    value: shareCarePlan,
+                                    onChanged: (value) => updateSetting(
+                                      'shareCarePlanWithCounselors',
+                                      value,
+                                    ),
+                                    title:
+                                        const Text('Share care plan progress'),
+                                    subtitle: const Text(
+                                      'Allow counselors to monitor your goal completion.',
+                                    ),
+                                  ),
+                                  SwitchListTile(
+                                    value: anonymousForum,
+                                    onChanged: (value) => updateSetting(
+                                      'anonymousForumMode',
+                                      value,
+                                    ),
+                                    title: const Text('Anonymous forum mode'),
+                                    subtitle: const Text(
+                                      'Hide identifiable profile details in community forum.',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _PrivacyModuleCard(
+                              title: 'Data self-service',
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const Text(
+                                    'Export a copy of your current data package in JSON format.',
+                                    style: TextStyle(
+                                      color: Color(0xFF5A6E87),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  OutlinedButton.icon(
+                                    onPressed: _isExporting
+                                        ? null
+                                        : () async {
+                                            setState(() => _isExporting = true);
+                                            try {
+                                              final export = await ref
+                                                  .read(authRepositoryProvider)
+                                                  .exportCurrentUserData();
+                                              final pretty =
+                                                  const JsonEncoder.withIndent(
+                                                    '  ',
+                                                  ).convert(export);
+                                              await Clipboard.setData(
+                                                ClipboardData(text: pretty),
+                                              );
+                                              if (!context.mounted) {
+                                                return;
+                                              }
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Your export JSON was copied to clipboard.',
                                                   ),
                                                 ),
-                                              ),
-                                            );
-                                          } finally {
-                                            if (mounted) {
-                                              setState(
-                                                () => _isExporting = false,
                                               );
+                                            } catch (error) {
+                                              if (!context.mounted) {
+                                                return;
+                                              }
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    error
+                                                        .toString()
+                                                        .replaceFirst(
+                                                          'Exception: ',
+                                                          '',
+                                                        ),
+                                                  ),
+                                                ),
+                                              );
+                                            } finally {
+                                              if (mounted) {
+                                                setState(
+                                                  () => _isExporting = false,
+                                                );
+                                              }
                                             }
-                                          }
-                                        },
-                                  icon: const Icon(Icons.download_rounded),
-                                  label: Text(
-                                    _isExporting
-                                        ? 'Preparing export...'
-                                        : 'Export My Data (JSON)',
+                                          },
+                                    icon: const Icon(Icons.download_rounded),
+                                    label: Text(
+                                      _isExporting
+                                          ? 'Preparing export...'
+                                          : 'Export My Data (JSON)',
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 16),
+                          ],
+                        ),
                       );
                     },
                   ),
