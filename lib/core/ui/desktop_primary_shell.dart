@@ -100,15 +100,6 @@ class DesktopPrimaryShell extends ConsumerWidget {
         titleSpacing: 24,
         title: Row(
           children: [
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: Image.asset(
-                'assets/logo.png',
-                fit: BoxFit.contain,
-              ),
-            ),
-            const SizedBox(width: 14),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,

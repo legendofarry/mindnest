@@ -1444,16 +1444,20 @@ class HomeScreen extends ConsumerWidget {
       extendBody: true,
       appBar: AppBar(
         elevation: 0,
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            SizedBox(
-              width: 100,
-              height: 100,
-              child: Image.asset('assets/logo.png', fit: BoxFit.contain),
-            ),
-          ],
-        ),
+        toolbarHeight: 68,
+        titleSpacing: 16,
+        title: isDesktop
+            ? const SizedBox.shrink()
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 99,
+                    height: 99,
+                    child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+                  ),
+                ],
+              ),
         centerTitle: false,
         actions: [
           _AppBarIconBtn(
