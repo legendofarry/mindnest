@@ -551,20 +551,19 @@ class _RegisterInstitutionScreenState
     for (var index = 0; index < _stepCount; index++) {
       final isActive = index == currentStep;
       final isCompleted = index < currentStep;
-      final fillColor =
-          isCompleted || isActive ? const Color(0xFF0E9B90) : const Color(0xFFD7E3EF);
-      final textColor =
-          isCompleted || isActive ? Colors.white : const Color(0xFF8EA3BB);
+      final fillColor = isCompleted || isActive
+          ? const Color(0xFF0E9B90)
+          : const Color(0xFFD7E3EF);
+      final textColor = isCompleted || isActive
+          ? Colors.white
+          : const Color(0xFF8EA3BB);
 
       children.add(
         AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           width: 28,
           height: 28,
-          decoration: BoxDecoration(
-            color: fillColor,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: fillColor, shape: BoxShape.circle),
           alignment: Alignment.center,
           child: Text(
             '${index + 1}',
@@ -583,8 +582,9 @@ class _RegisterInstitutionScreenState
             width: 54,
             height: 2,
             margin: const EdgeInsets.symmetric(horizontal: 10),
-            color:
-                index < currentStep ? const Color(0xFF0E9B90) : const Color(0xFFD7E3EF),
+            color: index < currentStep
+                ? const Color(0xFF0E9B90)
+                : const Color(0xFFD7E3EF),
           ),
         );
       }
@@ -893,7 +893,7 @@ class _RegisterInstitutionScreenState
         const Text(
           'Use 8+ characters with a mix of letters and numbers.',
           style: TextStyle(
-            color: Color(0xFF6A7D96),
+            color: Color(0xFF9F1239),
             fontSize: 12.5,
             fontWeight: FontWeight.w600,
           ),
