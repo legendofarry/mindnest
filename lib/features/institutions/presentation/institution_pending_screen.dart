@@ -202,7 +202,7 @@ class _InstitutionPendingScreenState
                       children: [
                         _HeroPill(label: _statusTitle(status), color: accent),
                         _HeroPill(
-                          label: isApproved ? 'WORKSPACE READY' : 'ETA ~30 MIN',
+                          label: isApproved ? 'WORKSPACE READY' : 'ETA ~24 HRS',
                           color: const Color(0xFF334155),
                           background: const Color(0x99FFFFFF),
                         ),
@@ -392,26 +392,6 @@ class _InstitutionPendingScreenState
                   height: 1.5,
                   fontWeight: FontWeight.w600,
                 ),
-              ),
-              const SizedBox(height: 18),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  _ConsolePill(
-                    label: isApproved ? 'APPROVED' : 'LIVE STATUS',
-                    accent: accent,
-                  ),
-                  const _ConsolePill(
-                    label: 'AUTO UPDATES',
-                    accent: Color(0xFF7FB3FF),
-                  ),
-                  if (!isApproved && !isDeclined)
-                    const _ConsolePill(
-                      label: 'NO ACTION NEEDED',
-                      accent: Color(0xFFFFD66B),
-                    ),
-                ],
               ),
             ],
           ),
