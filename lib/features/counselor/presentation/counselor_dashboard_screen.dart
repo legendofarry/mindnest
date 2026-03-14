@@ -503,33 +503,6 @@ class _CounselorDashboardScreenState
     required VoidCallback onOpenAvailability,
     required VoidCallback onOpenNotifications,
   }) {
-    final stats = [
-      _StatCardData(
-        'Today',
-        '${summary.todaySessions}',
-        'Sessions',
-        const Color(0xFF0E9B90),
-      ),
-      _StatCardData(
-        'Pending',
-        '${summary.pendingRequests}',
-        'requests waiting',
-        const Color(0xFFF59E0B),
-      ),
-      _StatCardData(
-        'Open Slots',
-        '${summary.openSlots}',
-        'available to book',
-        const Color(0xFF2563EB),
-      ),
-      _StatCardData(
-        'Unread',
-        '${summary.unreadNotifications}',
-        'notifications',
-        const Color(0xFF7C3AED),
-      ),
-    ];
-
     final activeRequests = reassignmentRequests
         .where(
           (entry) =>
@@ -577,8 +550,6 @@ class _CounselorDashboardScreenState
             primaryLabel: 'Open Sessions',
             secondaryLabel: 'Manage Availability',
           ),
-          const SizedBox(height: 20),
-          _ResponsiveStatRow(stats: stats, minCardWidth: isDesktop ? 170 : 150),
           const SizedBox(height: 20),
         ],
         if (isDesktop)
@@ -699,27 +670,6 @@ class _CounselorDashboardScreenState
     required bool isDesktop,
     required VoidCallback onManageAvailability,
   }) {
-    final stats = [
-      _StatCardData(
-        'Open',
-        '${summary.openSlots}',
-        'future slots live',
-        const Color(0xFF0E9B90),
-      ),
-      _StatCardData(
-        'Booked',
-        '${summary.bookedSlots}',
-        'already claimed',
-        const Color(0xFF2563EB),
-      ),
-      _StatCardData(
-        'Blocked',
-        '${summary.blockedSlots}',
-        'held off calendar',
-        const Color(0xFF7C3AED),
-      ),
-    ];
-
     final guidance = summary.openSlots == 0
         ? 'No future open slot is live. Publish at least a small forward window so booking demand does not dead-end.'
         : summary.openSlots < 3
@@ -729,10 +679,6 @@ class _CounselorDashboardScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (isDesktop) ...[
-          _ResponsiveStatRow(stats: stats, minCardWidth: 200),
-          const SizedBox(height: 20),
-        ],
         _SpotlightPanel(
           eyebrow: 'AVAILABILITY PULSE',
           title: summary.nextOpenSlot == null

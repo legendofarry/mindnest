@@ -27,6 +27,15 @@ class _CounselorAvailabilityScreenState
   TimeOfDay? _endTime;
   bool _isSaving = false;
   late DateTime _weekStart;
+  bool _isFeedCollapsed = false;
+  bool _slotTimelineView = true;
+  AvailabilitySlotStatus? _slotTimelineFilter;
+  AvailabilitySlotStatus? _slotTableFilter;
+  int _slotTableRowsPerPage = 6;
+  int _slotTablePage = 0;
+  String? _expandedSlotDateKey;
+
+  static const double _feedMaxHeight = 360;
 
   static const List<int> _gridHours = <int>[
     7,
@@ -84,6 +93,13 @@ class _CounselorAvailabilityScreenState
     final local = value.toLocal();
     return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} '
         '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  String _formatTime(DateTime value) {
+    final local = value.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final suffix = local.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:${local.minute.toString().padLeft(2, '0')} $suffix';
   }
 
   String _weekRangeLabel() {
@@ -198,7 +214,7 @@ class _CounselorAvailabilityScreenState
         return;
       }
       final handled = await _handleFirestoreIndexError(error);
-      if (handled) {
+      if (handled == true) {
         return;
       }
       if (!mounted) {
@@ -286,6 +302,43 @@ class _CounselorAvailabilityScreenState
           return start.isBefore(cellEnd) && end.isAfter(cellStart);
         })
         .toList(growable: false);
+  }
+
+  List<AvailabilitySlot> _sortedSlots(List<AvailabilitySlot> source) {
+    final sorted = [...source]
+      ..sort((a, b) {
+        final primary = a.startAt.compareTo(b.startAt);
+        if (primary != 0) return primary;
+        return a.endAt.compareTo(b.endAt);
+      });
+    return sorted;
+  }
+
+  Color _slotStatusColor(AvailabilitySlotStatus status) {
+    switch (status) {
+      case AvailabilitySlotStatus.available:
+        return const Color(0xFF0E9B90);
+      case AvailabilitySlotStatus.booked:
+        return const Color(0xFF2563EB);
+      case AvailabilitySlotStatus.blocked:
+        return const Color(0xFFF97316);
+    }
+  }
+
+  String _slotStatusLabel(AvailabilitySlotStatus status) {
+    switch (status) {
+      case AvailabilitySlotStatus.available:
+        return 'Available';
+      case AvailabilitySlotStatus.booked:
+        return 'Booked';
+      case AvailabilitySlotStatus.blocked:
+        return 'Blocked';
+    }
+  }
+
+  String _slotDateKey(DateTime date) {
+    final local = date.toLocal();
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
   }
 
   Future<void> _onCellTap({
@@ -541,21 +594,523 @@ class _CounselorAvailabilityScreenState
     }
   }
 
+  Widget _buildSlotTimeline(
+    BuildContext context,
+    List<AvailabilitySlot> slots,
+    bool loading,
+  ) {
+    Widget statusChip({
+      required String label,
+      required AvailabilitySlotStatus? status,
+      required Color color,
+    }) {
+      final selected = _slotTimelineFilter == status;
+      return ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => setState(() {
+          _slotTimelineFilter = status;
+          _expandedSlotDateKey = null;
+        }),
+        selectedColor: color.withValues(alpha: 0.12),
+        side: BorderSide(
+          color: selected ? color : const Color(0xFFD3E0EE),
+          width: selected ? 1.2 : 1,
+        ),
+        labelStyle: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: selected ? color : const Color(0xFF475569),
+        ),
+      );
+    }
+
+    final filtered = _sortedSlots(slots)
+        .where(
+          (slot) =>
+              _slotTimelineFilter == null ||
+              slot.status == _slotTimelineFilter,
+        )
+        .toList(growable: false);
+
+    final filterBar = GlassCard(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            statusChip(
+              label: 'All',
+              status: null,
+              color: const Color(0xFF0E7490),
+            ),
+            statusChip(
+              label: 'Available',
+              status: AvailabilitySlotStatus.available,
+              color: _slotStatusColor(AvailabilitySlotStatus.available),
+            ),
+            statusChip(
+              label: 'Booked',
+              status: AvailabilitySlotStatus.booked,
+              color: _slotStatusColor(AvailabilitySlotStatus.booked),
+            ),
+            statusChip(
+              label: 'Blocked',
+              status: AvailabilitySlotStatus.blocked,
+              color: _slotStatusColor(AvailabilitySlotStatus.blocked),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (filtered.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          filterBar,
+          const SizedBox(height: 10),
+          const GlassCard(
+            child: Padding(
+              padding: EdgeInsets.all(18),
+              child: Text('No slots match the selected filter.'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final grouped = <String, List<AvailabilitySlot>>{};
+    final dateByKey = <String, DateTime>{};
+    for (final slot in filtered) {
+      final key = _slotDateKey(slot.startAt);
+      grouped.putIfAbsent(key, () => <AvailabilitySlot>[]).add(slot);
+      dateByKey.putIfAbsent(key, () {
+        final local = slot.startAt.toLocal();
+        return DateTime(local.year, local.month, local.day);
+      });
+    }
+    final orderedKeys = grouped.keys.toList(growable: false);
+    final todayKey = _slotDateKey(DateTime.now());
+    final defaultExpandedKey = grouped.containsKey(todayKey)
+        ? todayKey
+        : orderedKeys.first;
+
+    Widget dateHeader(DateTime date, int count) {
+      return Row(
+        children: [
+          Text(
+            '${_weekdayLabel(date)} ${date.day} ${_monthNames[date.month - 1]}',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '($count)',
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        filterBar,
+        const SizedBox(height: 10),
+        if (_isFeedCollapsed)
+          _FeedCollapsedBanner(
+            total: filtered.length,
+            onExpand: () => setState(() => _isFeedCollapsed = false),
+          )
+        else
+          SizedBox(
+            height: _feedMaxHeight,
+            child: Scrollbar(
+              thumbVisibility: true,
+              child: ListView.separated(
+                primary: false,
+                padding: EdgeInsets.zero,
+                physics: const ClampingScrollPhysics(),
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemCount: orderedKeys.length,
+                itemBuilder: (context, index) {
+                  final key = orderedKeys[index];
+                  final day = dateByKey[key]!;
+                  final events = grouped[key]!;
+                  final expandedKey = _expandedSlotDateKey ?? defaultExpandedKey;
+                  final expanded = key == expandedKey;
+                  return GlassCard(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: () {
+                              setState(() {
+                                if (_expandedSlotDateKey == key) {
+                                  _expandedSlotDateKey = null;
+                                } else {
+                                  _expandedSlotDateKey = key;
+                                }
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    expanded
+                                        ? Icons.keyboard_arrow_down_rounded
+                                        : Icons.chevron_right_rounded,
+                                    color: const Color(0xFF334155),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  dateHeader(day, events.length),
+                                  const Spacer(),
+                                  Text(
+                                    'Next at ${_formatTime(events.first.startAt)}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF64748B),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (expanded) ...[
+                            const SizedBox(height: 6),
+                            ...events.map((slot) {
+                              final tone = _slotStatusColor(slot.status);
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 6,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        color: tone,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '${_formatTime(slot.startAt)} - ${_formatTime(slot.endAt)}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    _StatusPill(
+                                      label: _slotStatusLabel(slot.status),
+                                      color: tone,
+                                    ),
+                                    const Spacer(),
+                                    if (slot.status ==
+                                        AvailabilitySlotStatus.available)
+                                      TextButton.icon(
+                                        onPressed: () async {
+                                          try {
+                                            await ref
+                                                .read(careRepositoryProvider)
+                                                .deleteAvailabilitySlot(slot);
+                                          } catch (error) {
+                                            if (!context.mounted) return;
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  error
+                                                      .toString()
+                                                      .replaceFirst(
+                                                        'Exception: ',
+                                                        '',
+                                                      ),
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        icon: const Icon(
+                                          Icons.delete_outline_rounded,
+                                          size: 16,
+                                        ),
+                                        label: const Text('Delete'),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSlotTable(BuildContext context, List<AvailabilitySlot> slots) {
+    final filtered = _sortedSlots(slots)
+        .where(
+          (slot) =>
+              _slotTableFilter == null || slot.status == _slotTableFilter,
+        )
+        .toList(growable: false);
+
+    final totalRows = filtered.length;
+    final totalPages = totalRows == 0
+        ? 1
+        : ((totalRows + _slotTableRowsPerPage - 1) ~/ _slotTableRowsPerPage);
+    final pageIndex = _slotTablePage >= totalPages
+        ? totalPages - 1
+        : _slotTablePage;
+    final rows = filtered
+        .skip(pageIndex * _slotTableRowsPerPage)
+        .take(_slotTableRowsPerPage)
+        .toList(growable: false);
+
+    Widget statusFilterChip({
+      required String label,
+      required AvailabilitySlotStatus? status,
+      required Color color,
+    }) {
+      final selected = _slotTableFilter == status;
+      return ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => setState(() {
+          _slotTableFilter = status;
+          _slotTablePage = 0;
+        }),
+        selectedColor: color.withValues(alpha: 0.12),
+        side: BorderSide(
+          color: selected ? color : const Color(0xFFD3E0EE),
+        ),
+        labelStyle: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: selected ? color : const Color(0xFF475569),
+        ),
+      );
+    }
+
+    return GlassCard(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.table_chart_rounded,
+                    size: 18, color: Color(0xFF0E9B90)),
+                const SizedBox(width: 8),
+                Text(
+                  'Slots ($totalRows)',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0x66FFFFFF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFD0DFEE)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: _slotTableRowsPerPage,
+                      isDense: true,
+                      borderRadius: BorderRadius.circular(10),
+                      items: const [
+                        DropdownMenuItem(value: 4, child: Text('4 / page')),
+                        DropdownMenuItem(value: 6, child: Text('6 / page')),
+                        DropdownMenuItem(value: 8, child: Text('8 / page')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _slotTableRowsPerPage = value;
+                            _slotTablePage = 0;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                statusFilterChip(
+                  label: 'All',
+                  status: null,
+                  color: const Color(0xFF0E7490),
+                ),
+                statusFilterChip(
+                  label: 'Available',
+                  status: AvailabilitySlotStatus.available,
+                  color: _slotStatusColor(AvailabilitySlotStatus.available),
+                ),
+                statusFilterChip(
+                  label: 'Booked',
+                  status: AvailabilitySlotStatus.booked,
+                  color: _slotStatusColor(AvailabilitySlotStatus.booked),
+                ),
+                statusFilterChip(
+                  label: 'Blocked',
+                  status: AvailabilitySlotStatus.blocked,
+                  color: _slotStatusColor(AvailabilitySlotStatus.blocked),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: _feedMaxHeight,
+              ),
+              child: Scrollbar(
+                thumbVisibility: true,
+                child: ListView.separated(
+                  primary: false,
+                  itemCount: rows.length,
+                  separatorBuilder: (_, __) => const Divider(
+                    height: 1,
+                    color: Color(0xFFE2E8F0),
+                  ),
+                  itemBuilder: (context, index) {
+                    final slot = rows[index];
+                    final tone = _slotStatusColor(slot.status);
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 4,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              _formatDateTime(slot.startAt),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              _formatDateTime(slot.endAt),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: _StatusPill(
+                              label: _slotStatusLabel(slot.status),
+                              color: tone,
+                            ),
+                          ),
+                          if (slot.status == AvailabilitySlotStatus.available)
+                            TextButton.icon(
+                              onPressed: () async {
+                                try {
+                                  await ref
+                                      .read(careRepositoryProvider)
+                                      .deleteAvailabilitySlot(slot);
+                                } catch (error) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        error
+                                            .toString()
+                                            .replaceFirst('Exception: ', ''),
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.delete_outline_rounded),
+                              label: const Text('Delete'),
+                            )
+                          else
+                            const SizedBox(width: 64),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Text(
+                  'Page ${pageIndex + 1} of $totalPages',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF475569),
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.chevron_left_rounded),
+                  onPressed: pageIndex > 0
+                      ? () => setState(() => _slotTablePage = pageIndex - 1)
+                      : null,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right_rounded),
+                  onPressed: pageIndex < totalPages - 1
+                      ? () => setState(() => _slotTablePage = pageIndex + 1)
+                      : null,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
   Widget _buildBody(
     BuildContext context, {
     required UserProfile profile,
     required List<AvailabilitySlot> slots,
     required bool loading,
   }) {
-    final available = slots
-        .where((slot) => slot.status == AvailabilitySlotStatus.available)
-        .length;
-    final booked = slots
-        .where((slot) => slot.status == AvailabilitySlotStatus.booked)
-        .length;
-    final blocked = slots
-        .where((slot) => slot.status == AvailabilitySlotStatus.blocked)
-        .length;
     final nextOpen =
         slots
             .where(
@@ -572,31 +1127,6 @@ class _CounselorAvailabilityScreenState
         _AvailabilityHero(
           nextOpen: nextOpen.isEmpty ? null : nextOpen.first,
           onOpenSessions: () => context.go(AppRoute.counselorAppointments),
-        ),
-        const SizedBox(height: 20),
-        Wrap(
-          spacing: 16,
-          runSpacing: 16,
-          children: [
-            _AvailabilityStatCard(
-              label: 'Open',
-              value: '$available',
-              hint: 'future slots live',
-              accent: const Color(0xFF0E9B90),
-            ),
-            _AvailabilityStatCard(
-              label: 'Booked',
-              value: '$booked',
-              hint: 'already claimed',
-              accent: const Color(0xFF2563EB),
-            ),
-            _AvailabilityStatCard(
-              label: 'Blocked',
-              value: '$blocked',
-              hint: 'not bookable',
-              accent: const Color(0xFFF97316),
-            ),
-          ].map((card) => SizedBox(width: 200, child: card)).toList(),
         ),
         const SizedBox(height: 20),
         Container(
@@ -737,14 +1267,50 @@ class _CounselorAvailabilityScreenState
                         ],
                       ),
                     ),
-                    if (loading) ...[
-                      const SizedBox(width: 16),
-                      const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2.4),
-                      ),
-                    ],
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Table'),
+                          selected: !_slotTimelineView,
+                          onSelected: (_) => setState(() {
+                            _slotTimelineView = false;
+                            _isFeedCollapsed = false;
+                          }),
+                        ),
+                        ChoiceChip(
+                          label: const Text('Timeline'),
+                          selected: _slotTimelineView,
+                          onSelected: (_) => setState(() {
+                            _slotTimelineView = true;
+                          }),
+                        ),
+                        if (_slotTimelineView)
+                          TextButton.icon(
+                            onPressed: () => setState(
+                              () => _isFeedCollapsed = !_isFeedCollapsed,
+                            ),
+                            icon: Icon(
+                              _isFeedCollapsed
+                                  ? Icons.unfold_more_rounded
+                                  : Icons.unfold_less_rounded,
+                            ),
+                            label: Text(
+                              _isFeedCollapsed
+                                  ? 'Expand timeline'
+                                  : 'Collapse timeline',
+                            ),
+                          ),
+                        if (loading)
+                          const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2.4),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -753,47 +1319,11 @@ class _CounselorAvailabilityScreenState
                     message:
                         'No availability slots are visible yet. Publish your first slot to start taking bookings.',
                   )
-                else
-                  Column(
-                    children: slots
-                        .map(
-                          (slot) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _SlotFeedCard(
-                              slot: slot,
-                              formatDateTime: _formatDateTime,
-                              onDelete:
-                                  slot.status ==
-                                      AvailabilitySlotStatus.available
-                                  ? () async {
-                                      try {
-                                        await ref
-                                            .read(careRepositoryProvider)
-                                            .deleteAvailabilitySlot(slot);
-                                      } catch (error) {
-                                        if (!context.mounted) {
-                                          return;
-                                        }
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              error.toString().replaceFirst(
-                                                'Exception: ',
-                                                '',
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  : null,
-                            ),
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
+                else ...[
+                  _slotTimelineView
+                      ? _buildSlotTimeline(context, slots, loading)
+                      : _buildSlotTable(context, slots),
+                ],
               ],
             ),
           ),
@@ -996,65 +1526,6 @@ class _AvailabilityHero extends StatelessWidget {
   }
 }
 
-class _AvailabilityStatCard extends StatelessWidget {
-  const _AvailabilityStatCard({
-    required this.label,
-    required this.value,
-    required this.hint,
-    required this.accent,
-  });
-
-  final String label;
-  final String value;
-  final String hint;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE1E8EF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              color: accent,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.4,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Color(0xFF081A30),
-              fontSize: 42,
-              height: 1,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            hint,
-            style: const TextStyle(
-              color: Color(0xFF7B8CA4),
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _AvailabilityEyebrow extends StatelessWidget {
   const _AvailabilityEyebrow({
     required this.label,
@@ -1139,108 +1610,6 @@ class _AvailabilityMiniSignal extends StatelessWidget {
   }
 }
 
-class _SlotFeedCard extends StatelessWidget {
-  const _SlotFeedCard({
-    required this.slot,
-    required this.formatDateTime,
-    required this.onDelete,
-  });
-
-  final AvailabilitySlot slot;
-  final String Function(DateTime value) formatDateTime;
-  final VoidCallback? onDelete;
-
-  Color get _tone {
-    switch (slot.status) {
-      case AvailabilitySlotStatus.available:
-        return const Color(0xFF0E9B90);
-      case AvailabilitySlotStatus.booked:
-        return const Color(0xFF2563EB);
-      case AvailabilitySlotStatus.blocked:
-        return const Color(0xFFF97316);
-    }
-  }
-
-  Color get _background {
-    switch (slot.status) {
-      case AvailabilitySlotStatus.available:
-        return const Color(0xFFE9FBF8);
-      case AvailabilitySlotStatus.booked:
-        return const Color(0xFFEFF6FF);
-      case AvailabilitySlotStatus.blocked:
-        return const Color(0xFFFFF7ED);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9FBFE),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFDCE6F0)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  formatDateTime(slot.startAt),
-                  style: const TextStyle(
-                    color: Color(0xFF081A30),
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Ends: ${formatDateTime(slot.endAt)}',
-                  style: const TextStyle(
-                    color: Color(0xFF5E728D),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: _background,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  slot.status.name,
-                  style: TextStyle(color: _tone, fontWeight: FontWeight.w800),
-                ),
-              ),
-              if (onDelete != null) ...[
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  label: const Text('Delete'),
-                ),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _AvailabilityEmptyCard extends StatelessWidget {
   const _AvailabilityEmptyCard({required this.message});
 
@@ -1263,6 +1632,73 @@ class _AvailabilityEmptyCard extends StatelessWidget {
           fontWeight: FontWeight.w600,
           height: 1.45,
         ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+}
+
+class _FeedCollapsedBanner extends StatelessWidget {
+  const _FeedCollapsedBanner({
+    required this.total,
+    required this.onExpand,
+  });
+
+  final int total;
+  final VoidCallback onExpand;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE1E8EF)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$total slots in timeline',
+              style: const TextStyle(
+                color: Color(0xFF0C2233),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: onExpand,
+            icon: const Icon(Icons.unfold_more_rounded),
+            label: const Text('Expand'),
+          ),
+        ],
       ),
     );
   }
