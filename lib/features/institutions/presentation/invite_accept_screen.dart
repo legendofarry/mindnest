@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
@@ -143,7 +144,7 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
               userInstitutionId == resolvedInvite.institutionId) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
-              _showModernBanner(
+              showModernBanner(
                 context,
                 message: 'You already joined this institution.',
                 icon: Icons.check_circle_rounded,
@@ -294,51 +295,6 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
         ),
       ),
     );
-  }
-
-  void _showModernBanner(
-    BuildContext context, {
-    required String message,
-    IconData icon = Icons.info_outline_rounded,
-    Color color = const Color(0xFF0E9B90),
-  }) {
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.removeCurrentMaterialBanner();
-    messenger.showMaterialBanner(
-      MaterialBanner(
-        backgroundColor: Colors.white,
-        elevation: 8,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        leadingPadding: const EdgeInsets.only(right: 12),
-        leading: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.14),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: color, size: 18),
-        ),
-        content: Text(
-          message,
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF0F172A),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: messenger.hideCurrentMaterialBanner,
-            child: const Text('Dismiss'),
-          ),
-        ],
-        surfaceTintColor: Colors.transparent,
-      ),
-    );
-    Future.delayed(const Duration(seconds: 6), () {
-      messenger.hideCurrentMaterialBanner();
-    });
   }
 }
 

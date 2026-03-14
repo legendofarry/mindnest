@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/core/ui/auth_desktop_shell.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
@@ -60,8 +61,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           .read(authRepositoryProvider)
           .sendPasswordReset(_emailController.text);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password reset email sent.')),
+        showModernBanner(
+          context,
+          message: 'Password reset email sent. Check your inbox.',
+          icon: Icons.mark_email_read_rounded,
+          color: const Color(0xFF0E9B90),
         );
         context.go(AppRoute.withInviteQuery(AppRoute.login, _inviteQuery));
       }
@@ -77,9 +81,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
+    if (!mounted) return;
+    showModernBanner(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+      message: message,
+      icon: Icons.error_outline_rounded,
+      color: const Color(0xFFBE123C),
+    );
   }
 
   @override
@@ -197,7 +205,25 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               fontSize: 16,
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFFFFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFB3ECDD)),
+            ),
+            child: const Text(
+              "Didn't receive the email? Please check your Spam or Junk folder. "
+              "If you find it there, mark it as \"Not Spam\" so future emails arrive in your inbox.",
+              style: TextStyle(
+                color: Color(0xFF0D6F69),
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
           const _FieldLabel(text: 'EMAIL ADDRESS'),
           const SizedBox(height: 8),
           _RoundedInput(

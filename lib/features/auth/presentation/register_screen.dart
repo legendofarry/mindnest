@@ -37,8 +37,8 @@ class RegisterScreen extends StatelessWidget {
             'Create one account first, then join an institution later with '
             'a join code from your admin.',
         metrics: [
-          AuthDesktopMetric(value: '3+', label: 'USERS HELPED'),
-          AuthDesktopMetric(value: '1+', label: 'INSTITUTIONS'),
+          AuthDesktopMetric(value: '187+', label: 'USERS HELPED'),
+          AuthDesktopMetric(value: '3+', label: 'INSTITUTIONS'),
         ],
         formChild: _RegisterContent(
           showBrand: false,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
@@ -77,7 +78,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       if (!mounted) {
         return;
       }
-      _showModernBanner(
+      showModernBanner(
         context,
         message: 'Verification email sent. Check your inbox.',
         icon: Icons.mark_email_read_rounded,
@@ -88,51 +89,6 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
         setState(() => _isResending = false);
       }
     }
-  }
-
-  void _showModernBanner(
-    BuildContext context, {
-    required String message,
-    IconData icon = Icons.info_outline_rounded,
-    Color color = const Color(0xFF0E9B90),
-  }) {
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.removeCurrentMaterialBanner();
-    messenger.showMaterialBanner(
-      MaterialBanner(
-        backgroundColor: Colors.white,
-        elevation: 8,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        leadingPadding: const EdgeInsets.only(right: 12),
-        leading: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.14),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: color, size: 18),
-        ),
-        content: Text(
-          message,
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF0F172A),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: messenger.hideCurrentMaterialBanner,
-            child: const Text('Dismiss'),
-          ),
-        ],
-        surfaceTintColor: Colors.transparent,
-      ),
-    );
-    Future.delayed(const Duration(seconds: 6), () {
-      messenger.hideCurrentMaterialBanner();
-    });
   }
 
   Future<void> _handleContinue(UserProfile? profile) async {
@@ -149,7 +105,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       }
       if (!(user.emailVerified)) {
         if (!mounted) return;
-        _showModernBanner(
+        showModernBanner(
           context,
           message: 'Still not verified. Check your inbox then tap Continue.',
           icon: Icons.mark_email_unread_outlined,
