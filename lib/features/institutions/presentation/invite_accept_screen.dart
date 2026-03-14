@@ -229,6 +229,23 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
           }
 
           final roleLabel = resolvedInvite.intendedRole.label;
+          final shouldPrefillCode =
+              resolvedInvite.intendedRole == UserRole.counselor;
+          final institutionDoc = ref.watch(
+            institutionDocumentProvider(resolvedInvite.institutionId),
+          );
+          final joinCode =
+              (institutionDoc.valueOrNull?['joinCode'] as String? ?? '').trim();
+
+          if (shouldPrefillCode && joinCode.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              final normalized = joinCode.toUpperCase();
+              if (_codeController.text.trim() != normalized) {
+                _codeController.text = normalized;
+              }
+            });
+          }
 
           return GlassCard(
             child: Padding(
@@ -254,10 +271,20 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
                   TextFormField(
                     controller: _codeController,
                     textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
+                    obscureText: shouldPrefillCode,
+                    enableSuggestions: !shouldPrefillCode,
+                    autocorrect: false,
+                    readOnly: shouldPrefillCode,
+                    obscuringCharacter: '•',
+                    decoration: InputDecoration(
                       labelText: 'Institution code',
-                      hintText: 'Enter code from admin',
-                      prefixIcon: Icon(Icons.key_rounded),
+                      hintText: shouldPrefillCode
+                          ? 'Code auto-filled from invite'
+                          : 'Enter code from admin',
+                      prefixIcon: const Icon(Icons.key_rounded),
+                      suffixIcon: shouldPrefillCode
+                          ? const Icon(Icons.visibility_off_rounded)
+                          : null,
                     ),
                   ),
                   const SizedBox(height: 8),
