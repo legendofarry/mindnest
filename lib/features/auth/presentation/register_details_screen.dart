@@ -50,6 +50,8 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   final _confirmPasswordController = TextEditingController();
 
   bool _isSubmitting = false;
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
   bool _nameFieldError = false;
   bool _emailFieldError = false;
   bool _phoneFieldError = false;
@@ -134,6 +136,8 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    _isPasswordVisible = false;
+    _isConfirmPasswordVisible = false;
     _phoneController.text = _kenyaPrefix;
     _phoneController.addListener(_enforcePrimaryPhonePrefix);
     _additionalPhoneController.addListener(_enforceOptionalPhonePrefix);
@@ -471,13 +475,12 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                       _isCounselorIntent
                           ? 'Create your counselor account'
                           : 'Create your account',
-                      style: Theme.of(context).textTheme.displaySmall
-                          ?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF071937),
-                            letterSpacing: -0.5,
-                            fontSize: 24,
-                          ),
+                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF071937),
+                        letterSpacing: -0.5,
+                        fontSize: 24,
+                      ),
                     ),
                     if (subtitle.isNotEmpty) ...[
                       const SizedBox(height: 6),
@@ -607,7 +610,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                       }),
                       decoration: const InputDecoration(
                         border: InputBorder.none,
-                        hintText: '+254712345678',
+                        hintText: '+2547..',
                         prefixIcon: Icon(Icons.phone_rounded),
                       ),
                     ),
@@ -615,7 +618,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                 );
 
                 final additionalPhoneField = _LabeledFieldBlock(
-                  label: 'ADDITIONAL MOBILE',
+                  label: 'OTHER MOBILE',
                   child: _RoundedInput(
                     hasError:
                         _additionalPhoneFieldError ||
@@ -631,7 +634,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                       }),
                       decoration: const InputDecoration(
                         border: InputBorder.none,
-                        hintText: '+2547...',
+                        hintText: '+2547..',
                         prefixIcon: Icon(Icons.phone_android_rounded),
                       ),
                     ),
@@ -644,7 +647,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                     hasError: _passwordFieldError,
                     child: TextFormField(
                       controller: _passwordController,
-                      obscureText: true,
+                      obscureText: !_isPasswordVisible,
                       onChanged: (_) => setState(() {
                         _passwordFieldError = false;
                         _confirmPasswordFieldError =
@@ -653,33 +656,52 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                                 _passwordController.text;
                         _formError = null;
                       }),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         border: InputBorder.none,
-                        hintText: '********',
-                        prefixIcon: Icon(Icons.lock_outline_rounded),
+                        hintText: '***',
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(
+                            () => _isPasswordVisible = !_isPasswordVisible,
+                          ),
+                          icon: Icon(
+                            _isPasswordVisible
+                                ? Icons.visibility_off_rounded
+                                : Icons.visibility_rounded,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 );
 
                 final confirmPasswordField = _LabeledFieldBlock(
-                  label: 'CONFIRM PASSWORD',
+                  label: 'CONFIRM',
                   child: _RoundedInput(
                     hasError: _confirmPasswordFieldError,
                     child: TextFormField(
                       controller: _confirmPasswordController,
-                      obscureText: true,
+                      obscureText: !_isConfirmPasswordVisible,
                       onChanged: (_) => setState(() {
                         _confirmPasswordFieldError =
                             _confirmPasswordController.text.isNotEmpty &&
                             _confirmPasswordController.text !=
-                            _passwordController.text;
+                                _passwordController.text;
                         _formError = null;
                       }),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         border: InputBorder.none,
-                        hintText: '********',
-                        prefixIcon: Icon(Icons.verified_user_outlined),
+                        hintText: '***',
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(
+                            () => _isConfirmPasswordVisible =
+                                !_isConfirmPasswordVisible,
+                          ),
+                          icon: Icon(
+                            _isConfirmPasswordVisible
+                                ? Icons.visibility_off_rounded
+                                : Icons.visibility_rounded,
+                          ),
+                        ),
                       ),
                     ),
                   ),
