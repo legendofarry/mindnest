@@ -190,7 +190,7 @@ class _RegisterContent extends StatelessWidget {
                 child: Text(
                   _inviteQuery.isNotEmpty
                       ? 'Finish registration to accept your invitation${(institutionName ?? '').trim().isNotEmpty ? ' to ${(institutionName ?? '').trim()}' : ''}.'
-                      : "Students, staff, or individuals -> Create Account\nCounselors -> I'm a Counselor",
+                      : "Students or staff -> Create Account\nCounselors -> I'm a Counselor",
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: const Color(0xFF0D6F69),
                     height: 1.4,
