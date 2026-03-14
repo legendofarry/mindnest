@@ -411,10 +411,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     });
                   }
                 },
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   border: InputBorder.none,
                   hintText: 'alex@example.com',
-                  prefixIcon: Icon(Icons.mail_outline_rounded),
+                  prefixIcon: const Icon(Icons.mail_outline_rounded),
+                  hintStyle: const TextStyle(
+                    color: Color(0xFF94A3B8),
+                  ),
                 ),
               ),
             ),
@@ -503,6 +506,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           ? Icons.visibility_off_rounded
                           : Icons.visibility_rounded,
                     ),
+                  ),
+                  hintStyle: const TextStyle(
+                    color: Color(0xFF94A3B8),
                   ),
                 ),
               ),
