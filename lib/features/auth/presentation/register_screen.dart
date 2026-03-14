@@ -136,7 +136,11 @@ class _RegisterContent extends StatelessWidget {
       children: [
         if (showBrand) ...[
           const SizedBox(height: 6),
-          const BrandMark(compact: true, withBlob: true),
+          BrandMark(
+            compact: true,
+            withBlob: true,
+            showText: isDesktop, // hide MindNest text on mobile, keep glyph
+          ),
           const SizedBox(height: 20),
         ] else ...[
           const SizedBox(height: 8),
@@ -188,11 +192,11 @@ class _RegisterContent extends StatelessWidget {
                       ? 'Finish registration to accept your invitation${(institutionName ?? '').trim().isNotEmpty ? ' to ${(institutionName ?? '').trim()}' : ''}.'
                       : "Students, staff, or individuals -> Create Account\nCounselors -> I'm a Counselor",
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: const Color(0xFF0D6F69),
-                        height: 1.4,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
+                    color: const Color(0xFF0D6F69),
+                    height: 1.4,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ],
