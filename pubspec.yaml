@@ -42,6 +42,7 @@ dependencies:
   flutter_local_notifications: ^19.4.2
   go_router: ^14.8.1
   google_fonts: ^6.2.1
+  flutter_svg: ^2.0.10+1
   http: ^1.2.2
   livekit_client: ^2.6.3
   lottie: ^3.3.1
@@ -74,7 +75,7 @@ flutter:
   assets:
     - assets/loading/
     - assets/logo.png
-    - assets/google_g.png
+    - assets/google.svg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

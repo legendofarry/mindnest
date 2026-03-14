@@ -11,6 +11,7 @@ import 'package:mindnest/features/ai/data/assistant_providers.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({
@@ -572,7 +573,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const SizedBox.shrink(),
+                  : SvgPicture.asset(
+                      'assets/google.svg',
+                      height: 20,
+                      width: 20,
+                    ),
               label: Text(
                 _isGoogleSubmitting
                     ? 'Connecting to Google...'
