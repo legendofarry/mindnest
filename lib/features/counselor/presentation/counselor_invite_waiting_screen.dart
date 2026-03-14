@@ -606,7 +606,7 @@ class _CounselorInviteWaitingScreenState
                   foregroundColor: const Color(0xFFB91C1C),
                 ),
                 child: Text(
-                  _isSubmitting ? 'Working..' : 'Reject',
+                  _isSubmitting ? '' : 'Reject',
                   style: TextStyle(
                     fontSize: isDesktop ? 18 : 16,
                     fontWeight: FontWeight.w800,
