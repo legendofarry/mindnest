@@ -1080,7 +1080,7 @@ class _RegisterInstitutionScreenState
                               ? 'Creating...'
                               : (_activeStep < _stepCount - 1
                                     ? 'Continue'
-                                    : 'Create Institution'),
+                                    : 'Create'),
                           key: ValueKey('$_isSubmitting-$_activeStep'),
                           style: const TextStyle(
                             fontSize: 16.5,
