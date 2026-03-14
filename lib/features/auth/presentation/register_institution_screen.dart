@@ -814,7 +814,7 @@ class _RegisterInstitutionScreenState
                       },
                       decoration: InputDecoration(
                         border: InputBorder.none,
-                        hintText: 'Minimum 8 characters',
+                        hintText: '***',
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
                         suffixIcon: IconButton(
                           onPressed: () {
@@ -839,7 +839,7 @@ class _RegisterInstitutionScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const _FieldLabel(text: 'CONFIRM PASSWORD'),
+                  const _FieldLabel(text: 'CONFIRM'),
                   const SizedBox(height: 8),
                   _RoundedInput(
                     hasError: _confirmPasswordFieldError,
@@ -858,7 +858,7 @@ class _RegisterInstitutionScreenState
                       },
                       decoration: InputDecoration(
                         border: InputBorder.none,
-                        hintText: 'Re-enter password',
+                        hintText: '***',
                         prefixIcon: const Icon(Icons.verified_user_outlined),
                         suffixIcon: IconButton(
                           onPressed: () {
@@ -1077,10 +1077,10 @@ class _RegisterInstitutionScreenState
                         duration: const Duration(milliseconds: 220),
                         child: Text(
                           _isSubmitting
-                              ? 'Creating institution...'
+                              ? 'Creating...'
                               : (_activeStep < _stepCount - 1
-                                    ? 'Continue  ->'
-                                    : 'Create Institution  ->'),
+                                    ? 'Continue'
+                                    : 'Create Institution'),
                           key: ValueKey('$_isSubmitting-$_activeStep'),
                           style: const TextStyle(
                             fontSize: 16.5,
