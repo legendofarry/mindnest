@@ -893,7 +893,7 @@ class _RegisterInstitutionScreenState
         const Text(
           'Use 8+ characters with a mix of letters and numbers.',
           style: TextStyle(
-            color: Color(0xFF9F1239),
+            color: Color(0xFF6A7D96),
             fontSize: 12.5,
             fontWeight: FontWeight.w600,
           ),
