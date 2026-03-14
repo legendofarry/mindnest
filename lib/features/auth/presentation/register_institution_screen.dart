@@ -547,51 +547,53 @@ class _RegisterInstitutionScreenState
 
   Widget _buildStepIndicator() {
     final currentStep = _activeStep;
-    return Row(
-      children: List<Widget>.generate(_stepCount, (index) {
-        final isActive = index == currentStep;
-        final isCompleted = index < currentStep;
-        final fillColor = isCompleted || isActive
-            ? const Color(0xFF0E9B90)
-            : const Color(0xFFD7E3EF);
-        final textColor = isCompleted || isActive
-            ? Colors.white
-            : const Color(0xFF8EA3BB);
-        return Expanded(
-          child: Row(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: fillColor,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '${index + 1}',
-                  style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-              if (index < _stepCount - 1)
-                Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
-                    height: 2,
-                    color: index < currentStep
-                        ? const Color(0xFF0E9B90)
-                        : const Color(0xFFD7E3EF),
-                  ),
-                ),
-            ],
+    final children = <Widget>[];
+    for (var index = 0; index < _stepCount; index++) {
+      final isActive = index == currentStep;
+      final isCompleted = index < currentStep;
+      final fillColor =
+          isCompleted || isActive ? const Color(0xFF0E9B90) : const Color(0xFFD7E3EF);
+      final textColor =
+          isCompleted || isActive ? Colors.white : const Color(0xFF8EA3BB);
+
+      children.add(
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: fillColor,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '${index + 1}',
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      );
+
+      if (index < _stepCount - 1) {
+        children.add(
+          Container(
+            width: 54,
+            height: 2,
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            color:
+                index < currentStep ? const Color(0xFF0E9B90) : const Color(0xFFD7E3EF),
           ),
         );
-      }),
+      }
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: children,
     );
   }
 
@@ -815,7 +817,10 @@ class _RegisterInstitutionScreenState
                       decoration: InputDecoration(
                         border: InputBorder.none,
                         hintText: '***',
-                        prefixIcon: const Icon(Icons.lock_outline_rounded),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 16,
+                        ),
                         suffixIcon: IconButton(
                           onPressed: () {
                             setState(() {
@@ -859,7 +864,10 @@ class _RegisterInstitutionScreenState
                       decoration: InputDecoration(
                         border: InputBorder.none,
                         hintText: '***',
-                        prefixIcon: const Icon(Icons.verified_user_outlined),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 16,
+                        ),
                         suffixIcon: IconButton(
                           onPressed: () {
                             setState(() {
