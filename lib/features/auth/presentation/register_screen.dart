@@ -115,14 +115,14 @@ class _RegisterContent extends StatelessWidget {
     final createAccountCard = _AccountTypeCard(
       icon: Icons.account_circle_outlined,
       title: 'Create Account',
-      description: 'Use wellness tools and access resources.',
+      description: '',
       compact: showSideBySideChoices,
       onTap: () => context.go(_registerDetailsRoute()),
     );
     final counselorCard = _AccountTypeCard(
       icon: Icons.psychology_alt_outlined,
       title: "I'm a Counselor",
-      description: 'Create your account as a counselor.',
+      description: '',
       compact: showSideBySideChoices,
       onTap: () => context.go(
         _registerDetailsRoute(
@@ -151,17 +151,54 @@ class _RegisterContent extends StatelessWidget {
           textAlign: isDesktop ? TextAlign.left : TextAlign.center,
         ),
         const SizedBox(height: 8),
-        Text(
-          _inviteQuery.isNotEmpty
-              ? 'Finish registration to accept your invitation${(institutionName ?? '').trim().isNotEmpty ? ' to ${(institutionName ?? '').trim()}' : ''}.'
-              : 'Create your MindNest account first, then join an institution later if you have a join code.',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: const Color(0xFF516784),
-            height: 1.35,
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFFFFC),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFB3ECDD)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x140F172A),
+                blurRadius: 16,
+                offset: Offset(0, 8),
+              ),
+            ],
           ),
-          textAlign: isDesktop ? TextAlign.left : TextAlign.center,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0E9B90).withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.tips_and_updates_outlined,
+                  color: Color(0xFF0E9B90),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _inviteQuery.isNotEmpty
+                      ? 'Finish registration to accept your invitation${(institutionName ?? '').trim().isNotEmpty ? ' to ${(institutionName ?? '').trim()}' : ''}.'
+                      : "Students, staff, or individuals -> Create Account\nCounselors -> I'm a Counselor",
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: const Color(0xFF0D6F69),
+                        height: 1.4,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 26),
+        const SizedBox(height: 24),
         if (_inviteQuery.isNotEmpty) ...[
           _AccountTypeCard(
             icon: Icons.mark_email_unread_rounded,

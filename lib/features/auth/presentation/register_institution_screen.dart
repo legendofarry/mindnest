@@ -707,7 +707,7 @@ class _RegisterInstitutionScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const _FieldLabel(text: 'ADMIN PHONE NUMBER'),
+                  const _FieldLabel(text: 'ADMIN PHONE'),
                   const SizedBox(height: 8),
                   _RoundedInput(
                     hasError:
@@ -908,6 +908,38 @@ class _RegisterInstitutionScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: _isSubmitting
+                    ? null
+                    : () => context.go(AppRoute.register),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 17,
+                        color: Color(0xFF93A3BA),
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'Back to Register',
+                        style: TextStyle(
+                          color: Color(0xFF93A3BA),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             Text(
               'Register Institution',
               style: Theme.of(context).textTheme.displaySmall?.copyWith(
