@@ -684,50 +684,6 @@ class _ProfileHero extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            children: [
-              _HeroPill(icon: Icons.shield_rounded, label: 'Institution Admin'),
-              _HeroPill(
-                icon: Icons.verified_user_rounded,
-                label: 'Secure account',
-              ),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white70),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                onPressed: () => Clipboard.setData(ClipboardData(text: email)),
-                icon: const Icon(Icons.copy_rounded, size: 18),
-                label: const Text('Copy email'),
-              ),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white70),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                onPressed: null,
-                icon: const Icon(Icons.timer_rounded, size: 18),
-                label: const Text('Last sync • live'),
-              ),
-            ],
-          ),
         ],
       ),
     );
