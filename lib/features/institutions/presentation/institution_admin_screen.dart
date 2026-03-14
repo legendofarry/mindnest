@@ -3183,24 +3183,7 @@ class _InviteComposer extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  const Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _InviteMetaPill(
-                        icon: Icons.flash_on_rounded,
-                        label: 'In-app delivery',
-                      ),
-                      _InviteMetaPill(
-                        icon: Icons.verified_user_rounded,
-                        label: 'One-time use',
-                      ),
-                      _InviteMetaPill(
-                        icon: Icons.password_rounded,
-                        label: 'Code-protected onboarding',
-                      ),
-                    ],
-                  ),
+                  const SizedBox.shrink(),
                 ],
               ),
             ),
