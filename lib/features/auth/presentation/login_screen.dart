@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
@@ -644,23 +645,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     color: const Color(0xFF4A607C),
                   ),
                 ),
-                GestureDetector(
-                  onTap: _isBusy
-                      ? null
-                      : () => context.go(
-                          _hasInviteContext
-                              ? AppRoute.withInviteQuery(
-                                  AppRoute.registerDetails,
-                                  _inviteQuery,
-                                )
-                              : AppRoute.register,
-                        ),
-                  child: const Text(
-                    'Create Account',
-                    style: TextStyle(
-                      color: Color(0xFF0E9B90),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
+                MouseRegion(
+                  cursor: _isBusy
+                      ? SystemMouseCursors.basic
+                      : SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: _isBusy
+                        ? null
+                        : () => context.go(
+                            _hasInviteContext
+                                ? AppRoute.withInviteQuery(
+                                    AppRoute.registerDetails,
+                                    _inviteQuery,
+                                  )
+                                : AppRoute.register,
+                          ),
+                    child: const Text(
+                      'Create Account',
+                      style: TextStyle(
+                        color: Color(0xFF0E9B90),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ),

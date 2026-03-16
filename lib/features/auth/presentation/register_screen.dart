@@ -1,5 +1,6 @@
 // features/auth/presentation/register_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
@@ -245,16 +246,19 @@ class _RegisterContent extends StatelessWidget {
                 context,
               ).textTheme.titleMedium?.copyWith(color: const Color(0xFF4A607C)),
             ),
-            GestureDetector(
-              onTap: () => context.go(
-                AppRoute.withInviteQuery(AppRoute.login, _inviteQuery),
-              ),
-              child: const Text(
-                'Log In',
-                style: TextStyle(
-                  color: Color(0xFF0E9B90),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => context.go(
+                  AppRoute.withInviteQuery(AppRoute.login, _inviteQuery),
+                ),
+                child: const Text(
+                  'Log In',
+                  style: TextStyle(
+                    color: Color(0xFF0E9B90),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ),
@@ -334,6 +338,7 @@ class _AccountTypeCardState extends State<_AccountTypeCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(

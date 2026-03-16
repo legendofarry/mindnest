@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 
 class AuthDesktopShell extends StatelessWidget {
   const AuthDesktopShell({
@@ -125,7 +126,7 @@ class _AuthDesktopHero extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              _AuthDesktopBrandIcon(),
+              BrandMark(compact: true, showText: false, withBlob: false),
               SizedBox(width: 14),
               Text(
                 'MindNest',
@@ -138,7 +139,7 @@ class _AuthDesktopHero extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 42),
+          const SizedBox(height: 36),
           RichText(
             text: TextSpan(
               children: [
@@ -189,27 +190,6 @@ class _AuthDesktopHero extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _AuthDesktopBrandIcon extends StatelessWidget {
-  const _AuthDesktopBrandIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: const Color(0xFF15CFC2),
-      ),
-      child: const Icon(
-        Icons.psychology_alt_rounded,
-        color: Color(0xFF0A3B37),
-        size: 25,
       ),
     );
   }
