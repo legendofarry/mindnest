@@ -34,9 +34,7 @@ class RegisterScreen extends StatelessWidget {
       return AuthDesktopShell(
         heroHighlightText: 'Start your journey',
         heroBaseText: 'to better mental wellness.',
-        heroDescription:
-            'Create one account first, then join an institution later with '
-            'a join code from your admin.',
+        heroDescription: '',
         metrics: [
           AuthDesktopMetric(value: '187+', label: 'USERS HELPED'),
           AuthDesktopMetric(value: '3+', label: 'INSTITUTIONS'),

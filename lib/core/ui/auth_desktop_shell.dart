@@ -174,7 +174,7 @@ class _AuthDesktopHero extends StatelessWidget {
               style: const TextStyle(
                 color: Color(0xFF4C607A),
                 fontSize: 31,
-                height: 1.38,
+                height: 0,
                 fontWeight: FontWeight.w500,
                 letterSpacing: -0.3,
               ),

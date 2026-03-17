@@ -617,24 +617,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     borderRadius: BorderRadius.circular(17),
                   ),
                 ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  child: Text(
-                    _isSubmitting
-                        ? 'Signing in...'
-                        : (_isGoogleSubmitting
-                              ? 'Please wait...'
-                              : 'Log In  ->'),
-                    key: ValueKey(_isBusy),
-                    style: const TextStyle(
-                      fontSize: 17.5,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: _isSubmitting
+                          ? const Text(
+                              'Signing in...',
+                              key: ValueKey('login-busy'),
+                              style: TextStyle(
+                                fontSize: 17.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            )
+                          : _isGoogleSubmitting
+                          ? const Text(
+                              'Please wait...',
+                              key: ValueKey('login-google'),
+                              style: TextStyle(
+                                fontSize: 17.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Row(
+                              key: const ValueKey('login-ready'),
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Text(
+                                  'Log In',
+                                  style: TextStyle(
+                                    fontSize: 17.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
                     ),
                   ),
                 ),
-              ),
-            ),
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,

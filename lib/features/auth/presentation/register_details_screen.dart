@@ -568,7 +568,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                 }),
                 decoration: const InputDecoration(
                   border: InputBorder.none,
-                  hintText: 'Alex Rivera',
+                  hintText: '',
                   prefixIcon: Icon(Icons.person_outline_rounded),
                 ),
               ),
@@ -840,15 +840,37 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                 ),
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 220),
-                  child: Text(
-                    _isSubmitting ? 'Creating...' : 'Create Account  ->',
-                    key: ValueKey(_isSubmitting),
-                    style: const TextStyle(
-                      fontSize: 17.5,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _isSubmitting
+                      ? const Text(
+                          'Creating...',
+                          key: ValueKey('register-details-busy'),
+                          style: TextStyle(
+                            fontSize: 17.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Row(
+                          key: const ValueKey('register-details-ready'),
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Text(
+                              'Create Account',
+                              style: TextStyle(
+                                fontSize: 17.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ],
+                        ),
                 ),
               ),
             ),
