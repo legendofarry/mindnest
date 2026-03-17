@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -454,12 +455,27 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final canSubmit = _canSubmit;
+    final showBreadcrumb =
+        !kIsWeb && MediaQuery.sizeOf(context).width >= 1100;
 
     return AuthBackgroundScaffold(
       child: Form(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (showBreadcrumb) ...[
+              _AuthBreadcrumb(
+                items: const [
+                  _BreadcrumbItem(
+                    label: 'Register',
+                    route: AppRoute.register,
+                  ),
+                  _BreadcrumbItem(label: 'Create account'),
+                ],
+                onTapRoute: (route) => context.go(route),
+              ),
+              const SizedBox(height: 12),
+            ],
             const SizedBox(height: 12),
             Builder(
               builder: (context) {
@@ -960,6 +976,64 @@ class _RoundedInput extends StatelessWidget {
         ],
       ),
       child: child,
+    );
+  }
+}
+
+class _BreadcrumbItem {
+  const _BreadcrumbItem({required this.label, this.route});
+
+  final String label;
+  final String? route;
+}
+
+class _AuthBreadcrumb extends StatelessWidget {
+  const _AuthBreadcrumb({required this.items, this.onTapRoute});
+
+  final List<_BreadcrumbItem> items;
+  final void Function(String route)? onTapRoute;
+
+  @override
+  Widget build(BuildContext context) {
+    final baseStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+          color: const Color(0xFF4A607C),
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        );
+
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (items[i].route != null && onTapRoute != null)
+            GestureDetector(
+              onTap: () => onTapRoute?.call(items[i].route!),
+              child: Text(
+                items[i].label,
+                style: baseStyle?.copyWith(
+                  color: const Color(0xFF0E9B90),
+                  decoration: TextDecoration.underline,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            )
+          else
+            Text(
+              items[i].label,
+              style: baseStyle?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          if (i < items.length - 1)
+            const Text(
+              '›',
+              style: TextStyle(
+                color: Color(0xFF9AAAC0),
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+        ],
+      ],
     );
   }
 }
