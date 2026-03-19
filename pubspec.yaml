@@ -53,6 +53,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  msix: ^3.16.13
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -102,3 +103,12 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+msix_config:
+  display_name: MindNest
+  publisher_display_name: Lusaa Software
+  identity_name: LusaaSoftware.MindNest
+  publisher: CN=32FDEC33-6DA5-43E6-8E5C-D10CD46F1DB4
+  msix_version: 1.0.0.0
+  logo_path: assets/logo.png
+  store: true
