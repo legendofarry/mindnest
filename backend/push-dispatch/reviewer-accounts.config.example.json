@@ -1,0 +1,43 @@
+{
+  "institution": {
+    "name": "Aga Khan University",
+    "catalogId": "aga_khan_university",
+    "joinCode": "M5S4BCH6"
+  },
+  "output": {
+    "partnerCenterNotesPath": "../../docs/windows_store_review_notes.local.txt"
+  },
+  "accounts": {
+    "institutionAdmin": {
+      "name": "Arryson Karim",
+      "email": "moderation.mails.go@gmail.com",
+      "password": "aaaaaaaa",
+      "phoneNumber": "+254748510136"
+    },
+    "counselor": {
+      "name": "Lucy Wangari",
+      "email": "testemail.mindnest@gmail.com",
+      "password": "aaaaaaaa",
+      "phoneNumber": "+254713160847",
+      "title": "Licensed Professional Counselor",
+      "specialization": "",
+      "yearsExperience": 7,
+      "sessionMode": "hybrid",
+      "timezone": "Africa/Nairobi",
+      "bio": "",
+      "languages": ["English", "Swahili"]
+    },
+    "student": {
+      "name": "Samuel Mwangi",
+      "email": "big.moderator.24.7@gmail.com",
+      "password": "aaaaaaaa",
+      "phoneNumber": "+254792182453"
+    },
+    "staff": {
+      "name": "Elizabeth Wanjiku",
+      "email": "sogem14399@duoley.com",
+      "password": "aaaaaaaa",
+      "phoneNumber": "+2547112764130"
+    }
+  }
+}

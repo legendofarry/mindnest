@@ -14,41 +14,45 @@ These two items must be completed in Partner Center before resubmitting.
 
 Microsoft could not test the app because login is required.
 
-Add reviewer instructions in the submission's testing notes using real credentials.
+MindNest uses role-based accounts, so the reviewer package must contain four
+real accounts under the same approved institution:
 
-Suggested note format:
+1. Institution Admin
+2. Counselor
+3. Student
+4. Staff
 
-```text
-Certification accounts for review:
+An automated seeding helper now exists for this:
 
-Institution Admin
-Email: <admin-review-email>
-Password: <admin-review-password>
+1. Copy `backend/push-dispatch/reviewer-accounts.config.example.json` to
+   `backend/push-dispatch/reviewer-accounts.config.local.json`.
+2. Fill in the real review emails, passwords, phone numbers, and institution
+   details.
+3. Run:
 
-Counselor
-Email: <counselor-review-email>
-Password: <counselor-review-password>
+   ```bash
+   cd backend/push-dispatch
+   npm install
+   npm run create:reviewer-accounts -- --config reviewer-accounts.config.local.json --service-account C:\path\to\service-account.json
+   ```
 
-Student
-Email: <student-review-email>
-Password: <student-review-password>
+   If you prefer environment variables, the script also accepts:
+   - `FIREBASE_SERVICE_ACCOUNT_PATH`
+   - `GOOGLE_APPLICATION_CREDENTIALS`
+   - `FIREBASE_SERVICE_ACCOUNT_JSON`
 
-Staff
-Email: <staff-review-email>
-Password: <staff-review-password>
+4. Paste the generated notes from
+   `docs/windows_store_review_notes.local.txt` into the Partner Center testing
+   notes field.
 
-Steps:
-1. Launch MindNest.
-2. Sign in with the Institution Admin account first.
-3. Review the institution admin workspace and invite/member flows.
-4. Sign out and then sign in with the Counselor, Student, and Staff accounts to review each role-specific workspace.
-5. Use the dashboard, appointments, counselor directory, notifications, and other visible product areas for review.
+What the script prepares:
 
-Notes:
-- This account is intended for Microsoft Store certification only.
-- MindNest uses role-based accounts, so one account cannot accurately represent all roles.
-- All review accounts belong to the same institution so the full institution flow can be tested end to end.
-```
+- Firebase Auth users for all four reviewer roles
+- An approved institution shared by those accounts
+- Active role memberships for admin, counselor, student, and staff
+- Accepted invite history for counselor, student, and staff
+- Completed onboarding state for student and staff
+- Completed counselor setup data for the counselor account
 
 ### 2. Replace login-only screenshots
 
@@ -74,5 +78,5 @@ Recommended rules:
 
 1. Upload the rebuilt `mindnest.msix` package if needed.
 2. Replace the Store screenshots with real in-app screenshots.
-3. Add the certification test account in the testing notes.
+3. Add the generated reviewer notes in the testing notes.
 4. Resubmit for certification.

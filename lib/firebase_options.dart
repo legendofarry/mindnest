@@ -52,7 +52,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDd2S-KYPs1239bT9-v08A07Dlj_zW8ESc',
-    appId: '1:253632223556:android:15dc6e869834b77c56df11',
+    appId: '1:253632223556:android:a3aae67a1cdc023056df11',
     messagingSenderId: '253632223556',
     projectId: 'mindnest-923fb',
     storageBucket: 'mindnest-923fb.firebasestorage.app',
@@ -64,6 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '253632223556',
     projectId: 'mindnest-923fb',
     storageBucket: 'mindnest-923fb.firebasestorage.app',
+    iosClientId: '253632223556-hcuorduiib3ngfkmie07al0veei5m04i.apps.googleusercontent.com',
     iosBundleId: 'com.example.mindnest',
   );
 
@@ -73,6 +74,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '253632223556',
     projectId: 'mindnest-923fb',
     storageBucket: 'mindnest-923fb.firebasestorage.app',
+    iosClientId: '253632223556-hcuorduiib3ngfkmie07al0veei5m04i.apps.googleusercontent.com',
     iosBundleId: 'com.example.mindnest',
   );
 
@@ -84,4 +86,5 @@ class DefaultFirebaseOptions {
     authDomain: 'mindnest-923fb.firebaseapp.com',
     storageBucket: 'mindnest-923fb.firebasestorage.app',
   );
+
 }

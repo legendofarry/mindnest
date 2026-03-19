@@ -48,3 +48,7 @@ app.*.map.json
 .env
 .env.*
 !.env.example
+backend/push-dispatch/reviewer-accounts.config.local.json
+docs/windows_store_review_notes.local.txt
+key.properties
+upload-keystore.jks
