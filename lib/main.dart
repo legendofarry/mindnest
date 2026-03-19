@@ -9,9 +9,11 @@ import 'package:mindnest/app/mindnest_app.dart';
 import 'package:mindnest/core/firebase/firebase_initializer.dart';
 import 'package:mindnest/features/auth/data/auth_session_manager.dart';
 import 'package:mindnest/features/notifications/data/push_notification_service.dart';
+import 'package:window_manager/window_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _configureWindowsLaunchWindow();
   await _applyFullscreenMode();
 
   try {
@@ -46,6 +48,34 @@ Future<void> main() async {
   runApp(
     const ProviderScope(child: _FullscreenModeEnforcer(child: MindNestApp())),
   );
+}
+
+Future<void> _configureWindowsLaunchWindow() async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
+    return;
+  }
+
+  await windowManager.ensureInitialized();
+
+  const windowOptions = WindowOptions(
+    backgroundColor: Colors.transparent,
+    titleBarStyle: TitleBarStyle.hidden,
+    skipTaskbar: false,
+  );
+
+  final completer = Completer<void>();
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    try {
+      await windowManager.show();
+      await windowManager.focus();
+      await windowManager.maximize();
+      completer.complete();
+    } catch (error, stackTrace) {
+      completer.completeError(error, stackTrace);
+    }
+  });
+
+  await completer.future;
 }
 
 Future<void> _applyFullscreenMode() async {

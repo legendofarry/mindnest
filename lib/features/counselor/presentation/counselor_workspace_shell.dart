@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 
 enum CounselorWorkspaceNavSection {
@@ -550,6 +551,10 @@ class _WorkspaceHeader extends StatelessWidget {
                 },
                 active: profileHighlighted,
               ),
+              if (desktop) ...[
+                const SizedBox(width: 10),
+                const WindowsDesktopWindowControls(),
+              ],
             ],
           ),
           const SizedBox(height: 14),

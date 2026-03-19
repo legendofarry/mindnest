@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
+import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 
 class AuthDesktopShell extends StatelessWidget {
   const AuthDesktopShell({
@@ -86,6 +87,15 @@ class AuthDesktopShell extends StatelessWidget {
                     ],
                   ),
                 ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                child: WindowsDesktopWindowControls(),
               ),
             ),
           ),

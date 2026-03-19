@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/core/config/owner_config.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
+import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
@@ -220,6 +221,9 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
             icon: const Icon(Icons.logout_rounded),
             label: const Text('Logout'),
           ),
+          const SizedBox(width: 8),
+          const WindowsDesktopWindowControls(),
+          const SizedBox(width: 8),
         ],
       ),
       child: !isOwner

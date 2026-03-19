@@ -15,7 +15,7 @@
 - [ ] Windows `Continue with Google` should work fully
 - [ ] Windows breadcrumbs UI/UX redesign in the Create Account screen
 - [ ] Replace placeholder Windows app icon in `windows/runner/resources/app_icon.ico`
-- [ ] Decide Windows launch behavior: normal window, maximized, or fullscreen
+- [x] Decide Windows launch behavior: fullscreen on launch
 - [ ] Fix Windows launch presentation so the app behaves like a true desktop app
 - [ ] Add top-right in-app window controls on Windows auth screens and main dashboard screens so users can exit the app when the native top bar is removed
 - [ ] Investigate and fix the Windows startup layout/content-height issue if it still appears
@@ -56,7 +56,7 @@
 
 ## Later fixes
 
-- [ ] Windows fullscreen or maximized launch behavior
+- [ ] Implement Windows fullscreen on launch behavior
 - [ ] Windows native title bar vs custom title bar decision
 - [ ] Windows top-strip/content-fill issue
 - [ ] Full QA pass after initial publishing setup

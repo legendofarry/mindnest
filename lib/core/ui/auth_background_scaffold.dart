@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 
 class AuthBackgroundScaffold extends StatefulWidget {
   const AuthBackgroundScaffold({
@@ -65,6 +66,15 @@ class _AuthBackgroundScaffoldState extends State<AuthBackgroundScaffold>
                         constraints: BoxConstraints(maxWidth: widget.maxWidth),
                         child: widget.child,
                       ),
+                    ),
+                  ),
+                ),
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                      child: WindowsDesktopWindowControls(),
                     ),
                   ),
                 ),

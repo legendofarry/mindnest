@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -1566,6 +1567,10 @@ class _AdminWorkspaceHeader extends StatelessWidget {
                 icon: const Icon(Icons.logout_rounded),
                 tooltip: 'Logout',
               ),
+              if (desktop) ...[
+                const SizedBox(width: 10),
+                const WindowsDesktopWindowControls(),
+              ],
             ],
           ),
           const SizedBox(height: 14),

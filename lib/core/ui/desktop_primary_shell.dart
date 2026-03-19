@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
+import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
@@ -158,6 +159,8 @@ class DesktopPrimaryShell extends ConsumerWidget {
                         : const Color(0xFF16324F)),
             ),
           ),
+          const SizedBox(width: 10),
+          const WindowsDesktopWindowControls(),
           const SizedBox(width: 24),
         ],
         flexibleSpace: Container(
