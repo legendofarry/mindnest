@@ -271,6 +271,19 @@ class AuthRepository {
       return credential;
     }
 
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      final provider = GoogleAuthProvider()
+        ..setCustomParameters(<String, String>{'prompt': 'select_account'});
+      final credential = await _auth.signInWithProvider(provider);
+      final user = credential.user;
+      if (user == null) {
+        throw Exception('Unable to complete Google sign-in.');
+      }
+      await AuthSessionManager.markLogin(rememberMe: rememberMe);
+      await _ensureProfileExists(user);
+      return credential;
+    }
+
     final googleSignIn = GoogleSignIn(scopes: const <String>['email']);
     final googleUser = await googleSignIn.signIn();
     if (googleUser == null) {

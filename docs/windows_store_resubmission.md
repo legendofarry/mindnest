@@ -10,7 +10,7 @@
 
 These two items must be completed in Partner Center before resubmitting.
 
-### 1. Provide a working test account
+### 1. Provide working test accounts
 
 Microsoft could not test the app because login is required.
 
@@ -19,20 +19,35 @@ Add reviewer instructions in the submission's testing notes using real credentia
 Suggested note format:
 
 ```text
-Test account for certification:
+Certification accounts for review:
 
-Email: <review-account-email>
-Password: <review-account-password>
+Institution Admin
+Email: <admin-review-email>
+Password: <admin-review-password>
+
+Counselor
+Email: <counselor-review-email>
+Password: <counselor-review-password>
+
+Student
+Email: <student-review-email>
+Password: <student-review-password>
+
+Staff
+Email: <staff-review-email>
+Password: <staff-review-password>
 
 Steps:
 1. Launch MindNest.
-2. Sign in with the test account above.
-3. If prompted, continue to the main dashboard.
-4. Use the dashboard, appointments, counselor directory, notifications, and other visible product areas for review.
+2. Sign in with the Institution Admin account first.
+3. Review the institution admin workspace and invite/member flows.
+4. Sign out and then sign in with the Counselor, Student, and Staff accounts to review each role-specific workspace.
+5. Use the dashboard, appointments, counselor directory, notifications, and other visible product areas for review.
 
 Notes:
 - This account is intended for Microsoft Store certification only.
-- If a second role is needed for testing, provide a second account with its own credentials and role description.
+- MindNest uses role-based accounts, so one account cannot accurately represent all roles.
+- All review accounts belong to the same institution so the full institution flow can be tested end to end.
 ```
 
 ### 2. Replace login-only screenshots
