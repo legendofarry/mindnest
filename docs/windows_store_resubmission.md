@@ -74,9 +74,50 @@ Recommended rules:
 - Avoid using only auth screens.
 - Capture clean desktop screenshots with readable UI.
 
+### 3. Fix the Partner Center support website URL
+
+The March 20, 2026 certification report flagged the submitted website URL as
+non-functional. The broken URL in the report is:
+
+- `https://mindestke.netlify.app/`
+
+That hostname returns `404`. The working MindNest site currently resolving with
+HTTP `200` is:
+
+- `https://mindnestke.netlify.app/`
+
+Action in Partner Center:
+
+1. Open the Store listing support information section.
+2. Replace the broken URL with `https://mindnestke.netlify.app/`.
+3. Save the listing metadata before resubmitting.
+
+### 4. Restrict availability to tested markets
+
+The March 20, 2026 certification report also states that sign-in fails on a
+Chinese network connection. That aligns with the current app architecture:
+MindNest depends on Firebase during startup and for authentication
+(`lib/main.dart`, `lib/core/firebase/firebase_initializer.dart`,
+`lib/features/auth/data/auth_repository.dart`), so markets where that
+dependency is not reliably reachable should not be selected in Partner Center.
+
+Action in Partner Center:
+
+1. Change `Pricing and availability` from `All worldwide markets` to
+   `Restrict to specific markets`.
+2. Remove China and any other market that has not been tested successfully with
+   the current Firebase-based sign-in flow.
+3. Clear `Make my product available in any future market...` so unsupported
+   markets are not added automatically later.
+
+Do not claim worldwide availability again until sign-in has been validated in
+those markets with the production build.
+
 ## Resubmission flow
 
 1. Upload the rebuilt `mindnest.msix` package if needed.
 2. Replace the Store screenshots with real in-app screenshots.
 3. Add the generated reviewer notes in the testing notes.
-4. Resubmit for certification.
+4. Fix the support website URL in the Store listing.
+5. Restrict Store availability to the markets where sign-in is supported.
+6. Resubmit for certification.

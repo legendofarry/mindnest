@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -100,6 +103,113 @@ extension AdminWorkspaceViewX on AdminWorkspaceView {
         return 'Review every invite state across the institution, not just the ones still pending.';
     }
   }
+}
+
+const Duration _windowsFirebasePollInterval = Duration(seconds: 2);
+
+bool get _useWindowsFirebasePollingWorkaround =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+Stream<T> _buildWindowsPollingStream<T>({
+  required Future<T> Function() load,
+  required String Function(T value) signature,
+}) {
+  late final StreamController<T> controller;
+  Timer? timer;
+  String? lastEmissionSignature;
+
+  Future<void> emitIfChanged() async {
+    if (controller.isClosed) {
+      return;
+    }
+    try {
+      final value = await load();
+      final nextSignature = 'value:${signature(value)}';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.add(value);
+      }
+    } catch (error, stackTrace) {
+      final nextSignature = 'error:$error';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.addError(error, stackTrace);
+      }
+    }
+  }
+
+  controller = StreamController<T>(
+    onListen: () {
+      unawaited(emitIfChanged());
+      timer = Timer.periodic(_windowsFirebasePollInterval, (_) {
+        unawaited(emitIfChanged());
+      });
+    },
+    onCancel: () {
+      timer?.cancel();
+    },
+  );
+
+  return controller.stream;
+}
+
+String _mapSignature(Map<String, dynamic>? data) {
+  if (data == null || data.isEmpty) {
+    return 'null';
+  }
+  final keys = data.keys.toList()..sort();
+  return keys.map((key) => '$key=${data[key]}').join('|');
+}
+
+String _documentSnapshotSignature(
+  DocumentSnapshot<Map<String, dynamic>> snapshot,
+) {
+  return '${snapshot.id}|${snapshot.exists}|${_mapSignature(snapshot.data())}';
+}
+
+String _querySnapshotSignature(QuerySnapshot<Map<String, dynamic>> snapshot) {
+  final docs = snapshot.docs.toList()..sort((a, b) => a.id.compareTo(b.id));
+  return docs.map((doc) => '${doc.id}|${_mapSignature(doc.data())}').join('||');
+}
+
+Stream<DocumentSnapshot<Map<String, dynamic>>> _documentSnapshotStream(
+  DocumentReference<Map<String, dynamic>> reference,
+) {
+  if (!_useWindowsFirebasePollingWorkaround) {
+    return reference.snapshots();
+  }
+  return _buildWindowsPollingStream<DocumentSnapshot<Map<String, dynamic>>>(
+    load: reference.get,
+    signature: _documentSnapshotSignature,
+  );
+}
+
+Stream<QuerySnapshot<Map<String, dynamic>>> _querySnapshotStream(
+  Query<Map<String, dynamic>> query,
+) {
+  if (!_useWindowsFirebasePollingWorkaround) {
+    return query.snapshots();
+  }
+  return _buildWindowsPollingStream<QuerySnapshot<Map<String, dynamic>>>(
+    load: query.get,
+    signature: _querySnapshotSignature,
+  );
+}
+
+Stream<int> _queryCountStream(Query<Map<String, dynamic>> query) {
+  if (!_useWindowsFirebasePollingWorkaround) {
+    return query.snapshots().map((snapshot) => snapshot.size);
+  }
+  return _buildWindowsPollingStream<int>(
+    load: () async => (await query.get()).size,
+    signature: (count) => '$count',
+  );
 }
 
 class InstitutionAdminScreen extends ConsumerStatefulWidget {
@@ -967,11 +1077,11 @@ class _InstitutionAdminScreenState
                   .limit(1000);
 
               return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: membersQuery.snapshots(),
+                stream: _querySnapshotStream(membersQuery),
                 builder: (context, membersSnapshot) {
                   final members = membersSnapshot.data?.docs ?? const [];
                   return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: invitesQuery.snapshots(),
+                    stream: _querySnapshotStream(invitesQuery),
                     builder: (context, invitesSnapshot) {
                       final invites = invitesSnapshot.data?.docs ?? const [];
 
@@ -1119,13 +1229,14 @@ class _InstitutionAdminScreenState
                               confirmAndLogout(context: context, ref: ref);
                           void onProfile() =>
                               context.push(AppRoute.institutionAdminProfile);
-                          final unreadMessagesStream = firestore
+                          final unreadMessagesQuery = firestore
                               .collection('admin_counselor_messages')
                               .where('adminId', isEqualTo: profile.id)
                               .where('senderRole', isEqualTo: 'counselor')
-                              .where('isRead', isEqualTo: false)
-                              .snapshots()
-                              .map((snap) => snap.size);
+                              .where('isRead', isEqualTo: false);
+                          final unreadMessagesStream = _queryCountStream(
+                            unreadMessagesQuery,
+                          );
                           void onMessages() =>
                               context.push(AppRoute.institutionAdminMessages);
 
@@ -1645,6 +1756,69 @@ class _AdminSidebarShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final statusCard = Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF132D41),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF1F415A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'ADMIN STATUS',
+            style: TextStyle(
+              color: Color(0xFF7FA0B5),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Row(
+            children: [
+              Icon(Icons.circle, size: 10, color: Color(0xFF10B981)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Institution sync active',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            adminName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFFBBD0DC),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onLogout,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Color(0xFF325068)),
+              ),
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text('Logout'),
+            ),
+          ),
+        ],
+      ),
+    );
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF0C2233),
@@ -1712,71 +1886,22 @@ class _AdminSidebarShell extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 26),
-            _SideNav(
-              activeView: activeView,
-              onViewSelected: onViewSelected,
-              hasUnresolvedMembers: hasUnresolvedMembers,
-            ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF132D41),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xFF1F415A)),
-              ),
+            Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
-                    'ADMIN STATUS',
-                    style: TextStyle(
-                      color: Color(0xFF7FA0B5),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Row(
-                    children: [
-                      Icon(Icons.circle, size: 10, color: Color(0xFF10B981)),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Institution sync active',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.zero,
+                      child: _SideNav(
+                        activeView: activeView,
+                        onViewSelected: onViewSelected,
+                        hasUnresolvedMembers: hasUnresolvedMembers,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    adminName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFFBBD0DC),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: onLogout,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xFF325068)),
-                      ),
-                      icon: const Icon(Icons.logout_rounded),
-                      label: const Text('Logout'),
-                    ),
-                  ),
+                  const SizedBox(height: 16),
+                  statusCard,
                 ],
               ),
             ),
@@ -2026,7 +2151,7 @@ class _HeroCardState extends State<_HeroCard> {
   Widget build(BuildContext context) {
     return GlassCard(
       child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: widget.institutionRef.snapshots(),
+        stream: _documentSnapshotStream(widget.institutionRef),
         builder: (context, snapshot) {
           final data = snapshot.data?.data();
           final name = (data?['name'] as String?) ?? widget.fallbackName;
@@ -3521,7 +3646,7 @@ class _CounselorWorkflowSettingsCardState
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: widget.institutionRef.snapshots(),
+      stream: _documentSnapshotStream(widget.institutionRef),
       builder: (context, snapshot) {
         final settings = CounselorWorkflowSettings.fromInstitutionData(
           snapshot.data?.data(),

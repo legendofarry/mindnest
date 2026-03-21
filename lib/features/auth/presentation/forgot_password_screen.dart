@@ -100,10 +100,6 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         heroDescription:
             'Enter your account email and we will send a secure reset link so '
             'you can get back to your wellness workspace.',
-        metrics: const [
-          AuthDesktopMetric(value: '187+', label: 'USERS HELPED'),
-          AuthDesktopMetric(value: '24/7', label: 'SUPPORT READY'),
-        ],
         formChild: _buildFormContent(context),
       );
     }

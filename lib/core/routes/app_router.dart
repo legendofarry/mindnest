@@ -202,6 +202,7 @@ class AppRoute {
 final appRouterProvider = Provider<GoRouter>((ref) {
   final firebaseAuth = ref.watch(firebaseAuthProvider);
   final authRepository = ref.watch(authRepositoryProvider);
+  final authStateAsync = ref.watch(authStateChangesProvider);
   final profileAsync = ref.watch(currentUserProfileProvider);
   final pendingInviteAsync = ref.watch(pendingUserInviteProvider);
   final currentAdminInstitutionAsync = ref.watch(
@@ -214,7 +215,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: AppRoute.login,
     refreshListenable: GoRouterRefreshStream(authRepository.authStateChanges()),
     redirect: (context, state) {
-      final authState = firebaseAuth.currentUser;
+      final authState = authStateAsync.valueOrNull ?? firebaseAuth.currentUser;
+      final isAuthStatePending = authStateAsync.isLoading && authState == null;
       final isEmailVerified = authState?.emailVerified ?? false;
       final location = state.matchedLocation;
       final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
@@ -253,6 +255,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.institutionAdminMessages;
 
       try {
+        if (isAuthStatePending) {
+          return null;
+        }
+
         if (authState == null) {
           if (location == AppRoute.inviteAccept) {
             return null;
@@ -313,10 +319,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             profile?.isCounselorRegistrationIntentPending ?? false;
         final needsCounselorSetup = counselorRepository.requiresSetup(profile);
         final institutionRequest = currentAdminInstitutionAsync.valueOrNull;
-        final alreadyInInstitution =
-            (profile?.institutionId ?? '').trim().isNotEmpty;
-        final pendingInviteInstitutionId =
-            (pendingInvite?.institutionId ?? '').trim();
+        final alreadyInInstitution = (profile?.institutionId ?? '')
+            .trim()
+            .isNotEmpty;
+        final pendingInviteInstitutionId = (pendingInvite?.institutionId ?? '')
+            .trim();
 
         // 3. Verified but counselor-registration users stay on the waiting
         // screen even after an invite arrives so they can respond there or
@@ -763,8 +770,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoute.institutionAdminProfile,
-        builder: (context, state) =>
-            const InstitutionAdminProfileScreen(),
+        builder: (context, state) => const InstitutionAdminProfileScreen(),
       ),
       GoRoute(
         path: AppRoute.institutionAdminMessages,

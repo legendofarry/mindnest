@@ -9,11 +9,13 @@ class AuthBackgroundScaffold extends StatefulWidget {
     required this.child,
     this.maxWidth = 430,
     this.fallingSnow = false,
+    this.scrollable = true,
   });
 
   final Widget child;
   final double maxWidth;
   final bool fallingSnow;
+  final bool scrollable;
 
   @override
   State<AuthBackgroundScaffold> createState() => _AuthBackgroundScaffoldState();
@@ -34,6 +36,11 @@ class _AuthBackgroundScaffoldState extends State<AuthBackgroundScaffold>
 
   @override
   Widget build(BuildContext context) {
+    final constrainedChild = ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: widget.maxWidth),
+      child: widget.child,
+    );
+
     return Scaffold(
       body: AnimatedBuilder(
         animation: _controller,
@@ -56,16 +63,15 @@ class _AuthBackgroundScaffoldState extends State<AuthBackgroundScaffold>
                   ),
                 ),
                 SafeArea(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 20,
-                      ),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: widget.maxWidth),
-                        child: widget.child,
-                      ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 20,
+                    ),
+                    child: Center(
+                      child: widget.scrollable
+                          ? SingleChildScrollView(child: constrainedChild)
+                          : constrainedChild,
                     ),
                   ),
                 ),

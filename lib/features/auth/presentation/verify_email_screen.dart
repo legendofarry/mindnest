@@ -114,9 +114,8 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
         return;
       }
       // Refresh profile so role/institution is current before routing.
-      await ref.refresh(currentUserProfileProvider.future);
       final refreshedProfile =
-          ref.read(currentUserProfileProvider).valueOrNull ?? profile;
+          await ref.refresh(currentUserProfileProvider.future) ?? profile;
       if (!mounted) return;
       context.go(_resolveNextRoute(refreshedProfile));
     } finally {
@@ -128,7 +127,6 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(authStateChangesProvider).valueOrNull;
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
 
     return AuthBackgroundScaffold(
@@ -231,8 +229,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                       border: Border.all(color: const Color(0xFFB3ECDD)),
                     ),
                     child: const Text(
-                      "Didn't receive the email? Please check your Spam or Junk folder. "
-                      "If you find it there, mark it as \"Not Spam\" so future emails arrive in your inbox.",
+                      "Didn't receive the email? Please check your Spam or Junk folder. If you find it there, mark it as \"Not Spam\" so future emails arrive in your inbox.",
                       style: TextStyle(
                         color: Color(0xFF0D6F69),
                         fontWeight: FontWeight.w600,

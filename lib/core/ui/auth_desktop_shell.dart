@@ -9,7 +9,7 @@ class AuthDesktopShell extends StatelessWidget {
     required this.heroHighlightText,
     required this.heroBaseText,
     required this.heroDescription,
-    required this.metrics,
+    this.heroSupplement,
     this.formMaxWidth = 560,
   });
 
@@ -17,7 +17,7 @@ class AuthDesktopShell extends StatelessWidget {
   final String heroHighlightText;
   final String heroBaseText;
   final String heroDescription;
-  final List<AuthDesktopMetric> metrics;
+  final Widget? heroSupplement;
   final double formMaxWidth;
 
   @override
@@ -45,7 +45,7 @@ class AuthDesktopShell extends StatelessWidget {
                           heroHighlightText: heroHighlightText,
                           heroBaseText: heroBaseText,
                           heroDescription: heroDescription,
-                          metrics: metrics,
+                          heroSupplement: heroSupplement,
                         ),
                       ),
                       const SizedBox(width: 54),
@@ -105,28 +105,23 @@ class AuthDesktopShell extends StatelessWidget {
   }
 }
 
-class AuthDesktopMetric {
-  const AuthDesktopMetric({required this.value, required this.label});
-
-  final String value;
-  final String label;
-}
-
 class _AuthDesktopHero extends StatelessWidget {
   const _AuthDesktopHero({
     required this.heroHighlightText,
     required this.heroBaseText,
     required this.heroDescription,
-    required this.metrics,
+    this.heroSupplement,
   });
 
   final String heroHighlightText;
   final String heroBaseText;
   final String heroDescription;
-  final List<AuthDesktopMetric> metrics;
+  final Widget? heroSupplement;
 
   @override
   Widget build(BuildContext context) {
+    final hasDescription = heroDescription.trim().isNotEmpty;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 28, 24, 20),
       child: Column(
@@ -176,65 +171,31 @@ class _AuthDesktopHero extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 30),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 700),
-            child: Text(
-              heroDescription,
-              style: const TextStyle(
-                color: Color(0xFF4C607A),
-                fontSize: 31,
-                height: 0,
-                fontWeight: FontWeight.w500,
-                letterSpacing: -0.3,
+          if (hasDescription) ...[
+            const SizedBox(height: 30),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 700),
+              child: Text(
+                heroDescription,
+                style: const TextStyle(
+                  color: Color(0xFF4C607A),
+                  fontSize: 31,
+                  height: 1.15,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: -0.3,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 54),
-          Row(
-            children: [
-              for (var i = 0; i < metrics.length; i++) ...[
-                _AuthDesktopMetricItem(metric: metrics[i]),
-                if (i < metrics.length - 1) const SizedBox(width: 54),
-              ],
-            ],
-          ),
+          ],
+          if (heroSupplement != null) ...[
+            SizedBox(height: hasDescription ? 34 : 42),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: heroSupplement!,
+            ),
+          ],
         ],
       ),
-    );
-  }
-}
-
-class _AuthDesktopMetricItem extends StatelessWidget {
-  const _AuthDesktopMetricItem({required this.metric});
-
-  final AuthDesktopMetric metric;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          metric.value,
-          style: const TextStyle(
-            color: Color(0xFF0F172A),
-            fontSize: 49,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1.2,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          metric.label,
-          style: const TextStyle(
-            color: Color(0xFF0E9B90),
-            fontSize: 15,
-            letterSpacing: 1.8,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
     );
   }
 }

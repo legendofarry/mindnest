@@ -464,10 +464,6 @@ class _RegisterInstitutionScreenState
         heroDescription:
             'Create your admin account, generate join access, and onboard '
             'counselors and members in one secure flow.',
-        metrics: const [
-          AuthDesktopMetric(value: '3+', label: 'INSTITUTIONS'),
-          AuthDesktopMetric(value: '24/7', label: 'SUPPORT READY'),
-        ],
         formChild: _buildFormContent(context),
       );
     }

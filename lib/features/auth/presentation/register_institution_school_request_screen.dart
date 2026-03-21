@@ -120,13 +120,6 @@ class _RegisterInstitutionSchoolRequestScreenState
         heroBaseText: 'for review.',
         heroDescription:
             'Search the approved catalog first. If your institution is truly not listed, submit the name and we will review it for onboarding.',
-        metrics: [
-          AuthDesktopMetric(
-            value: '${kCatalogSchools.length}',
-            label: 'APPROVED SCHOOLS',
-          ),
-          const AuthDesktopMetric(value: '1', label: 'NAME REQUIRED'),
-        ],
         formMaxWidth: 660,
         formChild: _buildContent(context),
       );

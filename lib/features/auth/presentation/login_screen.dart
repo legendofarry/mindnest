@@ -426,9 +426,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   border: InputBorder.none,
                   hintText: 'alex@example.com',
                   prefixIcon: const Icon(Icons.mail_outline_rounded),
-                  hintStyle: const TextStyle(
-                    color: Color(0xFF94A3B8),
-                  ),
+                  hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
                 ),
               ),
             ),
@@ -518,9 +516,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           : Icons.visibility_rounded,
                     ),
                   ),
-                  hintStyle: const TextStyle(
-                    color: Color(0xFF94A3B8),
-                  ),
+                  hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
                 ),
               ),
             ),
@@ -626,52 +622,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     borderRadius: BorderRadius.circular(17),
                   ),
                 ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: _isSubmitting
-                          ? const Text(
-                              'Signing in...',
-                              key: ValueKey('login-busy'),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: _isSubmitting
+                      ? const Text(
+                          'Signing in...',
+                          key: ValueKey('login-busy'),
+                          style: TextStyle(
+                            fontSize: 17.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        )
+                      : _isGoogleSubmitting
+                      ? const Text(
+                          'Please wait...',
+                          key: ValueKey('login-google'),
+                          style: TextStyle(
+                            fontSize: 17.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Row(
+                          key: const ValueKey('login-ready'),
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Text(
+                              'Log In',
                               style: TextStyle(
                                 fontSize: 17.5,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.white,
                               ),
-                            )
-                          : _isGoogleSubmitting
-                          ? const Text(
-                              'Please wait...',
-                              key: ValueKey('login-google'),
-                              style: TextStyle(
-                                fontSize: 17.5,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Row(
-                              key: const ValueKey('login-ready'),
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Text(
-                                  'Log In',
-                                  style: TextStyle(
-                                    fontSize: 17.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                SizedBox(width: 8),
-                                Icon(
-                                  Icons.arrow_forward_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ],
                             ),
-                    ),
-                  ),
+                            SizedBox(width: 8),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ],
+                        ),
                 ),
+              ),
+            ),
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,

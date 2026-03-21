@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mindnest/features/auth/data/auth_session_manager.dart';
+import 'package:mindnest/features/auth/data/windows_google_oauth_flow.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 
 class AuthRepository {
@@ -14,13 +17,39 @@ class AuthRepository {
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
+  final WindowsGoogleOAuthFlow _windowsGoogleOAuthFlow =
+      WindowsGoogleOAuthFlow();
   static const _kenyaPrefix = '+254';
+  static const Duration _windowsPollInterval = Duration(seconds: 2);
 
-  Stream<User?> authStateChanges() => _auth.userChanges();
+  bool get _useWindowsPollingWorkaround =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+  Stream<User?> authStateChanges() {
+    if (!_useWindowsPollingWorkaround) {
+      return _auth.userChanges();
+    }
+
+    return _buildWindowsPollingStream<User?>(
+      load: () async => _auth.currentUser,
+      signature: (user) => user == null
+          ? 'signed-out'
+          : '${user.uid}|${user.email ?? ''}|${user.emailVerified}|${user.displayName ?? ''}|${user.phoneNumber ?? ''}',
+    );
+  }
 
   User? get currentAuthUser => _auth.currentUser;
 
   Stream<UserProfile?> userProfileChanges(String userId) {
+    if (_useWindowsPollingWorkaround) {
+      return _buildWindowsPollingStream<UserProfile?>(
+        load: () async => _fetchUserProfile(userId),
+        signature: (profile) => profile == null
+            ? 'missing'
+            : '${profile.id}|${profile.email}|${profile.name}|${profile.role.name}|${profile.institutionId ?? ''}|${profile.institutionName ?? ''}|${profile.phoneNumber ?? ''}|${profile.additionalPhoneNumber ?? ''}|${profile.registrationIntent ?? ''}|${profile.phoneNumbers.join(',')}',
+      );
+    }
+
     return _firestore.collection('users').doc(userId).snapshots().map((doc) {
       if (!doc.exists || doc.data() == null) {
         return null;
@@ -272,9 +301,12 @@ class AuthRepository {
     }
 
     if (defaultTargetPlatform == TargetPlatform.windows) {
-      final provider = GoogleAuthProvider()
-        ..setCustomParameters(<String, String>{'prompt': 'select_account'});
-      final credential = await _auth.signInWithProvider(provider);
+      final googleTokens = await _windowsGoogleOAuthFlow.signIn();
+      final providerCredential = GoogleAuthProvider.credential(
+        idToken: googleTokens.idToken,
+        accessToken: googleTokens.accessToken,
+      );
+      final credential = await _auth.signInWithCredential(providerCredential);
       final user = credential.user;
       if (user == null) {
         throw Exception('Unable to complete Google sign-in.');
@@ -296,8 +328,7 @@ class AuthRepository {
     );
 
     try {
-      final credential =
-          await _auth.signInWithCredential(providerCredential);
+      final credential = await _auth.signInWithCredential(providerCredential);
       final user = credential.user;
       if (user == null) {
         throw Exception('Unable to complete Google sign-in.');
@@ -348,8 +379,9 @@ class AuthRepository {
     }
 
     final normalizedPrimary = _normalizeRequiredKenyaPhone(phoneNumber);
-    final normalizedAdditional =
-        _normalizeOptionalKenyaPhone(additionalPhoneNumber);
+    final normalizedAdditional = _normalizeOptionalKenyaPhone(
+      additionalPhoneNumber,
+    );
     if (normalizedAdditional == normalizedPrimary) {
       throw Exception(
         'Additional mobile number must be different from primary mobile number.',
@@ -426,8 +458,9 @@ class AuthRepository {
       for (final phone in previousPhones) {
         final docId = _phoneRegistryDocId(phone);
         if (registryIds.contains(docId)) continue;
-        final staleRef =
-            _firestore.collection('phone_number_registry').doc(docId);
+        final staleRef = _firestore
+            .collection('phone_number_registry')
+            .doc(docId);
         final staleSnapshot = await transaction.get(staleRef);
         final ownerUid = (staleSnapshot.data()?['uid'] as String?) ?? '';
         if (ownerUid == user.uid) {
@@ -441,6 +474,64 @@ class AuthRepository {
 
   Future<void> reloadCurrentUser() async {
     await _auth.currentUser?.reload();
+  }
+
+  Future<UserProfile?> _fetchUserProfile(String userId) async {
+    final snapshot = await _firestore.collection('users').doc(userId).get();
+    final data = snapshot.data();
+    if (!snapshot.exists || data == null) {
+      return null;
+    }
+    return UserProfile.fromMap(snapshot.id, data);
+  }
+
+  Stream<T> _buildWindowsPollingStream<T>({
+    required Future<T> Function() load,
+    required String Function(T value) signature,
+  }) {
+    late final StreamController<T> controller;
+    Timer? timer;
+    String? lastEmissionSignature;
+
+    Future<void> emitIfChanged() async {
+      if (controller.isClosed) {
+        return;
+      }
+      try {
+        final value = await load();
+        final nextSignature = 'value:${signature(value)}';
+        if (nextSignature == lastEmissionSignature) {
+          return;
+        }
+        lastEmissionSignature = nextSignature;
+        if (!controller.isClosed) {
+          controller.add(value);
+        }
+      } catch (error, stackTrace) {
+        final nextSignature = 'error:$error';
+        if (nextSignature == lastEmissionSignature) {
+          return;
+        }
+        lastEmissionSignature = nextSignature;
+        if (!controller.isClosed) {
+          controller.addError(error, stackTrace);
+        }
+      }
+    }
+
+    controller = StreamController<T>(
+      onListen: () {
+        unawaited(emitIfChanged());
+        timer = Timer.periodic(_windowsPollInterval, (_) {
+          unawaited(emitIfChanged());
+        });
+      },
+      onCancel: () {
+        timer?.cancel();
+      },
+    );
+
+    return controller.stream;
   }
 
   Future<void> changePassword(String newPassword) async {
@@ -668,10 +759,7 @@ class AuthRepository {
       return value.toIso8601String();
     }
     if (value is GeoPoint) {
-      return {
-        'latitude': value.latitude,
-        'longitude': value.longitude,
-      };
+      return {'latitude': value.latitude, 'longitude': value.longitude};
     }
     if (value is Map) {
       final result = <String, dynamic>{};

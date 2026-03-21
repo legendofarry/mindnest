@@ -48,6 +48,13 @@ class PushNotificationService {
     }
     _bootstrapped = true;
 
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      // Windows auth and Firestore streams are using a plugin path that can
+      // send native events on the wrong thread in this app, so keep push
+      // notification bootstrap disabled here for stability.
+      return;
+    }
+
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
     if (!kIsWeb) {

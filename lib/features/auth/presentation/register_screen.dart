@@ -1,6 +1,5 @@
 // features/auth/presentation/register_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
@@ -29,16 +28,23 @@ class RegisterScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= _desktopBreakpoint;
+    final hasInviteContext = AppRoute.inviteQuery(
+      inviteId: inviteId ?? '',
+      invitedEmail: invitedEmail,
+      invitedName: invitedName,
+      institutionName: institutionName,
+      intendedRole: intendedRole,
+    ).isNotEmpty;
 
     if (isDesktop) {
       return AuthDesktopShell(
         heroHighlightText: 'Start your journey',
         heroBaseText: 'to better mental wellness.',
         heroDescription: '',
-        metrics: [
-          AuthDesktopMetric(value: '187+', label: 'USERS HELPED'),
-          AuthDesktopMetric(value: '3+', label: 'INSTITUTIONS'),
-        ],
+        heroSupplement: _RegisterDesktopSupportPanel(
+          hasInviteContext: hasInviteContext,
+          institutionName: institutionName,
+        ),
         formChild: _RegisterContent(
           showBrand: false,
           isDesktop: true,
@@ -114,14 +120,14 @@ class _RegisterContent extends StatelessWidget {
     final createAccountCard = _AccountTypeCard(
       icon: Icons.account_circle_outlined,
       title: 'Create Account',
-      description: '',
+      description: 'For students and staff joining an institution.',
       compact: showSideBySideChoices,
       onTap: () => context.go(_registerDetailsRoute()),
     );
     final counselorCard = _AccountTypeCard(
       icon: Icons.psychology_alt_outlined,
       title: "I'm a Counselor",
-      description: '',
+      description: 'For counselors joining an institution.',
       compact: showSideBySideChoices,
       onTap: () => context.go(
         _registerDetailsRoute(
@@ -176,7 +182,7 @@ class _RegisterContent extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0E9B90).withOpacity(0.12),
+                  color: const Color(0xFF0E9B90).withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -189,7 +195,7 @@ class _RegisterContent extends StatelessWidget {
                 child: Text(
                   _inviteQuery.isNotEmpty
                       ? 'Finish registration to accept your invitation${(institutionName ?? '').trim().isNotEmpty ? ' to ${(institutionName ?? '').trim()}' : ''}.'
-                      : "Students or staff -> Create Account\nCounselors -> I'm a Counselor",
+                      : "Students and staff: choose Create Account.\nCounselors: choose I'm a Counselor.",
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: const Color(0xFF0D6F69),
                     height: 1.4,
@@ -201,7 +207,7 @@ class _RegisterContent extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 18),
         if (_inviteQuery.isNotEmpty) ...[
           _AccountTypeCard(
             icon: Icons.mark_email_unread_rounded,
@@ -234,7 +240,7 @@ class _RegisterContent extends StatelessWidget {
             counselorCard,
           ],
         ],
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -275,6 +281,196 @@ class _RegisterContent extends StatelessWidget {
               'Register Institution',
               style: TextStyle(color: Colors.white), // text color
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RegisterDesktopSupportPanel extends StatelessWidget {
+  const _RegisterDesktopSupportPanel({
+    required this.hasInviteContext,
+    this.institutionName,
+  });
+
+  final bool hasInviteContext;
+  final String? institutionName;
+
+  @override
+  Widget build(BuildContext context) {
+    return _DesktopSupportCard(
+      eyebrow: hasInviteContext ? 'What Happens Next' : 'How Sign Up Works',
+      title: hasInviteContext
+          ? 'Finish sign up in three guided steps.'
+          : 'Get started in three simple steps.',
+      child: Column(
+        children: hasInviteContext
+            ? [
+                _DesktopStepRow(
+                  number: '1',
+                  title: 'Use the invited email',
+                  description:
+                      'Create your account with the same email that received the invitation.',
+                ),
+                const SizedBox(height: 14),
+                _DesktopStepRow(
+                  number: '2',
+                  title: 'Verify your email',
+                  description:
+                      'We will send a verification email before you continue.',
+                ),
+                const SizedBox(height: 14),
+                _DesktopStepRow(
+                  number: '3',
+                  title: 'Join the workspace',
+                  description: (institutionName ?? '').trim().isEmpty
+                      ? 'After you sign in, you can accept the invitation and enter your workspace.'
+                      : 'After you sign in, you can join ${(institutionName ?? '').trim()}.',
+                ),
+              ]
+            : const [
+                _DesktopStepRow(
+                  number: '1',
+                  title: 'Choose your account type',
+                  description:
+                      'Pick Create Account for students and staff, or I\'m a Counselor if you will join as a counselor.',
+                ),
+                SizedBox(height: 14),
+                _DesktopStepRow(
+                  number: '2',
+                  title: 'Enter your details',
+                  description:
+                      'Add your name, email, phone number, and password on the next screen.',
+                ),
+                SizedBox(height: 14),
+                _DesktopStepRow(
+                  number: '3',
+                  title: 'Verify your email',
+                  description:
+                      'Open the verification email we send you, then continue into MindNest.',
+                ),
+              ],
+      ),
+    );
+  }
+}
+
+class _DesktopSupportCard extends StatelessWidget {
+  const _DesktopSupportCard({
+    required this.eyebrow,
+    required this.title,
+    required this.child,
+  });
+
+  final String eyebrow;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFD5E8EC)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            eyebrow,
+            style: const TextStyle(
+              color: Color(0xFF0E9B90),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFF0F172A),
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              height: 1.1,
+            ),
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopStepRow extends StatelessWidget {
+  const _DesktopStepRow({
+    required this.number,
+    required this.title,
+    required this.description,
+  });
+
+  final String number;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F7F4),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            number,
+            style: const TextStyle(
+              color: Color(0xFF0D6F69),
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: const TextStyle(
+                  color: Color(0xFF516784),
+                  fontSize: 14,
+                  height: 1.45,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -382,7 +578,7 @@ class _AccountTypeCardState extends State<_AccountTypeCard> {
               Text(
                 widget.description,
                 style: descriptionStyle,
-                maxLines: widget.compact ? 5 : null,
+                maxLines: widget.compact ? 4 : null,
                 overflow: widget.compact ? TextOverflow.ellipsis : null,
               ),
             ],

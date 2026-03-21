@@ -100,6 +100,37 @@ class InstitutionRepository {
         });
   }
 
+  Future<UserInvite?> getPendingInviteForUid(String uid) async {
+    final normalizedUid = uid.trim();
+    if (normalizedUid.isEmpty) {
+      return null;
+    }
+
+    final snapshot = await _firestore
+        .collection('user_invites')
+        .where('inviteeUid', isEqualTo: normalizedUid)
+        .where('status', isEqualTo: UserInviteStatus.pending.name)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      return null;
+    }
+
+    for (final doc in snapshot.docs) {
+      final invite = UserInvite.fromMap(doc.id, doc.data());
+      if (invite.isExpired) {
+        continue;
+      }
+      final revokedAt = _asUtcDate(doc.data()['revokedAt']);
+      if (revokedAt != null) {
+        continue;
+      }
+      return invite;
+    }
+
+    return null;
+  }
+
   /// Returns all active (pending and not expired/revoked) invites for a user.
   Stream<List<UserInvite>> pendingInvitesForUid(String uid) {
     final normalizedUid = uid.trim();
@@ -129,6 +160,34 @@ class InstitutionRepository {
         });
   }
 
+  Future<List<UserInvite>> getPendingInvitesForUid(String uid) async {
+    final normalizedUid = uid.trim();
+    if (normalizedUid.isEmpty) {
+      return const <UserInvite>[];
+    }
+
+    final snapshot = await _firestore
+        .collection('user_invites')
+        .where('inviteeUid', isEqualTo: normalizedUid)
+        .where('status', isEqualTo: UserInviteStatus.pending.name)
+        .get();
+
+    final invites = <UserInvite>[];
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final invite = UserInvite.fromMap(doc.id, data);
+      if (!invite.isPending) {
+        continue;
+      }
+      final revokedAt = _asUtcDate(data['revokedAt']);
+      if (revokedAt != null) {
+        continue;
+      }
+      invites.add(invite);
+    }
+    return invites;
+  }
+
   Stream<UserInvite?> pendingInviteByIdForUid({
     required String inviteId,
     required String uid,
@@ -154,6 +213,39 @@ class InstitutionRepository {
       }
       return invite;
     });
+  }
+
+  Future<UserInvite?> getPendingInviteByIdForUid({
+    required String inviteId,
+    required String uid,
+  }) async {
+    final normalizedUid = uid.trim();
+    final snapshot = await _firestore.collection('user_invites').doc(inviteId).get();
+    final data = snapshot.data();
+    if (data == null) {
+      return null;
+    }
+    final invite = UserInvite.fromMap(snapshot.id, data);
+    if (!invite.isPending) {
+      return null;
+    }
+    if (invite.inviteeUid != normalizedUid) {
+      return null;
+    }
+    final revokedAt = _asUtcDate(data['revokedAt']);
+    if (revokedAt != null) {
+      return null;
+    }
+    return invite;
+  }
+
+  Future<UserInvite?> getInviteById(String inviteId) async {
+    final snapshot = await _firestore.collection('user_invites').doc(inviteId).get();
+    final data = snapshot.data();
+    if (data == null) {
+      return null;
+    }
+    return UserInvite.fromMap(snapshot.id, data);
   }
 
   Future<bool> isInstitutionCatalogIdAvailable(
@@ -1306,6 +1398,43 @@ class InstitutionRepository {
                 return <String, dynamic>{'id': institutionDoc.id, ...data};
               });
         });
+  }
+
+  Future<Map<String, dynamic>?> getCurrentAdminInstitution() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      return null;
+    }
+
+    final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+    final institutionId = userDoc.data()?['institutionId'] as String?;
+    if (institutionId == null || institutionId.isEmpty) {
+      return null;
+    }
+
+    final institutionDoc = await _firestore
+        .collection('institutions')
+        .doc(institutionId)
+        .get();
+    final data = institutionDoc.data();
+    if (data == null) {
+      return null;
+    }
+    return <String, dynamic>{'id': institutionDoc.id, ...data};
+  }
+
+  Future<Map<String, dynamic>?> getInstitutionDocument(String institutionId) async {
+    final normalized = institutionId.trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final doc = await _firestore.collection('institutions').doc(normalized).get();
+    final data = doc.data();
+    if (data == null) {
+      return null;
+    }
+    return <String, dynamic>{'id': doc.id, ...data};
   }
 
   Future<void> updateCounselorWorkflowSettings({
