@@ -49,7 +49,8 @@ import 'package:mindnest/features/onboarding/presentation/onboarding_loading_scr
 import 'package:mindnest/features/onboarding/presentation/onboarding_questionnaire_screen.dart';
 
 class AppRoute {
-  static const login = '/login';
+  static const login = '/';
+  static const legacyLogin = '/login';
   static const register = '/register';
   static const registerDetails = '/register-details';
   static const registerInstitution = '/register-institution';
@@ -605,6 +606,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
           );
         },
+      ),
+      GoRoute(
+        path: AppRoute.legacyLogin,
+        redirect: (context, state) => AppRoute.login,
       ),
       if (!isWindowsLoginOnlyMode) ...registrationRoutes,
       GoRoute(
