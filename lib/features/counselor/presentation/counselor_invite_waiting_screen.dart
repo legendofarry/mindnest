@@ -1,14 +1,18 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
-import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
+import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/models/user_invite.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class CounselorInviteWaitingScreen extends ConsumerStatefulWidget {
   const CounselorInviteWaitingScreen({super.key});
@@ -21,11 +25,18 @@ class CounselorInviteWaitingScreen extends ConsumerStatefulWidget {
 class _CounselorInviteWaitingScreenState
     extends ConsumerState<CounselorInviteWaitingScreen>
     with SingleTickerProviderStateMixin {
+  static final Uri _webAppUri = Uri.parse('https://mindnestke.netlify.app/');
+
   late final AnimationController _controller;
   late final Animation<double> _pulse;
 
   final _codeController = TextEditingController();
   bool _isSubmitting = false;
+  bool _isCheckingWindowsInvite = false;
+  bool _isOpeningWeb = false;
+  bool _isSigningOut = false;
+  bool _hasCheckedWindowsInvite = false;
+  UserInvite? _windowsInvite;
   String? _banner;
   bool _bannerIsError = false;
   String? _codeError;
@@ -77,6 +88,104 @@ class _CounselorInviteWaitingScreenState
     return message;
   }
 
+  bool get _isWindowsDesktop =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+  Future<void> _checkWindowsInvite() async {
+    final uid = ref.read(authStateChangesProvider).valueOrNull?.uid ?? '';
+    if (uid.trim().isEmpty) {
+      _showBanner('You are no longer signed in. Log in again.', isError: true);
+      return;
+    }
+
+    setState(() {
+      _isCheckingWindowsInvite = true;
+      _banner = null;
+      _windowsInvite = null;
+    });
+
+    try {
+      final invite = await ref
+          .read(institutionRepositoryProvider)
+          .getPendingInviteForUid(uid);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _hasCheckedWindowsInvite = true;
+        _windowsInvite = invite;
+        if (invite == null) {
+          _banner =
+              'No institution invite yet. Ask your institution admin to send it, then click Check Again.';
+          _bannerIsError = false;
+        } else {
+          _banner =
+              'An invite is ready for ${invite.institutionName}. Finish this counselor handoff on the web.';
+          _bannerIsError = false;
+        }
+      });
+    } catch (error) {
+      _showBanner(
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isCheckingWindowsInvite = false);
+      }
+    }
+  }
+
+  Future<void> _openWeb() async {
+    if (_isOpeningWeb) {
+      return;
+    }
+    setState(() {
+      _isOpeningWeb = true;
+      _banner = null;
+    });
+    try {
+      final launched = await launchUrl(
+        _webAppUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (launched || !mounted) {
+        return;
+      }
+      _showBanner(
+        'We could not open MindNest on the web. Visit mindnestke.netlify.app in your browser.',
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isOpeningWeb = false);
+      }
+    }
+  }
+
+  Future<void> _signOutNow() async {
+    if (_isSigningOut) {
+      return;
+    }
+    setState(() {
+      _isSigningOut = true;
+      _banner = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).signOut();
+      await syncAuthSessionState(ref);
+    } catch (error) {
+      _showBanner(
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSigningOut = false);
+      }
+    }
+  }
+
   Future<void> _accept(UserInvite invite) async {
     final code = _codeController.text.trim().toUpperCase();
     if (code.isEmpty) {
@@ -125,6 +234,9 @@ class _CounselorInviteWaitingScreenState
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= 1100;
+    if (_isWindowsDesktop) {
+      return _buildWindowsWaitingScreen(context, isDesktop);
+    }
     final inviteAsync = ref.watch(pendingUserInviteProvider);
 
     return MindNestShell(
@@ -158,6 +270,211 @@ class _CounselorInviteWaitingScreenState
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWindowsWaitingScreen(BuildContext context, bool isDesktop) {
+    return MindNestShell(
+      maxWidth: isDesktop ? 980 : 760,
+      backgroundMode: isDesktop
+          ? MindNestBackgroundMode.homeStyle
+          : MindNestBackgroundMode.defaultShell,
+      padding: EdgeInsets.fromLTRB(
+        isDesktop ? 28 : 20,
+        24,
+        isDesktop ? 28 : 20,
+        28,
+      ),
+      child: GlassCard(
+        child: Padding(
+          padding: EdgeInsets.all(isDesktop ? 28 : 22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Counselor Invite Waiting',
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                color: const Color(0xFF071937),
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.8,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Windows keeps this as a simple waiting checkpoint. When your institution invite is ready, finish the handoff on the web.',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: const Color(0xFF5E728D),
+                                fontWeight: FontWeight.w500,
+                                height: 1.45,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  OutlinedButton.icon(
+                    onPressed: _isSigningOut ? null : _signOutNow,
+                    icon: const Icon(Icons.logout_rounded),
+                    label: Text(_isSigningOut ? 'Signing out...' : 'Sign Out'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(22),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF072B52), Color(0xFF0D7FA1)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    ScaleTransition(
+                      scale: _pulse,
+                      child: Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.14),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.22),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.mark_email_unread_rounded,
+                          color: Colors.white,
+                          size: 32,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Waiting for institution invite',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 21,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _windowsInvite == null
+                                ? 'Click Check Again whenever you want to see whether the institution admin has sent your counselor invite.'
+                                : 'Invite found for ${_windowsInvite!.institutionName}. Continue on the web to review it and finish counselor setup.',
+                            style: const TextStyle(
+                              color: Color(0xFFE5F0FF),
+                              fontWeight: FontWeight.w600,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if ((_banner ?? '').trim().isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _Banner(message: _banner!, isError: _bannerIsError),
+              ],
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _PrimaryButton(
+                    label: _isCheckingWindowsInvite
+                        ? 'Checking...'
+                        : 'Check Again',
+                    onPressed: _isCheckingWindowsInvite
+                        ? null
+                        : _checkWindowsInvite,
+                    gradient: const [Color(0xFF155EEF), Color(0xFF0E9B90)],
+                    glowColor: const Color(0x33155EEF),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _isOpeningWeb ? null : _openWeb,
+                    icon: const Icon(Icons.open_in_browser_rounded),
+                    label: Text(
+                      _isOpeningWeb
+                          ? 'Opening web...'
+                          : _windowsInvite == null
+                          ? 'Open Web'
+                          : 'Open Web to Continue',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(180, 58),
+                      foregroundColor: const Color(0xFF0E9B90),
+                      side: const BorderSide(color: Color(0xFF8ADFD7)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FBFF),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFD8E4F1)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'How this works on Windows',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFF071937),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      '1. Stay signed in with your existing account.\n'
+                      '2. Click Check Again whenever you want to look for a new invite.\n'
+                      '3. When the invite is ready, open MindNest on the web to complete the counselor handoff.',
+                      style: TextStyle(
+                        color: Color(0xFF5E728D),
+                        height: 1.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (_hasCheckedWindowsInvite && _windowsInvite == null) ...[
+                      const SizedBox(height: 10),
+                      const Text(
+                        'No invite was found in the latest check.',
+                        style: TextStyle(
+                          color: Color(0xFF0D6F69),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -895,45 +1212,6 @@ class _CounselorInviteWaitingScreenState
     );
   }
 
-  Widget _heroFact(String label, String value, Color color, bool isDesktop) {
-    return Container(
-      constraints: BoxConstraints(maxWidth: isDesktop ? 300 : double.infinity),
-      padding: EdgeInsets.symmetric(
-        horizontal: isDesktop ? 16 : 14,
-        vertical: isDesktop ? 14 : 12,
-      ),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0x22FFFFFF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              color: const Color(0xFFE0EEFF),
-              fontSize: isDesktop ? 11 : 10,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.9,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: isDesktop ? 15.5 : 13.5,
-              fontWeight: FontWeight.w800,
-              height: 1.35,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _infoCard(
     bool isDesktop,
     String index,
@@ -1034,7 +1312,7 @@ class _CounselorInviteWaitingScreenState
         ? 12
         : (local.hour > 12 ? local.hour - 12 : local.hour);
     final suffix = local.hour >= 12 ? 'PM' : 'AM';
-    return '${months[local.month - 1]} ${local.day}, ${local.year} ${hour}:${local.minute.toString().padLeft(2, '0')} $suffix';
+    return '${months[local.month - 1]} $local.day, $local.year $hour:${local.minute.toString().padLeft(2, '0')} $suffix';
   }
 }
 

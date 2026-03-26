@@ -406,26 +406,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
               textAlign: TextAlign.center,
             ),
-            if (_isWindowsLoginOnlyMode) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFFFFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFB3ECDD)),
-                ),
-                child: const Text(
-                  'Windows supports existing accounts only. Create new accounts on the web, then come back here to log in.',
-                  style: TextStyle(
-                    color: Color(0xFF0D6F69),
-                    fontWeight: FontWeight.w700,
-                    height: 1.35,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
             if (_hasInviteContext) ...[
               const SizedBox(height: 12),
               Container(
@@ -668,18 +648,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
               ),
             ),
-            if (_isWindowsLoginOnlyMode) ...[
-              const SizedBox(height: 10),
-              const Text(
-                'Google sign-in on Windows only works for accounts that already exist.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color(0xFF516784),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
             const SizedBox(height: 16),
             Container(
               height: 62,
@@ -784,9 +752,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                 : AppRoute.register,
                           ),
                     child: Text(
-                      _isWindowsLoginOnlyMode
-                          ? 'Sign Up on Web'
-                          : 'Create Account',
+                      _isWindowsLoginOnlyMode ? 'Sign Up' : 'Create Account',
                       style: TextStyle(
                         color: Color(0xFF0E9B90),
                         fontWeight: FontWeight.w800,

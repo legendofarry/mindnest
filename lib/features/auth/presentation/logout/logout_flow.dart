@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
@@ -8,9 +10,18 @@ Future<void> confirmAndLogout({
   required WidgetRef ref,
   Duration loadingDuration = const Duration(seconds: 2),
 }) async {
+  final isWindowsDesktop =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+  if (isWindowsDesktop) {
+    await Future<void>.delayed(const Duration(milliseconds: 16));
+    if (!context.mounted) {
+      return;
+    }
+  }
+
   final shouldLogout = await showDialog<bool>(
     context: context,
-    barrierDismissible: true,
+    barrierDismissible: !isWindowsDesktop,
     builder: (dialogContext) => const _LogoutConfirmDialog(),
   );
 

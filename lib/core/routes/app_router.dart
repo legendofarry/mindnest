@@ -18,6 +18,7 @@ import 'package:mindnest/features/auth/presentation/register_screen.dart';
 import 'package:mindnest/features/auth/presentation/register_institution_screen.dart';
 import 'package:mindnest/features/auth/presentation/register_institution_success_screen.dart';
 import 'package:mindnest/features/auth/presentation/verify_email_screen.dart';
+import 'package:mindnest/features/auth/presentation/windows_web_setup_required_screen.dart';
 import 'package:mindnest/features/care/presentation/counselor_appointments_screen.dart';
 import 'package:mindnest/features/care/presentation/counselor_availability_screen.dart';
 import 'package:mindnest/features/care/presentation/counselor_directory_screen.dart';
@@ -59,6 +60,7 @@ class AppRoute {
   static const registerInstitutionSuccess = '/register-institution-success';
   static const forgotPassword = '/forgot-password';
   static const verifyEmail = '/verify-email';
+  static const windowsWebSetupRequired = '/windows-web-setup-required';
   static const counselorInviteWaiting = '/counselor-invite-waiting';
   static const inviteAccept = '/invite-accept';
   static const onboarding = '/onboarding';
@@ -94,6 +96,7 @@ class AppRoute {
   static const intendedRoleQuery = 'intendedRole';
   static const registrationIntentQuery = 'registrationIntent';
   static const openJoinCodeQuery = 'openJoinCode';
+  static const setupReasonQuery = 'reason';
 
   static String homeWithJoinCodeIntent() {
     return Uri(
@@ -200,6 +203,13 @@ class AppRoute {
     }
     return Uri(path: path, queryParameters: inviteQuery).toString();
   }
+
+  static String windowsWebSetupRoute(String reason) {
+    return Uri(
+      path: windowsWebSetupRequired,
+      queryParameters: <String, String>{setupReasonQuery: reason},
+    ).toString();
+  }
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -268,6 +278,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ),
   ];
 
+  String windowsSetupRoute(String reason) =>
+      AppRoute.windowsWebSetupRoute(reason);
+
+  String defaultSignedInRouteForWindows({
+    required UserRole role,
+    required bool hasCounselorRegistrationIntent,
+  }) {
+    if (hasCounselorRegistrationIntent) {
+      return AppRoute.counselorInviteWaiting;
+    }
+    if (role == UserRole.institutionAdmin) {
+      return AppRoute.institutionAdmin;
+    }
+    if (role == UserRole.counselor) {
+      return AppRoute.counselorDashboard;
+    }
+    return AppRoute.home;
+  }
+
   return GoRouter(
     initialLocation: AppRoute.login,
     refreshListenable: refreshListenable,
@@ -285,6 +314,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               location == AppRoute.registerInstitution ||
               location == AppRoute.registerInstitutionSchoolRequest ||
               location == AppRoute.registerInstitutionSuccess);
+      final isWindowsWebSetupRoute =
+          location == AppRoute.windowsWebSetupRequired;
+      final isWindowsWebOnlySetupRoute =
+          location == AppRoute.verifyEmail ||
+          location == AppRoute.onboarding ||
+          location == AppRoute.institutionPending ||
+          location == AppRoute.counselorSetup;
       final isAuthRoute =
           location == AppRoute.login ||
           location == AppRoute.register ||
@@ -350,16 +386,152 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return AppRoute.login;
         }
 
-        if (!isEmailVerified && !isPreVerificationOnboardingRoute) {
-          return AppRoute.withInviteQuery(AppRoute.verifyEmail, inviteQuery);
-        }
-
         if (!isEmailVerified) {
+          if (isWindowsLoginOnlyMode) {
+            final target = windowsSetupRoute('verify-email');
+            final currentReason =
+                state.uri.queryParameters[AppRoute.setupReasonQuery];
+            if (isWindowsWebSetupRoute && currentReason == 'verify-email') {
+              return null;
+            }
+            return target;
+          }
+          if (!isPreVerificationOnboardingRoute) {
+            return AppRoute.withInviteQuery(AppRoute.verifyEmail, inviteQuery);
+          }
           return null;
         }
 
         if (isOwnerEmail(authState.email)) {
           return isOwnerRoute ? null : AppRoute.ownerDashboard;
+        }
+
+        if (isWindowsLoginOnlyMode) {
+          if (profileAsync.isLoading ||
+              currentAdminInstitutionAsync.isLoading) {
+            return null;
+          }
+
+          final profile = profileAsync.valueOrNull;
+          final role = profile?.role ?? UserRole.other;
+          final roleResolved = role != UserRole.other;
+          final hasCounselorRegistrationIntent =
+              profile?.isCounselorRegistrationIntentPending ?? false;
+          final needsCounselorSetup = counselorRepository.requiresSetup(
+            profile,
+          );
+          final institutionRequest = currentAdminInstitutionAsync.valueOrNull;
+          final needsOnboarding = onboardingRepository.requiresQuestionnaire(
+            profile,
+          );
+          final institutionStatus =
+              (institutionRequest?['status'] as String?) ?? 'approved';
+
+          if (hasCounselorRegistrationIntent) {
+            if (isWindowsWebSetupRoute) {
+              return AppRoute.counselorInviteWaiting;
+            }
+            if (!isCounselorInviteWaitingRoute) {
+              return AppRoute.counselorInviteWaiting;
+            }
+            return null;
+          }
+
+          String? windowsSetupReason;
+          if (role == UserRole.counselor && needsCounselorSetup) {
+            windowsSetupReason = 'counselor-setup';
+          } else if (needsOnboarding) {
+            windowsSetupReason = 'onboarding';
+          } else if (role == UserRole.institutionAdmin &&
+              institutionStatus != 'approved') {
+            windowsSetupReason = 'institution-approval';
+          }
+
+          if (windowsSetupReason != null) {
+            final target = windowsSetupRoute(windowsSetupReason);
+            final currentReason =
+                state.uri.queryParameters[AppRoute.setupReasonQuery];
+            if (isWindowsWebSetupRoute && currentReason == windowsSetupReason) {
+              return null;
+            }
+            return target;
+          }
+
+          if (isWindowsWebSetupRoute || isWindowsWebOnlySetupRoute) {
+            return defaultSignedInRouteForWindows(
+              role: role,
+              hasCounselorRegistrationIntent: false,
+            );
+          }
+
+          if (!roleResolved) {
+            if (location != AppRoute.joinInstitution) {
+              return AppRoute.home;
+            }
+            return null;
+          }
+
+          if (isCounselorInviteWaitingRoute) {
+            return defaultSignedInRouteForWindows(
+              role: role,
+              hasCounselorRegistrationIntent: false,
+            );
+          }
+
+          if (isOwnerRoute) {
+            return AppRoute.home;
+          }
+
+          if (role == UserRole.institutionAdmin && location == AppRoute.home) {
+            return AppRoute.institutionAdmin;
+          }
+
+          if (role == UserRole.counselor && location == AppRoute.home) {
+            return AppRoute.counselorDashboard;
+          }
+
+          if (role != UserRole.institutionAdmin && isInstitutionAdminRoute) {
+            if (role == UserRole.counselor) {
+              return AppRoute.counselorDashboard;
+            }
+            return AppRoute.home;
+          }
+
+          if (role != UserRole.counselor && isCounselorOpsRoute) {
+            return role == UserRole.institutionAdmin
+                ? AppRoute.institutionAdmin
+                : AppRoute.home;
+          }
+
+          if (role == UserRole.counselor && isStudentCareRoute) {
+            return AppRoute.counselorDashboard;
+          }
+
+          if (role == UserRole.institutionAdmin &&
+              (isStudentCareRoute || isSharedCareRoute)) {
+            return AppRoute.institutionAdmin;
+          }
+
+          if (role == UserRole.institutionAdmin && isLiveRoute) {
+            return AppRoute.institutionAdmin;
+          }
+
+          if (role == UserRole.individual && isLiveRoute) {
+            return AppRoute.home;
+          }
+
+          if (role == UserRole.institutionAdmin && isAuthRoute) {
+            return AppRoute.institutionAdmin;
+          }
+
+          if (role != UserRole.institutionAdmin && isAuthRoute) {
+            return defaultSignedInRouteForWindows(
+              role: role,
+              hasCounselorRegistrationIntent: false,
+            );
+          }
+
+          return null;
         }
 
         if (profileAsync.isLoading ||
@@ -624,6 +796,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
           );
         },
+      ),
+      GoRoute(
+        path: AppRoute.windowsWebSetupRequired,
+        builder: (context, state) => WindowsWebSetupRequiredScreen(
+          reason: state.uri.queryParameters[AppRoute.setupReasonQuery],
+        ),
       ),
       GoRoute(
         path: AppRoute.verifyEmail,
