@@ -106,6 +106,10 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 
+dependency_overrides:
+  firebase_auth:
+    path: third_party/firebase_auth_windows_fix
+
 msix_config:
   display_name: MindNest
   publisher_display_name: Lusaa Software

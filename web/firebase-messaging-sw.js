@@ -7,12 +7,12 @@ importScripts(
 );
 
 firebase.initializeApp({
-  apiKey: 'AIzaSyDcam7IEdnmJnfAYDl6sriE0mXr_IJMBys',
-  authDomain: 'mindnest-923fb.firebaseapp.com',
-  projectId: 'mindnest-923fb',
-  storageBucket: 'mindnest-923fb.firebasestorage.app',
-  messagingSenderId: '253632223556',
-  appId: '1:253632223556:web:4d4d0039f0c223fe56df11',
+  apiKey: 'AIzaSyA6f1SvmxQljip0KkGeAvbNz2wC9gCThtc',
+  authDomain: 'mindnest-45772.firebaseapp.com',
+  projectId: 'mindnest-45772',
+  storageBucket: 'mindnest-45772.firebasestorage.app',
+  messagingSenderId: '853014272041',
+  appId: '1:853014272041:web:02d41914790c2a056ce438',
 });
 
 const messaging = firebase.messaging();

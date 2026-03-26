@@ -236,10 +236,9 @@ packages:
   firebase_auth:
     dependency: "direct main"
     description:
-      name: firebase_auth
-      sha256: "0fed2133bee1369ee1118c1fef27b2ce0d84c54b7819a2b17dada5cfec3b03ff"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/firebase_auth_windows_fix"
+      relative: true
+    source: path
     version: "5.7.0"
   firebase_auth_platform_interface:
     dependency: transitive

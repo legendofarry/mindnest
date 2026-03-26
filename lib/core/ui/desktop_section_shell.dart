@@ -241,113 +241,128 @@ class DesktopSectionNav extends StatelessWidget {
               ),
             ),
           ),
-          ...items.map((item) {
-            final active =
-                location == item.route ||
-                (item.route == AppRoute.liveHub &&
-                    location == AppRoute.liveRoom);
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: () => _handlePrimaryNavTap(
-                  context,
-                  route: item.route,
-                  hasInstitution: hasInstitution,
-                  canAccessLive: canAccessLive,
-                ),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: active
-                        ? const Color(0xFF12314B)
-                        : Colors.white.withValues(alpha: 0.04),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: active
-                          ? const Color(0xFF1F6BFF).withValues(alpha: 0.34)
-                          : Colors.white.withValues(alpha: 0.06),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: active
-                              ? const Color(0xFF15A39A).withValues(alpha: 0.18)
-                              : Colors.white.withValues(alpha: 0.06),
-                          borderRadius: BorderRadius.circular(12),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ...items.map((item) {
+                    final active =
+                        location == item.route ||
+                        (item.route == AppRoute.liveHub &&
+                            location == AppRoute.liveRoom);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () => _handlePrimaryNavTap(
+                          context,
+                          route: item.route,
+                          hasInstitution: hasInstitution,
+                          canAccessLive: canAccessLive,
                         ),
-                        child: Icon(
-                          item.icon,
-                          size: 18,
-                          color: active
-                              ? const Color(0xFF6EE7D8)
-                              : const Color(0xFF8FA4C2),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          item.label,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: active
-                                ? FontWeight.w700
-                                : FontWeight.w600,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
                             color: active
-                                ? Colors.white
-                                : const Color(0xFFB7C6DA),
+                                ? const Color(0xFF12314B)
+                                : Colors.white.withValues(alpha: 0.04),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: active
+                                  ? const Color(
+                                      0xFF1F6BFF,
+                                    ).withValues(alpha: 0.34)
+                                  : Colors.white.withValues(alpha: 0.06),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: active
+                                      ? const Color(
+                                          0xFF15A39A,
+                                        ).withValues(alpha: 0.18)
+                                      : Colors.white.withValues(alpha: 0.06),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  item.icon,
+                                  size: 18,
+                                  color: active
+                                      ? const Color(0xFF6EE7D8)
+                                      : const Color(0xFF8FA4C2),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  item.label,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: active
+                                        ? FontWeight.w700
+                                        : FontWeight.w600,
+                                    color: active
+                                        ? Colors.white
+                                        : const Color(0xFFB7C6DA),
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.arrow_outward_rounded,
+                                size: 16,
+                                color: active
+                                    ? const Color(0xFFD6E3F5)
+                                    : const Color(0xFF67819E),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      Icon(
-                        Icons.arrow_outward_rounded,
-                        size: 16,
-                        color: active
-                            ? const Color(0xFFD6E3F5)
-                            : const Color(0xFF67819E),
+                    );
+                  }),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.07),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
-            ),
-            child: const Row(
-              children: [
-                Icon(
-                  Icons.shield_moon_outlined,
-                  color: Color(0xFF8FA4C2),
-                  size: 18,
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Student, staff, and individual screens keep the same mobile bottom navigation.',
-                    style: TextStyle(
-                      color: Color(0xFF9FB2CC),
-                      fontSize: 12,
-                      height: 1.4,
-                      fontWeight: FontWeight.w500,
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.shield_moon_outlined,
+                          color: Color(0xFF8FA4C2),
+                          size: 18,
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Student, staff, and individual screens keep the same mobile bottom navigation.',
+                            style: TextStyle(
+                              color: Color(0xFF9FB2CC),
+                              fontSize: 12,
+                              height: 1.4,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

@@ -1,12 +1,14 @@
 // core/routes/app_router.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/config/owner_config.dart';
-import 'package:mindnest/core/routes/go_router_refresh_stream.dart';
 import 'package:mindnest/core/diagnostics/invite_debug.dart';
 import 'package:mindnest/core/ui/desktop_primary_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/models/app_auth_user.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/forgot_password_screen.dart';
 import 'package:mindnest/features/auth/presentation/login_screen.dart';
@@ -200,8 +202,6 @@ class AppRoute {
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final firebaseAuth = ref.watch(firebaseAuthProvider);
-  final authRepository = ref.watch(authRepositoryProvider);
   final authStateAsync = ref.watch(authStateChangesProvider);
   final profileAsync = ref.watch(currentUserProfileProvider);
   final pendingInviteAsync = ref.watch(pendingUserInviteProvider);
@@ -210,17 +210,80 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
   final onboardingRepository = ref.watch(onboardingRepositoryProvider);
   final counselorRepository = ref.watch(counselorRepositoryProvider);
+  final refreshListenable = ref.watch(_routerRefreshListenableProvider);
+  final isWindowsLoginOnlyMode =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+  final registrationRoutes = <RouteBase>[
+    GoRoute(
+      path: AppRoute.register,
+      builder: (context, state) {
+        final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
+        final registrationIntent = AppRoute.registrationIntentFromUri(
+          state.uri,
+        );
+        return RegisterScreen(
+          inviteId: inviteQuery[AppRoute.inviteIdQuery],
+          invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
+          invitedName: inviteQuery[AppRoute.invitedNameQuery],
+          institutionName: inviteQuery[AppRoute.institutionNameQuery],
+          intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
+          registrationIntent: registrationIntent,
+        );
+      },
+    ),
+    GoRoute(
+      path: AppRoute.registerDetails,
+      builder: (context, state) {
+        final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
+        final registrationIntent = AppRoute.registrationIntentFromUri(
+          state.uri,
+        );
+        return RegisterDetailsScreen(
+          inviteId: inviteQuery[AppRoute.inviteIdQuery],
+          invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
+          invitedName: inviteQuery[AppRoute.invitedNameQuery],
+          institutionName: inviteQuery[AppRoute.institutionNameQuery],
+          intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
+          registrationIntent: registrationIntent,
+        );
+      },
+    ),
+    GoRoute(
+      path: AppRoute.registerInstitution,
+      builder: (context, state) => const RegisterInstitutionScreen(),
+    ),
+    GoRoute(
+      path: AppRoute.registerInstitutionSchoolRequest,
+      builder: (context, state) =>
+          const RegisterInstitutionSchoolRequestScreen(),
+    ),
+    GoRoute(
+      path: AppRoute.registerInstitutionSuccess,
+      builder: (context, state) => RegisterInstitutionSuccessScreen(
+        institutionName:
+            state.uri.queryParameters[AppRoute.institutionNameQuery],
+      ),
+    ),
+  ];
 
   return GoRouter(
     initialLocation: AppRoute.login,
-    refreshListenable: GoRouterRefreshStream(authRepository.authStateChanges()),
+    refreshListenable: refreshListenable,
     redirect: (context, state) {
-      final authState = authStateAsync.valueOrNull ?? firebaseAuth.currentUser;
+      final authState = authStateAsync.valueOrNull;
       final isAuthStatePending = authStateAsync.isLoading && authState == null;
       final isEmailVerified = authState?.emailVerified ?? false;
       final location = state.matchedLocation;
       final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
       final hasInviteContext = inviteQuery.isNotEmpty;
+      final isWindowsBlockedRegistrationRoute =
+          isWindowsLoginOnlyMode &&
+          (location == AppRoute.register ||
+              location == AppRoute.registerDetails ||
+              location == AppRoute.registerInstitution ||
+              location == AppRoute.registerInstitutionSchoolRequest ||
+              location == AppRoute.registerInstitutionSuccess);
       final isAuthRoute =
           location == AppRoute.login ||
           location == AppRoute.register ||
@@ -257,6 +320,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       try {
         if (isAuthStatePending) {
           return null;
+        }
+
+        if (isWindowsBlockedRegistrationRoute) {
+          return authState == null
+              ? AppRoute.withInviteQuery(AppRoute.login, inviteQuery)
+              : AppRoute.home;
         }
 
         if (authState == null) {
@@ -322,9 +391,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         final alreadyInInstitution = (profile?.institutionId ?? '')
             .trim()
             .isNotEmpty;
-        final pendingInviteInstitutionId = (pendingInvite?.institutionId ?? '')
-            .trim();
-
         // 3. Verified but counselor-registration users stay on the waiting
         // screen even after an invite arrives so they can respond there or
         // from Notifications.
@@ -384,7 +450,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return AppRoute.home;
         }
 
-        if (role == UserRole.institutionAdmin &&
+        if (!isWindowsLoginOnlyMode &&
+            role == UserRole.institutionAdmin &&
             profile?.institutionWelcomePending == true &&
             location != AppRoute.registerInstitutionSuccess) {
           final institutionName = (profile?.institutionName ?? '').trim();
@@ -539,40 +606,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      GoRoute(
-        path: AppRoute.register,
-        builder: (context, state) {
-          final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
-          final registrationIntent = AppRoute.registrationIntentFromUri(
-            state.uri,
-          );
-          return RegisterScreen(
-            inviteId: inviteQuery[AppRoute.inviteIdQuery],
-            invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
-            invitedName: inviteQuery[AppRoute.invitedNameQuery],
-            institutionName: inviteQuery[AppRoute.institutionNameQuery],
-            intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
-            registrationIntent: registrationIntent,
-          );
-        },
-      ),
-      GoRoute(
-        path: AppRoute.registerDetails,
-        builder: (context, state) {
-          final inviteQuery = AppRoute.inviteQueryFromUri(state.uri);
-          final registrationIntent = AppRoute.registrationIntentFromUri(
-            state.uri,
-          );
-          return RegisterDetailsScreen(
-            inviteId: inviteQuery[AppRoute.inviteIdQuery],
-            invitedEmail: inviteQuery[AppRoute.invitedEmailQuery],
-            invitedName: inviteQuery[AppRoute.invitedNameQuery],
-            institutionName: inviteQuery[AppRoute.institutionNameQuery],
-            intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
-            registrationIntent: registrationIntent,
-          );
-        },
-      ),
+      if (!isWindowsLoginOnlyMode) ...registrationRoutes,
       GoRoute(
         path: AppRoute.forgotPassword,
         builder: (context, state) {
@@ -585,22 +619,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             intendedRole: inviteQuery[AppRoute.intendedRoleQuery],
           );
         },
-      ),
-      GoRoute(
-        path: AppRoute.registerInstitution,
-        builder: (context, state) => const RegisterInstitutionScreen(),
-      ),
-      GoRoute(
-        path: AppRoute.registerInstitutionSchoolRequest,
-        builder: (context, state) =>
-            const RegisterInstitutionSchoolRequestScreen(),
-      ),
-      GoRoute(
-        path: AppRoute.registerInstitutionSuccess,
-        builder: (context, state) => RegisterInstitutionSuccessScreen(
-          institutionName:
-              state.uri.queryParameters[AppRoute.institutionNameQuery],
-        ),
       ),
       GoRoute(
         path: AppRoute.verifyEmail,
@@ -786,4 +804,34 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+});
+
+final _routerRefreshListenableProvider = Provider<ValueNotifier<int>>((ref) {
+  final notifier = ValueNotifier<int>(0);
+
+  void notify() {
+    notifier.value++;
+  }
+
+  ref.listen<AsyncValue<AppAuthUser?>>(authStateChangesProvider, (
+    previous,
+    next,
+  ) {
+    notify();
+  });
+  ref.listen<AsyncValue<UserProfile?>>(
+    currentUserProfileProvider,
+    (previous, next) => notify(),
+  );
+  ref.listen<AsyncValue<dynamic>>(
+    pendingUserInviteProvider,
+    (previous, next) => notify(),
+  );
+  ref.listen<AsyncValue<dynamic>>(
+    currentAdminInstitutionRequestProvider,
+    (previous, next) => notify(),
+  );
+
+  ref.onDispose(notifier.dispose);
+  return notifier;
 });

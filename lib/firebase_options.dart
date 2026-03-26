@@ -42,49 +42,52 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDcam7IEdnmJnfAYDl6sriE0mXr_IJMBys',
-    appId: '1:253632223556:web:4d4d0039f0c223fe56df11',
-    messagingSenderId: '253632223556',
-    projectId: 'mindnest-923fb',
-    authDomain: 'mindnest-923fb.firebaseapp.com',
-    storageBucket: 'mindnest-923fb.firebasestorage.app',
+    apiKey: 'AIzaSyA6f1SvmxQljip0KkGeAvbNz2wC9gCThtc',
+    appId: '1:853014272041:web:02d41914790c2a056ce438',
+    messagingSenderId: '853014272041',
+    projectId: 'mindnest-45772',
+    authDomain: 'mindnest-45772.firebaseapp.com',
+    storageBucket: 'mindnest-45772.firebasestorage.app',
+    measurementId: 'G-36YS5NELY5',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDd2S-KYPs1239bT9-v08A07Dlj_zW8ESc',
-    appId: '1:253632223556:android:a3aae67a1cdc023056df11',
-    messagingSenderId: '253632223556',
-    projectId: 'mindnest-923fb',
-    storageBucket: 'mindnest-923fb.firebasestorage.app',
+    apiKey: 'AIzaSyDr4oAp5w2JrIlamW7Ubz_9KExxnBnGX4E',
+    appId: '1:853014272041:android:a532377c7615138e6ce438',
+    messagingSenderId: '853014272041',
+    projectId: 'mindnest-45772',
+    storageBucket: 'mindnest-45772.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAgrFCIYCoPPwF0Nq5oKt3FKbLbj_sIjPk',
-    appId: '1:253632223556:ios:1724c954f898a4c856df11',
-    messagingSenderId: '253632223556',
-    projectId: 'mindnest-923fb',
-    storageBucket: 'mindnest-923fb.firebasestorage.app',
-    iosClientId: '253632223556-hcuorduiib3ngfkmie07al0veei5m04i.apps.googleusercontent.com',
+    apiKey: 'AIzaSyAPT-13wWI1nkhB2beImli0uXwkGIufi1o',
+    appId: '1:853014272041:ios:e66c221ab0a84a7a6ce438',
+    messagingSenderId: '853014272041',
+    projectId: 'mindnest-45772',
+    storageBucket: 'mindnest-45772.firebasestorage.app',
+    iosClientId:
+        '853014272041-efl096jkr75lss9q4jo858pi85sfnjg2.apps.googleusercontent.com',
     iosBundleId: 'com.example.mindnest',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyAgrFCIYCoPPwF0Nq5oKt3FKbLbj_sIjPk',
-    appId: '1:253632223556:ios:1724c954f898a4c856df11',
-    messagingSenderId: '253632223556',
-    projectId: 'mindnest-923fb',
-    storageBucket: 'mindnest-923fb.firebasestorage.app',
-    iosClientId: '253632223556-hcuorduiib3ngfkmie07al0veei5m04i.apps.googleusercontent.com',
+    apiKey: 'AIzaSyAPT-13wWI1nkhB2beImli0uXwkGIufi1o',
+    appId: '1:853014272041:ios:e66c221ab0a84a7a6ce438',
+    messagingSenderId: '853014272041',
+    projectId: 'mindnest-45772',
+    storageBucket: 'mindnest-45772.firebasestorage.app',
+    iosClientId:
+        '853014272041-efl096jkr75lss9q4jo858pi85sfnjg2.apps.googleusercontent.com',
     iosBundleId: 'com.example.mindnest',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDcam7IEdnmJnfAYDl6sriE0mXr_IJMBys',
-    appId: '1:253632223556:web:4c051d502101d52756df11',
-    messagingSenderId: '253632223556',
-    projectId: 'mindnest-923fb',
-    authDomain: 'mindnest-923fb.firebaseapp.com',
-    storageBucket: 'mindnest-923fb.firebasestorage.app',
+    apiKey: 'AIzaSyA6f1SvmxQljip0KkGeAvbNz2wC9gCThtc',
+    appId: '1:853014272041:web:02d41914790c2a056ce438',
+    messagingSenderId: '853014272041',
+    projectId: 'mindnest-45772',
+    authDomain: 'mindnest-45772.firebaseapp.com',
+    storageBucket: 'mindnest-45772.firebasestorage.app',
+    measurementId: 'G-36YS5NELY5',
   );
-
 }

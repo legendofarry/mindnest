@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/care/data/care_repository.dart';
 import 'package:mindnest/features/care/models/session_reassignment_request.dart';
@@ -12,9 +13,12 @@ final careHttpClientProvider = Provider<http.Client>((ref) {
 
 final careRepositoryProvider = Provider<CareRepository>((ref) {
   return CareRepository(
-    firestore: ref.watch(firestoreProvider),
-    auth: ref.watch(firebaseAuthProvider),
+    firestoreFactory: kUseWindowsRestAuth
+        ? null
+        : () => ref.read(firestoreProvider),
+    auth: ref.watch(appAuthClientProvider),
     httpClient: ref.watch(careHttpClientProvider),
+    windowsRest: ref.watch(windowsFirestoreRestClientProvider),
   );
 });
 

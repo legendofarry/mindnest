@@ -1,14 +1,70 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mindnest/app/theme_mode_controller.dart';
+import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
+
+const Duration _windowsPollInterval = Duration(seconds: 2);
+
+bool get _useWindowsPollingWorkaround =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+Stream<T> _buildWindowsPollingStream<T>({
+  required Future<T> Function() load,
+  required String Function(T value) signature,
+}) {
+  late final StreamController<T> controller;
+  Timer? timer;
+  String? lastEmissionSignature;
+
+  Future<void> emitIfChanged() async {
+    if (controller.isClosed) {
+      return;
+    }
+    try {
+      final value = await load();
+      final nextSignature = 'value:${signature(value)}';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.add(value);
+      }
+    } catch (error, stackTrace) {
+      final nextSignature = 'error:$error';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.addError(error, stackTrace);
+      }
+    }
+  }
+
+  controller = StreamController<T>(
+    onListen: () {
+      unawaited(emitIfChanged());
+      timer = Timer.periodic(_windowsPollInterval, (_) {
+        unawaited(emitIfChanged());
+      });
+    },
+    onCancel: () {
+      timer?.cancel();
+    },
+  );
+
+  return controller.stream;
+}
 
 class InstitutionAdminProfileScreen extends ConsumerStatefulWidget {
   const InstitutionAdminProfileScreen({super.key});
@@ -40,14 +96,37 @@ class _InstitutionAdminProfileScreenState
 
   void _seed(UserProfile profile) {
     if (_seeded) return;
-    _unreadMessageCount ??= ref
-        .read(firestoreProvider)
-        .collection('admin_counselor_messages')
-        .where('adminId', isEqualTo: profile.id)
-        .where('senderRole', isEqualTo: 'counselor')
-        .where('isRead', isEqualTo: false)
-        .snapshots()
-        .map((snap) => snap.size);
+    _unreadMessageCount ??= _useWindowsPollingWorkaround
+        ? _buildWindowsPollingStream<int>(
+            load: () async =>
+                (await ref
+                        .read(windowsFirestoreRestClientProvider)
+                        .queryCollection(
+                          collectionId: 'admin_counselor_messages',
+                          filters: <WindowsFirestoreFieldFilter>[
+                            WindowsFirestoreFieldFilter.equal(
+                              'adminId',
+                              profile.id,
+                            ),
+                            WindowsFirestoreFieldFilter.equal(
+                              'senderRole',
+                              'counselor',
+                            ),
+                            WindowsFirestoreFieldFilter.equal('isRead', false),
+                          ],
+                          limit: 200,
+                        ))
+                    .length,
+            signature: (count) => '$count',
+          )
+        : ref
+              .read(firestoreProvider)
+              .collection('admin_counselor_messages')
+              .where('adminId', isEqualTo: profile.id)
+              .where('senderRole', isEqualTo: 'counselor')
+              .where('isRead', isEqualTo: false)
+              .snapshots()
+              .map((snap) => snap.size);
     _name.text = profile.name;
     _primaryPhone.text = (profile.phoneNumber ?? '').isNotEmpty
         ? profile.phoneNumber!
@@ -141,7 +220,6 @@ class _InstitutionAdminProfileScreenState
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(currentUserProfileProvider);
-    final themeMode = ref.watch(themeModeControllerProvider);
 
     return profileAsync.when(
       loading: () =>
@@ -683,39 +761,6 @@ class _ProfileHero extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeroPill extends StatelessWidget {
-  const _HeroPill({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
           ),
         ],
       ),

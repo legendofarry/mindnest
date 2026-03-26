@@ -25,6 +25,7 @@ Future<void> confirmAndLogout({
   try {
     await Future<void>.delayed(loadingDuration);
     await ref.read(authRepositoryProvider).signOut();
+    await syncAuthSessionState(ref);
   } catch (error) {
     if (!context.mounted) {
       return;

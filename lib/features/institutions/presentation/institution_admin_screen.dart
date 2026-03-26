@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
@@ -167,47 +168,99 @@ String _mapSignature(Map<String, dynamic>? data) {
   return keys.map((key) => '$key=${data[key]}').join('|');
 }
 
-String _documentSnapshotSignature(
-  DocumentSnapshot<Map<String, dynamic>> snapshot,
-) {
+class _AdminDocumentSnapshot {
+  const _AdminDocumentSnapshot({
+    required this.id,
+    required Map<String, dynamic>? data,
+  }) : _data = data;
+
+  final String id;
+  final Map<String, dynamic>? _data;
+
+  bool get exists => _data != null;
+
+  Map<String, dynamic> data() => _data ?? const <String, dynamic>{};
+}
+
+class _AdminQuerySnapshot {
+  const _AdminQuerySnapshot({required this.docs});
+
+  final List<_AdminDocumentSnapshot> docs;
+
+  int get size => docs.length;
+}
+
+String _documentSnapshotSignature(_AdminDocumentSnapshot snapshot) {
   return '${snapshot.id}|${snapshot.exists}|${_mapSignature(snapshot.data())}';
 }
 
-String _querySnapshotSignature(QuerySnapshot<Map<String, dynamic>> snapshot) {
+String _querySnapshotSignature(_AdminQuerySnapshot snapshot) {
   final docs = snapshot.docs.toList()..sort((a, b) => a.id.compareTo(b.id));
   return docs.map((doc) => '${doc.id}|${_mapSignature(doc.data())}').join('||');
 }
 
-Stream<DocumentSnapshot<Map<String, dynamic>>> _documentSnapshotStream(
-  DocumentReference<Map<String, dynamic>> reference,
-) {
+Stream<_AdminDocumentSnapshot> _documentSnapshotStream({
+  required WidgetRef ref,
+  required String documentPath,
+  DocumentReference<Map<String, dynamic>>? reference,
+}) {
   if (!_useWindowsFirebasePollingWorkaround) {
-    return reference.snapshots();
+    return reference!.snapshots().map(
+      (snapshot) =>
+          _AdminDocumentSnapshot(id: snapshot.id, data: snapshot.data()),
+    );
   }
-  return _buildWindowsPollingStream<DocumentSnapshot<Map<String, dynamic>>>(
-    load: reference.get,
+  return _buildWindowsPollingStream<_AdminDocumentSnapshot>(
+    load: () async {
+      final document = await ref
+          .read(windowsFirestoreRestClientProvider)
+          .getDocument(documentPath);
+      return _AdminDocumentSnapshot(
+        id: document?.id ?? documentPath.split('/').last,
+        data: document?.data,
+      );
+    },
     signature: _documentSnapshotSignature,
   );
 }
 
-Stream<QuerySnapshot<Map<String, dynamic>>> _querySnapshotStream(
-  Query<Map<String, dynamic>> query,
-) {
+Stream<_AdminQuerySnapshot> _querySnapshotStream({
+  required WidgetRef ref,
+  Query<Map<String, dynamic>>? query,
+  required Future<List<WindowsFirestoreDocument>> Function() windowsLoad,
+}) {
   if (!_useWindowsFirebasePollingWorkaround) {
-    return query.snapshots();
+    return query!.snapshots().map(
+      (snapshot) => _AdminQuerySnapshot(
+        docs: snapshot.docs
+            .map((doc) => _AdminDocumentSnapshot(id: doc.id, data: doc.data()))
+            .toList(growable: false),
+      ),
+    );
   }
-  return _buildWindowsPollingStream<QuerySnapshot<Map<String, dynamic>>>(
-    load: query.get,
+  return _buildWindowsPollingStream<_AdminQuerySnapshot>(
+    load: () async {
+      final documents = await windowsLoad();
+      return _AdminQuerySnapshot(
+        docs: documents
+            .map((doc) => _AdminDocumentSnapshot(id: doc.id, data: doc.data))
+            .toList(growable: false),
+      );
+    },
     signature: _querySnapshotSignature,
   );
 }
 
-Stream<int> _queryCountStream(Query<Map<String, dynamic>> query) {
+Stream<int> _queryCountStream({
+  required WidgetRef ref,
+  Query<Map<String, dynamic>>? query,
+  required Future<int> Function() windowsLoad,
+}) {
   if (!_useWindowsFirebasePollingWorkaround) {
-    return query.snapshots().map((snapshot) => snapshot.size);
+    return query!.snapshots().map((snapshot) => snapshot.size);
   }
   return _buildWindowsPollingStream<int>(
-    load: () async => (await query.get()).size,
+    load: windowsLoad,
     signature: (count) => '$count',
   );
 }
@@ -744,8 +797,8 @@ class _InstitutionAdminScreenState
 
   List<_WorkspaceEntry> _entriesForView({
     required AdminWorkspaceView view,
-    required List<QueryDocumentSnapshot<Map<String, dynamic>>> members,
-    required List<QueryDocumentSnapshot<Map<String, dynamic>>> invites,
+    required List<_AdminDocumentSnapshot> members,
+    required List<_AdminDocumentSnapshot> invites,
   }) {
     List<_WorkspaceEntry> memberEntries({String? role}) {
       return members
@@ -834,7 +887,7 @@ class _InstitutionAdminScreenState
   }
 
   void _openEntryDetails(_WorkspaceEntry entry) {
-    final currentUid = ref.read(firebaseAuthProvider).currentUser?.uid;
+    final currentUid = ref.read(appAuthClientProvider).currentUser?.uid;
     final isOwnAdminMember =
         entry.source == 'member' &&
         entry.type == UserRole.institutionAdmin.name &&
@@ -1039,7 +1092,9 @@ class _InstitutionAdminScreenState
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(currentUserProfileProvider);
-    final firestore = ref.watch(firestoreProvider);
+    final firestore = _useWindowsFirebasePollingWorkaround
+        ? null
+        : ref.watch(firestoreProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
@@ -1064,24 +1119,59 @@ class _InstitutionAdminScreenState
                 );
               }
 
-              final institutionRef = firestore
-                  .collection('institutions')
-                  .doc(institutionId);
-              final membersQuery = firestore
-                  .collection('institution_members')
-                  .where('institutionId', isEqualTo: institutionId)
-                  .limit(1000);
-              final invitesQuery = firestore
-                  .collection('user_invites')
-                  .where('institutionId', isEqualTo: institutionId)
-                  .limit(1000);
+              final institutionPath = 'institutions/$institutionId';
+              final institutionRef = _useWindowsFirebasePollingWorkaround
+                  ? null
+                  : firestore!.collection('institutions').doc(institutionId);
+              final membersQuery = _useWindowsFirebasePollingWorkaround
+                  ? null
+                  : firestore!
+                        .collection('institution_members')
+                        .where('institutionId', isEqualTo: institutionId)
+                        .limit(1000);
+              final invitesQuery = _useWindowsFirebasePollingWorkaround
+                  ? null
+                  : firestore!
+                        .collection('user_invites')
+                        .where('institutionId', isEqualTo: institutionId)
+                        .limit(1000);
 
-              return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: _querySnapshotStream(membersQuery),
+              return StreamBuilder<_AdminQuerySnapshot>(
+                stream: _querySnapshotStream(
+                  ref: ref,
+                  query: membersQuery,
+                  windowsLoad: () => ref
+                      .read(windowsFirestoreRestClientProvider)
+                      .queryCollection(
+                        collectionId: 'institution_members',
+                        filters: <WindowsFirestoreFieldFilter>[
+                          WindowsFirestoreFieldFilter.equal(
+                            'institutionId',
+                            institutionId,
+                          ),
+                        ],
+                        limit: 1000,
+                      ),
+                ),
                 builder: (context, membersSnapshot) {
                   final members = membersSnapshot.data?.docs ?? const [];
-                  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: _querySnapshotStream(invitesQuery),
+                  return StreamBuilder<_AdminQuerySnapshot>(
+                    stream: _querySnapshotStream(
+                      ref: ref,
+                      query: invitesQuery,
+                      windowsLoad: () => ref
+                          .read(windowsFirestoreRestClientProvider)
+                          .queryCollection(
+                            collectionId: 'user_invites',
+                            filters: <WindowsFirestoreFieldFilter>[
+                              WindowsFirestoreFieldFilter.equal(
+                                'institutionId',
+                                institutionId,
+                              ),
+                            ],
+                            limit: 1000,
+                          ),
+                    ),
                     builder: (context, invitesSnapshot) {
                       final invites = invitesSnapshot.data?.docs ?? const [];
 
@@ -1229,13 +1319,41 @@ class _InstitutionAdminScreenState
                               confirmAndLogout(context: context, ref: ref);
                           void onProfile() =>
                               context.push(AppRoute.institutionAdminProfile);
-                          final unreadMessagesQuery = firestore
-                              .collection('admin_counselor_messages')
-                              .where('adminId', isEqualTo: profile.id)
-                              .where('senderRole', isEqualTo: 'counselor')
-                              .where('isRead', isEqualTo: false);
+                          final unreadMessagesQuery =
+                              _useWindowsFirebasePollingWorkaround
+                              ? null
+                              : firestore!
+                                    .collection('admin_counselor_messages')
+                                    .where('adminId', isEqualTo: profile.id)
+                                    .where('senderRole', isEqualTo: 'counselor')
+                                    .where('isRead', isEqualTo: false);
                           final unreadMessagesStream = _queryCountStream(
-                            unreadMessagesQuery,
+                            ref: ref,
+                            query: unreadMessagesQuery,
+                            windowsLoad: () async =>
+                                (await ref
+                                        .read(
+                                          windowsFirestoreRestClientProvider,
+                                        )
+                                        .queryCollection(
+                                          collectionId:
+                                              'admin_counselor_messages',
+                                          filters: <WindowsFirestoreFieldFilter>[
+                                            WindowsFirestoreFieldFilter.equal(
+                                              'adminId',
+                                              profile.id,
+                                            ),
+                                            WindowsFirestoreFieldFilter.equal(
+                                              'senderRole',
+                                              'counselor',
+                                            ),
+                                            WindowsFirestoreFieldFilter.equal(
+                                              'isRead',
+                                              false,
+                                            ),
+                                          ],
+                                        ))
+                                    .length,
                           );
                           void onMessages() =>
                               context.push(AppRoute.institutionAdminMessages);
@@ -1244,6 +1362,7 @@ class _InstitutionAdminScreenState
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               _HeroCard(
+                                institutionPath: institutionPath,
                                 institutionRef: institutionRef,
                                 fallbackName: institutionName,
                                 isRegeneratingJoinCode: _isRegeneratingJoinCode,
@@ -1311,6 +1430,7 @@ class _InstitutionAdminScreenState
                                       () => _collabExpanded = !_collabExpanded,
                                     ),
                                     child: _CounselorWorkflowSettingsCard(
+                                      institutionPath: institutionPath,
                                       institutionRef: institutionRef,
                                       onChanged: (settings) {
                                         return ref
@@ -2105,24 +2225,26 @@ class _SideNavButton extends StatelessWidget {
   }
 }
 
-class _HeroCard extends StatefulWidget {
+class _HeroCard extends ConsumerStatefulWidget {
   const _HeroCard({
+    required this.institutionPath,
     required this.institutionRef,
     required this.fallbackName,
     required this.isRegeneratingJoinCode,
     required this.onRegenerateJoinCode,
   });
 
-  final DocumentReference<Map<String, dynamic>> institutionRef;
+  final String institutionPath;
+  final DocumentReference<Map<String, dynamic>>? institutionRef;
   final String fallbackName;
   final bool isRegeneratingJoinCode;
   final VoidCallback onRegenerateJoinCode;
 
   @override
-  State<_HeroCard> createState() => _HeroCardState();
+  ConsumerState<_HeroCard> createState() => _HeroCardState();
 }
 
-class _HeroCardState extends State<_HeroCard> {
+class _HeroCardState extends ConsumerState<_HeroCard> {
   String? _autoRefreshedCode;
 
   DateTime? _parseTimestamp(dynamic value) {
@@ -2150,8 +2272,12 @@ class _HeroCardState extends State<_HeroCard> {
   @override
   Widget build(BuildContext context) {
     return GlassCard(
-      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: _documentSnapshotStream(widget.institutionRef),
+      child: StreamBuilder<_AdminDocumentSnapshot>(
+        stream: _documentSnapshotStream(
+          ref: ref,
+          documentPath: widget.institutionPath,
+          reference: widget.institutionRef,
+        ),
         builder: (context, snapshot) {
           final data = snapshot.data?.data();
           final name = (data?['name'] as String?) ?? widget.fallbackName;
@@ -3544,22 +3670,24 @@ class _CompactRoleChoice extends StatelessWidget {
   }
 }
 
-class _CounselorWorkflowSettingsCard extends StatefulWidget {
+class _CounselorWorkflowSettingsCard extends ConsumerStatefulWidget {
   const _CounselorWorkflowSettingsCard({
+    required this.institutionPath,
     required this.institutionRef,
     required this.onChanged,
   });
 
-  final DocumentReference<Map<String, dynamic>> institutionRef;
+  final String institutionPath;
+  final DocumentReference<Map<String, dynamic>>? institutionRef;
   final Future<void> Function(CounselorWorkflowSettings settings) onChanged;
 
   @override
-  State<_CounselorWorkflowSettingsCard> createState() =>
+  ConsumerState<_CounselorWorkflowSettingsCard> createState() =>
       _CounselorWorkflowSettingsCardState();
 }
 
 class _CounselorWorkflowSettingsCardState
-    extends State<_CounselorWorkflowSettingsCard> {
+    extends ConsumerState<_CounselorWorkflowSettingsCard> {
   bool _savingDirectory = false;
   bool _savingReassignment = false;
 
@@ -3645,8 +3773,12 @@ class _CounselorWorkflowSettingsCardState
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: _documentSnapshotStream(widget.institutionRef),
+    return StreamBuilder<_AdminDocumentSnapshot>(
+      stream: _documentSnapshotStream(
+        ref: ref,
+        documentPath: widget.institutionPath,
+        reference: widget.institutionRef,
+      ),
       builder: (context, snapshot) {
         final settings = CounselorWorkflowSettings.fromInstitutionData(
           snapshot.data?.data(),

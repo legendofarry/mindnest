@@ -1,13 +1,67 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+
+const Duration _windowsPollInterval = Duration(seconds: 2);
+
+bool get _useWindowsPollingWorkaround =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+Stream<T> _buildWindowsPollingStream<T>({
+  required Future<T> Function() load,
+  required String Function(T value) signature,
+}) {
+  late final StreamController<T> controller;
+  Timer? timer;
+  String? lastEmissionSignature;
+
+  Future<void> emitIfChanged() async {
+    if (controller.isClosed) {
+      return;
+    }
+    try {
+      final value = await load();
+      final nextSignature = 'value:${signature(value)}';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.add(value);
+      }
+    } catch (error, stackTrace) {
+      final nextSignature = 'error:$error';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.addError(error, stackTrace);
+      }
+    }
+  }
+
+  controller = StreamController<T>(
+    onListen: () {
+      unawaited(emitIfChanged());
+      timer = Timer.periodic(_windowsPollInterval, (_) {
+        unawaited(emitIfChanged());
+      });
+    },
+    onCancel: () {
+      timer?.cancel();
+    },
+  );
+
+  return controller.stream;
+}
 
 class AdminMessagesScreen extends ConsumerStatefulWidget {
   const AdminMessagesScreen({super.key});
@@ -27,7 +81,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
   final Set<String> _markingThreads = {};
   Map<String, int> _unreadCounts = const {};
   bool _listeningUnread = false;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _unreadSub;
+  StreamSubscription<Map<String, int>>? _unreadSub;
   double _listPaneWidth = 280;
 
   @override
@@ -45,42 +99,106 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     required String adminId,
     required String counselorId,
   }) {
+    if (_useWindowsPollingWorkaround) {
+      return _buildWindowsPollingStream<List<_ChatMessage>>(
+        load: () async {
+          final documents = await ref
+              .read(windowsFirestoreRestClientProvider)
+              .queryCollection(
+                collectionId: 'admin_counselor_messages',
+                filters: <WindowsFirestoreFieldFilter>[
+                  WindowsFirestoreFieldFilter.equal('adminId', adminId),
+                  WindowsFirestoreFieldFilter.equal('counselorId', counselorId),
+                ],
+                orderBy: const <WindowsFirestoreOrderBy>[
+                  WindowsFirestoreOrderBy('createdAt', descending: true),
+                ],
+              );
+          return documents
+              .map((doc) => _ChatMessage.fromMap(doc.id, doc.data))
+              .toList(growable: false);
+        },
+        signature: (messages) => messages
+            .map(
+              (message) =>
+                  '${message.id}|${message.senderRole}|${message.body}|${message.createdAt?.toIso8601String() ?? ''}',
+            )
+            .join(';'),
+      );
+    }
+
     final firestore = ref.read(firestoreProvider);
-    return firestore
+    final query = firestore
         .collection('admin_counselor_messages')
         .where('adminId', isEqualTo: adminId)
         .where('counselorId', isEqualTo: counselorId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map(
-          (snap) => snap.docs
-              .map((doc) => _ChatMessage.fromMap(doc.id, doc.data()))
-              .toList(growable: false),
-        );
+        .orderBy('createdAt', descending: true);
+
+    return query.snapshots().map(
+      (snap) => snap.docs
+          .map((doc) => _ChatMessage.fromMap(doc.id, doc.data()))
+          .toList(growable: false),
+    );
   }
 
   void _listenUnread(String adminId) {
     if (_listeningUnread) return;
     _listeningUnread = true;
-    final firestore = ref.read(firestoreProvider);
-    _unreadSub = firestore
-        .collection('admin_counselor_messages')
-        .where('adminId', isEqualTo: adminId)
-        .where('senderRole', isEqualTo: 'counselor')
-        .where('isRead', isEqualTo: false)
-        .snapshots()
-        .listen((snap) {
-      final counts = <String, int>{};
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        final cid = (data['counselorId'] as String?) ?? '';
-        if (cid.isEmpty) continue;
-        counts[cid] = (counts[cid] ?? 0) + 1;
-      }
+
+    final unreadStream = _useWindowsPollingWorkaround
+        ? _buildWindowsPollingStream<Map<String, int>>(
+            load: () async {
+              final documents = await ref
+                  .read(windowsFirestoreRestClientProvider)
+                  .queryCollection(
+                    collectionId: 'admin_counselor_messages',
+                    filters: <WindowsFirestoreFieldFilter>[
+                      WindowsFirestoreFieldFilter.equal('adminId', adminId),
+                      WindowsFirestoreFieldFilter.equal(
+                        'senderRole',
+                        'counselor',
+                      ),
+                      WindowsFirestoreFieldFilter.equal('isRead', false),
+                    ],
+                    limit: 200,
+                  );
+              final counts = <String, int>{};
+              for (final doc in documents) {
+                final data = doc.data;
+                final cid = (data['counselorId'] as String?) ?? '';
+                if (cid.isEmpty) continue;
+                counts[cid] = (counts[cid] ?? 0) + 1;
+              }
+              return counts;
+            },
+            signature: (counts) => counts.entries
+                .map((entry) => '${entry.key}:${entry.value}')
+                .join(';'),
+          )
+        : () {
+            final firestore = ref.read(firestoreProvider);
+            final query = firestore
+                .collection('admin_counselor_messages')
+                .where('adminId', isEqualTo: adminId)
+                .where('senderRole', isEqualTo: 'counselor')
+                .where('isRead', isEqualTo: false);
+            return query.snapshots().map((snap) {
+              final counts = <String, int>{};
+              for (final doc in snap.docs) {
+                final data = doc.data();
+                final cid = (data['counselorId'] as String?) ?? '';
+                if (cid.isEmpty) continue;
+                counts[cid] = (counts[cid] ?? 0) + 1;
+              }
+              return counts;
+            });
+          }();
+
+    _unreadSub = unreadStream.listen((counts) {
       if (mounted) {
         setState(() => _unreadCounts = counts);
       }
-    });
+    }, onError: (error, stackTrace) {});
   }
 
   Future<void> _markThreadRead({
@@ -90,8 +208,28 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     final threadKey = _threadKey(adminId, counselorId);
     if (_markingThreads.contains(threadKey)) return;
     _markingThreads.add(threadKey);
-    final firestore = ref.read(firestoreProvider);
+    final windowsRest = ref.read(windowsFirestoreRestClientProvider);
     try {
+      if (_useWindowsPollingWorkaround) {
+        final documents = await windowsRest.queryCollection(
+          collectionId: 'admin_counselor_messages',
+          filters: <WindowsFirestoreFieldFilter>[
+            WindowsFirestoreFieldFilter.equal('adminId', adminId),
+            WindowsFirestoreFieldFilter.equal('counselorId', counselorId),
+            WindowsFirestoreFieldFilter.equal('senderRole', 'counselor'),
+            WindowsFirestoreFieldFilter.equal('isRead', false),
+          ],
+          limit: 50,
+        );
+        for (final document in documents) {
+          await windowsRest.setDocument(
+            'admin_counselor_messages/${document.id}',
+            <String, dynamic>{...document.data, 'isRead': true},
+          );
+        }
+        return;
+      }
+      final firestore = ref.read(firestoreProvider);
       final unreadSnap = await firestore
           .collection('admin_counselor_messages')
           .where('adminId', isEqualTo: adminId)
@@ -117,6 +255,23 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     required String adminId,
     required String counselorId,
   }) async {
+    final windowsRest = ref.read(windowsFirestoreRestClientProvider);
+    if (_useWindowsPollingWorkaround) {
+      final documents = await windowsRest.queryCollection(
+        collectionId: 'admin_counselor_messages',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal('adminId', adminId),
+          WindowsFirestoreFieldFilter.equal('counselorId', counselorId),
+        ],
+        limit: 100,
+      );
+      for (final document in documents) {
+        await windowsRest.deleteDocument(
+          'admin_counselor_messages/${document.id}',
+        );
+      }
+      return;
+    }
     final firestore = ref.read(firestoreProvider);
     Query<Map<String, dynamic>> query = firestore
         .collection('admin_counselor_messages')
@@ -199,8 +354,11 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
             value: 'delete',
             child: Row(
               children: const [
-                Icon(Icons.delete_outline_rounded,
-                    size: 18, color: Color(0xFFB91C1C)),
+                Icon(
+                  Icons.delete_outline_rounded,
+                  size: 18,
+                  color: Color(0xFFB91C1C),
+                ),
                 SizedBox(width: 10),
                 Text('Delete conversation'),
               ],
@@ -253,9 +411,46 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     if (text.isEmpty) return;
     setState(() => _sending = true);
     setState(() => _inlineError = null);
-    final firestore = ref.read(firestoreProvider);
+    final windowsRest = ref.read(windowsFirestoreRestClientProvider);
     try {
       final threadKey = _threadKey(admin.id, counselorId);
+      if (_useWindowsPollingWorkaround) {
+        final now = DateTime.now().toUtc();
+        final msgId = 'msg_${admin.id}_${now.microsecondsSinceEpoch}';
+        final notifId = 'notif_${admin.id}_${now.microsecondsSinceEpoch}';
+        await windowsRest
+            .setDocument('admin_counselor_messages/$msgId', <String, dynamic>{
+              'threadKey': threadKey,
+              'adminId': admin.id,
+              'counselorId': counselorId,
+              'institutionId': admin.institutionId ?? '',
+              'senderRole': 'admin',
+              'senderId': admin.id,
+              'body': text,
+              'isRead': false,
+              'createdAt': now,
+            });
+        await windowsRest
+            .setDocument('notifications/$notifId', <String, dynamic>{
+              'userId': counselorId,
+              'institutionId': admin.institutionId ?? '',
+              'type': 'admin_message',
+              'title': 'Message from ${admin.name}',
+              'body': text,
+              'priority': 'normal',
+              'actionRequired': false,
+              'relatedId': msgId,
+              'createdAt': now,
+              'updatedAt': now,
+              'isRead': false,
+              'isPinned': false,
+              'isArchived': false,
+            });
+        _message.clear();
+        if (!mounted) return;
+        return;
+      }
+      final firestore = ref.read(firestoreProvider);
       final batch = firestore.batch();
       final msgRef = firestore.collection('admin_counselor_messages').doc();
       batch.set(msgRef, {
@@ -312,65 +507,66 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
 
     final institutionId = profile.institutionId ?? '';
     _listenUnread(profile.id);
-    final firestore = ref.watch(firestoreProvider);
-    final counselorsQuery = firestore
-        .collection('users')
-        .where('role', isEqualTo: UserRole.counselor.name)
-        .where('institutionId', isEqualTo: institutionId);
+    final counselorsStream = _useWindowsPollingWorkaround
+        ? _counselorOptionsStream(null)
+        : _counselorOptionsStream(
+            ref
+                .watch(firestoreProvider)
+                .collection('users')
+                .where('role', isEqualTo: UserRole.counselor.name)
+                .where('institutionId', isEqualTo: institutionId),
+          );
 
     final isWide = MediaQuery.sizeOf(context).width >= 960;
 
     return Scaffold(
-              backgroundColor: const Color(0xFFF3F7FB),
-              appBar: AppBar(
-                automaticallyImplyLeading: false,
-                centerTitle: false,
-                titleSpacing: 14,
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                surfaceTintColor: Colors.transparent,
-                title: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'Counselor Messages',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    SizedBox(height: 2),
-                  ],
+      backgroundColor: const Color(0xFFF3F7FB),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        centerTitle: false,
+        titleSpacing: 14,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text(
+              'Counselor Messages',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            SizedBox(height: 2),
+          ],
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(58),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: TextField(
+              controller: _search,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Search counselor name or email',
+                prefixIcon: const Icon(Icons.search_rounded),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
                 ),
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(58),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: TextField(
-                      controller: _search,
-                      onChanged: (_) => setState(() {}),
-                      decoration: InputDecoration(
-                        hintText: 'Search counselor name or email',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide:
-                              const BorderSide(color: Color(0xFFE2E8F0)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide:
-                              const BorderSide(color: Color(0xFFE2E8F0)),
-                        ),
-                      ),
-                    ),
-                  ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
@@ -392,7 +588,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                       SizedBox(
                         width: _listPaneWidth,
                         child: _CounselorListPane(
-                          stream: counselorsQuery.snapshots(),
+                          stream: counselorsStream,
                           selectedId: _selectedCounselorId,
                           onSelected: (id, name) {
                             setState(() {
@@ -458,7 +654,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                 : Column(
                     children: [
                       _MobileCounselorDropdown(
-                        stream: counselorsQuery.snapshots(),
+                        stream: counselorsStream,
                         selectedId: _selectedCounselorId,
                         onSelected: (id, name) {
                           setState(() {
@@ -497,6 +693,49 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
       ),
     );
   }
+
+  Stream<List<_CounselorOption>> _counselorOptionsStream(
+    Query<Map<String, dynamic>>? query,
+  ) {
+    if (_useWindowsPollingWorkaround) {
+      final profile = ref.read(currentUserProfileProvider).valueOrNull;
+      final institutionId = profile?.institutionId ?? '';
+      return _buildWindowsPollingStream<List<_CounselorOption>>(
+        load: () async {
+          final documents = await ref
+              .read(windowsFirestoreRestClientProvider)
+              .queryCollection(
+                collectionId: 'users',
+                filters: <WindowsFirestoreFieldFilter>[
+                  WindowsFirestoreFieldFilter.equal(
+                    'role',
+                    UserRole.counselor.name,
+                  ),
+                  WindowsFirestoreFieldFilter.equal(
+                    'institutionId',
+                    institutionId,
+                  ),
+                ],
+              );
+          return documents
+              .map((doc) => _CounselorOption.fromMap(doc.id, doc.data))
+              .toList(growable: false);
+        },
+        signature: (counselors) => counselors
+            .map(
+              (counselor) =>
+                  '${counselor.id}|${counselor.name}|${counselor.email}',
+            )
+            .join(';'),
+      );
+    }
+
+    return query!.snapshots().map(
+      (snapshot) => snapshot.docs
+          .map((doc) => _CounselorOption.fromMap(doc.id, doc.data()))
+          .toList(growable: false),
+    );
+  }
 }
 
 class _CounselorListPane extends StatelessWidget {
@@ -509,7 +748,7 @@ class _CounselorListPane extends StatelessWidget {
     required this.filterText,
   });
 
-  final Stream<QuerySnapshot<Map<String, dynamic>>> stream;
+  final Stream<List<_CounselorOption>> stream;
   final String? selectedId;
   final void Function(String id, String name) onSelected;
   final Map<String, int> unreadCounts;
@@ -517,12 +756,13 @@ class _CounselorListPane extends StatelessWidget {
     String counselorId,
     String counselorName,
     Offset globalPosition,
-  ) onMenu;
+  )
+  onMenu;
   final String filterText;
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<List<_CounselorOption>>(
       stream: stream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -537,32 +777,30 @@ class _CounselorListPane extends StatelessWidget {
             ),
           );
         }
-        final docs = snapshot.data?.docs ?? const [];
-        if (docs.isEmpty) {
+        final counselors = snapshot.data ?? const <_CounselorOption>[];
+        if (counselors.isEmpty) {
           return const Center(child: Text('No counselors found.'));
         }
         final query = filterText.trim().toLowerCase();
         final filtered = query.isEmpty
-            ? docs
-            : docs.where((doc) {
-                final data = doc.data();
-                final name = (data['name'] as String?) ?? '';
-                final email = (data['email'] as String?) ?? '';
-                final target = '$name $email'.toLowerCase();
-                return target.contains(query);
-              }).toList(growable: false);
+            ? counselors
+            : counselors
+                  .where((counselor) {
+                    final target = '${counselor.name} ${counselor.email}'
+                        .toLowerCase();
+                    return target.contains(query);
+                  })
+                  .toList(growable: false);
         if (filtered.isEmpty) {
           return const Center(child: Text('No matches.'));
         }
         return ListView.separated(
           padding: const EdgeInsets.all(12),
           itemBuilder: (context, index) {
-            final doc = filtered[index];
-            final data = doc.data();
-            final name =
-                (data['name'] as String?) ?? (data['email'] as String?) ?? '';
-            final selected = doc.id == selectedId;
-            final unread = unreadCounts[doc.id] ?? 0;
+            final counselor = filtered[index];
+            final name = counselor.displayName;
+            final selected = counselor.id == selectedId;
+            final unread = unreadCounts[counselor.id] ?? 0;
             return ListTile(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -580,7 +818,7 @@ class _CounselorListPane extends StatelessWidget {
                 ),
               ),
               subtitle: Text(
-                data['email'] as String? ?? '',
+                counselor.email,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -592,7 +830,7 @@ class _CounselorListPane extends StatelessWidget {
                   GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTapDown: (details) => onMenu(
-                      doc.id,
+                      counselor.id,
                       name.isEmpty ? 'Counselor' : name,
                       details.globalPosition,
                     ),
@@ -604,7 +842,7 @@ class _CounselorListPane extends StatelessWidget {
                 ],
               ),
               onTap: () =>
-                  onSelected(doc.id, name.isEmpty ? 'Counselor' : name),
+                  onSelected(counselor.id, name.isEmpty ? 'Counselor' : name),
               leading: CircleAvatar(
                 backgroundColor: const Color(0xFF0E9B90),
                 child: Text(
@@ -617,7 +855,7 @@ class _CounselorListPane extends StatelessWidget {
               ),
             );
           },
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          separatorBuilder: (context, index) => const SizedBox(height: 8),
           itemCount: filtered.length,
         );
       },
@@ -637,53 +875,44 @@ class _MobileCounselorDropdown extends StatelessWidget {
     required this.onSelected,
   });
 
-  final Stream<QuerySnapshot<Map<String, dynamic>>> stream;
+  final Stream<List<_CounselorOption>> stream;
   final String? selectedId;
   final void Function(String id, String name) onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<List<_CounselorOption>>(
       stream: stream,
       builder: (context, snapshot) {
-        final docs = snapshot.data?.docs ?? const [];
+        final counselors = snapshot.data ?? const <_CounselorOption>[];
         return DropdownButtonFormField<String>(
-          value: selectedId,
+          initialValue: selectedId,
           decoration: const InputDecoration(
             labelText: 'Select counselor',
             prefixIcon: Icon(Icons.person_rounded),
             filled: true,
           ),
-          items: docs
+          items: counselors
               .map(
-                (doc) => DropdownMenuItem(
-                  value: doc.id,
+                (counselor) => DropdownMenuItem(
+                  value: counselor.id,
                   child: Text(
-                    doc.data()['name'] ?? doc.data()['email'] ?? 'Counselor',
+                    counselor.displayName,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  onTap: () => onSelected(
-                    doc.id,
-                    (doc.data()['name'] as String?) ??
-                        (doc.data()['email'] as String?) ??
-                        'Counselor',
-                  ),
+                  onTap: () => onSelected(counselor.id, counselor.displayName),
                 ),
               )
               .toList(growable: false),
           onChanged: (value) {
             if (value == null) return;
-            final doc = docs.firstWhere(
+            final counselor = counselors.firstWhere(
               (element) => element.id == value,
-              orElse: () => docs.isNotEmpty
-                  ? docs.first
+              orElse: () => counselors.isNotEmpty
+                  ? counselors.first
                   : (throw StateError('No counselors')),
             );
-            final name =
-                (doc.data()['name'] as String?) ??
-                (doc.data()['email'] as String?) ??
-                'Counselor';
-            onSelected(value, name);
+            onSelected(value, counselor.displayName);
           },
         );
       },
@@ -790,7 +1019,8 @@ class _ChatPane extends StatelessWidget {
                 reverse: true,
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 itemCount: messages.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final msg = messages[index];
                   final isAdmin = msg.senderRole == 'admin';
@@ -943,11 +1173,11 @@ class _ChatPane extends StatelessWidget {
   String _formatTimestamp(DateTime? value) {
     if (value == null) return 'pending...';
     final local = value.toLocal();
-    final twoDigits = (int v) => v.toString().padLeft(2, '0');
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
     final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
     final suffix = local.hour >= 12 ? 'PM' : 'AM';
     final date = '${local.month}/${local.day}/${local.year}';
-    return '$date ${hour12}:${twoDigits(local.minute)} $suffix';
+    return '$date $hour12:${twoDigits(local.minute)} $suffix';
   }
 }
 
@@ -976,6 +1206,29 @@ class _ChatMessage {
       body: (data['body'] as String?) ?? '',
       senderRole: (data['senderRole'] as String?) ?? 'admin',
       createdAt: parse(data['createdAt']),
+    );
+  }
+}
+
+class _CounselorOption {
+  const _CounselorOption({
+    required this.id,
+    required this.name,
+    required this.email,
+  });
+
+  final String id;
+  final String name;
+  final String email;
+
+  String get displayName =>
+      name.isNotEmpty ? name : (email.isNotEmpty ? email : 'Counselor');
+
+  factory _CounselorOption.fromMap(String id, Map<String, dynamic> data) {
+    return _CounselorOption(
+      id: id,
+      name: ((data['name'] as String?) ?? '').trim(),
+      email: ((data['email'] as String?) ?? '').trim(),
     );
   }
 }

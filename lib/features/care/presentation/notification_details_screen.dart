@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -11,6 +15,59 @@ import 'package:mindnest/features/care/models/app_notification.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+
+const Duration _windowsPollInterval = Duration(seconds: 2);
+bool get _useWindowsRestFirestore =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+Stream<T> _buildWindowsPollingStream<T>({
+  required Future<T> Function() load,
+  required String Function(T value) signature,
+}) {
+  late final StreamController<T> controller;
+  Timer? timer;
+  String? lastEmissionSignature;
+
+  Future<void> emitIfChanged() async {
+    if (controller.isClosed) {
+      return;
+    }
+    try {
+      final value = await load();
+      final nextSignature = 'value:${signature(value)}';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.add(value);
+      }
+    } catch (error, stackTrace) {
+      final nextSignature = 'error:$error';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.addError(error, stackTrace);
+      }
+    }
+  }
+
+  controller = StreamController<T>(
+    onListen: () {
+      unawaited(emitIfChanged());
+      timer = Timer.periodic(_windowsPollInterval, (_) {
+        unawaited(emitIfChanged());
+      });
+    },
+    onCancel: () {
+      timer?.cancel();
+    },
+  );
+
+  return controller.stream;
+}
 
 class NotificationDetailsScreen extends ConsumerWidget {
   const NotificationDetailsScreen({super.key, required this.notificationId});
@@ -706,7 +763,10 @@ class NotificationDetailsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final role = profile?.role ?? UserRole.other;
-    final firestore = ref.watch(firestoreProvider);
+    final firestore = _useWindowsRestFirestore
+        ? null
+        : ref.watch(firestoreProvider);
+    final windowsRest = ref.watch(windowsFirestoreRestClientProvider);
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final isCounselorWorkspace =
@@ -757,11 +817,34 @@ class NotificationDetailsScreen extends ConsumerWidget {
       );
     }
 
-    final detailStream = StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: firestore
-          .collection('notifications')
-          .doc(notificationId)
-          .snapshots(),
+    final notificationStream = _useWindowsRestFirestore
+        ? _buildWindowsPollingStream<AppNotification?>(
+            load: () async {
+              final document = await windowsRest.getDocument(
+                'notifications/$notificationId',
+              );
+              if (document == null) {
+                return null;
+              }
+              return AppNotification.fromMap(document.id, document.data);
+            },
+            signature: (notification) => notification == null
+                ? 'null'
+                : '${notification.id}|${notification.type}|${notification.isRead}|${notification.isPinned}|${notification.isArchived}|${notification.createdAt.toIso8601String()}',
+          )
+        : firestore
+              !.collection('notifications')
+              .doc(notificationId)
+              .snapshots()
+              .map((doc) {
+                if (!doc.exists || doc.data() == null) {
+                  return null;
+                }
+                return AppNotification.fromMap(doc.id, doc.data()!);
+              });
+
+    final detailStream = StreamBuilder<AppNotification?>(
+      stream: notificationStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           final message = snapshot.error.toString().replaceFirst(
@@ -783,8 +866,8 @@ class NotificationDetailsScreen extends ConsumerWidget {
                 );
         }
 
-        final doc = snapshot.data!;
-        if (!doc.exists || doc.data() == null) {
+        final notification = snapshot.data;
+        if (notification == null) {
           return isCounselorWorkspace
               ? const _CounselorDetailStateCard(
                   message: 'This notification was not found.',
@@ -795,7 +878,6 @@ class NotificationDetailsScreen extends ConsumerWidget {
                 );
         }
 
-        final notification = AppNotification.fromMap(doc.id, doc.data()!);
         final relatedAppointmentId =
             notification.relatedAppointmentId?.trim() ?? '';
 
@@ -806,7 +888,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
               notification: notification,
               appointment: appointment,
               role: role,
-              profile: profile!,
+              profile: profile,
             );
           }
           return _buildDetails(
@@ -821,24 +903,36 @@ class NotificationDetailsScreen extends ConsumerWidget {
           return buildResolved(null);
         }
 
-        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: firestore
-              .collection('appointments')
-              .doc(relatedAppointmentId)
-              .snapshots(),
-          builder: (context, appointmentSnapshot) {
-            AppointmentRecord? appointment;
-            if (appointmentSnapshot.hasData) {
-              final appointmentDoc = appointmentSnapshot.data!;
-              if (appointmentDoc.exists && appointmentDoc.data() != null) {
-                appointment = AppointmentRecord.fromMap(
-                  appointmentDoc.id,
-                  appointmentDoc.data()!,
-                );
-              }
-            }
+        final appointmentStream = _useWindowsRestFirestore
+            ? _buildWindowsPollingStream<AppointmentRecord?>(
+                load: () async {
+                  final document = await windowsRest.getDocument(
+                    'appointments/$relatedAppointmentId',
+                  );
+                  if (document == null) {
+                    return null;
+                  }
+                  return AppointmentRecord.fromMap(document.id, document.data);
+                },
+                signature: (appointment) => appointment == null
+                    ? 'null'
+                    : '${appointment.id}|${appointment.status.name}|${appointment.startAt.toIso8601String()}|${appointment.endAt.toIso8601String()}|${appointment.counselorSessionNote ?? ''}|${appointment.counselorCancelMessage ?? ''}',
+              )
+            : firestore
+                  !.collection('appointments')
+                  .doc(relatedAppointmentId)
+                  .snapshots()
+                  .map((doc) {
+                    if (!doc.exists || doc.data() == null) {
+                      return null;
+                    }
+                    return AppointmentRecord.fromMap(doc.id, doc.data()!);
+                  });
 
-            return buildResolved(appointment);
+        return StreamBuilder<AppointmentRecord?>(
+          stream: appointmentStream,
+          builder: (context, appointmentSnapshot) {
+            return buildResolved(appointmentSnapshot.data);
           },
         );
       },
@@ -937,7 +1031,10 @@ class _AdminMessageReplyCardState
   @override
   Widget build(BuildContext context) {
     final relatedId = widget.notification.relatedId?.trim() ?? '';
-    final firestore = ref.watch(firestoreProvider);
+    final firestore = _useWindowsRestFirestore
+        ? null
+        : ref.watch(firestoreProvider);
+    final windowsRest = ref.watch(windowsFirestoreRestClientProvider);
     final scheme = Theme.of(context).colorScheme;
 
     if (relatedId.isEmpty) {
@@ -946,29 +1043,32 @@ class _AdminMessageReplyCardState
       );
     }
 
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: firestore
-          .collection('admin_counselor_messages')
-          .doc(relatedId)
-          .snapshots(),
+    final rootStream = _useWindowsRestFirestore
+        ? _buildWindowsPollingStream<Map<String, dynamic>?>(
+            load: () async => (await windowsRest.getDocument(
+              'admin_counselor_messages/$relatedId',
+            ))?.data,
+            signature: (data) => data == null ? 'null' : data.toString(),
+          )
+        : firestore
+              !.collection('admin_counselor_messages')
+              .doc(relatedId)
+              .snapshots()
+              .map((doc) => doc.data());
+
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: rootStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return _CounselorDetailStateCard(
-            message: snapshot.error.toString(),
-          );
+          return _CounselorDetailStateCard(message: snapshot.error.toString());
         }
-        if (!snapshot.hasData || !snapshot.data!.exists) {
+        if (!snapshot.hasData || snapshot.data == null) {
           return const _CounselorDetailStateCard(
             message: 'The admin message could not be loaded.',
           );
         }
 
-        final root = snapshot.data!.data();
-        if (root == null) {
-          return const _CounselorDetailStateCard(
-            message: 'This message has no content.',
-          );
-        }
+        final root = snapshot.data!;
 
         final adminId = (root['adminId'] as String?) ?? '';
         final counselorId = (root['counselorId'] as String?) ?? '';
@@ -981,12 +1081,51 @@ class _AdminMessageReplyCardState
           );
         }
 
-        final messagesStream = firestore
-            .collection('admin_counselor_messages')
-            .where('adminId', isEqualTo: adminId)
-            .where('counselorId', isEqualTo: counselorId)
-            .orderBy('createdAt', descending: true)
-            .snapshots();
+        final messagesStream = _useWindowsRestFirestore
+            ? _buildWindowsPollingStream<List<Map<String, dynamic>>>(
+                load: () async {
+                  final documents = await windowsRest.queryCollection(
+                    collectionId: 'admin_counselor_messages',
+                    filters: <WindowsFirestoreFieldFilter>[
+                      WindowsFirestoreFieldFilter.equal('adminId', adminId),
+                      WindowsFirestoreFieldFilter.equal(
+                        'counselorId',
+                        counselorId,
+                      ),
+                    ],
+                    orderBy: const <WindowsFirestoreOrderBy>[
+                      WindowsFirestoreOrderBy('createdAt', descending: true),
+                    ],
+                  );
+                  return documents
+                      .map(
+                        (doc) => <String, dynamic>{'id': doc.id, ...doc.data},
+                      )
+                      .toList(growable: false);
+                },
+                signature: (items) => items
+                    .map(
+                      (item) =>
+                          '${item['id'] ?? ''}|${item['senderRole'] ?? ''}|${item['body'] ?? ''}|${item['createdAt'] ?? ''}',
+                    )
+                    .join(';'),
+              )
+            : firestore
+                  !.collection('admin_counselor_messages')
+                  .where('adminId', isEqualTo: adminId)
+                  .where('counselorId', isEqualTo: counselorId)
+                  .orderBy('createdAt', descending: true)
+                  .snapshots()
+                  .map(
+                    (snapshot) => snapshot.docs
+                        .map(
+                          (doc) => <String, dynamic>{
+                            'id': doc.id,
+                            ...doc.data(),
+                          },
+                        )
+                        .toList(growable: false),
+                  );
 
         Future<void> send() async {
           final text = _controller.text.trim();
@@ -996,38 +1135,77 @@ class _AdminMessageReplyCardState
             _inlineError = null;
           });
           try {
-            final msgRef =
-                firestore.collection('admin_counselor_messages').doc();
-            await firestore.runTransaction((txn) async {
-              txn.set(msgRef, {
-                'threadKey': threadKey,
-                'adminId': adminId,
-                'counselorId': counselorId,
-                'institutionId': institutionId,
-                'senderRole': 'counselor',
-                'senderId': widget.profile.id,
-                'body': text,
-                'isRead': false,
-                'createdAt': FieldValue.serverTimestamp(),
-              });
+            if (_useWindowsRestFirestore) {
+              final now = DateTime.now().toUtc();
+              final msgId =
+                  'msg_${widget.profile.id}_${now.microsecondsSinceEpoch}';
+              final notifId =
+                  'notif_${widget.profile.id}_${now.microsecondsSinceEpoch}';
+              await windowsRest.setDocument(
+                'admin_counselor_messages/$msgId',
+                <String, dynamic>{
+                  'threadKey': threadKey,
+                  'adminId': adminId,
+                  'counselorId': counselorId,
+                  'institutionId': institutionId,
+                  'senderRole': 'counselor',
+                  'senderId': widget.profile.id,
+                  'body': text,
+                  'isRead': false,
+                  'createdAt': now,
+                },
+              );
+              await windowsRest
+                  .setDocument('notifications/$notifId', <String, dynamic>{
+                    'userId': adminId,
+                    'institutionId': institutionId,
+                    'type': 'counselor_message',
+                    'title': 'Reply from ${widget.profile.name}',
+                    'body': text,
+                    'priority': 'normal',
+                    'actionRequired': false,
+                    'relatedId': msgId,
+                    'createdAt': now,
+                    'updatedAt': now,
+                    'isRead': false,
+                    'isPinned': false,
+                    'isArchived': false,
+                  });
+            } else {
+              final msgRef = firestore!
+                  .collection('admin_counselor_messages')
+                  .doc();
+              await firestore.runTransaction((txn) async {
+                txn.set(msgRef, {
+                  'threadKey': threadKey,
+                  'adminId': adminId,
+                  'counselorId': counselorId,
+                  'institutionId': institutionId,
+                  'senderRole': 'counselor',
+                  'senderId': widget.profile.id,
+                  'body': text,
+                  'isRead': false,
+                  'createdAt': FieldValue.serverTimestamp(),
+                });
 
-              final notifRef = firestore.collection('notifications').doc();
-              txn.set(notifRef, {
-                'userId': adminId,
-                'institutionId': institutionId,
-                'type': 'counselor_message',
-                'title': 'Reply from ${widget.profile.name}',
-                'body': text,
-                'priority': 'normal',
-                'actionRequired': false,
-                'relatedId': msgRef.id,
-                'createdAt': FieldValue.serverTimestamp(),
-                'updatedAt': FieldValue.serverTimestamp(),
-                'isRead': false,
-                'isPinned': false,
-                'isArchived': false,
+                final notifRef = firestore.collection('notifications').doc();
+                txn.set(notifRef, {
+                  'userId': adminId,
+                  'institutionId': institutionId,
+                  'type': 'counselor_message',
+                  'title': 'Reply from ${widget.profile.name}',
+                  'body': text,
+                  'priority': 'normal',
+                  'actionRequired': false,
+                  'relatedId': msgRef.id,
+                  'createdAt': FieldValue.serverTimestamp(),
+                  'updatedAt': FieldValue.serverTimestamp(),
+                  'isRead': false,
+                  'isPinned': false,
+                  'isArchived': false,
+                });
               });
-            });
+            }
             _controller.clear();
           } catch (error) {
             setState(() => _inlineError = error.toString());
@@ -1043,9 +1221,9 @@ class _AdminMessageReplyCardState
             Text(
               'Conversation with your institution admin',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF0F172A),
-                  ),
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF0F172A),
+              ),
             ),
             const SizedBox(height: 12),
             Container(
@@ -1055,7 +1233,7 @@ class _AdminMessageReplyCardState
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
               height: 360,
-              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: messagesStream,
                 builder: (context, msgSnapshot) {
                   if (msgSnapshot.hasError) {
@@ -1066,9 +1244,9 @@ class _AdminMessageReplyCardState
                       ),
                     );
                   }
-                  final docs = msgSnapshot.data?.docs ?? const [];
-                  if (msgSnapshot.connectionState ==
-                          ConnectionState.waiting &&
+                  final docs =
+                      msgSnapshot.data ?? const <Map<String, dynamic>>[];
+                  if (msgSnapshot.connectionState == ConnectionState.waiting &&
                       docs.isEmpty) {
                     return const Center(child: CircularProgressIndicator());
                   }
@@ -1087,7 +1265,7 @@ class _AdminMessageReplyCardState
                     itemCount: docs.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
-                      final data = docs[index].data();
+                      final data = docs[index];
                       final isCounselor =
                           (data['senderRole'] as String?) == 'counselor';
                       DateTime? created;

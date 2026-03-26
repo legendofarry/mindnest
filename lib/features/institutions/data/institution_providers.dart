@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 import 'package:mindnest/features/institutions/data/institution_repository.dart';
@@ -16,9 +17,12 @@ final institutionHttpClientProvider = Provider<http.Client>((ref) {
 
 final institutionRepositoryProvider = Provider<InstitutionRepository>((ref) {
   return InstitutionRepository(
-    firestore: ref.watch(firestoreProvider),
-    auth: ref.watch(firebaseAuthProvider),
+    firestoreFactory: kUseWindowsRestAuth
+        ? null
+        : () => ref.read(firestoreProvider),
+    auth: ref.watch(appAuthClientProvider),
     httpClient: ref.watch(institutionHttpClientProvider),
+    windowsRest: ref.watch(windowsFirestoreRestClientProvider),
   );
 });
 

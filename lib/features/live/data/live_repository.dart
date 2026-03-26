@@ -1,7 +1,12 @@
 // features/live/data/live_repository.dart
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
+import 'package:mindnest/features/auth/data/app_auth_client.dart';
+import 'package:mindnest/features/auth/models/app_auth_user.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/live/models/live_comment.dart';
 import 'package:mindnest/features/live/models/live_mic_request.dart';
@@ -41,13 +46,19 @@ class MemberPublicProfile {
 
 class LiveRepository {
   LiveRepository({
-    required FirebaseFirestore firestore,
-    required FirebaseAuth auth,
-  }) : _firestore = firestore,
-       _auth = auth;
+    required FirebaseFirestore Function()? firestoreFactory,
+    required AppAuthClient auth,
+    required WindowsFirestoreRestClient windowsRest,
+  }) : _firestoreFactory = firestoreFactory,
+       _auth = auth,
+       _windowsRest = windowsRest;
 
-  final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
+  final FirebaseFirestore Function()? _firestoreFactory;
+  FirebaseFirestore? _cachedFirestore;
+  final AppAuthClient _auth;
+  final WindowsFirestoreRestClient _windowsRest;
+  int _windowsRestIdCounter = 0;
+  static const Duration _windowsPollInterval = Duration(seconds: 2);
 
   static const Set<String> _allowedCreatorRoles = <String>{
     'student',
@@ -87,10 +98,31 @@ class LiveRepository {
   CollectionReference<Map<String, dynamic>> get _liveCollection =>
       _firestore.collection('live_sessions');
 
+  bool get _useWindowsPollingWorkaround =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+  FirebaseFirestore get _firestore => _cachedFirestore ??=
+      _firestoreFactory?.call() ??
+      (throw StateError(
+        'Native Firestore is disabled for Windows REST auth flows.',
+      ));
+
+  String _windowsDocId(String prefix) {
+    _windowsRestIdCounter += 1;
+    return '${prefix}_${DateTime.now().toUtc().microsecondsSinceEpoch}_$_windowsRestIdCounter';
+  }
+
   Future<Map<String, dynamic>> _currentUserDoc() async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('You must be logged in.');
+    }
+    if (kUseWindowsRestAuth) {
+      final userDoc = await _windowsRest.getDocument('users/${user.uid}');
+      if (userDoc == null) {
+        throw Exception('User profile not found.');
+      }
+      return userDoc.data;
     }
     final userDoc = await _firestore.collection('users').doc(user.uid).get();
     if (!userDoc.exists || userDoc.data() == null) {
@@ -99,7 +131,7 @@ class LiveRepository {
     return userDoc.data()!;
   }
 
-  Future<(User, Map<String, dynamic>)> _requireSessionContext() async {
+  Future<(AppAuthUser, Map<String, dynamic>)> _requireSessionContext() async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('You must be logged in.');
@@ -111,8 +143,18 @@ class LiveRepository {
   Stream<List<LiveSession>> watchInstitutionLives({
     required String institutionId,
   }) {
+    final normalized = institutionId.trim();
+    if (normalized.isEmpty) {
+      return Stream.value(const <LiveSession>[]);
+    }
+    if (_useWindowsPollingWorkaround) {
+      return _buildWindowsPollingStream<List<LiveSession>>(
+        load: () => getInstitutionLives(institutionId: normalized),
+        signature: _liveSessionsSignature,
+      );
+    }
     return _liveCollection
-        .where('institutionId', isEqualTo: institutionId)
+        .where('institutionId', isEqualTo: normalized)
         .where(
           'status',
           whereIn: <String>[
@@ -131,7 +173,17 @@ class LiveRepository {
   }
 
   Stream<LiveSession?> watchLiveSession(String sessionId) {
-    return _liveCollection.doc(sessionId).snapshots().map((doc) {
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty) {
+      return Stream.value(null);
+    }
+    if (_useWindowsPollingWorkaround) {
+      return _buildWindowsPollingStream<LiveSession?>(
+        load: () => getLiveSession(normalized),
+        signature: _liveSessionSignature,
+      );
+    }
+    return _liveCollection.doc(normalized).snapshots().map((doc) {
       if (!doc.exists || doc.data() == null) {
         return null;
       }
@@ -140,8 +192,18 @@ class LiveRepository {
   }
 
   Stream<List<LiveParticipant>> watchParticipants(String sessionId) {
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty) {
+      return Stream.value(const <LiveParticipant>[]);
+    }
+    if (_useWindowsPollingWorkaround) {
+      return _buildWindowsPollingStream<List<LiveParticipant>>(
+        load: () => getParticipants(normalized),
+        signature: _participantsSignature,
+      );
+    }
     return _liveCollection
-        .doc(sessionId)
+        .doc(normalized)
         .collection('participants')
         .snapshots()
         .map((snapshot) {
@@ -159,8 +221,18 @@ class LiveRepository {
     if (user == null) {
       return const Stream<LiveParticipant?>.empty();
     }
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty) {
+      return Stream.value(null);
+    }
+    if (_useWindowsPollingWorkaround) {
+      return _buildWindowsPollingStream<LiveParticipant?>(
+        load: () => getMyParticipant(normalized),
+        signature: _participantSignature,
+      );
+    }
     return _liveCollection
-        .doc(sessionId)
+        .doc(normalized)
         .collection('participants')
         .doc(user.uid)
         .snapshots()
@@ -173,8 +245,18 @@ class LiveRepository {
   }
 
   Stream<List<LiveComment>> watchComments(String sessionId) {
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty) {
+      return Stream.value(const <LiveComment>[]);
+    }
+    if (_useWindowsPollingWorkaround) {
+      return _buildWindowsPollingStream<List<LiveComment>>(
+        load: () => getComments(normalized),
+        signature: _commentsSignature,
+      );
+    }
     return _liveCollection
-        .doc(sessionId)
+        .doc(normalized)
         .collection('comments')
         .orderBy('createdAt', descending: true)
         .limit(120)
@@ -187,8 +269,18 @@ class LiveRepository {
   }
 
   Stream<List<LiveReactionEvent>> watchReactions(String sessionId) {
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty) {
+      return Stream.value(const <LiveReactionEvent>[]);
+    }
+    if (_useWindowsPollingWorkaround) {
+      return _buildWindowsPollingStream<List<LiveReactionEvent>>(
+        load: () => getReactions(normalized),
+        signature: _reactionsSignature,
+      );
+    }
     return _liveCollection
-        .doc(sessionId)
+        .doc(normalized)
         .collection('reactions')
         .orderBy('createdAt', descending: true)
         .limit(80)
@@ -201,8 +293,18 @@ class LiveRepository {
   }
 
   Stream<List<LiveMicRequest>> watchPendingMicRequests(String sessionId) {
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty) {
+      return Stream.value(const <LiveMicRequest>[]);
+    }
+    if (_useWindowsPollingWorkaround) {
+      return _buildWindowsPollingStream<List<LiveMicRequest>>(
+        load: () => getPendingMicRequests(normalized),
+        signature: _micRequestsSignature,
+      );
+    }
     return _liveCollection
-        .doc(sessionId)
+        .doc(normalized)
         .collection('mic_requests')
         .where('status', isEqualTo: MicRequestStatus.pending.name)
         .snapshots()
@@ -213,6 +315,310 @@ class LiveRepository {
           requests.sort((a, b) => a.createdAt.compareTo(b.createdAt));
           return requests;
         });
+  }
+
+  Future<List<LiveSession>> getInstitutionLives({
+    required String institutionId,
+  }) async {
+    final normalized = institutionId.trim();
+    if (normalized.isEmpty) {
+      return const <LiveSession>[];
+    }
+    if (kUseWindowsRestAuth) {
+      final documents = await _windowsRest.queryCollection(
+        collectionId: 'live_sessions',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal('institutionId', normalized),
+          WindowsFirestoreFieldFilter.inList('status', <String>[
+            LiveSessionStatus.live.name,
+            LiveSessionStatus.paused.name,
+          ]),
+        ],
+      );
+      final lives = documents
+          .map((doc) => LiveSession.fromMap(doc.id, doc.data))
+          .toList(growable: false);
+      lives.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return lives;
+    }
+    final snapshot = await _liveCollection
+        .where('institutionId', isEqualTo: normalized)
+        .where(
+          'status',
+          whereIn: <String>[
+            LiveSessionStatus.live.name,
+            LiveSessionStatus.paused.name,
+          ],
+        )
+        .get();
+    final lives = snapshot.docs
+        .map((doc) => LiveSession.fromMap(doc.id, doc.data()))
+        .toList(growable: false);
+    lives.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return lives;
+  }
+
+  Future<LiveSession?> getLiveSession(String sessionId) async {
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    if (kUseWindowsRestAuth) {
+      final document = await _windowsRest.getDocument(
+        'live_sessions/$normalized',
+      );
+      if (document == null) {
+        return null;
+      }
+      return LiveSession.fromMap(document.id, document.data);
+    }
+    final doc = await _liveCollection.doc(normalized).get();
+    if (!doc.exists || doc.data() == null) {
+      return null;
+    }
+    return LiveSession.fromMap(doc.id, doc.data()!);
+  }
+
+  Future<List<LiveParticipant>> getParticipants(String sessionId) async {
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty) {
+      return const <LiveParticipant>[];
+    }
+    if (kUseWindowsRestAuth) {
+      final documents = await _windowsRest.queryCollection(
+        parentPath: 'live_sessions/$normalized',
+        collectionId: 'participants',
+      );
+      final participants = documents
+          .map((doc) => LiveParticipant.fromMap(doc.data))
+          .where((entry) => !entry.removed)
+          .toList(growable: false);
+      participants.sort((a, b) => a.joinedAt.compareTo(b.joinedAt));
+      return participants;
+    }
+    final snapshot = await _liveCollection
+        .doc(normalized)
+        .collection('participants')
+        .get();
+    final participants = snapshot.docs
+        .map((doc) => LiveParticipant.fromMap(doc.data()))
+        .where((entry) => !entry.removed)
+        .toList(growable: false);
+    participants.sort((a, b) => a.joinedAt.compareTo(b.joinedAt));
+    return participants;
+  }
+
+  Future<LiveParticipant?> getMyParticipant(String sessionId) async {
+    final user = _auth.currentUser;
+    final normalized = sessionId.trim();
+    if (user == null || normalized.isEmpty) {
+      return null;
+    }
+    if (kUseWindowsRestAuth) {
+      final document = await _windowsRest.getDocument(
+        'live_sessions/$normalized/participants/${user.uid}',
+      );
+      if (document == null) {
+        return null;
+      }
+      return LiveParticipant.fromMap(document.data);
+    }
+    final doc = await _liveCollection
+        .doc(normalized)
+        .collection('participants')
+        .doc(user.uid)
+        .get();
+    if (!doc.exists || doc.data() == null) {
+      return null;
+    }
+    return LiveParticipant.fromMap(doc.data()!);
+  }
+
+  Future<List<LiveComment>> getComments(String sessionId) async {
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty) {
+      return const <LiveComment>[];
+    }
+    if (kUseWindowsRestAuth) {
+      final documents = await _windowsRest.queryCollection(
+        parentPath: 'live_sessions/$normalized',
+        collectionId: 'comments',
+        orderBy: const <WindowsFirestoreOrderBy>[
+          WindowsFirestoreOrderBy('createdAt', descending: true),
+        ],
+        limit: 120,
+      );
+      return documents
+          .map((doc) => LiveComment.fromMap(doc.id, doc.data))
+          .toList(growable: false);
+    }
+    final snapshot = await _liveCollection
+        .doc(normalized)
+        .collection('comments')
+        .orderBy('createdAt', descending: true)
+        .limit(120)
+        .get();
+    return snapshot.docs
+        .map((doc) => LiveComment.fromMap(doc.id, doc.data()))
+        .toList(growable: false);
+  }
+
+  Future<List<LiveReactionEvent>> getReactions(String sessionId) async {
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty) {
+      return const <LiveReactionEvent>[];
+    }
+    if (kUseWindowsRestAuth) {
+      final documents = await _windowsRest.queryCollection(
+        parentPath: 'live_sessions/$normalized',
+        collectionId: 'reactions',
+        orderBy: const <WindowsFirestoreOrderBy>[
+          WindowsFirestoreOrderBy('createdAt', descending: true),
+        ],
+        limit: 80,
+      );
+      return documents
+          .map((doc) => LiveReactionEvent.fromMap(doc.id, doc.data))
+          .toList(growable: false);
+    }
+    final snapshot = await _liveCollection
+        .doc(normalized)
+        .collection('reactions')
+        .orderBy('createdAt', descending: true)
+        .limit(80)
+        .get();
+    return snapshot.docs
+        .map((doc) => LiveReactionEvent.fromMap(doc.id, doc.data()))
+        .toList(growable: false);
+  }
+
+  Future<List<LiveMicRequest>> getPendingMicRequests(String sessionId) async {
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty) {
+      return const <LiveMicRequest>[];
+    }
+    if (kUseWindowsRestAuth) {
+      final documents = await _windowsRest.queryCollection(
+        parentPath: 'live_sessions/$normalized',
+        collectionId: 'mic_requests',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal(
+            'status',
+            MicRequestStatus.pending.name,
+          ),
+        ],
+      );
+      final requests = documents
+          .map((doc) => LiveMicRequest.fromMap(doc.id, doc.data))
+          .toList(growable: false);
+      requests.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return requests;
+    }
+    final snapshot = await _liveCollection
+        .doc(normalized)
+        .collection('mic_requests')
+        .where('status', isEqualTo: MicRequestStatus.pending.name)
+        .get();
+    final requests = snapshot.docs
+        .map((doc) => LiveMicRequest.fromMap(doc.id, doc.data()))
+        .toList(growable: false);
+    requests.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return requests;
+  }
+
+  String _liveSessionsSignature(List<LiveSession> sessions) => sessions
+      .map(
+        (session) =>
+            '${session.id}|${session.status.name}|${session.likeCount}|${session.startedAt?.toIso8601String() ?? ''}|${session.endedAt?.toIso8601String() ?? ''}',
+      )
+      .join(';');
+
+  String _liveSessionSignature(LiveSession? session) {
+    if (session == null) {
+      return 'null';
+    }
+    return '${session.id}|${session.status.name}|${session.likeCount}|${session.startedAt?.toIso8601String() ?? ''}|${session.endedAt?.toIso8601String() ?? ''}';
+  }
+
+  String _participantsSignature(List<LiveParticipant> participants) =>
+      participants.map(_participantSignature).join(';');
+
+  String _participantSignature(LiveParticipant? participant) {
+    if (participant == null) {
+      return 'null';
+    }
+    return '${participant.userId}|${participant.kind.name}|${participant.canSpeak}|${participant.micEnabled}|${participant.mutedByHost}|${participant.joinedAt.toIso8601String()}|${participant.lastSeenAt.toIso8601String()}|${participant.removed}';
+  }
+
+  String _commentsSignature(List<LiveComment> comments) => comments
+      .map(
+        (comment) =>
+            '${comment.id}|${comment.userId}|${comment.createdAt.toIso8601String()}|${comment.text}',
+      )
+      .join(';');
+
+  String _reactionsSignature(List<LiveReactionEvent> reactions) => reactions
+      .map(
+        (reaction) =>
+            '${reaction.id}|${reaction.userId}|${reaction.emoji}|${reaction.createdAt.toIso8601String()}',
+      )
+      .join(';');
+
+  String _micRequestsSignature(List<LiveMicRequest> requests) => requests
+      .map(
+        (request) =>
+            '${request.id}|${request.userId}|${request.status.name}|${request.createdAt.toIso8601String()}',
+      )
+      .join(';');
+
+  Stream<T> _buildWindowsPollingStream<T>({
+    required Future<T> Function() load,
+    required String Function(T value) signature,
+  }) {
+    late final StreamController<T> controller;
+    Timer? timer;
+    String? lastEmissionSignature;
+
+    Future<void> emitIfChanged() async {
+      if (controller.isClosed) {
+        return;
+      }
+      try {
+        final value = await load();
+        final nextSignature = 'value:${signature(value)}';
+        if (nextSignature == lastEmissionSignature) {
+          return;
+        }
+        lastEmissionSignature = nextSignature;
+        if (!controller.isClosed) {
+          controller.add(value);
+        }
+      } catch (error, stackTrace) {
+        final nextSignature = 'error:$error';
+        if (nextSignature == lastEmissionSignature) {
+          return;
+        }
+        lastEmissionSignature = nextSignature;
+        if (!controller.isClosed) {
+          controller.addError(error, stackTrace);
+        }
+      }
+    }
+
+    controller = StreamController<T>(
+      onListen: () {
+        unawaited(emitIfChanged());
+        timer = Timer.periodic(_windowsPollInterval, (_) {
+          unawaited(emitIfChanged());
+        });
+      },
+      onCancel: () async {
+        timer?.cancel();
+        await controller.close();
+      },
+    );
+
+    return controller.stream;
   }
 
   Future<LiveSession> createLiveSession({
@@ -238,13 +644,52 @@ class LiveRepository {
       throw Exception('Select at least one allowed role.');
     }
 
-    final liveRef = _liveCollection.doc();
+    final sessionId = _useWindowsPollingWorkaround
+        ? _windowsDocId('live')
+        : _liveCollection.doc().id;
     final hostName =
-        (userData['name'] as String?) ??
-        user.displayName ??
-        user.email ??
-        'Host';
+        (userData['name'] as String?) ?? user.displayName ?? user.email;
 
+    if (_useWindowsPollingWorkaround) {
+      final now = DateTime.now().toUtc();
+      await _windowsRest.setDocument('live_sessions/$sessionId', {
+        'institutionId': institutionId,
+        'createdBy': user.uid,
+        'hostName': hostName,
+        'hostRole': role,
+        'title': cleanTitle,
+        'description': description.trim(),
+        'status': LiveSessionStatus.live.name,
+        'allowedRoles': allowedRoles.map((entry) => entry.name).toList(),
+        'maxGuests': 20,
+        'likeCount': 0,
+        'roomName': 'mindnest_live_$sessionId',
+        'createdAt': now,
+        'startedAt': now,
+        'updatedAt': now,
+      });
+      await _windowsRest
+          .setDocument('live_sessions/$sessionId/participants/${user.uid}', {
+            'userId': user.uid,
+            'displayName': hostName,
+            'role': role,
+            'kind': LiveParticipantKind.host.name,
+            'canSpeak': true,
+            'micEnabled': true,
+            'mutedByHost': false,
+            'removed': false,
+            'lastReactionAt': null,
+            'joinedAt': now,
+            'lastSeenAt': now,
+            'updatedAt': now,
+          });
+      final created = await _windowsRest.getDocument(
+        'live_sessions/$sessionId',
+      );
+      return LiveSession.fromMap(sessionId, created?.data ?? const {});
+    }
+
+    final liveRef = _liveCollection.doc(sessionId);
     await liveRef.set({
       'institutionId': institutionId,
       'createdBy': user.uid,
@@ -286,10 +731,67 @@ class LiveRepository {
     final role = (userData['role'] as String?) ?? UserRole.other.name;
     final institutionId = (userData['institutionId'] as String?) ?? '';
     final userName =
-        (userData['name'] as String?) ??
-        user.displayName ??
-        user.email ??
-        'Member';
+        (userData['name'] as String?) ?? user.displayName ?? user.email;
+
+    if (_useWindowsPollingWorkaround) {
+      final sessionDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId',
+      );
+      if (sessionDoc == null) {
+        throw Exception('Live session not found.');
+      }
+      final session = LiveSession.fromMap(sessionDoc.id, sessionDoc.data);
+      if (!session.isActive) {
+        throw Exception('This live session already ended.');
+      }
+      if (session.institutionId != institutionId) {
+        throw Exception('This live session belongs to another institution.');
+      }
+
+      final currentRole = UserRole.values.firstWhere(
+        (entry) => entry.name == role,
+        orElse: () => UserRole.other,
+      );
+      if (!session.canRoleJoin(currentRole)) {
+        throw Exception('This session is restricted for your role.');
+      }
+
+      final participantDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId/participants/${user.uid}',
+      );
+      final now = DateTime.now().toUtc();
+      if (participantDoc != null) {
+        await _windowsRest.setDocument(
+          'live_sessions/$sessionId/participants/${user.uid}',
+          {
+            ...participantDoc.data,
+            'removed': false,
+            'lastSeenAt': now,
+            'updatedAt': now,
+          },
+        );
+      } else {
+        final isHost = session.createdBy == user.uid;
+        await _windowsRest
+            .setDocument('live_sessions/$sessionId/participants/${user.uid}', {
+              'userId': user.uid,
+              'displayName': userName,
+              'role': role,
+              'kind': isHost
+                  ? LiveParticipantKind.host.name
+                  : LiveParticipantKind.listener.name,
+              'canSpeak': isHost,
+              'micEnabled': isHost,
+              'mutedByHost': false,
+              'removed': false,
+              'lastReactionAt': null,
+              'joinedAt': now,
+              'lastSeenAt': now,
+              'updatedAt': now,
+            });
+      }
+      return session;
+    }
 
     final sessionRef = _liveCollection.doc(sessionId);
     final participantRef = sessionRef.collection('participants').doc(user.uid);
@@ -351,6 +853,20 @@ class LiveRepository {
     if (user == null) {
       return;
     }
+    if (_useWindowsPollingWorkaround) {
+      final existing = await _windowsRest.getDocument(
+        'live_sessions/$sessionId/participants/${user.uid}',
+      );
+      if (existing == null) {
+        return;
+      }
+      final now = DateTime.now().toUtc();
+      await _windowsRest.setDocument(
+        'live_sessions/$sessionId/participants/${user.uid}',
+        {...existing.data, 'lastSeenAt': now, 'updatedAt': now},
+      );
+      return;
+    }
     await _liveCollection
         .doc(sessionId)
         .collection('participants')
@@ -364,6 +880,42 @@ class LiveRepository {
   Future<void> leaveLiveSession(String sessionId) async {
     final user = _auth.currentUser;
     if (user == null) {
+      return;
+    }
+    if (_useWindowsPollingWorkaround) {
+      final sessionDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId',
+      );
+      if (sessionDoc == null) {
+        return;
+      }
+      final session = LiveSession.fromMap(sessionDoc.id, sessionDoc.data);
+      final participantDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId/participants/${user.uid}',
+      );
+      if (participantDoc == null) {
+        return;
+      }
+      final participant = LiveParticipant.fromMap(participantDoc.data);
+      final now = DateTime.now().toUtc();
+      await _windowsRest.deleteDocument(
+        'live_sessions/$sessionId/participants/${user.uid}',
+      );
+      await _windowsRest.deleteDocument(
+        'live_sessions/$sessionId/mic_requests/${user.uid}',
+      );
+      await _windowsRest.setDocument('live_sessions/$sessionId', {
+        ...sessionDoc.data,
+        'updatedAt': now,
+        if (participant.isHost && session.isActive) ...<String, dynamic>{
+          'status': LiveSessionStatus.ended.name,
+          'endedAt': now,
+          'endedByHostDisconnect': true,
+        },
+      });
+      if (participant.isHost && session.isActive) {
+        await _cleanupEphemeralCollections(sessionId);
+      }
       return;
     }
     final sessionRef = _liveCollection.doc(sessionId);
@@ -412,6 +964,29 @@ class LiveRepository {
     if (user == null) {
       throw Exception('You must be logged in.');
     }
+    if (_useWindowsPollingWorkaround) {
+      final sessionDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId',
+      );
+      if (sessionDoc == null) {
+        throw Exception('Live session not found.');
+      }
+      final session = LiveSession.fromMap(sessionDoc.id, sessionDoc.data);
+      if (session.createdBy != user.uid) {
+        throw Exception('Only the host can control this live.');
+      }
+      if (!session.isActive) {
+        throw Exception('This live is already ended.');
+      }
+      await _windowsRest.setDocument('live_sessions/$sessionId', {
+        ...sessionDoc.data,
+        'status': pause
+            ? LiveSessionStatus.paused.name
+            : LiveSessionStatus.live.name,
+        'updatedAt': DateTime.now().toUtc(),
+      });
+      return;
+    }
     final sessionRef = _liveCollection.doc(sessionId);
     await _firestore.runTransaction((transaction) async {
       final sessionSnap = await transaction.get(sessionRef);
@@ -439,6 +1014,27 @@ class LiveRepository {
     if (user == null) {
       throw Exception('You must be logged in.');
     }
+    if (_useWindowsPollingWorkaround) {
+      final sessionDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId',
+      );
+      if (sessionDoc == null) {
+        throw Exception('Live session not found.');
+      }
+      final session = LiveSession.fromMap(sessionDoc.id, sessionDoc.data);
+      if (session.createdBy != user.uid) {
+        throw Exception('Only the host can end this live.');
+      }
+      final now = DateTime.now().toUtc();
+      await _windowsRest.setDocument('live_sessions/$sessionId', {
+        ...sessionDoc.data,
+        'status': LiveSessionStatus.ended.name,
+        'endedAt': now,
+        'updatedAt': now,
+      });
+      await _cleanupEphemeralCollections(sessionId);
+      return;
+    }
     final sessionRef = _liveCollection.doc(sessionId);
     await _firestore.runTransaction((transaction) async {
       final sessionSnap = await transaction.get(sessionRef);
@@ -460,23 +1056,47 @@ class LiveRepository {
 
   Future<void> requestMic(String sessionId) async {
     final (user, userData) = await _requireSessionContext();
-    final participantRef = _liveCollection
-        .doc(sessionId)
-        .collection('participants')
-        .doc(user.uid);
-    final participantSnap = await participantRef.get();
-    if (!participantSnap.exists || participantSnap.data() == null) {
+    final participantDoc = _useWindowsPollingWorkaround
+        ? await _windowsRest.getDocument(
+            'live_sessions/$sessionId/participants/${user.uid}',
+          )
+        : null;
+    final participantSnap = _useWindowsPollingWorkaround
+        ? null
+        : await _liveCollection
+              .doc(sessionId)
+              .collection('participants')
+              .doc(user.uid)
+              .get();
+    if ((_useWindowsPollingWorkaround && participantDoc == null) ||
+        (!_useWindowsPollingWorkaround &&
+            (!participantSnap!.exists || participantSnap.data() == null))) {
       throw Exception('Join the live first.');
     }
-    final participant = LiveParticipant.fromMap(participantSnap.data()!);
+    final participant = _useWindowsPollingWorkaround
+        ? LiveParticipant.fromMap(participantDoc!.data)
+        : LiveParticipant.fromMap(participantSnap!.data()!);
     if (participant.isHost || participant.isGuest) {
       return;
     }
     final userName =
-        (userData['name'] as String?) ??
-        user.displayName ??
-        user.email ??
-        'Member';
+        (userData['name'] as String?) ?? user.displayName ?? user.email;
+    if (_useWindowsPollingWorkaround) {
+      final existing = await _windowsRest.getDocument(
+        'live_sessions/$sessionId/mic_requests/${user.uid}',
+      );
+      final now = DateTime.now().toUtc();
+      await _windowsRest
+          .setDocument('live_sessions/$sessionId/mic_requests/${user.uid}', {
+            ...?existing?.data,
+            'userId': user.uid,
+            'displayName': userName,
+            'status': MicRequestStatus.pending.name,
+            'createdAt': existing?.data['createdAt'] ?? now,
+            'updatedAt': now,
+          });
+      return;
+    }
     await _liveCollection
         .doc(sessionId)
         .collection('mic_requests')
@@ -497,6 +1117,62 @@ class LiveRepository {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('You must be logged in.');
+    }
+    if (_useWindowsPollingWorkaround) {
+      final sessionDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId',
+      );
+      if (sessionDoc == null) {
+        throw Exception('Live session not found.');
+      }
+      final session = LiveSession.fromMap(sessionDoc.id, sessionDoc.data);
+      if (session.createdBy != user.uid) {
+        throw Exception('Only the host can approve mic requests.');
+      }
+
+      final guestDocuments = await _windowsRest.queryCollection(
+        parentPath: 'live_sessions/$sessionId',
+        collectionId: 'participants',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal(
+            'kind',
+            LiveParticipantKind.guest.name,
+          ),
+        ],
+      );
+      if (guestDocuments.length >= session.maxGuests) {
+        throw Exception('Podium is full (max ${session.maxGuests} guests).');
+      }
+
+      final participantDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId/participants/$targetUserId',
+      );
+      if (participantDoc == null) {
+        throw Exception('User is no longer in this live session.');
+      }
+      final participant = LiveParticipant.fromMap(participantDoc.data);
+      if (participant.removed) {
+        throw Exception('User was removed from this live.');
+      }
+      final requestDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId/mic_requests/$targetUserId',
+      );
+      final now = DateTime.now().toUtc();
+      await _windowsRest
+          .setDocument('live_sessions/$sessionId/participants/$targetUserId', {
+            ...participantDoc.data,
+            'kind': LiveParticipantKind.guest.name,
+            'canSpeak': true,
+            'mutedByHost': false,
+            'updatedAt': now,
+          });
+      await _windowsRest
+          .setDocument('live_sessions/$sessionId/mic_requests/$targetUserId', {
+            ...?requestDoc?.data,
+            'status': MicRequestStatus.approved.name,
+            'updatedAt': now,
+          });
+      return;
     }
     final sessionRef = _liveCollection.doc(sessionId);
     final targetParticipantRef = sessionRef
@@ -552,6 +1228,29 @@ class LiveRepository {
     if (user == null) {
       throw Exception('You must be logged in.');
     }
+    if (_useWindowsPollingWorkaround) {
+      final sessionDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId',
+      );
+      if (sessionDoc == null) {
+        throw Exception('Live session not found.');
+      }
+      final session = LiveSession.fromMap(sessionDoc.id, sessionDoc.data);
+      if (session.createdBy != user.uid) {
+        throw Exception('Only the host can deny mic requests.');
+      }
+      final requestDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId/mic_requests/$targetUserId',
+      );
+      final now = DateTime.now().toUtc();
+      await _windowsRest
+          .setDocument('live_sessions/$sessionId/mic_requests/$targetUserId', {
+            ...?requestDoc?.data,
+            'status': MicRequestStatus.denied.name,
+            'updatedAt': now,
+          });
+      return;
+    }
     final sessionRef = _liveCollection.doc(sessionId);
     final sessionSnap = await sessionRef.get();
     if (!sessionSnap.exists || sessionSnap.data() == null) {
@@ -576,6 +1275,23 @@ class LiveRepository {
     if (user == null) {
       throw Exception('You must be logged in.');
     }
+    if (_useWindowsPollingWorkaround) {
+      final existing = await _windowsRest.getDocument(
+        'live_sessions/$sessionId/participants/${user.uid}',
+      );
+      if (existing == null) {
+        throw Exception('Join the live first.');
+      }
+      await _windowsRest.setDocument(
+        'live_sessions/$sessionId/participants/${user.uid}',
+        {
+          ...existing.data,
+          'micEnabled': enabled,
+          'updatedAt': DateTime.now().toUtc(),
+        },
+      );
+      return;
+    }
     await _liveCollection
         .doc(sessionId)
         .collection('participants')
@@ -594,6 +1310,32 @@ class LiveRepository {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('You must be logged in.');
+    }
+    if (_useWindowsPollingWorkaround) {
+      final sessionDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId',
+      );
+      if (sessionDoc == null) {
+        throw Exception('Live session not found.');
+      }
+      final live = LiveSession.fromMap(sessionDoc.id, sessionDoc.data);
+      if (live.createdBy != user.uid) {
+        throw Exception('Only the host can mute guests.');
+      }
+      final participantDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId/participants/$targetUserId',
+      );
+      if (participantDoc == null) {
+        throw Exception('Participant not found.');
+      }
+      await _windowsRest
+          .setDocument('live_sessions/$sessionId/participants/$targetUserId', {
+            ...participantDoc.data,
+            'mutedByHost': muted,
+            if (muted) 'micEnabled': false,
+            'updatedAt': DateTime.now().toUtc(),
+          });
+      return;
     }
     final sessionRef = _liveCollection.doc(sessionId);
     final session = await sessionRef.get();
@@ -618,6 +1360,36 @@ class LiveRepository {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('You must be logged in.');
+    }
+    if (_useWindowsPollingWorkaround) {
+      final sessionDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId',
+      );
+      if (sessionDoc == null) {
+        throw Exception('Live session not found.');
+      }
+      final session = LiveSession.fromMap(sessionDoc.id, sessionDoc.data);
+      if (session.createdBy != user.uid) {
+        throw Exception('Only the host can remove users.');
+      }
+      final participantDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId/participants/$targetUserId',
+      );
+      if (participantDoc == null) {
+        throw Exception('Participant not found.');
+      }
+      await _windowsRest
+          .setDocument('live_sessions/$sessionId/participants/$targetUserId', {
+            ...participantDoc.data,
+            'removed': true,
+            'canSpeak': false,
+            'micEnabled': false,
+            'updatedAt': DateTime.now().toUtc(),
+          });
+      await _windowsRest.deleteDocument(
+        'live_sessions/$sessionId/mic_requests/$targetUserId',
+      );
+      return;
     }
     final sessionRef = _liveCollection.doc(sessionId);
     final sessionSnap = await sessionRef.get();
@@ -649,19 +1421,43 @@ class LiveRepository {
     if (cleanText.length > 250) {
       throw Exception('Comment must be 250 characters or less.');
     }
-    final participantRef = _liveCollection
-        .doc(sessionId)
-        .collection('participants')
-        .doc(user.uid);
-    final participantSnap = await participantRef.get();
-    if (!participantSnap.exists || participantSnap.data() == null) {
+    final participantDoc = _useWindowsPollingWorkaround
+        ? await _windowsRest.getDocument(
+            'live_sessions/$sessionId/participants/${user.uid}',
+          )
+        : null;
+    final participantSnap = _useWindowsPollingWorkaround
+        ? null
+        : await _liveCollection
+              .doc(sessionId)
+              .collection('participants')
+              .doc(user.uid)
+              .get();
+    if ((_useWindowsPollingWorkaround && participantDoc == null) ||
+        (!_useWindowsPollingWorkaround &&
+            (!participantSnap!.exists || participantSnap.data() == null))) {
       throw Exception('Join the live before commenting.');
     }
-    final participant = LiveParticipant.fromMap(participantSnap.data()!);
+    final participant = _useWindowsPollingWorkaround
+        ? LiveParticipant.fromMap(participantDoc!.data)
+        : LiveParticipant.fromMap(participantSnap!.data()!);
     if (participant.removed) {
       throw Exception('You were removed from this live.');
     }
 
+    if (_useWindowsPollingWorkaround) {
+      await _windowsRest.setDocument(
+        'live_sessions/$sessionId/comments/${_windowsDocId('comment')}',
+        {
+          'userId': user.uid,
+          'displayName':
+              (userData['name'] as String?) ?? user.displayName ?? user.email,
+          'text': cleanText,
+          'createdAt': DateTime.now().toUtc(),
+        },
+      );
+      return;
+    }
     await _liveCollection.doc(sessionId).collection('comments').add({
       'userId': user.uid,
       'displayName':
@@ -676,6 +1472,58 @@ class LiveRepository {
     required String emoji,
   }) async {
     final (user, userData) = await _requireSessionContext();
+    if (_useWindowsPollingWorkaround) {
+      final sessionDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId',
+      );
+      if (sessionDoc == null) {
+        throw Exception('Live session not found.');
+      }
+      final session = LiveSession.fromMap(sessionDoc.id, sessionDoc.data);
+      if (!session.isActive) {
+        throw Exception('Live session is not active.');
+      }
+      final participantDoc = await _windowsRest.getDocument(
+        'live_sessions/$sessionId/participants/${user.uid}',
+      );
+      if (participantDoc == null) {
+        throw Exception('Join the live before reacting.');
+      }
+      final participant = LiveParticipant.fromMap(participantDoc.data);
+      if (participant.removed) {
+        throw Exception('You were removed from this live.');
+      }
+      final rawLastReaction = participantDoc.data['lastReactionAt'];
+      DateTime? lastReactionAt;
+      if (rawLastReaction is DateTime) {
+        lastReactionAt = rawLastReaction;
+      }
+      final now = DateTime.now().toUtc();
+      if (lastReactionAt != null &&
+          now.difference(lastReactionAt).inSeconds < 3) {
+        throw Exception('Please wait before sending another reaction.');
+      }
+      await _windowsRest.setDocument(
+        'live_sessions/$sessionId/reactions/${_windowsDocId('reaction')}',
+        {
+          'userId': user.uid,
+          'displayName':
+              (userData['name'] as String?) ?? user.displayName ?? user.email,
+          'emoji': emoji,
+          'createdAt': now,
+        },
+      );
+      await _windowsRest.setDocument('live_sessions/$sessionId', {
+        ...sessionDoc.data,
+        'likeCount': session.likeCount + 1,
+        'updatedAt': now,
+      });
+      await _windowsRest.setDocument(
+        'live_sessions/$sessionId/participants/${user.uid}',
+        {...participantDoc.data, 'lastReactionAt': now, 'updatedAt': now},
+      );
+      return;
+    }
     final sessionRef = _liveCollection.doc(sessionId);
     final participantRef = sessionRef.collection('participants').doc(user.uid);
 
@@ -742,6 +1590,20 @@ class LiveRepository {
     if (trimmedReason.isEmpty) {
       throw Exception('Reason is required.');
     }
+    if (_useWindowsPollingWorkaround) {
+      await _windowsRest.setDocument(
+        'live_sessions/$sessionId/comment_reports/${_windowsDocId('report')}',
+        {
+          'reportedBy': user.uid,
+          'commentId': comment.id,
+          'commentUserId': comment.userId,
+          'commentText': comment.text,
+          'reason': trimmedReason,
+          'createdAt': DateTime.now().toUtc(),
+        },
+      );
+      return;
+    }
     await _liveCollection.doc(sessionId).collection('comment_reports').add({
       'reportedBy': user.uid,
       'commentId': comment.id,
@@ -756,25 +1618,31 @@ class LiveRepository {
     required String sessionId,
     required String userId,
   }) async {
-    final sessionSnap = await _liveCollection.doc(sessionId).get();
-    if (!sessionSnap.exists || sessionSnap.data() == null) {
+    final sessionData = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument('live_sessions/$sessionId'))?.data
+        : (await _liveCollection.doc(sessionId).get()).data();
+    if (sessionData == null) {
       return null;
     }
-    final session = LiveSession.fromMap(sessionSnap.id, sessionSnap.data()!);
-    final memberDoc = await _firestore
-        .collection('institution_members')
-        .doc('${session.institutionId}_$userId')
-        .get();
-    if (!memberDoc.exists || memberDoc.data() == null) {
+    final session = LiveSession.fromMap(sessionId, sessionData);
+    final memberData = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument(
+            'institution_members/${session.institutionId}_$userId',
+          ))?.data
+        : (await _firestore
+                  .collection('institution_members')
+                  .doc('${session.institutionId}_$userId')
+                  .get())
+              .data();
+    if (memberData == null) {
       return null;
     }
-    final data = memberDoc.data()!;
     return MemberPublicProfile(
       userId: userId,
-      displayName: (data['userName'] as String?) ?? 'Member',
-      role: (data['role'] as String?) ?? UserRole.other.name,
-      email: (data['email'] as String?) ?? '',
-      subtitle: (data['status'] as String?) ?? 'active',
+      displayName: (memberData['userName'] as String?) ?? 'Member',
+      role: (memberData['role'] as String?) ?? UserRole.other.name,
+      email: (memberData['email'] as String?) ?? '',
+      subtitle: (memberData['status'] as String?) ?? 'active',
     );
   }
 
@@ -793,24 +1661,29 @@ class LiveRepository {
       );
     }
 
-    final sessionSnap = await _liveCollection.doc(sessionId).get();
-    if (!sessionSnap.exists || sessionSnap.data() == null) {
+    final sessionData = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument('live_sessions/$sessionId'))?.data
+        : (await _liveCollection.doc(sessionId).get()).data();
+    if (sessionData == null) {
       throw Exception('Live session not found.');
     }
-    final sessionData = sessionSnap.data()!;
-    final session = LiveSession.fromMap(sessionSnap.id, sessionData);
+    final session = LiveSession.fromMap(sessionId, sessionData);
 
-    final participantSnap = await _liveCollection
-        .doc(sessionId)
-        .collection('participants')
-        .doc(user.uid)
-        .get();
+    final participantData = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument(
+            'live_sessions/$sessionId/participants/${user.uid}',
+          ))?.data
+        : (await _liveCollection
+                  .doc(sessionId)
+                  .collection('participants')
+                  .doc(user.uid)
+                  .get())
+              .data();
 
     var canPublishAudio = false;
     if (session.createdBy == user.uid) {
       canPublishAudio = session.status == LiveSessionStatus.live;
-    } else if (participantSnap.exists && participantSnap.data() != null) {
-      final participantData = participantSnap.data()!;
+    } else if (participantData != null) {
       final canSpeak = (participantData['canSpeak'] as bool?) ?? false;
       final mutedByHost = (participantData['mutedByHost'] as bool?) ?? false;
       canPublishAudio =
@@ -824,10 +1697,7 @@ class LiveRepository {
 
     final userData = await _currentUserDoc();
     final displayName =
-        (userData['name'] as String?) ??
-        user.displayName ??
-        user.email ??
-        'MindNest Member';
+        (userData['name'] as String?) ?? user.displayName ?? user.email;
 
     final now = DateTime.now().toUtc();
     final nowEpochSeconds = now.millisecondsSinceEpoch ~/ 1000;
@@ -857,10 +1727,44 @@ class LiveRepository {
   }
 
   Future<void> _cleanupEphemeralCollections(String sessionId) async {
+    if (_useWindowsPollingWorkaround) {
+      await _deleteWindowsSubcollection(
+        parentPath: 'live_sessions/$sessionId',
+        collectionId: 'comments',
+      );
+      await _deleteWindowsSubcollection(
+        parentPath: 'live_sessions/$sessionId',
+        collectionId: 'reactions',
+      );
+      await _deleteWindowsSubcollection(
+        parentPath: 'live_sessions/$sessionId',
+        collectionId: 'mic_requests',
+      );
+      return;
+    }
     final sessionRef = _liveCollection.doc(sessionId);
     await _deleteSubcollection(sessionRef.collection('comments'));
     await _deleteSubcollection(sessionRef.collection('reactions'));
     await _deleteSubcollection(sessionRef.collection('mic_requests'));
+  }
+
+  Future<void> _deleteWindowsSubcollection({
+    required String parentPath,
+    required String collectionId,
+  }) async {
+    while (true) {
+      final documents = await _windowsRest.queryCollection(
+        parentPath: parentPath,
+        collectionId: collectionId,
+        limit: 250,
+      );
+      if (documents.isEmpty) {
+        return;
+      }
+      for (final document in documents) {
+        await _windowsRest.deleteDocument(document.path);
+      }
+    }
   }
 
   Future<void> _deleteSubcollection(

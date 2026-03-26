@@ -1,79 +1,26 @@
 {
   "project_info": {
-    "project_number": "253632223556",
-    "project_id": "mindnest-923fb",
-    "storage_bucket": "mindnest-923fb.firebasestorage.app"
+    "project_number": "853014272041",
+    "project_id": "mindnest-45772",
+    "storage_bucket": "mindnest-45772.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:253632223556:android:15dc6e869834b77c56df11",
-        "android_client_info": {
-          "package_name": "com.example.mindnest"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "253632223556-9qkal4g12fvfe3kbeh7knda1238bn2fd.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDd2S-KYPs1239bT9-v08A07Dlj_zW8ESc"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "253632223556-9qkal4g12fvfe3kbeh7knda1238bn2fd.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "253632223556-hcuorduiib3ngfkmie07al0veei5m04i.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.example.mindnest"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:253632223556:android:a3aae67a1cdc023056df11",
+        "mobilesdk_app_id": "1:853014272041:android:a532377c7615138e6ce438",
         "android_client_info": {
           "package_name": "com.lusaasoftware.mindnest"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "253632223556-9qkal4g12fvfe3kbeh7knda1238bn2fd.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDd2S-KYPs1239bT9-v08A07Dlj_zW8ESc"
+          "current_key": "AIzaSyDr4oAp5w2JrIlamW7Ubz_9KExxnBnGX4E"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "253632223556-9qkal4g12fvfe3kbeh7knda1238bn2fd.apps.googleusercontent.com",
-              "client_type": 3
-            },
-            {
-              "client_id": "253632223556-hcuorduiib3ngfkmie07al0veei5m04i.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.example.mindnest"
-              }
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }

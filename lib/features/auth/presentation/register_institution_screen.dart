@@ -2,6 +2,8 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,6 +40,7 @@ class _RegisterInstitutionScreenState
   String? _selectedSchoolId;
   int? _currentStep = 0;
   bool _isSubmitting = false;
+  bool _isCheckingInstitutionAvailability = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _schoolFieldError = false;
@@ -78,8 +81,13 @@ class _RegisterInstitutionScreenState
     return current;
   }
 
+  bool get _isWindowsDesktop =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+  bool get _isFormBusy => _isSubmitting || _isCheckingInstitutionAvailability;
+
   bool get _isPrimaryActionEnabled {
-    if (_isSubmitting) {
+    if (_isFormBusy) {
       return false;
     }
     switch (_activeStep) {
@@ -298,7 +306,7 @@ class _RegisterInstitutionScreenState
   }
 
   Future<void> _openCatalogSchoolPicker() async {
-    if (_isSubmitting) {
+    if (_isFormBusy) {
       return;
     }
     final selectedId = await showModalBottomSheet<String>(
@@ -347,6 +355,7 @@ class _RegisterInstitutionScreenState
             institutionCatalogId: selectedSchool.id,
             institutionName: selectedSchool.name,
           );
+      await syncAuthSessionState(ref);
       if (mounted) {
         context.go(
           Uri(
@@ -475,7 +484,7 @@ class _RegisterInstitutionScreenState
   }
 
   Future<void> _handlePrimaryAction() async {
-    if (_isSubmitting) {
+    if (_isFormBusy) {
       return;
     }
     var stepError = _validateCurrentStep();
@@ -494,6 +503,9 @@ class _RegisterInstitutionScreenState
     }
 
     if (_activeStep == 0) {
+      if (_isWindowsDesktop) {
+        setState(() => _isCheckingInstitutionAvailability = true);
+      }
       try {
         final schoolId = (_selectedSchoolId ?? '').trim();
         final isAvailable = await ref
@@ -514,6 +526,10 @@ class _RegisterInstitutionScreenState
           'We could not validate institution availability right now. Please try again.',
         );
         return;
+      } finally {
+        if (mounted && _isCheckingInstitutionAvailability) {
+          setState(() => _isCheckingInstitutionAvailability = false);
+        }
       }
     }
 
@@ -528,7 +544,7 @@ class _RegisterInstitutionScreenState
   }
 
   void _handleBackAction() {
-    if (_isSubmitting) {
+    if (_isFormBusy) {
       return;
     }
     if (_activeStep == 0) {
@@ -636,14 +652,56 @@ class _RegisterInstitutionScreenState
         const SizedBox(height: 8),
         _CatalogSchoolPickerField(
           hasError: _schoolFieldError,
+          isChecking: _isCheckingInstitutionAvailability,
           selectedSchoolName: selectedSchool?.name,
           onTap: _openCatalogSchoolPicker,
+        ),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: !_isWindowsDesktop || !_isCheckingInstitutionAvailability
+              ? const SizedBox(height: 8)
+              : Container(
+                  key: const ValueKey('institution-checking-banner'),
+                  margin: const EdgeInsets.only(top: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFFFFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFB7EFE8)),
+                  ),
+                  child: const Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: Color(0xFF0E9B90),
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Checking whether this institution is already registered...',
+                          style: TextStyle(
+                            color: Color(0xFF0A6E66),
+                            fontWeight: FontWeight.w700,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
         ),
         const SizedBox(height: 8),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            onPressed: _isSubmitting
+            onPressed: _isFormBusy
                 ? null
                 : () => context.go(AppRoute.registerInstitutionSchoolRequest),
             icon: const Icon(Icons.add_business_rounded, size: 18),
@@ -1023,7 +1081,7 @@ class _RegisterInstitutionScreenState
                 if (_activeStep > 0) ...[
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: _isSubmitting ? null : _handleBackAction,
+                      onPressed: _isFormBusy ? null : _handleBackAction,
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size.fromHeight(58),
                         side: const BorderSide(color: Color(0xFFBED0E4)),
@@ -1079,19 +1137,45 @@ class _RegisterInstitutionScreenState
                       ),
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 220),
-                        child: Text(
-                          _isSubmitting
-                              ? 'Creating...'
-                              : (_activeStep < _stepCount - 1
-                                    ? 'Continue'
-                                    : 'Create'),
-                          key: ValueKey('$_isSubmitting-$_activeStep'),
-                          style: const TextStyle(
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
+                        child: _isCheckingInstitutionAvailability
+                            ? const Row(
+                                key: ValueKey('checking-institution'),
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.4,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text(
+                                    'Checking...',
+                                    style: TextStyle(
+                                      fontSize: 16.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Text(
+                                _isSubmitting
+                                    ? 'Creating...'
+                                    : (_activeStep < _stepCount - 1
+                                          ? 'Continue'
+                                          : 'Create'),
+                                key: ValueKey(
+                                  '$_isSubmitting-$_isCheckingInstitutionAvailability-$_activeStep',
+                                ),
+                                style: const TextStyle(
+                                  fontSize: 16.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
                   ),
@@ -1174,11 +1258,13 @@ class _RoundedInput extends StatelessWidget {
 class _CatalogSchoolPickerField extends StatelessWidget {
   const _CatalogSchoolPickerField({
     required this.hasError,
+    required this.isChecking,
     required this.selectedSchoolName,
     required this.onTap,
   });
 
   final bool hasError;
+  final bool isChecking;
   final String? selectedSchoolName;
   final VoidCallback onTap;
 
@@ -1192,7 +1278,7 @@ class _CatalogSchoolPickerField extends StatelessWidget {
         : selectedSchoolName!.trim();
 
     return InkWell(
-      onTap: onTap,
+      onTap: isChecking ? null : onTap,
       borderRadius: BorderRadius.circular(18),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -1257,10 +1343,18 @@ class _CatalogSchoolPickerField extends StatelessWidget {
                 color: const Color(0xFFEFFFFC),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: Color(0xFF0E9B90),
-              ),
+              child: isChecking
+                  ? const Padding(
+                      padding: EdgeInsets.all(9),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: Color(0xFF0E9B90),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Color(0xFF0E9B90),
+                    ),
             ),
           ],
         ),

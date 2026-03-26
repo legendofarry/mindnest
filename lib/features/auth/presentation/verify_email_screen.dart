@@ -97,6 +97,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     try {
       final authRepo = ref.read(authRepositoryProvider);
       await authRepo.reloadCurrentUser();
+      await syncAuthSessionState(ref);
       final user = authRepo.currentAuthUser;
       if (user == null) {
         if (!mounted) return;
@@ -114,10 +115,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
         return;
       }
       // Refresh profile so role/institution is current before routing.
-      final refreshedProfile =
-          await ref.refresh(currentUserProfileProvider.future) ?? profile;
+      final refreshedProfile = ref.read(currentUserProfileProvider).valueOrNull;
       if (!mounted) return;
-      context.go(_resolveNextRoute(refreshedProfile));
+      context.go(_resolveNextRoute(refreshedProfile ?? profile));
     } finally {
       if (mounted) {
         setState(() => _isContinuing = false);

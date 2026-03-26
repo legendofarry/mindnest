@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/features/ai/data/assistant_providers.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -26,6 +29,7 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
   String? _adviceText;
   String _adviceResolvedKey = '';
   String _adviceInFlightKey = '';
+  static const Duration _windowsPollInterval = Duration(seconds: 2);
 
   static const List<_MoodChoice> _moods = <_MoodChoice>[
     _MoodChoice(
@@ -68,6 +72,9 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
     'stressed': 1,
   };
 
+  bool get _useWindowsPollingWorkaround =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
   String _dateKey(DateTime value) {
     final local = value.toLocal();
     return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
@@ -101,27 +108,55 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
       return;
     }
 
-    final firestore = ref.read(firestoreProvider);
+    final windowsRest = ref.read(windowsFirestoreRestClientProvider);
     final todayKey = _dateKey(DateTime.now());
     final docId = '${userId}_$todayKey';
+    final now = DateTime.now().toUtc();
 
     setState(() => _saving = true);
     try {
-      await firestore.collection('mood_entries').doc(docId).set({
-        'userId': userId,
-        'dateKey': todayKey,
-        'mood': mood,
-        'energy': energy.clamp(1, 5),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      await firestore.collection('mood_events').add({
-        'userId': userId,
-        'dateKey': todayKey,
-        'mood': mood,
-        'energy': energy.clamp(1, 5),
-        'createdAt': FieldValue.serverTimestamp(),
-        'clientCreatedAt': Timestamp.fromDate(DateTime.now().toUtc()),
-      });
+      if (_useWindowsPollingWorkaround) {
+        final existing =
+            (await windowsRest.getDocument('mood_entries/$docId'))?.data ??
+            const <String, dynamic>{};
+        await windowsRest.setDocument('mood_entries/$docId', {
+          ...existing,
+          'userId': userId,
+          'dateKey': todayKey,
+          'mood': mood,
+          'energy': energy.clamp(1, 5),
+          'updatedAt': now,
+          'createdAt': existing['createdAt'] ?? now,
+        });
+        await windowsRest.setDocument(
+          'mood_events/event_${userId}_${now.microsecondsSinceEpoch}',
+          {
+            'userId': userId,
+            'dateKey': todayKey,
+            'mood': mood,
+            'energy': energy.clamp(1, 5),
+            'createdAt': now,
+            'clientCreatedAt': now,
+          },
+        );
+      } else {
+        final firestore = ref.read(firestoreProvider);
+        await firestore.collection('mood_entries').doc(docId).set({
+          'userId': userId,
+          'dateKey': todayKey,
+          'mood': mood,
+          'energy': energy.clamp(1, 5),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        await firestore.collection('mood_events').add({
+          'userId': userId,
+          'dateKey': todayKey,
+          'mood': mood,
+          'energy': energy.clamp(1, 5),
+          'createdAt': FieldValue.serverTimestamp(),
+          'clientCreatedAt': Timestamp.fromDate(now),
+        });
+      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -138,17 +173,14 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
     }
   }
 
-  List<_WellnessEvent> _parseEvents(
-    Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
-  ) {
+  List<_WellnessEvent> _parseEvents(Iterable<Map<String, dynamic>> docs) {
     final out = <_WellnessEvent>[];
     for (final doc in docs) {
-      final data = doc.data();
-      final mood = ((data['mood'] as String?) ?? 'okay').trim().toLowerCase();
-      final energyRaw = data['energy'];
+      final mood = ((doc['mood'] as String?) ?? 'okay').trim().toLowerCase();
+      final energyRaw = doc['energy'];
       final energy = energyRaw is int ? energyRaw.clamp(1, 5) : 3;
-      final createdAtRaw = data['createdAt'];
-      final clientCreatedAtRaw = data['clientCreatedAt'];
+      final createdAtRaw = doc['createdAt'];
+      final clientCreatedAtRaw = doc['clientCreatedAt'];
       DateTime? timestamp;
       if (createdAtRaw is Timestamp) {
         timestamp = createdAtRaw.toDate().toUtc();
@@ -161,6 +193,134 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
       out.add(_WellnessEvent(timestamp: timestamp, mood: mood, energy: energy));
     }
     return out;
+  }
+
+  List<_WellnessEntry> _parseEntries(Iterable<Map<String, dynamic>> docs) {
+    final entries = <_WellnessEntry>[];
+    for (final data in docs) {
+      final key = (data['dateKey'] as String?) ?? '';
+      if (key.isEmpty) {
+        continue;
+      }
+      final moodKey = (data['mood'] as String?) ?? 'okay';
+      final energyRaw = data['energy'];
+      final energy = energyRaw is int ? energyRaw.clamp(1, 5) : 3;
+      entries.add(_WellnessEntry(dateKey: key, mood: moodKey, energy: energy));
+    }
+    return entries;
+  }
+
+  String _entriesSignature(List<_WellnessEntry> entries) => entries
+      .map((entry) => '${entry.dateKey}|${entry.mood}|${entry.energy}')
+      .join(';');
+
+  String _eventsSignature(List<_WellnessEvent> events) => events
+      .map(
+        (event) =>
+            '${event.timestamp.toIso8601String()}|${event.mood}|${event.energy}',
+      )
+      .join(';');
+
+  Stream<List<_WellnessEntry>> _watchMoodEntries(String userId) {
+    if (!_useWindowsPollingWorkaround) {
+      final query = ref
+          .read(firestoreProvider)
+          .collection('mood_entries')
+          .where('userId', isEqualTo: userId);
+      return query.snapshots().map(
+        (snapshot) => _parseEntries(snapshot.docs.map((doc) => doc.data())),
+      );
+    }
+    return _buildWindowsPollingStream<List<_WellnessEntry>>(
+      load: () async {
+        final documents = await ref
+            .read(windowsFirestoreRestClientProvider)
+            .queryCollection(
+              collectionId: 'mood_entries',
+              filters: <WindowsFirestoreFieldFilter>[
+                WindowsFirestoreFieldFilter.equal('userId', userId),
+              ],
+            );
+        return _parseEntries(documents.map((doc) => doc.data));
+      },
+      signature: _entriesSignature,
+    );
+  }
+
+  Stream<List<_WellnessEvent>> _watchMoodEvents(String userId) {
+    if (!_useWindowsPollingWorkaround) {
+      final query = ref
+          .read(firestoreProvider)
+          .collection('mood_events')
+          .where('userId', isEqualTo: userId);
+      return query.snapshots().map(
+        (snapshot) => _parseEvents(snapshot.docs.map((doc) => doc.data())),
+      );
+    }
+    return _buildWindowsPollingStream<List<_WellnessEvent>>(
+      load: () async {
+        final documents = await ref
+            .read(windowsFirestoreRestClientProvider)
+            .queryCollection(
+              collectionId: 'mood_events',
+              filters: <WindowsFirestoreFieldFilter>[
+                WindowsFirestoreFieldFilter.equal('userId', userId),
+              ],
+            );
+        return _parseEvents(documents.map((doc) => doc.data));
+      },
+      signature: _eventsSignature,
+    );
+  }
+
+  Stream<T> _buildWindowsPollingStream<T>({
+    required Future<T> Function() load,
+    required String Function(T value) signature,
+  }) {
+    late final StreamController<T> controller;
+    Timer? timer;
+    String? lastEmissionSignature;
+
+    Future<void> emitIfChanged() async {
+      if (controller.isClosed) {
+        return;
+      }
+      try {
+        final value = await load();
+        final nextSignature = 'value:${signature(value)}';
+        if (nextSignature == lastEmissionSignature) {
+          return;
+        }
+        lastEmissionSignature = nextSignature;
+        if (!controller.isClosed) {
+          controller.add(value);
+        }
+      } catch (error, stackTrace) {
+        final nextSignature = 'error:$error';
+        if (nextSignature == lastEmissionSignature) {
+          return;
+        }
+        lastEmissionSignature = nextSignature;
+        if (!controller.isClosed) {
+          controller.addError(error, stackTrace);
+        }
+      }
+    }
+
+    controller = StreamController<T>(
+      onListen: () {
+        unawaited(emitIfChanged());
+        timer = Timer.periodic(_windowsPollInterval, (_) {
+          unawaited(emitIfChanged());
+        });
+      },
+      onCancel: () async {
+        timer?.cancel();
+        await controller.close();
+      },
+    );
+
+    return controller.stream;
   }
 
   _WellnessAnalyticsSummary _summarizeEvents(
@@ -612,7 +772,6 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
   }
 
   Widget _buildAnalyticsContent({
-    required FirebaseFirestore firestore,
     required String userId,
     required bool isDark,
     required Color borderColor,
@@ -620,13 +779,10 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
     required Color mutedColor,
     required Color selectedBg,
   }) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: firestore
-          .collection('mood_events')
-          .where('userId', isEqualTo: userId)
-          .snapshots(),
+    return StreamBuilder<List<_WellnessEvent>>(
+      stream: _watchMoodEvents(userId),
       builder: (context, snapshot) {
-        final events = _parseEvents(snapshot.data?.docs ?? const []);
+        final events = snapshot.data ?? const <_WellnessEvent>[];
         final summary = _summarizeEvents(events, _period);
         _queueAdviceUpdate(summary);
         final topMood = summary.topMoodKey == null
@@ -941,29 +1097,12 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
       return const SizedBox.shrink();
     }
 
-    final firestore = ref.read(firestoreProvider);
-
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: firestore
-          .collection('mood_entries')
-          .where('userId', isEqualTo: userId)
-          .snapshots(),
+    return StreamBuilder<List<_WellnessEntry>>(
+      stream: _watchMoodEntries(userId),
       builder: (context, snapshot) {
         final byDate = <String, _WellnessEntry>{};
-        for (final doc in snapshot.data?.docs ?? const []) {
-          final data = doc.data();
-          final key = (data['dateKey'] as String?) ?? '';
-          if (key.isEmpty) {
-            continue;
-          }
-          final moodKey = (data['mood'] as String?) ?? 'okay';
-          final energyRaw = data['energy'];
-          final energy = energyRaw is int ? energyRaw.clamp(1, 5) : 3;
-          byDate[key] = _WellnessEntry(
-            dateKey: key,
-            mood: moodKey,
-            energy: energy,
-          );
+        for (final entry in snapshot.data ?? const <_WellnessEntry>[]) {
+          byDate[entry.dateKey] = entry;
         }
 
         final todayKey = _dateKey(DateTime.now());
@@ -989,7 +1128,6 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
           ),
           child: _analyticsMode
               ? _buildAnalyticsContent(
-                  firestore: firestore,
                   userId: userId,
                   isDark: isDark,
                   borderColor: borderColor,

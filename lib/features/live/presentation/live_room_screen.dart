@@ -198,7 +198,7 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
       _audioConnected = true;
       _canPublishWithToken = creds.canPublishAudio;
       if (session.createdBy ==
-          ref.read(firebaseAuthProvider).currentUser?.uid) {
+          ref.read(appAuthClientProvider).currentUser?.uid) {
         await _setMic(_canPublishWithToken);
       } else {
         await _setMic(false);

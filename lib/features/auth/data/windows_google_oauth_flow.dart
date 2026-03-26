@@ -17,12 +17,11 @@ class WindowsGoogleOAuthFlow {
 
   // Source-file fallback for local/dev use when --dart-define is omitted.
   // Client IDs are public and safe to ship in desktop apps.
-  static const String _clientIdFallback =
-      '253632223556-3474qnj85b8jnqdibk9kal6nv1dlfj0l.apps.googleusercontent.com';
+  static const String _clientIdFallback = '';
   // Desktop app client secrets are not able to protect a native app in the same
   // way a server secret can, so we keep the local fallback here for the Windows
   // desktop OAuth roundtrip.
-  static const String _clientSecretFallback = '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';
+  static const String _clientSecretFallback = '';
 
   static const Duration _callbackTimeout = Duration(minutes: 5);
   static const String _tokenEndpoint = 'https://oauth2.googleapis.com/token';

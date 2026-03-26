@@ -14,7 +14,7 @@ This project uses FlutterFire with generated options in `lib/firebase_options.da
 Run from project root:
 
 ```bash
-flutterfire configure --project=mindnest-923fb --platforms=android,ios,web,macos,windows
+flutterfire configure --project=mindnest-45772 --platforms=android,ios,web,macos,windows
 ```
 
 This regenerates:

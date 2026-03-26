@@ -3,9 +3,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
+import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/features/ai/models/assistant_models.dart';
+import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 
 // Source-file fallback config (used when no --dart-define values are passed).
@@ -45,16 +46,26 @@ const _openRouterTitleSource = 'MindNest';
 
 class AssistantRepository {
   AssistantRepository({
-    required FirebaseFirestore firestore,
-    required FirebaseAuth auth,
+    required FirebaseFirestore Function()? firestoreFactory,
+    required WindowsFirestoreRestClient windowsRest,
+    required AppAuthClient auth,
     required http.Client httpClient,
-  }) : _firestore = firestore,
+  }) : _firestoreFactory = firestoreFactory,
+       _windowsRest = windowsRest,
        _auth = auth,
        _httpClient = httpClient;
 
-  final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
+  final FirebaseFirestore Function()? _firestoreFactory;
+  FirebaseFirestore? _cachedFirestore;
+  final WindowsFirestoreRestClient _windowsRest;
+  final AppAuthClient _auth;
   final http.Client _httpClient;
+
+  FirebaseFirestore get _firestore => _cachedFirestore ??=
+      _firestoreFactory?.call() ??
+      (throw StateError(
+        'Native Firestore is disabled for Windows REST auth flows.',
+      ));
 
   static const String _externalProviderFromDefine = String.fromEnvironment(
     'EXTERNAL_AI_PROVIDER',
@@ -780,11 +791,11 @@ class AssistantRepository {
     required UserProfile profile,
     required String normalizedPrompt,
   }) async {
-    final userDocSnap = await _firestore
-        .collection('users')
-        .doc(profile.id)
-        .get();
-    final userData = userDocSnap.data() ?? const <String, dynamic>{};
+    final userData = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument('users/${profile.id}'))?.data ??
+              const <String, dynamic>{}
+        : (await _firestore.collection('users').doc(profile.id).get()).data() ??
+              const <String, dynamic>{};
 
     final displayName = (userData['name'] as String?)?.trim().isNotEmpty == true
         ? (userData['name'] as String).trim()
@@ -798,8 +809,7 @@ class AssistantRepository {
         (userData['phone'] as String?)?.trim() ??
         '';
     final createdAt =
-        _asDate(userData['createdAt']) ??
-        _auth.currentUser?.metadata.creationTime;
+        _asDate(userData['createdAt']) ?? _auth.currentUser?.creationTime;
     final institutionName = (profile.institutionName ?? '').trim().isNotEmpty
         ? profile.institutionName!.trim()
         : 'Not linked';
@@ -908,24 +918,40 @@ class AssistantRepository {
       return null;
     }
     final directId = '${institutionId}_${profile.id}';
-    final directDoc = await _firestore
-        .collection('institution_members')
-        .doc(directId)
-        .get();
-    if (directDoc.exists) {
-      final data = directDoc.data() ?? const <String, dynamic>{};
-      return _asDate(data['joinedAt']) ?? _asDate(data['createdAt']);
+    final directData = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument(
+            'institution_members/$directId',
+          ))?.data
+        : (await _firestore
+                  .collection('institution_members')
+                  .doc(directId)
+                  .get())
+              .data();
+    if (directData != null) {
+      return _asDate(directData['joinedAt']) ??
+          _asDate(directData['createdAt']);
     }
-    final fallback = await _firestore
-        .collection('institution_members')
-        .where('institutionId', isEqualTo: institutionId)
-        .where('userId', isEqualTo: profile.id)
-        .limit(1)
-        .get();
-    if (fallback.docs.isEmpty) {
+    final data = kUseWindowsRestAuth
+        ? (await _windowsRest.queryCollection(
+            collectionId: 'institution_members',
+            filters: <WindowsFirestoreFieldFilter>[
+              WindowsFirestoreFieldFilter.equal('institutionId', institutionId),
+              WindowsFirestoreFieldFilter.equal('userId', profile.id),
+            ],
+            limit: 1,
+          )).firstOrNull?.data
+        : (await _firestore
+                  .collection('institution_members')
+                  .where('institutionId', isEqualTo: institutionId)
+                  .where('userId', isEqualTo: profile.id)
+                  .limit(1)
+                  .get())
+              .docs
+              .firstOrNull
+              ?.data();
+    if (data == null) {
       return null;
     }
-    final data = fallback.docs.first.data();
     return _asDate(data['joinedAt']) ?? _asDate(data['createdAt']);
   }
 
@@ -933,14 +959,24 @@ class AssistantRepository {
     required UserProfile profile,
     required String normalizedPrompt,
   }) async {
-    final snapshot = await _firestore
-        .collection('notifications')
-        .where('userId', isEqualTo: profile.id)
-        .limit(80)
-        .get();
-    final docs = snapshot.docs
-        .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
-        .toList(growable: false);
+    final docs = kUseWindowsRestAuth
+        ? (await _windowsRest.queryCollection(
+                collectionId: 'notifications',
+                filters: <WindowsFirestoreFieldFilter>[
+                  WindowsFirestoreFieldFilter.equal('userId', profile.id),
+                ],
+                limit: 80,
+              ))
+              .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data})
+              .toList(growable: false)
+        : (await _firestore
+                  .collection('notifications')
+                  .where('userId', isEqualTo: profile.id)
+                  .limit(80)
+                  .get())
+              .docs
+              .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+              .toList(growable: false);
     if (docs.isEmpty) {
       return const AssistantReply(
         text: 'You currently have no notifications.',
@@ -1064,26 +1100,39 @@ class AssistantRepository {
       );
     }
 
-    QuerySnapshot<Map<String, dynamic>> snapshot;
-    if (profile.role == UserRole.counselor) {
-      snapshot = await _firestore
-          .collection('care_goals')
-          .where('counselorId', isEqualTo: profile.id)
-          .where('institutionId', isEqualTo: profile.institutionId)
-          .limit(80)
-          .get();
-    } else {
-      snapshot = await _firestore
-          .collection('care_goals')
-          .where('studentId', isEqualTo: profile.id)
-          .where('institutionId', isEqualTo: profile.institutionId)
-          .limit(80)
-          .get();
-    }
-
-    final goals = snapshot.docs
-        .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
-        .toList(growable: false);
+    final goals = kUseWindowsRestAuth
+        ? (await _windowsRest.queryCollection(
+                collectionId: 'care_goals',
+                filters: <WindowsFirestoreFieldFilter>[
+                  WindowsFirestoreFieldFilter.equal(
+                    profile.role == UserRole.counselor
+                        ? 'counselorId'
+                        : 'studentId',
+                    profile.id,
+                  ),
+                  WindowsFirestoreFieldFilter.equal(
+                    'institutionId',
+                    profile.institutionId,
+                  ),
+                ],
+                limit: 80,
+              ))
+              .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data})
+              .toList(growable: false)
+        : (await _firestore
+                  .collection('care_goals')
+                  .where(
+                    profile.role == UserRole.counselor
+                        ? 'counselorId'
+                        : 'studentId',
+                    isEqualTo: profile.id,
+                  )
+                  .where('institutionId', isEqualTo: profile.institutionId)
+                  .limit(80)
+                  .get())
+              .docs
+              .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+              .toList(growable: false);
     if (goals.isEmpty) {
       return const AssistantReply(
         text: 'No care goals found yet.',
@@ -1149,24 +1198,34 @@ class AssistantRepository {
     required UserProfile profile,
     required String normalizedPrompt,
   }) async {
-    QuerySnapshot<Map<String, dynamic>> snapshot;
-    if (profile.role == UserRole.counselor) {
-      snapshot = await _firestore
-          .collection('appointments')
-          .where('counselorId', isEqualTo: profile.id)
-          .limit(300)
-          .get();
-    } else {
-      snapshot = await _firestore
-          .collection('appointments')
-          .where('studentId', isEqualTo: profile.id)
-          .limit(300)
-          .get();
-    }
-
-    final records = snapshot.docs
-        .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
-        .toList(growable: false);
+    final records = kUseWindowsRestAuth
+        ? (await _windowsRest.queryCollection(
+                collectionId: 'appointments',
+                filters: <WindowsFirestoreFieldFilter>[
+                  WindowsFirestoreFieldFilter.equal(
+                    profile.role == UserRole.counselor
+                        ? 'counselorId'
+                        : 'studentId',
+                    profile.id,
+                  ),
+                ],
+                limit: 300,
+              ))
+              .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data})
+              .toList(growable: false)
+        : (await _firestore
+                  .collection('appointments')
+                  .where(
+                    profile.role == UserRole.counselor
+                        ? 'counselorId'
+                        : 'studentId',
+                    isEqualTo: profile.id,
+                  )
+                  .limit(300)
+                  .get())
+              .docs
+              .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+              .toList(growable: false);
     if (records.isEmpty) {
       return const AssistantReply(
         text: 'I could not find any sessions for your account yet.',
@@ -1309,21 +1368,36 @@ class AssistantRepository {
 
     final prompt = rawPrompt.toLowerCase();
     final keywordTokens = _extractIntentKeywords(prompt);
-    final profiles = await _firestore
-        .collection('counselor_profiles')
-        .where('institutionId', isEqualTo: institutionId)
-        .limit(120)
-        .get();
-    if (profiles.docs.isEmpty) {
+    final profiles = kUseWindowsRestAuth
+        ? (await _windowsRest.queryCollection(
+                collectionId: 'counselor_profiles',
+                filters: <WindowsFirestoreFieldFilter>[
+                  WindowsFirestoreFieldFilter.equal(
+                    'institutionId',
+                    institutionId,
+                  ),
+                ],
+                limit: 120,
+              ))
+              .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data})
+              .toList(growable: false)
+        : (await _firestore
+                  .collection('counselor_profiles')
+                  .where('institutionId', isEqualTo: institutionId)
+                  .limit(120)
+                  .get())
+              .docs
+              .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+              .toList(growable: false);
+    if (profiles.isEmpty) {
       return const AssistantReply(
         text: 'There are no active counselor profiles available yet.',
       );
     }
 
-    QueryDocumentSnapshot<Map<String, dynamic>>? selected;
+    Map<String, dynamic>? selected;
     var bestScore = 0;
-    for (final doc in profiles.docs) {
-      final data = doc.data();
+    for (final data in profiles) {
       final name = ((data['displayName'] as String?) ?? '').toLowerCase();
       final specialization = ((data['specialization'] as String?) ?? '')
           .toLowerCase();
@@ -1348,7 +1422,7 @@ class AssistantRepository {
       }
       if (score > bestScore) {
         bestScore = score;
-        selected = doc;
+        selected = data;
       }
     }
 
@@ -1365,8 +1439,8 @@ class AssistantRepository {
       );
     }
 
-    final data = selected.data();
-    final counselorId = selected.id;
+    final data = selected;
+    final counselorId = (data['id'] as String?) ?? '';
     final displayName = (data['displayName'] as String?) ?? 'Counselor';
     final title = (data['title'] as String?) ?? 'Counselor';
     final specialization = (data['specialization'] as String?) ?? 'General';
@@ -1385,17 +1459,29 @@ class AssistantRepository {
     }
     final bio = ((data['bio'] as String?) ?? '').trim();
 
-    final availability = await _firestore
-        .collection('counselor_availability')
-        .where('institutionId', isEqualTo: institutionId)
-        .where('counselorId', isEqualTo: counselorId)
-        .where('status', isEqualTo: 'available')
-        .limit(20)
-        .get();
+    final availability = kUseWindowsRestAuth
+        ? (await _windowsRest.queryCollection(
+            collectionId: 'counselor_availability',
+            filters: <WindowsFirestoreFieldFilter>[
+              WindowsFirestoreFieldFilter.equal('institutionId', institutionId),
+              WindowsFirestoreFieldFilter.equal('counselorId', counselorId),
+              const WindowsFirestoreFieldFilter.equal('status', 'available'),
+            ],
+            limit: 20,
+          )).map((doc) => doc.data).toList(growable: false)
+        : (await _firestore
+                  .collection('counselor_availability')
+                  .where('institutionId', isEqualTo: institutionId)
+                  .where('counselorId', isEqualTo: counselorId)
+                  .where('status', isEqualTo: 'available')
+                  .limit(20)
+                  .get())
+              .docs
+              .map((doc) => doc.data())
+              .toList(growable: false);
     final now = DateTime.now().toUtc();
     final upcomingSlots =
-        availability.docs
-            .map((doc) => doc.data())
+        availability
             .where((slot) {
               final end = _asDate(slot['endAt']);
               return end != null && end.toUtc().isAfter(now);
@@ -1660,21 +1746,32 @@ class AssistantRepository {
     final institutionId = (profile.institutionId ?? '').trim();
     try {
       final now = DateTime.now().toUtc();
-      final availability = await _firestore
-          .collection('counselor_availability')
-          .where('institutionId', isEqualTo: institutionId)
-          .where('status', isEqualTo: 'available')
-          .limit(50)
-          .get();
+      final availability = kUseWindowsRestAuth
+          ? (await _windowsRest.queryCollection(
+              collectionId: 'counselor_availability',
+              filters: <WindowsFirestoreFieldFilter>[
+                WindowsFirestoreFieldFilter.equal(
+                  'institutionId',
+                  institutionId,
+                ),
+                const WindowsFirestoreFieldFilter.equal('status', 'available'),
+              ],
+              limit: 50,
+            )).map((doc) => doc.data).toList(growable: false)
+          : (await _firestore
+                    .collection('counselor_availability')
+                    .where('institutionId', isEqualTo: institutionId)
+                    .where('status', isEqualTo: 'available')
+                    .limit(50)
+                    .get())
+                .docs
+                .map((entry) => entry.data())
+                .toList(growable: false);
 
-      final slots = availability.docs
-          .map((entry) => entry.data())
+      final slots = availability
           .where((data) {
-            final endRaw = data['endAt'];
-            if (endRaw is Timestamp) {
-              return endRaw.toDate().toUtc().isAfter(now);
-            }
-            return false;
+            final end = _asDate(data['endAt']);
+            return end != null && end.toUtc().isAfter(now);
           })
           .toList(growable: false);
 
@@ -1693,11 +1790,9 @@ class AssistantRepository {
 
       slots.sort((a, b) {
         final aStart =
-            (a['startAt'] as Timestamp?)?.toDate() ??
-            DateTime.fromMillisecondsSinceEpoch(0);
+            _asDate(a['startAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
         final bStart =
-            (b['startAt'] as Timestamp?)?.toDate() ??
-            DateTime.fromMillisecondsSinceEpoch(0);
+            _asDate(b['startAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
         return aStart.compareTo(bStart);
       });
 
@@ -1713,8 +1808,8 @@ class AssistantRepository {
           .map((slot) {
             final counselorId = (slot['counselorId'] as String?) ?? '';
             final name = counselorNames[counselorId] ?? 'Counselor';
-            final start = (slot['startAt'] as Timestamp?)?.toDate().toLocal();
-            final end = (slot['endAt'] as Timestamp?)?.toDate().toLocal();
+            final start = _asDate(slot['startAt'])?.toLocal();
+            final end = _asDate(slot['endAt'])?.toLocal();
             if (start == null || end == null) {
               return '$name: time not available';
             }
@@ -1758,6 +1853,19 @@ class AssistantRepository {
       chunks.add(counselorIds.sublist(i, end));
     }
     for (final chunk in chunks) {
+      if (kUseWindowsRestAuth) {
+        for (final counselorId in chunk) {
+          final document = await _windowsRest.getDocument(
+            'counselor_profiles/$counselorId',
+          );
+          if (document == null) {
+            continue;
+          }
+          names[document.id] =
+              (document.data['displayName'] as String?) ?? 'Counselor';
+        }
+        continue;
+      }
       final snap = await _firestore
           .collection('counselor_profiles')
           .where(FieldPath.documentId, whereIn: chunk)

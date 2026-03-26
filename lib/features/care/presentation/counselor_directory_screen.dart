@@ -1,9 +1,12 @@
 // features/care/presentation/counselor_directory_screen.dart
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/app/theme_mode_controller.dart';
+import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
@@ -19,6 +22,59 @@ import 'package:mindnest/features/care/models/counselor_public_rating.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+
+const Duration _windowsPollInterval = Duration(seconds: 2);
+bool get _useWindowsRestFirestore =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+Stream<T> _buildWindowsPollingStream<T>({
+  required Future<T> Function() load,
+  required String Function(T value) signature,
+}) {
+  late final StreamController<T> controller;
+  Timer? timer;
+  String? lastEmissionSignature;
+
+  Future<void> emitIfChanged() async {
+    if (controller.isClosed) {
+      return;
+    }
+    try {
+      final value = await load();
+      final nextSignature = 'value:${signature(value)}';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.add(value);
+      }
+    } catch (error, stackTrace) {
+      final nextSignature = 'error:$error';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.addError(error, stackTrace);
+      }
+    }
+  }
+
+  controller = StreamController<T>(
+    onListen: () {
+      unawaited(emitIfChanged());
+      timer = Timer.periodic(_windowsPollInterval, (_) {
+        unawaited(emitIfChanged());
+      });
+    },
+    onCancel: () {
+      timer?.cancel();
+    },
+  );
+
+  return controller.stream;
+}
 
 enum _CounselorSort { earliestAvailable, ratingHigh, experienceHigh }
 
@@ -2076,12 +2132,46 @@ class _PendingCounselorFallback extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final firestore = ref.watch(firestoreProvider);
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: firestore
-          .collection('institution_members')
-          .where('institutionId', isEqualTo: institutionId)
-          .snapshots(),
+    final firestore = _useWindowsRestFirestore
+        ? null
+        : ref.watch(firestoreProvider);
+    final windowsRest = ref.watch(windowsFirestoreRestClientProvider);
+    final membersStream = _useWindowsRestFirestore
+        ? _buildWindowsPollingStream<List<Map<String, dynamic>>>(
+            load: () async {
+              final documents = await windowsRest.queryCollection(
+                collectionId: 'institution_members',
+                filters: <WindowsFirestoreFieldFilter>[
+                  WindowsFirestoreFieldFilter.equal(
+                    'institutionId',
+                    institutionId,
+                  ),
+                ],
+              );
+              return documents
+                  .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data})
+                  .toList(growable: false);
+            },
+            signature: (items) => items
+                .map(
+                  (item) =>
+                      '${item['id'] ?? ''}|${item['userId'] ?? ''}|${item['role'] ?? ''}|${item['userName'] ?? item['name'] ?? ''}',
+                )
+                .join(';'),
+          )
+        : firestore
+              !.collection('institution_members')
+              .where('institutionId', isEqualTo: institutionId)
+              .snapshots()
+              .map(
+                (snapshot) => snapshot.docs
+                    .map(
+                      (doc) => <String, dynamic>{'id': doc.id, ...doc.data()},
+                    )
+                    .toList(growable: false),
+              );
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: membersStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -2097,12 +2187,12 @@ class _PendingCounselorFallback extends ConsumerWidget {
           );
         }
 
-        final counselorMembers = (snapshot.data?.docs ?? const [])
-            .where(
-              (doc) =>
-                  (doc.data()['role'] as String?) == UserRole.counselor.name,
-            )
-            .toList(growable: false);
+        final counselorMembers =
+            (snapshot.data ?? const <Map<String, dynamic>>[])
+                .where(
+                  (doc) => (doc['role'] as String?) == UserRole.counselor.name,
+                )
+                .toList(growable: false);
 
         if (counselorMembers.isEmpty) {
           return const GlassCard(
@@ -2119,8 +2209,11 @@ class _PendingCounselorFallback extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: counselorMembers
               .map((doc) {
-                final data = doc.data();
-                final userId = (data['userId'] as String?) ?? doc.id;
+                final data = doc;
+                final userId =
+                    (data['userId'] as String?) ??
+                    (data['id'] as String?) ??
+                    '';
                 final userName =
                     (data['userName'] as String?) ??
                     (data['name'] as String?) ??

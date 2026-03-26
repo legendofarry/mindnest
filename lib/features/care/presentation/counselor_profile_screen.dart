@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
@@ -16,6 +18,59 @@ import 'package:mindnest/features/care/models/counselor_profile.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+const Duration _windowsPollInterval = Duration(seconds: 2);
+bool get _useWindowsRestFirestore =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+Stream<T> _buildWindowsPollingStream<T>({
+  required Future<T> Function() load,
+  required String Function(T value) signature,
+}) {
+  late final StreamController<T> controller;
+  Timer? timer;
+  String? lastEmissionSignature;
+
+  Future<void> emitIfChanged() async {
+    if (controller.isClosed) {
+      return;
+    }
+    try {
+      final value = await load();
+      final nextSignature = 'value:${signature(value)}';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.add(value);
+      }
+    } catch (error, stackTrace) {
+      final nextSignature = 'error:$error';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.addError(error, stackTrace);
+      }
+    }
+  }
+
+  controller = StreamController<T>(
+    onListen: () {
+      unawaited(emitIfChanged());
+      timer = Timer.periodic(_windowsPollInterval, (_) {
+        unawaited(emitIfChanged());
+      });
+    },
+    onCancel: () {
+      timer?.cancel();
+    },
+  );
+
+  return controller.stream;
+}
 
 enum _SpotPeriod { any, morning, afternoon, evening }
 
@@ -925,14 +980,26 @@ class _CounselorProfileScreenState
       );
     }
 
-    final firestore = ref.watch(firestoreProvider);
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: firestore
-          .collection('institution_members')
-          .doc('${institutionId}_$counselorId')
-          .snapshots(),
+    final firestore = _useWindowsRestFirestore
+        ? null
+        : ref.watch(firestoreProvider);
+    final windowsRest = ref.watch(windowsFirestoreRestClientProvider);
+    final memberStream = _useWindowsRestFirestore
+        ? _buildWindowsPollingStream<Map<String, dynamic>?>(
+            load: () async => (await windowsRest.getDocument(
+              'institution_members/${institutionId}_$counselorId',
+            ))?.data,
+            signature: (data) => data == null ? 'null' : data.toString(),
+          )
+        : firestore
+              !.collection('institution_members')
+              .doc('${institutionId}_$counselorId')
+              .snapshots()
+              .map((doc) => doc.data());
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: memberStream,
       builder: (context, snapshot) {
-        final data = snapshot.data?.data();
+        final data = snapshot.data;
         final displayName =
             (data?['userName'] as String?) ??
             (data?['name'] as String?) ??

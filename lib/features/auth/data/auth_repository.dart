@@ -1,44 +1,54 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
+import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
+import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/data/auth_session_manager.dart';
-import 'package:mindnest/features/auth/data/windows_google_oauth_flow.dart';
+import 'package:mindnest/features/auth/models/app_auth_user.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 
 class AuthRepository {
   AuthRepository({
-    required FirebaseAuth auth,
-    required FirebaseFirestore firestore,
+    required AppAuthClient auth,
+    required FirebaseFirestore Function()? firestoreFactory,
+    required WindowsFirestoreRestClient windowsRest,
   }) : _auth = auth,
-       _firestore = firestore;
+       _firestoreFactory = firestoreFactory,
+       _windowsRest = windowsRest;
 
-  final FirebaseAuth _auth;
-  final FirebaseFirestore _firestore;
-  final WindowsGoogleOAuthFlow _windowsGoogleOAuthFlow =
-      WindowsGoogleOAuthFlow();
+  final AppAuthClient _auth;
+  final FirebaseFirestore Function()? _firestoreFactory;
+  FirebaseFirestore? _cachedFirestore;
+  final WindowsFirestoreRestClient _windowsRest;
   static const _kenyaPrefix = '+254';
   static const Duration _windowsPollInterval = Duration(seconds: 2);
 
   bool get _useWindowsPollingWorkaround =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
-  Stream<User?> authStateChanges() {
+  FirebaseFirestore get _firestore => _cachedFirestore ??=
+      _firestoreFactory?.call() ??
+      (throw StateError(
+        'Native Firestore is disabled for Windows REST auth flows.',
+      ));
+
+  Stream<AppAuthUser?> authStateChanges() {
     if (!_useWindowsPollingWorkaround) {
       return _auth.userChanges();
     }
 
-    return _buildWindowsPollingStream<User?>(
+    return _buildWindowsPollingStream<AppAuthUser?>(
       load: () async => _auth.currentUser,
       signature: (user) => user == null
           ? 'signed-out'
-          : '${user.uid}|${user.email ?? ''}|${user.emailVerified}|${user.displayName ?? ''}|${user.phoneNumber ?? ''}',
+          : '${user.uid}|${user.email}|${user.emailVerified}|${user.displayName ?? ''}|${user.phoneNumber ?? ''}',
     );
   }
 
-  User? get currentAuthUser => _auth.currentUser;
+  AppAuthUser? get currentAuthUser => _auth.currentUser;
 
   Stream<UserProfile?> userProfileChanges(String userId) {
     if (_useWindowsPollingWorkaround) {
@@ -102,15 +112,21 @@ class AuthRepository {
 
   Future<bool> isPhoneNumberAvailableForRegistration(String phoneNumber) async {
     final normalizedPhoneNumber = _normalizeRequiredKenyaPhone(phoneNumber);
-    final registryRef = _firestore
-        .collection('phone_number_registry')
-        .doc(_phoneRegistryDocId(normalizedPhoneNumber));
-    final snapshot = await registryRef.get();
-    if (!snapshot.exists) {
+    final registryDocId = _phoneRegistryDocId(normalizedPhoneNumber);
+    final data = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument(
+            'phone_number_registry/$registryDocId',
+          ))?.data
+        : (await _firestore
+                  .collection('phone_number_registry')
+                  .doc(registryDocId)
+                  .get())
+              .data();
+    if (data == null) {
       return true;
     }
 
-    final ownerUid = ((snapshot.data()?['uid'] as String?) ?? '').trim();
+    final ownerUid = ((data['uid'] as String?) ?? '').trim();
     if (ownerUid.isEmpty) {
       return true;
     }
@@ -128,11 +144,41 @@ class AuthRepository {
       throw Exception('You must be logged in.');
     }
 
+    if (kUseWindowsRestAuth) {
+      final existing = await _windowsRest.getDocument('users/${user.uid}');
+      if (existing == null) {
+        await _windowsRest.setDocument('users/${user.uid}', {
+          'email': user.email,
+          'name': user.displayName ?? '',
+          'role': UserRole.individual.name,
+          'onboardingCompletedRoles': <String, int>{},
+          'institutionId': null,
+          'institutionName': null,
+          'phoneNumber': '',
+          'additionalPhoneNumber': null,
+          'phoneNumbers': const <String>[],
+          'registrationIntent': null,
+          'createdAt': DateTime.now().toUtc(),
+          'updatedAt': DateTime.now().toUtc(),
+        });
+        return;
+      }
+
+      await _windowsRest.updateDocument('users/${user.uid}', {
+        'role': UserRole.individual.name,
+        'institutionId': null,
+        'institutionName': null,
+        'registrationIntent': null,
+        'updatedAt': DateTime.now().toUtc(),
+      });
+      return;
+    }
+
     final userDoc = _firestore.collection('users').doc(user.uid);
     final snapshot = await userDoc.get();
     if (!snapshot.exists) {
       await userDoc.set({
-        'email': user.email ?? '',
+        'email': user.email,
         'name': user.displayName ?? '',
         'role': UserRole.individual.name,
         'onboardingCompletedRoles': <String, int>{},
@@ -186,18 +232,13 @@ class AuthRepository {
     final credential = await _auth.createUserWithEmailAndPassword(
       email: normalizedEmail,
       password: password,
+      displayName: name.trim(),
     );
     final user = credential.user;
 
-    if (user == null) {
-      throw Exception('Unable to create user account.');
-    }
-
-    await user.updateDisplayName(name.trim());
-
     final profile = UserProfile(
       id: user.uid,
-      email: user.email ?? normalizedEmail,
+      email: user.email,
       name: name.trim(),
       role: role,
       institutionId: institutionId,
@@ -209,6 +250,49 @@ class AuthRepository {
     );
 
     try {
+      if (kUseWindowsRestAuth) {
+        final now = DateTime.now().toUtc();
+        final phoneRegistryRefs = _phoneRegistryRefsForRegistration(
+          primaryPhoneNumber: normalizedPhoneNumber,
+          additionalPhoneNumber: normalizedAdditionalPhoneNumber,
+        );
+
+        for (final ref in phoneRegistryRefs) {
+          final snapshot = await _windowsRest.getDocument(
+            'phone_number_registry/${ref.id}',
+          );
+          if (snapshot == null) {
+            continue;
+          }
+          final ownerUid = (snapshot.data['uid'] as String?) ?? '';
+          if (ownerUid != user.uid) {
+            final claimedPhone =
+                (snapshot.data['phoneNumber'] as String?) ?? ref.id;
+            throw _PhoneNumberAlreadyInUseException(
+              'The mobile number $claimedPhone is already linked to another account.',
+            );
+          }
+        }
+
+        await _windowsRest.setDocument('users/${user.uid}', {
+          ...profile.toMap(),
+          'onboardingCompletedRoles': <String, int>{},
+          'createdAt': now,
+          'updatedAt': now,
+        });
+
+        for (final ref in phoneRegistryRefs) {
+          await _windowsRest.setDocument('phone_number_registry/${ref.id}', {
+            'uid': user.uid,
+            'phoneNumber': _phoneFromRegistryDocId(ref.id),
+            'createdAt': now,
+            'updatedAt': now,
+          });
+        }
+        await _auth.sendEmailVerification();
+        return;
+      }
+
       await _firestore.runTransaction((transaction) async {
         final phoneRegistryRefs = _phoneRegistryRefsForRegistration(
           primaryPhoneNumber: normalizedPhoneNumber,
@@ -246,15 +330,10 @@ class AuthRepository {
         }
       });
     } on _PhoneNumberAlreadyInUseException catch (error) {
-      try {
-        await user.delete();
-      } catch (_) {
-        // If rollback auth deletion fails, keep a user-facing error.
-      }
       throw Exception(error.message);
     }
 
-    await user.sendEmailVerification();
+    await _auth.sendEmailVerification();
   }
 
   Future<void> signIn({
@@ -264,56 +343,70 @@ class AuthRepository {
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
     if (kIsWeb) {
-      await _auth.setPersistence(
-        rememberMe ? Persistence.LOCAL : Persistence.SESSION,
+      await fb.FirebaseAuth.instance.setPersistence(
+        rememberMe ? fb.Persistence.LOCAL : fb.Persistence.SESSION,
       );
     }
     final credential = await _auth.signInWithEmailAndPassword(
       email: normalizedEmail,
       password: password,
     );
-
     final user = credential.user;
-    if (user == null) {
-      throw Exception('Unable to sign in.');
+
+    if (_useWindowsPollingWorkaround) {
+      await _ensureWindowsLoginProfileExists(user);
+      await AuthSessionManager.markLogin(rememberMe: rememberMe);
+      return;
     }
 
+    await AuthSessionManager.markLogin(rememberMe: rememberMe);
     await _ensureProfileExists(user);
     await _backfillPhoneRegistryForCurrentUser(user.uid);
-    await AuthSessionManager.markLogin(rememberMe: rememberMe);
   }
 
-  Future<UserCredential> signInWithGoogle({bool rememberMe = true}) async {
-    if (kIsWeb) {
-      await _auth.setPersistence(
-        rememberMe ? Persistence.LOCAL : Persistence.SESSION,
+  Future<AppAuthSignInResult> signInWithGoogle({bool rememberMe = true}) async {
+    if (kUseWindowsRestAuth) {
+      final credential = await _auth.signInWithGoogle(
+        existingAccountsOnly: true,
       );
-      final provider = GoogleAuthProvider()
-        ..setCustomParameters(<String, String>{'prompt': 'select_account'});
-      final credential = await _auth.signInWithPopup(provider);
-      final user = credential.user;
-      if (user == null) {
-        throw Exception('Unable to complete Google sign-in.');
-      }
+      await _ensureWindowsLoginProfileExists(credential.user);
       await AuthSessionManager.markLogin(rememberMe: rememberMe);
-      await _ensureProfileExists(user);
       return credential;
     }
 
-    if (defaultTargetPlatform == TargetPlatform.windows) {
-      final googleTokens = await _windowsGoogleOAuthFlow.signIn();
-      final providerCredential = GoogleAuthProvider.credential(
-        idToken: googleTokens.idToken,
-        accessToken: googleTokens.accessToken,
+    if (kIsWeb) {
+      final auth = fb.FirebaseAuth.instance;
+      await auth.setPersistence(
+        rememberMe ? fb.Persistence.LOCAL : fb.Persistence.SESSION,
       );
-      final credential = await _auth.signInWithCredential(providerCredential);
+      final provider = fb.GoogleAuthProvider()
+        ..setCustomParameters(<String, String>{'prompt': 'select_account'});
+      final credential = await auth.signInWithPopup(provider);
       final user = credential.user;
       if (user == null) {
         throw Exception('Unable to complete Google sign-in.');
       }
       await AuthSessionManager.markLogin(rememberMe: rememberMe);
-      await _ensureProfileExists(user);
-      return credential;
+      await _ensureProfileExists(
+        AppAuthUser(
+          uid: user.uid,
+          email: user.email ?? '',
+          emailVerified: user.emailVerified,
+          displayName: user.displayName,
+          phoneNumber: user.phoneNumber,
+          creationTime: user.metadata.creationTime?.toUtc(),
+        ),
+      );
+      return AppAuthSignInResult(
+        user: AppAuthUser(
+          uid: user.uid,
+          email: user.email ?? '',
+          emailVerified: user.emailVerified,
+          displayName: user.displayName,
+          phoneNumber: user.phoneNumber,
+          creationTime: user.metadata.creationTime?.toUtc(),
+        ),
+      );
     }
 
     final googleSignIn = GoogleSignIn(scopes: const <String>['email']);
@@ -322,21 +415,30 @@ class AuthRepository {
       throw Exception('Google sign-in was cancelled.');
     }
     final googleAuth = await googleUser.authentication;
-    final providerCredential = GoogleAuthProvider.credential(
+    final providerCredential = fb.GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
 
     try {
-      final credential = await _auth.signInWithCredential(providerCredential);
+      final auth = fb.FirebaseAuth.instance;
+      final credential = await auth.signInWithCredential(providerCredential);
       final user = credential.user;
       if (user == null) {
         throw Exception('Unable to complete Google sign-in.');
       }
       await AuthSessionManager.markLogin(rememberMe: rememberMe);
-      await _ensureProfileExists(user);
-      return credential;
-    } on FirebaseAuthException catch (error) {
+      final mappedUser = AppAuthUser(
+        uid: user.uid,
+        email: user.email ?? '',
+        emailVerified: user.emailVerified,
+        displayName: user.displayName,
+        phoneNumber: user.phoneNumber,
+        creationTime: user.metadata.creationTime?.toUtc(),
+      );
+      await _ensureProfileExists(mappedUser);
+      return AppAuthSignInResult(user: mappedUser);
+    } on fb.FirebaseAuthException catch (error) {
       if (error.code == 'account-exists-with-different-credential') {
         throw Exception(
           'This email already exists with another sign-in method. '
@@ -353,13 +455,13 @@ class AuthRepository {
   }
 
   Future<void> sendPasswordReset(String email) {
-    return _auth.sendPasswordResetEmail(email: email.trim().toLowerCase());
+    return _auth.sendPasswordResetEmail(email.trim().toLowerCase());
   }
 
   Future<void> sendEmailVerification() async {
     final user = _auth.currentUser;
     if (user != null && !user.emailVerified) {
-      await user.sendEmailVerification();
+      await _auth.sendEmailVerification();
     }
   }
 
@@ -391,6 +493,96 @@ class AuthRepository {
       primaryPhone: normalizedPrimary,
       additionalPhone: normalizedAdditional,
     );
+
+    if (kUseWindowsRestAuth) {
+      final existing = (await _windowsRest.getDocument(
+        'users/${user.uid}',
+      ))?.data;
+      if (existing == null) {
+        throw Exception('Profile not found.');
+      }
+
+      final previousPhones = <String>{};
+      void addPrevious(String? raw) {
+        final normalized = _normalizeOptionalKenyaPhone(raw);
+        if (normalized != null) {
+          previousPhones.add(normalized);
+        }
+      }
+
+      addPrevious(existing['phoneNumber'] as String?);
+      addPrevious(existing['additionalPhoneNumber'] as String?);
+      final rawPhoneList = existing['phoneNumbers'];
+      if (rawPhoneList is List) {
+        for (final value in rawPhoneList) {
+          addPrevious(value?.toString());
+        }
+      }
+
+      final registryRefs = _phoneRegistryRefsForRegistration(
+        primaryPhoneNumber: normalizedPrimary,
+        additionalPhoneNumber: normalizedAdditional,
+      );
+      for (final ref in registryRefs) {
+        final registrySnapshot = await _windowsRest.getDocument(
+          'phone_number_registry/${ref.id}',
+        );
+        if (registrySnapshot == null) {
+          continue;
+        }
+        final ownerUid = (registrySnapshot.data['uid'] as String?) ?? '';
+        if (ownerUid.isNotEmpty && ownerUid != user.uid) {
+          final claimedPhone =
+              (registrySnapshot.data['phoneNumber'] as String?) ??
+              _phoneFromRegistryDocId(ref.id);
+          throw _PhoneNumberAlreadyInUseException(
+            'The mobile number $claimedPhone is already linked to another account.',
+          );
+        }
+      }
+
+      final now = DateTime.now().toUtc();
+      await _windowsRest.setDocument('users/${user.uid}', {
+        ...existing,
+        'name': trimmedName,
+        'phoneNumber': normalizedPrimary,
+        'additionalPhoneNumber': normalizedAdditional,
+        'phoneNumbers': phoneCandidates,
+        'updatedAt': now,
+      });
+
+      final registryIds = <String>{};
+      for (final ref in registryRefs) {
+        registryIds.add(ref.id);
+        final existingRegistry = await _windowsRest.getDocument(
+          'phone_number_registry/${ref.id}',
+        );
+        await _windowsRest.setDocument('phone_number_registry/${ref.id}', {
+          ...?existingRegistry?.data,
+          'uid': user.uid,
+          'phoneNumber': _phoneFromRegistryDocId(ref.id),
+          'updatedAt': now,
+          'createdAt': existingRegistry?.data['createdAt'] ?? now,
+        });
+      }
+
+      for (final phone in previousPhones) {
+        final docId = _phoneRegistryDocId(phone);
+        if (registryIds.contains(docId)) {
+          continue;
+        }
+        final staleSnapshot = await _windowsRest.getDocument(
+          'phone_number_registry/$docId',
+        );
+        final ownerUid = (staleSnapshot?.data['uid'] as String?) ?? '';
+        if (ownerUid == user.uid) {
+          await _windowsRest.deleteDocument('phone_number_registry/$docId');
+        }
+      }
+
+      await _auth.updateDisplayName(trimmedName);
+      return;
+    }
 
     final userRef = _firestore.collection('users').doc(user.uid);
     await _firestore.runTransaction((transaction) async {
@@ -469,14 +661,40 @@ class AuthRepository {
       }
     });
 
-    await user.updateDisplayName(trimmedName);
+    await _auth.updateDisplayName(trimmedName);
   }
 
   Future<void> reloadCurrentUser() async {
-    await _auth.currentUser?.reload();
+    await _auth.reloadCurrentUser();
+  }
+
+  Future<void> _ensureWindowsLoginProfileExists(AppAuthUser user) async {
+    final profile = await _fetchUserProfile(user.uid);
+    if (profile != null) {
+      return;
+    }
+
+    await _auth.signOut();
+    await AuthSessionManager.clear();
+    throw Exception(
+      'This Windows app only supports existing accounts. Create or finish setting up your account on the web first.',
+    );
+  }
+
+  Future<UserProfile?> getUserProfile(String userId) {
+    return _fetchUserProfile(userId);
   }
 
   Future<UserProfile?> _fetchUserProfile(String userId) async {
+    if (kUseWindowsRestAuth) {
+      final document = await _windowsRest.getDocument('users/$userId');
+      final data = document?.data;
+      if (data == null) {
+        return null;
+      }
+      return UserProfile.fromMap(document!.id, data);
+    }
+
     final snapshot = await _firestore.collection('users').doc(userId).get();
     final data = snapshot.data();
     if (!snapshot.exists || data == null) {
@@ -535,13 +753,67 @@ class AuthRepository {
   }
 
   Future<void> changePassword(String newPassword) async {
-    await _auth.currentUser?.updatePassword(newPassword);
+    await _auth.updatePassword(newPassword);
   }
 
   Future<Map<String, dynamic>> exportCurrentUserData() async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('You must be logged in.');
+    }
+
+    if (kUseWindowsRestAuth) {
+      final userDoc = await _windowsRest.getDocument('users/${user.uid}');
+      final onboarding = await _windowsRest.queryCollection(
+        collectionId: 'onboarding_responses',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal('userId', user.uid),
+        ],
+      );
+      final studentAppointments = await _windowsRest.queryCollection(
+        collectionId: 'appointments',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal('studentId', user.uid),
+        ],
+      );
+      final counselorAppointments = await _windowsRest.queryCollection(
+        collectionId: 'appointments',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal('counselorId', user.uid),
+        ],
+      );
+      final notifications = await _windowsRest.queryCollection(
+        collectionId: 'notifications',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal('userId', user.uid),
+        ],
+      );
+      final goals = await _windowsRest.queryCollection(
+        collectionId: 'care_goals',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal('studentId', user.uid),
+        ],
+      );
+      final privacy = await _windowsRest.getDocument(
+        'user_privacy_settings/${user.uid}',
+      );
+
+      List<Map<String, dynamic>> mapDocs(List<WindowsFirestoreDocument> docs) {
+        return docs
+            .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data})
+            .toList(growable: false);
+      }
+
+      return <String, dynamic>{
+        'exportedAt': DateTime.now().toIso8601String(),
+        'user': userDoc?.data ?? const <String, dynamic>{},
+        'onboardingResponses': mapDocs(onboarding),
+        'studentAppointments': mapDocs(studentAppointments),
+        'counselorAppointments': mapDocs(counselorAppointments),
+        'notifications': mapDocs(notifications),
+        'careGoals': mapDocs(goals),
+        'privacySettings': privacy?.data ?? const <String, dynamic>{},
+      };
     }
 
     final userDoc = await _firestore.collection('users').doc(user.uid).get();
@@ -591,7 +863,29 @@ class AuthRepository {
     return export.map((key, value) => MapEntry(key, _jsonReady(value)));
   }
 
-  Future<void> _ensureProfileExists(User user) async {
+  Future<void> _ensureProfileExists(AppAuthUser user) async {
+    if (kUseWindowsRestAuth) {
+      final existing = await _windowsRest.getDocument('users/${user.uid}');
+      if (existing != null) {
+        return;
+      }
+      await _windowsRest.setDocument('users/${user.uid}', {
+        'email': user.email,
+        'name': user.displayName ?? '',
+        'role': UserRole.individual.name,
+        'onboardingCompletedRoles': <String, int>{},
+        'institutionId': null,
+        'institutionName': null,
+        'phoneNumber': '',
+        'additionalPhoneNumber': null,
+        'phoneNumbers': const <String>[],
+        'registrationIntent': null,
+        'createdAt': DateTime.now().toUtc(),
+        'updatedAt': DateTime.now().toUtc(),
+      });
+      return;
+    }
+
     final userDoc = _firestore.collection('users').doc(user.uid);
     final snapshot = await userDoc.get();
     if (snapshot.exists) {
@@ -599,7 +893,7 @@ class AuthRepository {
     }
 
     await userDoc.set({
-      'email': user.email ?? '',
+      'email': user.email,
       'name': user.displayName ?? '',
       'role': UserRole.individual.name,
       'onboardingCompletedRoles': <String, int>{},
@@ -681,8 +975,9 @@ class AuthRepository {
 
   Future<void> _backfillPhoneRegistryForCurrentUser(String uid) async {
     try {
-      final userSnapshot = await _firestore.collection('users').doc(uid).get();
-      final data = userSnapshot.data();
+      final data = kUseWindowsRestAuth
+          ? (await _windowsRest.getDocument('users/$uid'))?.data
+          : (await _firestore.collection('users').doc(uid).get()).data();
       if (data == null) {
         return;
       }
@@ -718,6 +1013,28 @@ class AuthRepository {
       }
 
       if (phones.isEmpty) {
+        return;
+      }
+
+      if (kUseWindowsRestAuth) {
+        final now = DateTime.now().toUtc();
+        for (final phone in phones) {
+          final documentPath =
+              'phone_number_registry/${_phoneRegistryDocId(phone)}';
+          final existing = await _windowsRest.getDocument(documentPath);
+          if (existing != null) {
+            final ownerUid = (existing.data['uid'] as String?) ?? '';
+            if (ownerUid.isNotEmpty && ownerUid != uid) {
+              continue;
+            }
+          }
+          await _windowsRest.setDocument(documentPath, {
+            'uid': uid,
+            'phoneNumber': phone,
+            'createdAt': now,
+            'updatedAt': now,
+          });
+        }
         return;
       }
 

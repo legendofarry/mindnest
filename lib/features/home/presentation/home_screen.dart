@@ -9,11 +9,14 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/app/theme_mode_controller.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/desktop_profile_open_signal.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/features/ai/models/assistant_models.dart';
 import 'package:mindnest/features/ai/presentation/assistant_fab.dart';
 import 'package:mindnest/features/ai/presentation/home_ai_assistant_section.dart';
+import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
@@ -1259,23 +1262,30 @@ class HomeScreen extends ConsumerWidget {
 
     final shouldAutoOpenProfile =
         uri.queryParameters[_openProfileQueryKey] == '1';
-    if (shouldAutoOpenProfile && loadedProfile != null) {
-      final tokenFromQuery = uri.queryParameters[_profileOpenTokenQueryKey];
-      final resolvedToken = (tokenFromQuery == null || tokenFromQuery.isEmpty)
-          ? uri.toString()
-          : tokenFromQuery;
+    final directProfileOpenRequest = useDesktopShell
+        ? ref.watch(desktopProfileOpenRequestProvider)
+        : null;
+    final tokenFromQuery = uri.queryParameters[_profileOpenTokenQueryKey];
+    final resolvedProfileOpenToken = directProfileOpenRequest != null
+        ? 'desktop:$directProfileOpenRequest'
+        : shouldAutoOpenProfile
+        ? ((tokenFromQuery == null || tokenFromQuery.isEmpty)
+              ? uri.toString()
+              : tokenFromQuery)
+        : null;
+    if (resolvedProfileOpenToken != null && loadedProfile != null) {
       final lastToken = ref.read(_homeProfileAutoOpenTokenProvider);
-      if (lastToken != resolvedToken) {
+      if (lastToken != resolvedProfileOpenToken) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!context.mounted) {
             return;
           }
           final currentToken = ref.read(_homeProfileAutoOpenTokenProvider);
-          if (currentToken == resolvedToken) {
+          if (currentToken == resolvedProfileOpenToken) {
             return;
           }
           ref.read(_homeProfileAutoOpenTokenProvider.notifier).state =
-              resolvedToken;
+              resolvedProfileOpenToken;
           _openProfilePanel(context, ref, loadedProfile);
         });
       }
@@ -1642,7 +1652,9 @@ class HomeScreen extends ConsumerWidget {
                             const SizedBox(height: 16),
                             WellnessCheckInCard(profile: profile),
                             const SizedBox(height: 14),
-                            _SosButton(onTap: () => _openCrisisSupport(context)),
+                            _SosButton(
+                              onTap: () => _openCrisisSupport(context),
+                            ),
                             const SizedBox(height: 8),
                           ],
                         )
@@ -1693,7 +1705,9 @@ class HomeScreen extends ConsumerWidget {
                             const SizedBox(height: 18),
                             WellnessCheckInCard(profile: profile),
                             const SizedBox(height: 14),
-                            _SosButton(onTap: () => _openCrisisSupport(context)),
+                            _SosButton(
+                              onTap: () => _openCrisisSupport(context),
+                            ),
                             const SizedBox(height: 8),
                           ],
                         );
@@ -2407,11 +2421,7 @@ class _HeroCardFrame extends StatelessWidget {
           const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(18),
-            child: SizedBox(
-              height: 150,
-              width: double.infinity,
-              child: child,
-            ),
+            child: SizedBox(height: 150, width: double.infinity, child: child),
           ),
         ],
       ),
@@ -2647,7 +2657,7 @@ class _OpenSlotsPreviewCard extends ConsumerWidget {
   }
 
   Future<Map<String, String>> _fetchCounselorNames(
-    FirebaseFirestore firestore,
+    WidgetRef ref,
     List<String> counselorIds,
   ) async {
     if (counselorIds.isEmpty) {
@@ -2658,14 +2668,32 @@ class _OpenSlotsPreviewCard extends ConsumerWidget {
     for (var i = 0; i < counselorIds.length; i += 10) {
       final end = (i + 10 < counselorIds.length) ? i + 10 : counselorIds.length;
       final chunk = counselorIds.sublist(i, end);
-      final profiles = await firestore
-          .collection('counselor_profiles')
-          .where(FieldPath.documentId, whereIn: chunk)
-          .get();
-      for (final doc in profiles.docs) {
-        final displayName = (doc.data()['displayName'] as String?)?.trim();
-        if (displayName != null && displayName.isNotEmpty) {
-          result[doc.id] = displayName;
+      if (kUseWindowsRestAuth) {
+        final profiles = await ref
+            .read(windowsFirestoreRestClientProvider)
+            .queryCollection(
+              collectionId: 'counselor_profiles',
+              filters: <WindowsFirestoreFieldFilter>[
+                WindowsFirestoreFieldFilter.inList('__name__', chunk),
+              ],
+            );
+        for (final doc in profiles) {
+          final displayName = (doc.data['displayName'] as String?)?.trim();
+          if (displayName != null && displayName.isNotEmpty) {
+            result[doc.id] = displayName;
+          }
+        }
+      } else {
+        final profiles = await ref
+            .read(firestoreProvider)
+            .collection('counselor_profiles')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+        for (final doc in profiles.docs) {
+          final displayName = (doc.data()['displayName'] as String?)?.trim();
+          if (displayName != null && displayName.isNotEmpty) {
+            result[doc.id] = displayName;
+          }
         }
       }
     }
@@ -2690,7 +2718,6 @@ class _OpenSlotsPreviewCard extends ConsumerWidget {
     final stream = ref
         .read(careRepositoryProvider)
         .watchInstitutionPublicAvailability(institutionId: institutionId);
-    final firestore = ref.read(firestoreProvider);
 
     return StreamBuilder<List<AvailabilitySlot>>(
       stream: stream,
@@ -2716,7 +2743,7 @@ class _OpenSlotsPreviewCard extends ConsumerWidget {
             .toList(growable: false);
 
         return FutureBuilder<Map<String, String>>(
-          future: _fetchCounselorNames(firestore, counselorIds),
+          future: _fetchCounselorNames(ref, counselorIds),
           builder: (context, namesSnapshot) {
             final names = namesSnapshot.data ?? const <String, String>{};
             return ListView.separated(
@@ -2802,8 +2829,7 @@ class _LiveNowPreviewCard extends ConsumerWidget {
     }
     if (!canAccessLive) {
       return _LiveEmptyState(
-        message:
-            'Live is available to student, staff, and counselor roles.',
+        message: 'Live is available to student, staff, and counselor roles.',
         onTap: onTapLocked,
       );
     }
@@ -3540,6 +3566,7 @@ class _WellnessCheckInCard extends ConsumerStatefulWidget {
 
 class _WellnessCheckInCardState extends ConsumerState<_WellnessCheckInCard> {
   bool _saving = false;
+  static const Duration _windowsPollInterval = Duration(seconds: 2);
 
   static const List<_MoodChoice> _moods = <_MoodChoice>[
     _MoodChoice(
@@ -3601,25 +3628,140 @@ class _WellnessCheckInCardState extends ConsumerState<_WellnessCheckInCard> {
     );
   }
 
+  bool get _useWindowsPollingWorkaround =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+  List<_WellnessEntry> _parseEntries(Iterable<Map<String, dynamic>> docs) {
+    final entries = <_WellnessEntry>[];
+    for (final data in docs) {
+      final key = (data['dateKey'] as String?) ?? '';
+      if (key.isEmpty) {
+        continue;
+      }
+      final moodKey = (data['mood'] as String?) ?? 'okay';
+      final energyRaw = data['energy'];
+      final energy = energyRaw is int ? energyRaw.clamp(1, 5) : 3;
+      entries.add(_WellnessEntry(dateKey: key, mood: moodKey, energy: energy));
+    }
+    return entries;
+  }
+
+  String _entriesSignature(List<_WellnessEntry> entries) => entries
+      .map((entry) => '${entry.dateKey}|${entry.mood}|${entry.energy}')
+      .join(';');
+
+  Stream<List<_WellnessEntry>> _watchMoodEntries(String userId) {
+    if (!_useWindowsPollingWorkaround) {
+      final query = ref
+          .read(firestoreProvider)
+          .collection('mood_entries')
+          .where('userId', isEqualTo: userId);
+      return query.snapshots().map(
+        (snapshot) => _parseEntries(snapshot.docs.map((doc) => doc.data())),
+      );
+    }
+    return _buildWindowsPollingStream<List<_WellnessEntry>>(
+      load: () async {
+        final documents = await ref
+            .read(windowsFirestoreRestClientProvider)
+            .queryCollection(
+              collectionId: 'mood_entries',
+              filters: <WindowsFirestoreFieldFilter>[
+                WindowsFirestoreFieldFilter.equal('userId', userId),
+              ],
+            );
+        return _parseEntries(documents.map((doc) => doc.data));
+      },
+      signature: _entriesSignature,
+    );
+  }
+
+  Stream<T> _buildWindowsPollingStream<T>({
+    required Future<T> Function() load,
+    required String Function(T value) signature,
+  }) {
+    late final StreamController<T> controller;
+    Timer? timer;
+    String? lastEmissionSignature;
+
+    Future<void> emitIfChanged() async {
+      if (controller.isClosed) {
+        return;
+      }
+      try {
+        final value = await load();
+        final nextSignature = 'value:${signature(value)}';
+        if (nextSignature == lastEmissionSignature) {
+          return;
+        }
+        lastEmissionSignature = nextSignature;
+        if (!controller.isClosed) {
+          controller.add(value);
+        }
+      } catch (error, stackTrace) {
+        final nextSignature = 'error:$error';
+        if (nextSignature == lastEmissionSignature) {
+          return;
+        }
+        lastEmissionSignature = nextSignature;
+        if (!controller.isClosed) {
+          controller.addError(error, stackTrace);
+        }
+      }
+    }
+
+    controller = StreamController<T>(
+      onListen: () {
+        unawaited(emitIfChanged());
+        timer = Timer.periodic(_windowsPollInterval, (_) {
+          unawaited(emitIfChanged());
+        });
+      },
+      onCancel: () async {
+        timer?.cancel();
+        await controller.close();
+      },
+    );
+
+    return controller.stream;
+  }
+
   Future<void> _save({required String mood, required int energy}) async {
     final userId = widget.profile.id.trim();
     if (userId.isEmpty || _saving) {
       return;
     }
 
-    final firestore = ref.read(firestoreProvider);
+    final windowsRest = ref.read(windowsFirestoreRestClientProvider);
     final todayKey = _dateKey(DateTime.now());
     final docId = '${userId}_$todayKey';
+    final now = DateTime.now().toUtc();
 
     setState(() => _saving = true);
     try {
-      await firestore.collection('mood_entries').doc(docId).set({
-        'userId': userId,
-        'dateKey': todayKey,
-        'mood': mood,
-        'energy': energy.clamp(1, 5),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      if (_useWindowsPollingWorkaround) {
+        final existing =
+            (await windowsRest.getDocument('mood_entries/$docId'))?.data ??
+            const <String, dynamic>{};
+        await windowsRest.setDocument('mood_entries/$docId', {
+          ...existing,
+          'userId': userId,
+          'dateKey': todayKey,
+          'mood': mood,
+          'energy': energy.clamp(1, 5),
+          'updatedAt': now,
+          'createdAt': existing['createdAt'] ?? now,
+        });
+      } else {
+        final firestore = ref.read(firestoreProvider);
+        await firestore.collection('mood_entries').doc(docId).set({
+          'userId': userId,
+          'dateKey': todayKey,
+          'mood': mood,
+          'energy': energy.clamp(1, 5),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -3659,28 +3801,12 @@ class _WellnessCheckInCardState extends ConsumerState<_WellnessCheckInCard> {
       return const SizedBox.shrink();
     }
 
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: ref
-          .read(firestoreProvider)
-          .collection('mood_entries')
-          .where('userId', isEqualTo: userId)
-          .snapshots(),
+    return StreamBuilder<List<_WellnessEntry>>(
+      stream: _watchMoodEntries(userId),
       builder: (context, snapshot) {
         final byDate = <String, _WellnessEntry>{};
-        for (final doc in snapshot.data?.docs ?? const []) {
-          final data = doc.data();
-          final key = (data['dateKey'] as String?) ?? '';
-          if (key.isEmpty) {
-            continue;
-          }
-          final moodKey = (data['mood'] as String?) ?? 'okay';
-          final energyRaw = data['energy'];
-          final energy = energyRaw is int ? energyRaw.clamp(1, 5) : 3;
-          byDate[key] = _WellnessEntry(
-            dateKey: key,
-            mood: moodKey,
-            energy: energy,
-          );
+        for (final entry in snapshot.data ?? const <_WellnessEntry>[]) {
+          byDate[entry.dateKey] = entry;
         }
 
         final todayKey = _dateKey(DateTime.now());
@@ -3947,10 +4073,7 @@ class _WellnessCheckInCardState extends ConsumerState<_WellnessCheckInCard> {
 }
 
 class _LiveEmptyState extends StatelessWidget {
-  const _LiveEmptyState({
-    required this.message,
-    this.onTap,
-  });
+  const _LiveEmptyState({required this.message, this.onTap});
 
   final String message;
   final VoidCallback? onTap;
@@ -4006,8 +4129,10 @@ class _NotificationsSummaryBar extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.notifications_active_rounded,
-                  color: Color(0xFF0EA5E9)),
+              const Icon(
+                Icons.notifications_active_rounded,
+                color: Color(0xFF0EA5E9),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -4018,8 +4143,7 @@ class _NotificationsSummaryBar extends StatelessWidget {
                   ),
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded,
-                  color: Color(0xFF0B1A2F)),
+              const Icon(Icons.chevron_right_rounded, color: Color(0xFF0B1A2F)),
             ],
           ),
         ),
@@ -4044,8 +4168,9 @@ class _QuickActionsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cardColor = isDark ? const Color(0xFF111B2B) : Colors.white;
-    final borderColor =
-        isDark ? const Color(0xFF1F2D44) : const Color(0xFFD9E3EE);
+    final borderColor = isDark
+        ? const Color(0xFF1F2D44)
+        : const Color(0xFFD9E3EE);
     final actions = <_ActionItem>[
       _ActionItem(
         label: 'Book session',
@@ -4065,9 +4190,9 @@ class _QuickActionsCard extends StatelessWidget {
       _ActionItem(
         label: 'Messages',
         icon: Icons.chat_bubble_outline_rounded,
-        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Messages coming soon.')),
-        ),
+        onTap: () => ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Messages coming soon.'))),
       ),
     ];
 
@@ -4080,8 +4205,9 @@ class _QuickActionsCard extends StatelessWidget {
         border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
-            color: (isDark ? Colors.black : const Color(0x120F172A))
-                .withValues(alpha: isDark ? 0.22 : 0.07),
+            color: (isDark ? Colors.black : const Color(0x120F172A)).withValues(
+              alpha: isDark ? 0.22 : 0.07,
+            ),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -4102,12 +4228,7 @@ class _QuickActionsCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: actions
-                .map(
-                  (action) => _ActionPill(
-                    action: action,
-                    isDark: isDark,
-                  ),
-                )
+                .map((action) => _ActionPill(action: action, isDark: isDark))
                 .toList(),
           ),
         ],
@@ -4173,10 +4294,7 @@ class _ActionPill extends StatelessWidget {
 }
 
 class _ProgressMiniCard extends StatelessWidget {
-  const _ProgressMiniCard({
-    required this.isDark,
-    required this.firstName,
-  });
+  const _ProgressMiniCard({required this.isDark, required this.firstName});
 
   final bool isDark;
   final String firstName;
@@ -4184,8 +4302,9 @@ class _ProgressMiniCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cardColor = isDark ? const Color(0xFF111B2B) : Colors.white;
-    final borderColor =
-        isDark ? const Color(0xFF1F2D44) : const Color(0xFFD9E3EE);
+    final borderColor = isDark
+        ? const Color(0xFF1F2D44)
+        : const Color(0xFFD9E3EE);
 
     final stats = [
       _StatRow(
@@ -4217,8 +4336,9 @@ class _ProgressMiniCard extends StatelessWidget {
         border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
-            color: (isDark ? Colors.black : const Color(0x120F172A))
-                .withValues(alpha: isDark ? 0.22 : 0.07),
+            color: (isDark ? Colors.black : const Color(0x120F172A)).withValues(
+              alpha: isDark ? 0.22 : 0.07,
+            ),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -4313,10 +4433,7 @@ class _StatTile extends StatelessWidget {
 }
 
 class _ResourceSpotlightCard extends StatelessWidget {
-  const _ResourceSpotlightCard({
-    required this.isDark,
-    required this.onOpen,
-  });
+  const _ResourceSpotlightCard({required this.isDark, required this.onOpen});
 
   final bool isDark;
   final VoidCallback onOpen;
@@ -4340,8 +4457,9 @@ class _ResourceSpotlightCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: (isDark ? Colors.black : const Color(0x120F172A))
-                .withValues(alpha: isDark ? 0.22 : 0.07),
+            color: (isDark ? Colors.black : const Color(0x120F172A)).withValues(
+              alpha: isDark ? 0.22 : 0.07,
+            ),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),

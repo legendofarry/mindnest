@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/app/mindnest_app.dart';
 import 'package:mindnest/core/firebase/firebase_initializer.dart';
+import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/data/auth_session_manager.dart';
 import 'package:mindnest/features/notifications/data/push_notification_service.dart';
 import 'package:window_manager/window_manager.dart';
@@ -17,8 +18,12 @@ Future<void> main() async {
   await _applyFullscreenMode();
 
   try {
-    await FirebaseInitializer.initialize();
-    await AuthSessionManager.enforceStartupPolicy(FirebaseAuth.instance);
+    if (!kUseWindowsRestAuth) {
+      await FirebaseInitializer.initialize();
+      await AuthSessionManager.enforceStartupPolicy(FirebaseAuth.instance);
+    } else {
+      await AuthSessionManager.shouldRestorePersistedSession();
+    }
     try {
       await PushNotificationService.bootstrap();
     } catch (_) {

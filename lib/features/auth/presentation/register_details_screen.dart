@@ -433,6 +433,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             additionalPhoneNumber: _additionalPhoneController.text.trim(),
             counselorRegistrationIntent: _isCounselorIntent,
           );
+      await syncAuthSessionState(ref);
       if (!mounted) {
         return;
       }
@@ -1053,7 +1054,16 @@ class _DesktopRegisterDetailsFormCard extends StatelessWidget {
             ),
           ],
         ),
-        child: child,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: child,
+              ),
+            );
+          },
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/desktop_profile_open_signal.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
@@ -149,7 +150,16 @@ class DesktopPrimaryShell extends ConsumerWidget {
             active: profileActive,
             onPressed: profile == null
                 ? null
-                : () => _openProfileFromHeader(context),
+                : () {
+                    if (matchedLocation == AppRoute.home) {
+                      ref
+                              .read(desktopProfileOpenRequestProvider.notifier)
+                              .state =
+                          DateTime.now().microsecondsSinceEpoch;
+                      return;
+                    }
+                    _openProfileFromHeader(context);
+                  },
             child: Icon(
               Icons.person_outline_rounded,
               color: profileActive

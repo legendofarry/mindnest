@@ -3,6 +3,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +15,7 @@ import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({
@@ -38,6 +41,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     with SingleTickerProviderStateMixin {
   static const _lastEmailKey = 'auth.last_email';
   static const _desktopBreakpoint = 1100.0;
+  static final Uri _webAppBaseUri = Uri.parse('https://mindnestke.netlify.app');
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -91,6 +95,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   bool get _isBusy => _isSubmitting || _isGoogleSubmitting;
+  bool get _isWindowsLoginOnlyMode =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
   Future<void> _submit() async {
     if (_isBusy) return;
@@ -125,13 +131,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             password: _passwordController.text,
             rememberMe: _rememberMe,
           );
+      await syncAuthSessionState(ref);
+      if (!mounted) {
+        return;
+      }
       await _saveLastEmail(normalizedEmail);
     } on FirebaseAuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _formError = error.message ?? 'Login failed.';
       });
       await _triggerShake();
     } catch (error) {
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _formError = error.toString().replaceFirst('Exception: ', '');
       });
@@ -153,16 +169,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       final credential = await ref
           .read(authRepositoryProvider)
           .signInWithGoogle(rememberMe: _rememberMe);
-      final email = credential.user?.email?.trim().toLowerCase() ?? '';
+      await syncAuthSessionState(ref);
+      if (!mounted) {
+        return;
+      }
+      final email = credential.user.email.trim().toLowerCase();
       if (email.isNotEmpty) {
         await _saveLastEmail(email);
       }
     } on FirebaseAuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _formError = error.message ?? 'Google sign-in failed.';
       });
       await _triggerShake();
     } catch (error) {
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _formError = error.toString().replaceFirst('Exception: ', '');
       });
@@ -172,6 +198,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         setState(() => _isGoogleSubmitting = false);
       }
     }
+  }
+
+  Uri _buildWindowsSignupUri() {
+    final route = _hasInviteContext
+        ? AppRoute.withInviteQuery(AppRoute.registerDetails, _inviteQuery)
+        : AppRoute.register;
+    final routeUri = Uri.parse(route);
+    return _webAppBaseUri.replace(
+      path: routeUri.path,
+      queryParameters: routeUri.queryParameters.isEmpty
+          ? null
+          : routeUri.queryParameters,
+    );
+  }
+
+  Future<void> _openSignupOnWeb() async {
+    final launched = await launchUrl(
+      _buildWindowsSignupUri(),
+      mode: LaunchMode.externalApplication,
+    );
+    if (launched || !mounted) {
+      return;
+    }
+    setState(() {
+      _formError =
+          'We could not open the web sign-up page. Visit mindnestke.netlify.app in your browser.';
+    });
+    await _triggerShake();
   }
 
   Future<void> _restoreLastEmail() async {
@@ -352,6 +406,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
               textAlign: TextAlign.center,
             ),
+            if (_isWindowsLoginOnlyMode) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFFFFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFB3ECDD)),
+                ),
+                child: const Text(
+                  'Windows supports existing accounts only. Create new accounts on the web, then come back here to log in.',
+                  style: TextStyle(
+                    color: Color(0xFF0D6F69),
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
             if (_hasInviteContext) ...[
               const SizedBox(height: 12),
               Container(
@@ -594,6 +668,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
               ),
             ),
+            if (_isWindowsLoginOnlyMode) ...[
+              const SizedBox(height: 10),
+              const Text(
+                'Google sign-in on Windows only works for accounts that already exist.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF516784),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Container(
               height: 62,
@@ -673,7 +759,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'New to MindNest? ',
+                  _isWindowsLoginOnlyMode
+                      ? 'Need a MindNest account? '
+                      : 'New to MindNest? ',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: const Color(0xFF4A607C),
                   ),
@@ -685,6 +773,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   child: GestureDetector(
                     onTap: _isBusy
                         ? null
+                        : _isWindowsLoginOnlyMode
+                        ? _openSignupOnWeb
                         : () => context.go(
                             _hasInviteContext
                                 ? AppRoute.withInviteQuery(
@@ -693,8 +783,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                   )
                                 : AppRoute.register,
                           ),
-                    child: const Text(
-                      'Create Account',
+                    child: Text(
+                      _isWindowsLoginOnlyMode
+                          ? 'Sign Up on Web'
+                          : 'Create Account',
                       style: TextStyle(
                         color: Color(0xFF0E9B90),
                         fontWeight: FontWeight.w800,

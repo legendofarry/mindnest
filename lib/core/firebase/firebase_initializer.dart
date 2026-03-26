@@ -2,25 +2,35 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/firebase_options.dart';
 
 class FirebaseInitializer {
   static bool _emulatorsConfigured = false;
 
   static Future<void> initialize() async {
+    if (kUseWindowsRestAuth) {
+      return;
+    }
+
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
     if (kIsWeb) {
-      FirebaseFirestore.instance.settings =
-          const Settings(persistenceEnabled: false);
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: false,
+      );
     }
 
     await _configureEmulatorsIfNeeded();
   }
 
   static Future<void> _configureEmulatorsIfNeeded() async {
+    if (kUseWindowsRestAuth) {
+      return;
+    }
+
     const useEmulators = bool.fromEnvironment(
       'USE_FIREBASE_EMULATORS',
       defaultValue: false,

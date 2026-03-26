@@ -1,5 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
@@ -12,6 +14,59 @@ import 'package:mindnest/features/care/models/session_reassignment_request.dart'
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
+
+const Duration _windowsPollInterval = Duration(seconds: 2);
+bool get _useWindowsRestFirestore =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+Stream<T> _buildWindowsPollingStream<T>({
+  required Future<T> Function() load,
+  required String Function(T value) signature,
+}) {
+  late final StreamController<T> controller;
+  Timer? timer;
+  String? lastEmissionSignature;
+
+  Future<void> emitIfChanged() async {
+    if (controller.isClosed) {
+      return;
+    }
+    try {
+      final value = await load();
+      final nextSignature = 'value:${signature(value)}';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.add(value);
+      }
+    } catch (error, stackTrace) {
+      final nextSignature = 'error:$error';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.addError(error, stackTrace);
+      }
+    }
+  }
+
+  controller = StreamController<T>(
+    onListen: () {
+      unawaited(emitIfChanged());
+      timer = Timer.periodic(_windowsPollInterval, (_) {
+        unawaited(emitIfChanged());
+      });
+    },
+    onCancel: () {
+      timer?.cancel();
+    },
+  );
+
+  return controller.stream;
+}
 
 class SessionDetailsScreen extends ConsumerStatefulWidget {
   const SessionDetailsScreen({super.key, required this.appointmentId});
@@ -610,7 +665,10 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
-    final firestore = ref.watch(firestoreProvider);
+    final firestore = _useWindowsRestFirestore
+        ? null
+        : ref.watch(firestoreProvider);
+    final windowsRest = ref.watch(windowsFirestoreRestClientProvider);
     final source = GoRouterState.of(context).uri.queryParameters['from'] ?? '';
     final fromNotifications = source.trim().toLowerCase() == 'notifications';
     final isCounselorWorkspace =
@@ -625,6 +683,32 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
     final reassignmentRequest = ref
         .watch(appointmentReassignmentRequestProvider(widget.appointmentId))
         .valueOrNull;
+
+    final appointmentStream = _useWindowsRestFirestore
+        ? _buildWindowsPollingStream<AppointmentRecord?>(
+            load: () async {
+              final document = await windowsRest.getDocument(
+                'appointments/${widget.appointmentId}',
+              );
+              if (document == null) {
+                return null;
+              }
+              return AppointmentRecord.fromMap(document.id, document.data);
+            },
+            signature: (appointment) => appointment == null
+                ? 'null'
+                : '${appointment.id}|${appointment.status.name}|${appointment.startAt.toIso8601String()}|${appointment.endAt.toIso8601String()}|${appointment.counselorSessionNote ?? ''}|${appointment.counselorCancelMessage ?? ''}',
+          )
+        : firestore
+              !.collection('appointments')
+              .doc(widget.appointmentId)
+              .snapshots()
+              .map((doc) {
+                if (!doc.exists || doc.data() == null) {
+                  return null;
+                }
+                return AppointmentRecord.fromMap(doc.id, doc.data()!);
+              });
 
     if (reassignmentRequest != null) {
       final nowUtc = DateTime.now().toUtc();
@@ -678,11 +762,8 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
         onNotifications: () => context.go(AppRoute.notifications),
         onProfile: () => context.go(AppRoute.counselorSettings),
         onLogout: () => confirmAndLogout(context: context, ref: ref),
-        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: firestore
-              .collection('appointments')
-              .doc(widget.appointmentId)
-              .snapshots(),
+        child: StreamBuilder<AppointmentRecord?>(
+          stream: appointmentStream,
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return _SessionStateCard(
@@ -697,12 +778,10 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
               return const _SessionLoadingCard();
             }
 
-            final doc = snapshot.data!;
-            if (!doc.exists || doc.data() == null) {
+            final appointment = snapshot.data;
+            if (appointment == null) {
               return const _SessionStateCard(message: 'Session not found.');
             }
-
-            final appointment = AppointmentRecord.fromMap(doc.id, doc.data()!);
             final canView = _canView(
               profile: profile,
               appointment: appointment,
@@ -741,11 +820,8 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
     }
 
     return _baseScaffold(
-      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: firestore
-            .collection('appointments')
-            .doc(widget.appointmentId)
-            .snapshots(),
+      child: StreamBuilder<AppointmentRecord?>(
+        stream: appointmentStream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return _centeredCard(
@@ -763,8 +839,8 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final doc = snapshot.data!;
-          if (!doc.exists || doc.data() == null) {
+          final appointment = snapshot.data;
+          if (appointment == null) {
             return _centeredCard(
               child: const Text(
                 'Session not found.',
@@ -776,7 +852,6 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
             );
           }
 
-          final appointment = AppointmentRecord.fromMap(doc.id, doc.data()!);
           final canView = _canView(profile: profile, appointment: appointment);
           if (!canView) {
             return _centeredCard(

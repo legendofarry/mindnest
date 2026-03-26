@@ -1,14 +1,68 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/desktop_primary_shell.dart';
-import 'package:mindnest/core/ui/desktop_section_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+
+const Duration _windowsPollInterval = Duration(seconds: 2);
+bool get _useWindowsRestFirestore =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+Stream<T> _buildWindowsPollingStream<T>({
+  required Future<T> Function() load,
+  required String Function(T value) signature,
+}) {
+  late final StreamController<T> controller;
+  Timer? timer;
+  String? lastEmissionSignature;
+
+  Future<void> emitIfChanged() async {
+    if (controller.isClosed) {
+      return;
+    }
+    try {
+      final value = await load();
+      final nextSignature = 'value:${signature(value)}';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.add(value);
+      }
+    } catch (error, stackTrace) {
+      final nextSignature = 'error:$error';
+      if (nextSignature == lastEmissionSignature) {
+        return;
+      }
+      lastEmissionSignature = nextSignature;
+      if (!controller.isClosed) {
+        controller.addError(error, stackTrace);
+      }
+    }
+  }
+
+  controller = StreamController<T>(
+    onListen: () {
+      unawaited(emitIfChanged());
+      timer = Timer.periodic(_windowsPollInterval, (_) {
+        unawaited(emitIfChanged());
+      });
+    },
+    onCancel: () {
+      timer?.cancel();
+    },
+  );
+
+  return controller.stream;
+}
 
 class PrivacyControlsScreen extends ConsumerStatefulWidget {
   const PrivacyControlsScreen({super.key});
@@ -25,17 +79,30 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final userId = profile?.id ?? '';
-    final firestore = ref.watch(firestoreProvider);
+    final firestore = _useWindowsRestFirestore
+        ? null
+        : ref.watch(firestoreProvider);
+    final windowsRest = ref.watch(windowsFirestoreRestClientProvider);
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
     final isPrimaryUser =
         profile != null &&
         (profile.role == UserRole.student ||
             profile.role == UserRole.staff ||
             profile.role == UserRole.individual);
-    final hasInstitution = (profile?.institutionId ?? '').isNotEmpty;
-    final canAccessLive =
-        profile != null &&
-        (profile.role == UserRole.student || profile.role == UserRole.staff);
+    final privacySettingsStream = _useWindowsRestFirestore
+        ? _buildWindowsPollingStream<Map<String, dynamic>>(
+            load: () async =>
+                (await windowsRest.getDocument(
+                  'user_privacy_settings/$userId',
+                ))?.data ??
+                const <String, dynamic>{},
+            signature: (data) => data.toString(),
+          )
+        : firestore
+              !.collection('user_privacy_settings')
+              .doc(userId)
+              .snapshots()
+              .map((doc) => doc.data() ?? const <String, dynamic>{});
 
     final content = SafeArea(
       child: Center(
@@ -47,14 +114,10 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
                 ? const _PrivacyStateCard(
                     message: 'Sign in to manage privacy settings.',
                   )
-                : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                    stream: firestore
-                        .collection('user_privacy_settings')
-                        .doc(userId)
-                        .snapshots(),
+                : StreamBuilder<Map<String, dynamic>>(
+                    stream: privacySettingsStream,
                     builder: (context, snapshot) {
-                      final data =
-                          snapshot.data?.data() ?? const <String, dynamic>{};
+                      final data = snapshot.data ?? const <String, dynamic>{};
                       final shareMood =
                           (data['shareMoodWithInstitution'] as bool?) ?? true;
                       final shareAssessments =
@@ -66,8 +129,25 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
                       final anonymousForum =
                           (data['anonymousForumMode'] as bool?) ?? true;
 
-                      Future<void> updateSetting(String key, bool value) {
-                        return firestore
+                      Future<void> updateSetting(String key, bool value) async {
+                        if (_useWindowsRestFirestore) {
+                          final existing =
+                              (await windowsRest.getDocument(
+                                'user_privacy_settings/$userId',
+                              ))?.data ??
+                              const <String, dynamic>{};
+                          await windowsRest.setDocument(
+                            'user_privacy_settings/$userId',
+                            <String, dynamic>{
+                              ...existing,
+                              'userId': userId,
+                              key: value,
+                              'updatedAt': DateTime.now().toUtc(),
+                            },
+                          );
+                          return;
+                        }
+                        await firestore!
                             .collection('user_privacy_settings')
                             .doc(userId)
                             .set({
@@ -123,8 +203,9 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
                                       'shareCarePlanWithCounselors',
                                       value,
                                     ),
-                                    title:
-                                        const Text('Share care plan progress'),
+                                    title: const Text(
+                                      'Share care plan progress',
+                                    ),
                                     subtitle: const Text(
                                       'Allow counselors to monitor your goal completion.',
                                     ),

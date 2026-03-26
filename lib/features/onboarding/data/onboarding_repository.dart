@@ -1,17 +1,28 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
+import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/onboarding/data/onboarding_question_bank.dart';
 
 class OnboardingRepository {
   OnboardingRepository({
-    required FirebaseFirestore firestore,
-    required FirebaseAuth auth,
-  }) : _firestore = firestore,
-       _auth = auth;
+    required FirebaseFirestore Function()? firestoreFactory,
+    required AppAuthClient auth,
+    required WindowsFirestoreRestClient windowsRest,
+  }) : _firestoreFactory = firestoreFactory,
+       _auth = auth,
+       _windowsRest = windowsRest;
 
-  final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
+  final FirebaseFirestore Function()? _firestoreFactory;
+  FirebaseFirestore? _cachedFirestore;
+  final AppAuthClient _auth;
+  final WindowsFirestoreRestClient _windowsRest;
+
+  FirebaseFirestore get _firestore => _cachedFirestore ??=
+      _firestoreFactory?.call() ??
+      (throw StateError(
+        'Native Firestore is disabled for Windows REST auth flows.',
+      ));
 
   bool requiresQuestionnaire(UserProfile? profile) {
     if (profile == null) {
@@ -52,6 +63,45 @@ class OnboardingRepository {
         answers['ai_assist_enabled'] == true;
     final aiStyle = answers['ai_coach_style'] as String?;
     final aiCadence = answers['ai_checkin_cadence'] as String?;
+
+    if (kUseWindowsRestAuth) {
+      final now = DateTime.now().toUtc();
+      final existingUser =
+          (await _windowsRest.getDocument('users/${user.uid}'))?.data ??
+          const <String, dynamic>{};
+      final completedRoles = Map<String, dynamic>.from(
+        (existingUser['onboardingCompletedRoles'] as Map?) ??
+            const <String, dynamic>{},
+      );
+      completedRoles[role.name] = OnboardingQuestionBank.version;
+      final existingAiPreferences = Map<String, dynamic>.from(
+        (existingUser['aiAssistantPreferences'] as Map?) ??
+            const <String, dynamic>{},
+      );
+
+      await _windowsRest.setDocument('onboarding_responses/$responseDocId', {
+        'userId': user.uid,
+        'role': role.name,
+        'version': OnboardingQuestionBank.version,
+        'answers': answers,
+        'submittedAt': now,
+      });
+      await _windowsRest.setDocument('users/${user.uid}', {
+        ...existingUser,
+        'onboardingCompletedRoles': completedRoles,
+        'onboardingLastCompletedRole': role.name,
+        'onboardingUpdatedAt': now,
+        'aiAssistantPreferences': {
+          ...existingAiPreferences,
+          'enabled': aiEnabled,
+          'style': aiStyle,
+          'checkInCadence': aiCadence,
+          'updatedAt': now,
+        },
+        'updatedAt': now,
+      });
+      return;
+    }
 
     batch
         .set(_firestore.collection('onboarding_responses').doc(responseDocId), {

@@ -1,16 +1,27 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
+import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 
 class CounselorRepository {
   CounselorRepository({
-    required FirebaseFirestore firestore,
-    required FirebaseAuth auth,
-  }) : _firestore = firestore,
-       _auth = auth;
+    required FirebaseFirestore Function()? firestoreFactory,
+    required AppAuthClient auth,
+    required WindowsFirestoreRestClient windowsRest,
+  }) : _firestoreFactory = firestoreFactory,
+       _auth = auth,
+       _windowsRest = windowsRest;
 
-  final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
+  final FirebaseFirestore Function()? _firestoreFactory;
+  FirebaseFirestore? _cachedFirestore;
+  final AppAuthClient _auth;
+  final WindowsFirestoreRestClient _windowsRest;
+
+  FirebaseFirestore get _firestore => _cachedFirestore ??=
+      _firestoreFactory?.call() ??
+      (throw StateError(
+        'Native Firestore is disabled for Windows REST auth flows.',
+      ));
 
   bool requiresSetup(UserProfile? profile) {
     if (profile == null || profile.role != UserRole.counselor) {
@@ -34,8 +45,9 @@ class CounselorRepository {
       throw Exception('You must be logged in.');
     }
 
-    final userDoc = await _firestore.collection('users').doc(user.uid).get();
-    final userData = userDoc.data();
+    final userData = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument('users/${user.uid}'))?.data
+        : (await _firestore.collection('users').doc(user.uid).get()).data();
     final institutionId = (userData?['institutionId'] as String?) ?? '';
     final displayName =
         (userData?['name'] as String?) ?? user.displayName ?? '';
@@ -70,15 +82,21 @@ class CounselorRepository {
       throw Exception('Timezone is required.');
     }
 
-    final counselorProfileRef = _firestore
-        .collection('counselor_profiles')
-        .doc(user.uid);
-    final counselorProfileDoc = await counselorProfileRef.get();
+    final existingCounselorProfile = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument(
+                'counselor_profiles/${user.uid}',
+              ))?.data ??
+              const <String, dynamic>{}
+        : (await _firestore
+                      .collection('counselor_profiles')
+                      .doc(user.uid)
+                      .get())
+                  .data() ??
+              const <String, dynamic>{};
     final existingRatingAverage =
-        (counselorProfileDoc.data()?['ratingAverage'] as num?)?.toDouble() ??
-        0.0;
+        (existingCounselorProfile['ratingAverage'] as num?)?.toDouble() ?? 0.0;
     final existingRatingCount =
-        (counselorProfileDoc.data()?['ratingCount'] as num?)?.toInt() ?? 0;
+        (existingCounselorProfile['ratingCount'] as num?)?.toInt() ?? 0;
 
     final counselorData = <String, dynamic>{
       'institutionId': institutionId,
@@ -97,6 +115,32 @@ class CounselorRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
+    if (kUseWindowsRestAuth) {
+      final now = DateTime.now().toUtc();
+      await _windowsRest.setDocument('users/${user.uid}', {
+        ...?userData,
+        'counselorSetupCompleted': true,
+        'counselorSetupData': {...counselorData, 'completedAt': now},
+        'counselorPreferences': {
+          'defaultSessionMinutes': 50,
+          'breakBetweenSessionsMins': 10,
+          'allowDirectBooking': true,
+          'autoApproveFollowUps': false,
+          'updatedAt': now,
+        },
+        'updatedAt': now,
+      });
+      await _windowsRest.setDocument('counselor_profiles/${user.uid}', {
+        ...existingCounselorProfile,
+        ...counselorData,
+        'createdAt': existingCounselorProfile['createdAt'] ?? now,
+      });
+      return;
+    }
+
+    final counselorProfileRef = _firestore
+        .collection('counselor_profiles')
+        .doc(user.uid);
     final batch = _firestore.batch();
     batch.update(_firestore.collection('users').doc(user.uid), {
       'counselorSetupCompleted': true,
@@ -142,8 +186,9 @@ class CounselorRepository {
     }
 
     final userRef = _firestore.collection('users').doc(user.uid);
-    final userDoc = await userRef.get();
-    final userData = userDoc.data();
+    final userData = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument('users/${user.uid}'))?.data
+        : (await userRef.get()).data();
     if (userData == null) {
       throw Exception('User profile not found.');
     }
@@ -190,15 +235,21 @@ class CounselorRepository {
       throw Exception('Break between sessions must be between 0 and 60.');
     }
 
-    final counselorProfileRef = _firestore
-        .collection('counselor_profiles')
-        .doc(user.uid);
-    final counselorProfileDoc = await counselorProfileRef.get();
+    final existingCounselorProfile = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument(
+                'counselor_profiles/${user.uid}',
+              ))?.data ??
+              const <String, dynamic>{}
+        : (await _firestore
+                      .collection('counselor_profiles')
+                      .doc(user.uid)
+                      .get())
+                  .data() ??
+              const <String, dynamic>{};
     final existingRatingAverage =
-        (counselorProfileDoc.data()?['ratingAverage'] as num?)?.toDouble() ??
-        0.0;
+        (existingCounselorProfile['ratingAverage'] as num?)?.toDouble() ?? 0.0;
     final existingRatingCount =
-        (counselorProfileDoc.data()?['ratingCount'] as num?)?.toInt() ?? 0;
+        (existingCounselorProfile['ratingCount'] as num?)?.toInt() ?? 0;
 
     final existingSetup =
         (userData['counselorSetupData'] as Map<String, dynamic>?) ??
@@ -229,6 +280,31 @@ class CounselorRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
+    if (kUseWindowsRestAuth) {
+      final now = DateTime.now().toUtc();
+      await _windowsRest.setDocument('counselor_profiles/${user.uid}', {
+        ...existingCounselorProfile,
+        ...counselorData,
+        'createdAt': existingCounselorProfile['createdAt'] ?? now,
+      });
+      await _windowsRest.setDocument('users/${user.uid}', {
+        ...userData,
+        'name': trimmedName,
+        'counselorSetupCompleted': true,
+        'counselorSetupData': {
+          ...counselorData,
+          'completedAt': existingSetup['completedAt'] ?? now,
+        },
+        'counselorPreferences': {...preferences, 'updatedAt': now},
+        'updatedAt': now,
+      });
+      return;
+    }
+
+    final counselorProfileRef = _firestore
+        .collection('counselor_profiles')
+        .doc(user.uid);
+    final counselorProfileDoc = await counselorProfileRef.get();
     final batch = _firestore.batch();
     batch.set(counselorProfileRef, {
       ...counselorData,

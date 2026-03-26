@@ -28,34 +28,41 @@ class AuthSessionManager {
     await prefs.remove(_loginAtKey);
   }
 
+  static Future<bool> shouldRestorePersistedSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final mode = prefs.getString(_modeKey);
+
+    if (mode == _modeSession) {
+      await clear();
+      return false;
+    }
+
+    if (mode == _modeRemember) {
+      final loginAtMs = prefs.getInt(_loginAtKey);
+      if (loginAtMs == null) {
+        await clear();
+        return false;
+      }
+      final loggedAt = DateTime.fromMillisecondsSinceEpoch(loginAtMs);
+      final expired = DateTime.now().difference(loggedAt) > rememberDuration;
+      if (expired) {
+        await clear();
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   static Future<void> enforceStartupPolicy(FirebaseAuth auth) async {
     final user = auth.currentUser;
     if (user == null) {
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    final mode = prefs.getString(_modeKey);
-
-    if (mode == _modeSession) {
+    final shouldRestore = await shouldRestorePersistedSession();
+    if (!shouldRestore) {
       await auth.signOut();
-      await clear();
-      return;
-    }
-
-    if (mode == _modeRemember) {
-      final loginAtMs = prefs.getInt(_loginAtKey);
-      if (loginAtMs == null) {
-        await auth.signOut();
-        await clear();
-        return;
-      }
-      final loggedAt = DateTime.fromMillisecondsSinceEpoch(loginAtMs);
-      final expired = DateTime.now().difference(loggedAt) > rememberDuration;
-      if (expired) {
-        await auth.signOut();
-        await clear();
-      }
     }
   }
 }
