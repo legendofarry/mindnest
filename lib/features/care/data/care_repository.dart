@@ -34,7 +34,7 @@ class CareRepository {
   final http.Client _httpClient;
   final WindowsFirestoreRestClient _windowsRest;
   int _windowsRestIdCounter = 0;
-  static const Duration _windowsPollInterval = Duration(seconds: 2);
+  static const Duration _windowsPollInterval = Duration(seconds: 15);
 
   static const String _pushDispatchEndpointFromDefine = String.fromEnvironment(
     'PUSH_DISPATCH_ENDPOINT',

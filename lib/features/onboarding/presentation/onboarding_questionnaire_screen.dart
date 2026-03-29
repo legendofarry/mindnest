@@ -238,8 +238,10 @@ class _OnboardingQuestionnaireScreenState
           final progress = (_currentStep + 1) / questions.length;
           final isLastStep = _currentStep == questions.length - 1;
           final viewportHeight = MediaQuery.of(context).size.height;
-          final listHeight =
-              (viewportHeight - 320).clamp(280.0, 520.0); // keeps buttons visible
+          final listHeight = (viewportHeight - 320).clamp(
+            280.0,
+            520.0,
+          ); // keeps buttons visible
 
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 22),
@@ -326,7 +328,8 @@ class _OnboardingQuestionnaireScreenState
                         answers: _answers,
                         onMultiToggle: (option) =>
                             _toggleMulti(question, option),
-                        onSingleSelect: (option) => _setSingle(question, option),
+                        onSingleSelect: (option) =>
+                            _setSingle(question, option),
                         onReminderSelect: (option) =>
                             _setReminderSlot(question, option),
                         onPickCustomTime: () => _pickCustomTime(question),

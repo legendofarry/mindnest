@@ -10,9 +10,10 @@ import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
+import 'package:mindnest/features/counselor/data/counselor_providers.dart';
+import 'package:mindnest/features/counselor/models/counselor_institution_access_status.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/models/user_invite.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class CounselorInviteWaitingScreen extends ConsumerStatefulWidget {
   const CounselorInviteWaitingScreen({super.key});
@@ -25,16 +26,12 @@ class CounselorInviteWaitingScreen extends ConsumerStatefulWidget {
 class _CounselorInviteWaitingScreenState
     extends ConsumerState<CounselorInviteWaitingScreen>
     with SingleTickerProviderStateMixin {
-  static final Uri _webAppUri = Uri.parse('https://mindnestke.netlify.app/');
-
   late final AnimationController _controller;
   late final Animation<double> _pulse;
 
   final _codeController = TextEditingController();
   bool _isSubmitting = false;
   bool _isCheckingWindowsInvite = false;
-  bool _isOpeningWeb = false;
-  bool _isSigningOut = false;
   bool _hasCheckedWindowsInvite = false;
   UserInvite? _windowsInvite;
   String? _banner;
@@ -120,7 +117,7 @@ class _CounselorInviteWaitingScreenState
           _bannerIsError = false;
         } else {
           _banner =
-              'An invite is ready for ${invite.institutionName}. Finish this counselor handoff on the web.';
+              'An invite is ready for ${invite.institutionName}. Review it here and continue with counselor setup on Windows.';
           _bannerIsError = false;
         }
       });
@@ -132,56 +129,6 @@ class _CounselorInviteWaitingScreenState
     } finally {
       if (mounted) {
         setState(() => _isCheckingWindowsInvite = false);
-      }
-    }
-  }
-
-  Future<void> _openWeb() async {
-    if (_isOpeningWeb) {
-      return;
-    }
-    setState(() {
-      _isOpeningWeb = true;
-      _banner = null;
-    });
-    try {
-      final launched = await launchUrl(
-        _webAppUri,
-        mode: LaunchMode.externalApplication,
-      );
-      if (launched || !mounted) {
-        return;
-      }
-      _showBanner(
-        'We could not open MindNest on the web. Visit mindnestke.netlify.app in your browser.',
-        isError: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isOpeningWeb = false);
-      }
-    }
-  }
-
-  Future<void> _signOutNow() async {
-    if (_isSigningOut) {
-      return;
-    }
-    setState(() {
-      _isSigningOut = true;
-      _banner = null;
-    });
-    try {
-      await ref.read(authRepositoryProvider).signOut();
-      await syncAuthSessionState(ref);
-    } catch (error) {
-      _showBanner(
-        error.toString().replaceFirst('Exception: ', ''),
-        isError: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isSigningOut = false);
       }
     }
   }
@@ -217,10 +164,16 @@ class _CounselorInviteWaitingScreenState
     try {
       await ref.read(institutionRepositoryProvider).declineInvite(invite);
       _codeController.clear();
-      _showBanner(
-        'Invite declined. The original alert was resolved and follow-up notifications were sent.',
-        isError: false,
-      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _windowsInvite = null;
+        _hasCheckedWindowsInvite = true;
+        _banner =
+            'Invite declined. The original alert was resolved and follow-up notifications were sent.';
+        _bannerIsError = false;
+      });
     } catch (error) {
       _showBanner(
         error.toString().replaceFirst('Exception: ', ''),
@@ -234,8 +187,21 @@ class _CounselorInviteWaitingScreenState
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= 1100;
+    final counselorAccessStatus = _isWindowsDesktop
+        ? (ref
+                  .watch(currentCounselorInstitutionAccessStatusProvider)
+                  .valueOrNull ??
+              CounselorInstitutionAccessStatus.inactive)
+        : CounselorInstitutionAccessStatus.inactive;
     if (_isWindowsDesktop) {
-      return _buildWindowsWaitingScreen(context, isDesktop);
+      if (_windowsInvite != null) {
+        return _buildWindowsInviteScreen(context, _windowsInvite!, isDesktop);
+      }
+      return _buildWindowsWaitingScreen(
+        context,
+        isDesktop,
+        counselorAccessStatus,
+      );
     }
     final inviteAsync = ref.watch(pendingUserInviteProvider);
 
@@ -276,7 +242,13 @@ class _CounselorInviteWaitingScreenState
     );
   }
 
-  Widget _buildWindowsWaitingScreen(BuildContext context, bool isDesktop) {
+  Widget _buildWindowsWaitingScreen(
+    BuildContext context,
+    bool isDesktop,
+    CounselorInstitutionAccessStatus accessStatus,
+  ) {
+    final removedByAdmin =
+        accessStatus == CounselorInstitutionAccessStatus.removed;
     return MindNestShell(
       maxWidth: isDesktop ? 980 : 760,
       backgroundMode: isDesktop
@@ -311,7 +283,7 @@ class _CounselorInviteWaitingScreenState
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Windows keeps this as a simple waiting checkpoint. When your institution invite is ready, finish the handoff on the web.',
+                          'Windows keeps this as a simple waiting checkpoint. Check manually for your counselor invite, then respond here when it arrives.',
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
                                 color: const Color(0xFF5E728D),
@@ -324,9 +296,11 @@ class _CounselorInviteWaitingScreenState
                   ),
                   const SizedBox(width: 14),
                   OutlinedButton.icon(
-                    onPressed: _isSigningOut ? null : _signOutNow,
+                    onPressed: () {
+                      confirmAndLogout(context: context, ref: ref);
+                    },
                     icon: const Icon(Icons.logout_rounded),
-                    label: Text(_isSigningOut ? 'Signing out...' : 'Sign Out'),
+                    label: const Text('Sign Out'),
                   ),
                 ],
               ),
@@ -379,7 +353,7 @@ class _CounselorInviteWaitingScreenState
                           Text(
                             _windowsInvite == null
                                 ? 'Click Check Again whenever you want to see whether the institution admin has sent your counselor invite.'
-                                : 'Invite found for ${_windowsInvite!.institutionName}. Continue on the web to review it and finish counselor setup.',
+                                : 'Invite found for ${_windowsInvite!.institutionName}. Review it here and continue into counselor setup on Windows.',
                             style: const TextStyle(
                               color: Color(0xFFE5F0FF),
                               fontWeight: FontWeight.w600,
@@ -392,7 +366,14 @@ class _CounselorInviteWaitingScreenState
                   ],
                 ),
               ),
-              if ((_banner ?? '').trim().isNotEmpty) ...[
+              if (removedByAdmin) ...[
+                const SizedBox(height: 16),
+                const _Banner(
+                  message:
+                      'Your institution access was removed by the admin. Wait for a new invite, then click Check Again.',
+                  isError: true,
+                ),
+              ] else if ((_banner ?? '').trim().isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _Banner(message: _banner!, isError: _bannerIsError),
               ],
@@ -410,25 +391,6 @@ class _CounselorInviteWaitingScreenState
                         : _checkWindowsInvite,
                     gradient: const [Color(0xFF155EEF), Color(0xFF0E9B90)],
                     glowColor: const Color(0x33155EEF),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _isOpeningWeb ? null : _openWeb,
-                    icon: const Icon(Icons.open_in_browser_rounded),
-                    label: Text(
-                      _isOpeningWeb
-                          ? 'Opening web...'
-                          : _windowsInvite == null
-                          ? 'Open Web'
-                          : 'Open Web to Continue',
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(180, 58),
-                      foregroundColor: const Color(0xFF0E9B90),
-                      side: const BorderSide(color: Color(0xFF8ADFD7)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -454,7 +416,7 @@ class _CounselorInviteWaitingScreenState
                     const Text(
                       '1. Stay signed in with your existing account.\n'
                       '2. Click Check Again whenever you want to look for a new invite.\n'
-                      '3. When the invite is ready, open MindNest on the web to complete the counselor handoff.',
+                      '3. When the invite is ready, review it here, respond to it, and continue into counselor setup on Windows.',
                       style: TextStyle(
                         color: Color(0xFF5E728D),
                         height: 1.5,
@@ -477,6 +439,29 @@ class _CounselorInviteWaitingScreenState
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildWindowsInviteScreen(
+    BuildContext context,
+    UserInvite invite,
+    bool isDesktop,
+  ) {
+    return MindNestShell(
+      maxWidth: isDesktop ? 1360 : 780,
+      backgroundMode: isDesktop
+          ? MindNestBackgroundMode.homeStyle
+          : MindNestBackgroundMode.defaultShell,
+      padding: EdgeInsets.fromLTRB(
+        isDesktop ? 28 : 20,
+        24,
+        isDesktop ? 28 : 20,
+        28,
+      ),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: _buildInviteExperience(context, invite, isDesktop),
       ),
     );
   }

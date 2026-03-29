@@ -106,7 +106,7 @@ extension AdminWorkspaceViewX on AdminWorkspaceView {
   }
 }
 
-const Duration _windowsFirebasePollInterval = Duration(seconds: 2);
+const Duration _windowsFirebasePollInterval = Duration(seconds: 15);
 
 bool get _useWindowsFirebasePollingWorkaround =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
@@ -291,8 +291,8 @@ class _InstitutionAdminScreenState
   int? _sortColumnIndex;
   bool _sortAscending = true;
   String? _highlightRecordId;
-  bool _inviteExpanded = true;
-  bool _collabExpanded = true;
+  bool _inviteExpanded = false;
+  bool _collabExpanded = false;
 
   @override
   void initState() {

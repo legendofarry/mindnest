@@ -20,7 +20,8 @@ class WindowsDesktopWindowControls extends StatefulWidget {
 }
 
 class _WindowsDesktopWindowControlsState
-    extends State<WindowsDesktopWindowControls> with WindowListener {
+    extends State<WindowsDesktopWindowControls>
+    with WindowListener {
   bool _isMaximized = true;
 
   @override

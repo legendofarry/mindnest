@@ -1,12 +1,10 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/auth/presentation/account_export_sheet.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
@@ -50,7 +48,6 @@ class _CounselorProfileSettingsScreenState
   bool _savingProfile = false;
   bool _savingNotif = false;
   bool _sendingReset = false;
-  bool _exporting = false;
 
   static const _specs = <String>[
     'Academic Stress',
@@ -112,13 +109,12 @@ class _CounselorProfileSettingsScreenState
                   (setup['yearsExperience'] as num?)?.toInt() ??
                   0))
               .toString();
-      final langs = cp?.languages ??
+      final langs =
+          cp?.languages ??
           ((setup['languages'] as List?) ?? const <dynamic>[])
               .map((e) => e.toString())
               .toList(growable: false);
-      _languages = langs.isNotEmpty
-          ? langs.toSet()
-          : {_languageOptions.first};
+      _languages = langs.isNotEmpty ? langs.toSet() : {_languageOptions.first};
       _bio.text = cp?.bio ?? (setup['bio'] as String? ?? '');
 
       final specializationRaw =
@@ -244,31 +240,6 @@ class _CounselorProfileSettingsScreenState
     }
   }
 
-  Future<void> _exportData() async {
-    setState(() => _exporting = true);
-    try {
-      final data = await ref
-          .read(authRepositoryProvider)
-          .exportCurrentUserData();
-      await Clipboard.setData(
-        ClipboardData(text: const JsonEncoder.withIndent('  ').convert(data)),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Data copied to clipboard.')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _exporting = false);
-    }
-  }
-
   void _navigateSection(
     BuildContext context,
     CounselorWorkspaceNavSection section,
@@ -331,9 +302,9 @@ class _CounselorProfileSettingsScreenState
                     .watchNotificationSettings(profile.id),
                 builder: (context, nSnap) {
                   _seed(profile, cpSnap.data, nSnap.data ?? const {});
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                       _SettingsHero(
                         profile: profile,
                         specialization: _specialization,
@@ -577,11 +548,13 @@ class _CounselorProfileSettingsScreenState
                                         _LanguageSelector(
                                           options: _languageOptions,
                                           selected:
-                                              _languages ?? {_languageOptions.first},
+                                              _languages ??
+                                              {_languageOptions.first},
                                           onToggle: (lang) {
                                             setState(() {
-                                              _languages ??=
-                                                  {_languageOptions.first};
+                                              _languages ??= {
+                                                _languageOptions.first,
+                                              };
                                               if (_languages!.contains(lang)) {
                                                 _languages!.remove(lang);
                                               } else {
@@ -686,10 +659,19 @@ class _CounselorProfileSettingsScreenState
                                       const SizedBox(height: 10),
                                       _ActionTile(
                                         icon: Icons.download_rounded,
-                                        title: 'Export My Data',
+                                        title: 'Download My Data',
                                         subtitle:
-                                            'Copy the current account export to the clipboard.',
-                                        onTap: _exporting ? null : _exportData,
+                                            'Download a polished PDF summary, CSV tables, or advanced raw JSON for your counselor account.',
+                                        onTap: () {
+                                          showAccountExportSheet(
+                                            context: context,
+                                            ref: ref,
+                                            title:
+                                                'Download your counselor account data',
+                                            subtitle:
+                                                'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your counselor account export.',
+                                          );
+                                        },
                                       ),
                                     ],
                                   ),

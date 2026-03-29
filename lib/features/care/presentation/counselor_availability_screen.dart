@@ -628,8 +628,7 @@ class _CounselorAvailabilityScreenState
     final filtered = _sortedSlots(slots)
         .where(
           (slot) =>
-              _slotTimelineFilter == null ||
-              slot.status == _slotTimelineFilter,
+              _slotTimelineFilter == null || slot.status == _slotTimelineFilter,
         )
         .toList(growable: false);
 
@@ -745,7 +744,8 @@ class _CounselorAvailabilityScreenState
                   final key = orderedKeys[index];
                   final day = dateByKey[key]!;
                   final events = grouped[key]!;
-                  final expandedKey = _expandedSlotDateKey ?? defaultExpandedKey;
+                  final expandedKey =
+                      _expandedSlotDateKey ?? defaultExpandedKey;
                   final expanded = key == expandedKey;
                   return GlassCard(
                     child: Padding(
@@ -835,16 +835,15 @@ class _CounselorAvailabilityScreenState
                                                 .deleteAvailabilitySlot(slot);
                                           } catch (error) {
                                             if (!context.mounted) return;
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
                                               SnackBar(
                                                 content: Text(
-                                                  error
-                                                      .toString()
-                                                      .replaceFirst(
-                                                        'Exception: ',
-                                                        '',
-                                                      ),
+                                                  error.toString().replaceFirst(
+                                                    'Exception: ',
+                                                    '',
+                                                  ),
                                                 ),
                                               ),
                                             );
@@ -876,8 +875,7 @@ class _CounselorAvailabilityScreenState
   Widget _buildSlotTable(BuildContext context, List<AvailabilitySlot> slots) {
     final filtered = _sortedSlots(slots)
         .where(
-          (slot) =>
-              _slotTableFilter == null || slot.status == _slotTableFilter,
+          (slot) => _slotTableFilter == null || slot.status == _slotTableFilter,
         )
         .toList(growable: false);
 
@@ -907,9 +905,7 @@ class _CounselorAvailabilityScreenState
           _slotTablePage = 0;
         }),
         selectedColor: color.withValues(alpha: 0.12),
-        side: BorderSide(
-          color: selected ? color : const Color(0xFFD3E0EE),
-        ),
+        side: BorderSide(color: selected ? color : const Color(0xFFD3E0EE)),
         labelStyle: TextStyle(
           fontWeight: FontWeight.w700,
           color: selected ? color : const Color(0xFF475569),
@@ -925,8 +921,11 @@ class _CounselorAvailabilityScreenState
           children: [
             Row(
               children: [
-                const Icon(Icons.table_chart_rounded,
-                    size: 18, color: Color(0xFF0E9B90)),
+                const Icon(
+                  Icons.table_chart_rounded,
+                  size: 18,
+                  color: Color(0xFF0E9B90),
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Slots ($totalRows)',
@@ -996,18 +995,14 @@ class _CounselorAvailabilityScreenState
             ),
             const SizedBox(height: 10),
             ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: _feedMaxHeight,
-              ),
+              constraints: BoxConstraints(maxHeight: _feedMaxHeight),
               child: Scrollbar(
                 thumbVisibility: true,
                 child: ListView.separated(
                   primary: false,
                   itemCount: rows.length,
-                  separatorBuilder: (_, __) => const Divider(
-                    height: 1,
-                    color: Color(0xFFE2E8F0),
-                  ),
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 1, color: Color(0xFFE2E8F0)),
                   itemBuilder: (context, index) {
                     final slot = rows[index];
                     final tone = _slotStatusColor(slot.status);
@@ -1056,9 +1051,10 @@ class _CounselorAvailabilityScreenState
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        error
-                                            .toString()
-                                            .replaceFirst('Exception: ', ''),
+                                        error.toString().replaceFirst(
+                                          'Exception: ',
+                                          '',
+                                        ),
                                       ),
                                     ),
                                   );
@@ -1106,6 +1102,7 @@ class _CounselorAvailabilityScreenState
       ),
     );
   }
+
   Widget _buildBody(
     BuildContext context, {
     required UserProfile profile,
@@ -1666,10 +1663,7 @@ class _StatusPill extends StatelessWidget {
 }
 
 class _FeedCollapsedBanner extends StatelessWidget {
-  const _FeedCollapsedBanner({
-    required this.total,
-    required this.onExpand,
-  });
+  const _FeedCollapsedBanner({required this.total, required this.onExpand});
 
   final int total;
   final VoidCallback onExpand;

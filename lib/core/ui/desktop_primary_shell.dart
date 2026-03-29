@@ -46,6 +46,9 @@ class DesktopPrimaryShell extends ConsumerWidget {
       barrierDismissible: true,
       builder: (dialogContext) {
         Future.delayed(const Duration(seconds: 2), () {
+          if (!dialogContext.mounted) {
+            return;
+          }
           if (Navigator.of(dialogContext).canPop()) {
             Navigator.of(dialogContext).pop();
           }
@@ -93,99 +96,6 @@ class DesktopPrimaryShell extends ConsumerWidget {
       backgroundColor: isDark
           ? const Color(0xFF071120)
           : const Color(0xFFF4F7FB),
-      appBar: AppBar(
-        toolbarHeight: 82,
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        titleSpacing: 24,
-        title: Row(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'MindNest',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: isDark
-                        ? const Color(0xFFE2E8F0)
-                        : const Color(0xFF071937),
-                    fontSize: 20,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-                Text(
-                  'Student Workspace',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: isDark
-                        ? const Color(0xFF8FA4C2)
-                        : const Color(0xFF62748B),
-                    fontSize: 12,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          _HeaderActionButton(
-            tooltip: 'Notifications',
-            active: notificationsActive,
-            onPressed: hasInstitution
-                ? () => context.go(AppRoute.notifications)
-                : () => _showNotificationsUnavailable(context),
-            child: _HeaderBellIcon(
-              unreadCount: unreadCount,
-              active: notificationsActive,
-            ),
-          ),
-          const SizedBox(width: 8),
-          _HeaderActionButton(
-            tooltip: 'Profile',
-            active: profileActive,
-            onPressed: profile == null
-                ? null
-                : () {
-                    if (matchedLocation == AppRoute.home) {
-                      ref
-                              .read(desktopProfileOpenRequestProvider.notifier)
-                              .state =
-                          DateTime.now().microsecondsSinceEpoch;
-                      return;
-                    }
-                    _openProfileFromHeader(context);
-                  },
-            child: Icon(
-              Icons.person_outline_rounded,
-              color: profileActive
-                  ? const Color(0xFF0B2442)
-                  : (isDark
-                        ? const Color(0xFFD6E3F5)
-                        : const Color(0xFF16324F)),
-            ),
-          ),
-          const SizedBox(width: 10),
-          const WindowsDesktopWindowControls(),
-          const SizedBox(width: 24),
-        ],
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF081423) : const Color(0xFFF4F7FB),
-            border: Border(
-              bottom: BorderSide(
-                color: isDark
-                    ? const Color(0xFF18273B)
-                    : const Color(0xFFD8E2EE),
-              ),
-            ),
-          ),
-        ),
-      ),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -196,30 +106,142 @@ class DesktopPrimaryShell extends ConsumerWidget {
             end: Alignment.bottomRight,
           ),
         ),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 0, 20),
-                child: SizedBox(
-                  width: 272,
-                  child: DesktopSectionNav(
-                    hasInstitution: hasInstitution,
-                    canAccessLive: canAccessLive,
+        child: Stack(
+          children: [
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                child: Row(
+                  children: [
+                    _ShellTitleCard(isDark: isDark),
+                    const Spacer(),
+                    _HeaderActionButton(
+                      tooltip: 'Notifications',
+                      active: notificationsActive,
+                      onPressed: hasInstitution
+                          ? () => context.go(AppRoute.notifications)
+                          : () => _showNotificationsUnavailable(context),
+                      child: _HeaderBellIcon(
+                        unreadCount: unreadCount,
+                        active: notificationsActive,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _HeaderActionButton(
+                      tooltip: 'Profile',
+                      active: profileActive,
+                      onPressed: profile == null
+                          ? null
+                          : () {
+                              if (matchedLocation == AppRoute.home) {
+                                ref
+                                        .read(
+                                          desktopProfileOpenRequestProvider
+                                              .notifier,
+                                        )
+                                        .state =
+                                    DateTime.now().microsecondsSinceEpoch;
+                                return;
+                              }
+                              _openProfileFromHeader(context);
+                            },
+                      child: Icon(
+                        Icons.person_outline_rounded,
+                        color: profileActive
+                            ? const Color(0xFF0B2442)
+                            : (isDark
+                                  ? const Color(0xFFD6E3F5)
+                                  : const Color(0xFF16324F)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const WindowsDesktopWindowControls(),
+                  ],
+                ),
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 96, 0, 20),
+                    child: SizedBox(
+                      width: 272,
+                      child: DesktopSectionNav(
+                        hasInstitution: hasInstitution,
+                        canAccessLive: canAccessLive,
+                      ),
+                    ),
                   ),
-                ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 96, 24, 24),
+                      child: child,
+                    ),
+                  ),
+                ],
               ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 24, 24),
-                  child: child,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _ShellTitleCard extends StatelessWidget {
+  const _ShellTitleCard({required this.isDark});
+
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark
+            ? const Color(0xF0122034)
+            : Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : const Color(0xFFD8E2EE),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x160F172A),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'MindNest',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF071937),
+              fontSize: 20,
+              letterSpacing: -0.4,
+            ),
+          ),
+          Text(
+            'Student Workspace',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: isDark ? const Color(0xFF8FA4C2) : const Color(0xFF62748B),
+              fontSize: 12,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
       ),
     );
   }

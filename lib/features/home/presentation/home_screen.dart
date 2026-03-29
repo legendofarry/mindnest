@@ -3566,7 +3566,7 @@ class _WellnessCheckInCard extends ConsumerStatefulWidget {
 
 class _WellnessCheckInCardState extends ConsumerState<_WellnessCheckInCard> {
   bool _saving = false;
-  static const Duration _windowsPollInterval = Duration(seconds: 2);
+  static const Duration _windowsPollInterval = Duration(seconds: 15);
 
   static const List<_MoodChoice> _moods = <_MoodChoice>[
     _MoodChoice(

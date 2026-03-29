@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
-import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class WindowsWebSetupRequiredScreen extends ConsumerStatefulWidget {
@@ -19,7 +19,6 @@ class _WindowsWebSetupRequiredScreenState
   static final Uri _webAppUri = Uri.parse('https://mindnestke.netlify.app/');
 
   bool _isOpeningWeb = false;
-  bool _isSigningOut = false;
   String? _error;
 
   _WindowsSetupCopy get _copy => _WindowsSetupCopy.forReason(widget.reason);
@@ -51,29 +50,9 @@ class _WindowsWebSetupRequiredScreenState
     }
   }
 
-  Future<void> _signOutNow() async {
-    if (_isSigningOut) {
-      return;
-    }
-    setState(() {
-      _isSigningOut = true;
-      _error = null;
-    });
-    try {
-      await ref.read(authRepositoryProvider).signOut();
-      await syncAuthSessionState(ref);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _error = error.toString().replaceFirst('Exception: ', '');
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _isSigningOut = false);
-      }
-    }
+  Future<void> _confirmSignOut() async {
+    setState(() => _error = null);
+    await confirmAndLogout(context: context, ref: ref);
   }
 
   @override
@@ -147,7 +126,7 @@ class _WindowsWebSetupRequiredScreenState
                 border: Border.all(color: const Color(0xFFB3ECDD)),
               ),
               child: Text(
-                'Windows access starts after the account is fully ready. Finish this step on the web, then come back here and log in again.',
+                _copy.supportingNote,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: const Color(0xFF0D6F69),
                   fontWeight: FontWeight.w700,
@@ -175,47 +154,49 @@ class _WindowsWebSetupRequiredScreenState
               ),
             ],
             const SizedBox(height: 22),
-            Container(
-              height: 58,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(17),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0E9B90), Color(0xFF18A89D)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x4D72ECDC),
-                    blurRadius: 28,
-                    offset: Offset(0, 14),
+            if (_copy.showPrimaryAction) ...[
+              Container(
+                height: 58,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(17),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0E9B90), Color(0xFF18A89D)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
                   ),
-                ],
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x4D72ECDC),
+                      blurRadius: 28,
+                      offset: Offset(0, 14),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: _isOpeningWeb ? null : _openWeb,
+                  style: ElevatedButton.styleFrom(
+                    shadowColor: Colors.transparent,
+                    backgroundColor: Colors.transparent,
+                    disabledBackgroundColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                  ),
+                  icon: const Icon(Icons.open_in_browser_rounded),
+                  label: Text(
+                    _isOpeningWeb ? 'Opening web...' : _copy.primaryActionLabel,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
               ),
-              child: ElevatedButton.icon(
-                onPressed: _isOpeningWeb ? null : _openWeb,
-                style: ElevatedButton.styleFrom(
-                  shadowColor: Colors.transparent,
-                  backgroundColor: Colors.transparent,
-                  disabledBackgroundColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(17),
-                  ),
-                ),
-                icon: const Icon(Icons.open_in_browser_rounded),
-                label: Text(
-                  _isOpeningWeb ? 'Opening web...' : _copy.primaryActionLabel,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
+            ],
             OutlinedButton.icon(
-              onPressed: _isSigningOut ? null : _signOutNow,
+              onPressed: _confirmSignOut,
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(54),
                 foregroundColor: const Color(0xFF5E728D),
@@ -225,7 +206,7 @@ class _WindowsWebSetupRequiredScreenState
                 ),
               ),
               icon: const Icon(Icons.logout_rounded),
-              label: Text(_isSigningOut ? 'Signing out...' : 'Sign Out'),
+              label: const Text('Sign Out'),
             ),
           ],
         ),
@@ -238,12 +219,16 @@ class _WindowsSetupCopy {
   const _WindowsSetupCopy({
     required this.title,
     required this.description,
+    required this.supportingNote,
     required this.primaryActionLabel,
+    this.showPrimaryAction = true,
   });
 
   final String title;
   final String description;
+  final String supportingNote;
   final String primaryActionLabel;
+  final bool showPrimaryAction;
 
   factory _WindowsSetupCopy.forReason(String? reason) {
     switch ((reason ?? '').trim()) {
@@ -251,35 +236,56 @@ class _WindowsSetupCopy {
         return const _WindowsSetupCopy(
           title: 'Finish Email Verification on the Web',
           description:
-              'Email verification is handled on the web. Open MindNest in your browser, verify the account there, then come back to Windows and log in again.',
+              'Verify your email in the browser, then return to Windows.',
+          supportingNote: 'Windows opens after verification is complete.',
           primaryActionLabel: 'Open Web to Verify Email',
         );
       case 'onboarding':
         return const _WindowsSetupCopy(
           title: 'Finish Onboarding on the Web',
           description:
-              'This account still needs onboarding. Open MindNest on the web, finish the onboarding steps there, then return to Windows when setup is complete.',
+              'Complete onboarding in the browser, then come back here.',
+          supportingNote: 'Windows opens after onboarding is done.',
           primaryActionLabel: 'Open Web to Finish Onboarding',
         );
       case 'institution-approval':
         return const _WindowsSetupCopy(
           title: 'Track Institution Approval on the Web',
           description:
-              'Institution approval and related review steps are handled on the web. Open MindNest in your browser to monitor progress or continue the workflow there.',
+              'This institution is still under review. Check progress in the browser.',
+          supportingNote: 'Windows opens after approval is complete.',
           primaryActionLabel: 'Open Web for Approval Status',
+          showPrimaryAction: false,
+        );
+      case 'counselor-invite':
+        return const _WindowsSetupCopy(
+          title: 'Finish Counselor Invite on the Web',
+          description:
+              'Review the invite and join with the institution code in the browser.',
+          supportingNote: 'Windows opens after the invite handoff is complete.',
+          primaryActionLabel: 'Open Web to Finish Invite',
         );
       case 'counselor-setup':
         return const _WindowsSetupCopy(
           title: 'Finish Counselor Setup on the Web',
           description:
-              'Counselor setup is completed on the web. Open MindNest in your browser, finish the setup flow there, then come back to Windows when the account is ready.',
+              'Complete counselor setup in the browser, then return here.',
+          supportingNote: 'Windows opens after setup is complete.',
           primaryActionLabel: 'Open Web to Finish Setup',
+        );
+      case 'counselor-access-removed':
+        return const _WindowsSetupCopy(
+          title: 'Counselor Access Changed',
+          description:
+              'Your institution access changed. Check the latest status in the browser.',
+          supportingNote: 'Windows opens after access is active again.',
+          primaryActionLabel: 'Open Web to Check Access',
         );
       default:
         return const _WindowsSetupCopy(
           title: 'Finish Account Setup on the Web',
-          description:
-              'This account still has setup steps to complete. Open MindNest in your browser, finish the remaining work there, then return to Windows and log in again.',
+          description: 'This account still needs setup in the browser.',
+          supportingNote: 'Windows opens after account setup is complete.',
           primaryActionLabel: 'Open MindNest on the Web',
         );
     }

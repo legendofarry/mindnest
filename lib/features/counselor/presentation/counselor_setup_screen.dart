@@ -11,6 +11,7 @@ import 'package:mindnest/features/ai/models/assistant_models.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
+import 'package:mindnest/features/counselor/models/counselor_institution_access_status.dart';
 
 class CounselorSetupScreen extends ConsumerStatefulWidget {
   const CounselorSetupScreen({super.key});
@@ -55,6 +56,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   String? _aiReply;
   String? _aiReplyLabel;
   String? _aiError;
+  bool _showingRemovedAccessDialog = false;
+  bool _redirectingToInviteWaiting = false;
 
   static const List<String> _specializations = <String>[
     'Academic Stress',
@@ -328,6 +331,56 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     return line.substring(0, maxLength).trim();
   }
 
+  bool _isRemovedAccessMessage(String message) {
+    return message.toLowerCase().contains('removed by the admin');
+  }
+
+  Future<void> _showRemovedAccessDialogAndReturnToWaiting([
+    String message = 'Your institution access was removed by the admin.',
+  ]) async {
+    if (_showingRemovedAccessDialog ||
+        _redirectingToInviteWaiting ||
+        !mounted) {
+      return;
+    }
+    _showingRemovedAccessDialog = true;
+    final screenContext = context;
+    try {
+      await showDialog<void>(
+        context: screenContext,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            title: const Text('Access Removed'),
+            content: Text(
+              '$message You can wait for a new counselor invite and try again later.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () {
+                  _redirectingToInviteWaiting = true;
+                  Navigator.of(dialogContext).pop();
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) {
+                      return;
+                    }
+                    screenContext.go(AppRoute.counselorInviteWaiting);
+                  });
+                },
+                child: const Text('Back to invite waiting'),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      _showingRemovedAccessDialog = false;
+    }
+  }
+
   Future<void> _submit() async {
     final isWide = MediaQuery.sizeOf(context).width >= 720;
     final titleValid = _titleController.text.trim().length >= 2;
@@ -410,8 +463,13 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       if (!mounted) {
         return;
       }
+      final message = error.toString().replaceFirst('Exception: ', '');
+      if (_isRemovedAccessMessage(message)) {
+        unawaited(_showRemovedAccessDialogAndReturnToWaiting(message));
+        return;
+      }
       setState(() {
-        _formErrors = [error.toString().replaceFirst('Exception: ', '')];
+        _formErrors = [message];
         _formErrorIndex = 0;
         _startErrorTicker();
       });
@@ -424,6 +482,18 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<CounselorInstitutionAccessStatus>>(
+      currentCounselorInstitutionAccessStatusProvider,
+      (previous, next) {
+        if (_redirectingToInviteWaiting) {
+          return;
+        }
+        if (next.valueOrNull == CounselorInstitutionAccessStatus.removed) {
+          unawaited(_showRemovedAccessDialogAndReturnToWaiting());
+        }
+      },
+    );
+
     final size = MediaQuery.sizeOf(context);
     final isWide = size.width >= 720;
 
@@ -516,7 +586,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                       ? const SizedBox(height: 24)
                       : Container(
                           key: ValueKey(
-                            'form-error-${_formErrorIndex}-${_formErrors[_formErrorIndex]}',
+                            'form-error-$_formErrorIndex-${_formErrors[_formErrorIndex]}',
                           ),
                           margin: const EdgeInsets.only(top: 16, bottom: 8),
                           padding: const EdgeInsets.symmetric(

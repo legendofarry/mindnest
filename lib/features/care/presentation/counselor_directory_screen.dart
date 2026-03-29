@@ -23,7 +23,7 @@ import 'package:mindnest/features/counselor/presentation/counselor_workspace_she
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
-const Duration _windowsPollInterval = Duration(seconds: 2);
+const Duration _windowsPollInterval = Duration(seconds: 15);
 bool get _useWindowsRestFirestore =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
@@ -2159,8 +2159,8 @@ class _PendingCounselorFallback extends ConsumerWidget {
                 )
                 .join(';'),
           )
-        : firestore
-              !.collection('institution_members')
+        : firestore!
+              .collection('institution_members')
               .where('institutionId', isEqualTo: institutionId)
               .snapshots()
               .map(

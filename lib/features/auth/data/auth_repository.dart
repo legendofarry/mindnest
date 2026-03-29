@@ -24,7 +24,7 @@ class AuthRepository {
   FirebaseFirestore? _cachedFirestore;
   final WindowsFirestoreRestClient _windowsRest;
   static const _kenyaPrefix = '+254';
-  static const Duration _windowsPollInterval = Duration(seconds: 2);
+  static const Duration _windowsPollInterval = Duration(seconds: 15);
 
   bool get _useWindowsPollingWorkaround =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
@@ -804,7 +804,7 @@ class AuthRepository {
             .toList(growable: false);
       }
 
-      return <String, dynamic>{
+      final export = <String, dynamic>{
         'exportedAt': DateTime.now().toIso8601String(),
         'user': userDoc?.data ?? const <String, dynamic>{},
         'onboardingResponses': mapDocs(onboarding),
@@ -814,6 +814,7 @@ class AuthRepository {
         'careGoals': mapDocs(goals),
         'privacySettings': privacy?.data ?? const <String, dynamic>{},
       };
+      return export.map((key, value) => MapEntry(key, _jsonReady(value)));
     }
 
     final userDoc = await _firestore.collection('users').doc(user.uid).get();

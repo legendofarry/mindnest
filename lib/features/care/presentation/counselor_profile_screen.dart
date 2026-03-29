@@ -19,7 +19,7 @@ import 'package:mindnest/features/counselor/presentation/counselor_workspace_she
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const Duration _windowsPollInterval = Duration(seconds: 2);
+const Duration _windowsPollInterval = Duration(seconds: 15);
 bool get _useWindowsRestFirestore =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
@@ -991,8 +991,8 @@ class _CounselorProfileScreenState
             ))?.data,
             signature: (data) => data == null ? 'null' : data.toString(),
           )
-        : firestore
-              !.collection('institution_members')
+        : firestore!
+              .collection('institution_members')
               .doc('${institutionId}_$counselorId')
               .snapshots()
               .map((doc) => doc.data());

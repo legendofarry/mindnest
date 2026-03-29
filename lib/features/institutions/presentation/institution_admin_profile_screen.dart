@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,11 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/auth/presentation/account_export_sheet.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 
-const Duration _windowsPollInterval = Duration(seconds: 2);
+const Duration _windowsPollInterval = Duration(seconds: 15);
 
 bool get _useWindowsPollingWorkaround =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
@@ -51,7 +51,7 @@ Stream<T> _buildWindowsPollingStream<T>({
     }
   }
 
-  controller = StreamController<T>(
+  controller = StreamController<T>.broadcast(
     onListen: () {
       unawaited(emitIfChanged());
       timer = Timer.periodic(_windowsPollInterval, (_) {
@@ -84,7 +84,6 @@ class _InstitutionAdminProfileScreenState
   bool _seeded = false;
   bool _saving = false;
   bool _sendingReset = false;
-  bool _exporting = false;
 
   @override
   void dispose() {
@@ -193,30 +192,6 @@ class _InstitutionAdminProfileScreenState
     }
   }
 
-  Future<void> _export(UserProfile profile) async {
-    setState(() => _exporting = true);
-    try {
-      final export = await ref
-          .read(authRepositoryProvider)
-          .exportCurrentUserData();
-      final pretty = const JsonEncoder.withIndent('  ').convert(export);
-      await Clipboard.setData(ClipboardData(text: pretty));
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Data export copied to clipboard.')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _exporting = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(currentUserProfileProvider);
@@ -236,267 +211,80 @@ class _InstitutionAdminProfileScreenState
         return _ProfileBackdrop(
           child: Scaffold(
             backgroundColor: Colors.transparent,
-            appBar: AppBar(
-              automaticallyImplyLeading: false,
-              titleSpacing: 8,
-              elevation: 0,
-              backgroundColor: Colors.transparent,
-              surfaceTintColor: Colors.transparent,
-              title: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.65),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0x33FFFFFF)),
-                    ),
-                    child: const Text(
-                      'Admin Profile',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                StreamBuilder<int>(
-                  stream: _unreadMessageCount,
-                  builder: (context, snapshot) {
-                    final unread = snapshot.data ?? 0;
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        IconButton(
-                          tooltip: 'Message counselors',
-                          onPressed: () =>
-                              context.push(AppRoute.institutionAdminMessages),
-                          icon: const Icon(Icons.chat_bubble_outline_rounded),
-                        ),
-                        if (unread > 0)
-                          Positioned(
-                            top: 6,
-                            right: 6,
-                            child: _Badge(count: unread),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(width: 12),
-              ],
-            ),
-            body: SafeArea(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1100),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 26),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _ProfileHero(
-                          name: profile.name,
-                          email: profile.email,
-                          institution: profile.institutionName ?? '',
-                          initials: _initials(
-                            profile.name.isNotEmpty
-                                ? profile.name
-                                : profile.email,
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final isWide = constraints.maxWidth >= 920;
-                            final cardWidth = isWide
-                                ? (constraints.maxWidth - 14) / 2
-                                : null;
-                            return Wrap(
-                              spacing: 14,
-                              runSpacing: 14,
-                              children: [
-                                SizedBox(
-                                  width: cardWidth,
-                                  child: _SettingsCard(
-                                    title: 'Account',
-                                    subtitle:
-                                        'Edit your display identity and mobile reach.',
-                                    child: Column(
-                                      children: [
-                                        _LabeledField(
-                                          label: 'Full name',
-                                          icon: Icons.badge_rounded,
-                                          controller: _name,
-                                          hint: 'e.g. Jane Doe',
-                                        ),
-                                        const SizedBox(height: 12),
-                                        _LabeledField(
-                                          label: 'Primary mobile',
-                                          icon: Icons.phone_rounded,
-                                          controller: _primaryPhone,
-                                          keyboardType: TextInputType.phone,
-                                          hint: '+2547...',
-                                        ),
-                                        const SizedBox(height: 12),
-                                        _LabeledField(
-                                          label: 'Additional mobile (optional)',
-                                          icon: Icons.smartphone_rounded,
-                                          controller: _additionalPhone,
-                                          keyboardType: TextInputType.phone,
-                                          hint: '+254...',
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Align(
-                                          alignment: Alignment.centerLeft,
-                                          child: Text(
-                                            'Use Kenya mobile numbers in +254 format.',
-                                            style: TextStyle(
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.outline,
-                                              fontSize: 12.5,
-                                            ),
+            body: Stack(
+              children: [
+                SafeArea(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1100),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(18, 92, 18, 26),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _ProfileHero(
+                              name: profile.name,
+                              email: profile.email,
+                              institution: profile.institutionName ?? '',
+                              initials: _initials(
+                                profile.name.isNotEmpty
+                                    ? profile.name
+                                    : profile.email,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final isWide = constraints.maxWidth >= 920;
+                                final accountCard = _SettingsCard(
+                                  title: 'Account',
+                                  subtitle:
+                                      'Edit your display identity and mobile reach.',
+                                  child: Column(
+                                    children: [
+                                      _LabeledField(
+                                        label: 'Full name',
+                                        icon: Icons.badge_rounded,
+                                        controller: _name,
+                                        hint: 'e.g. Jane Doe',
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _LabeledField(
+                                        label: 'Primary mobile',
+                                        icon: Icons.phone_rounded,
+                                        controller: _primaryPhone,
+                                        keyboardType: TextInputType.phone,
+                                        hint: '+2547...',
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _LabeledField(
+                                        label: 'Additional mobile (optional)',
+                                        icon: Icons.smartphone_rounded,
+                                        controller: _additionalPhone,
+                                        keyboardType: TextInputType.phone,
+                                        hint: '+254...',
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          'Use Kenya mobile numbers in +254 format.',
+                                          style: TextStyle(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.outline,
+                                            fontSize: 12.5,
                                           ),
                                         ),
-                                        const SizedBox(height: 16),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          child: FilledButton.icon(
-                                            onPressed: _saving
-                                                ? null
-                                                : () => _save(profile),
-                                            icon: _saving
-                                                ? const SizedBox(
-                                                    width: 18,
-                                                    height: 18,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          strokeWidth: 2.4,
-                                                          color: Colors.white,
-                                                        ),
-                                                  )
-                                                : const Icon(
-                                                    Icons.save_rounded,
-                                                  ),
-                                            label: Text(
-                                              _saving
-                                                  ? 'Saving...'
-                                                  : 'Save changes',
-                                            ),
-                                            style: FilledButton.styleFrom(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 14,
-                                                  ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(14),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: cardWidth,
-                                  child: _SettingsCard(
-                                    title: 'Account tools',
-                                    subtitle:
-                                        'Manage your privacy and your data export.',
-                                    child: Wrap(
-                                      spacing: 10,
-                                      runSpacing: 10,
-                                      children: [
-                                        OutlinedButton.icon(
-                                          onPressed: () => context.push(
-                                            AppRoute.privacyControls,
-                                          ),
-                                          icon: const Icon(
-                                            Icons.verified_user_outlined,
-                                          ),
-                                          label: const Text('Privacy controls'),
-                                        ),
-                                        OutlinedButton.icon(
-                                          onPressed: _exporting
+                                      ),
+                                      const SizedBox(height: 16),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: FilledButton.icon(
+                                          onPressed: _saving
                                               ? null
-                                              : () => _export(profile),
-                                          icon: _exporting
-                                              ? const SizedBox(
-                                                  width: 18,
-                                                  height: 18,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        strokeWidth: 2.4,
-                                                      ),
-                                                )
-                                              : const Icon(
-                                                  Icons.download_rounded,
-                                                ),
-                                          label: Text(
-                                            _exporting
-                                                ? 'Preparing export...'
-                                                : 'Export my data (JSON)',
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: cardWidth,
-                                  child: _SettingsCard(
-                                    title: 'Security',
-                                    subtitle:
-                                        'Manage sign-in and account protections.',
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          leading: const Icon(
-                                            Icons.mail_outline_rounded,
-                                          ),
-                                          title: const Text('Email'),
-                                          subtitle: Text(profile.email),
-                                          trailing: IconButton(
-                                            tooltip: 'Copy email',
-                                            icon: const Icon(
-                                              Icons.copy_rounded,
-                                            ),
-                                            onPressed: () async {
-                                              await Clipboard.setData(
-                                                ClipboardData(
-                                                  text: profile.email,
-                                                ),
-                                              );
-                                              if (!context.mounted) return;
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text(
-                                                    'Email copied.',
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        FilledButton.icon(
-                                          onPressed: _sendingReset
-                                              ? null
-                                              : () => _sendReset(profile),
-                                          icon: _sendingReset
+                                              : () => _save(profile),
+                                          icon: _saving
                                               ? const SizedBox(
                                                   width: 18,
                                                   height: 18,
@@ -506,65 +294,348 @@ class _InstitutionAdminProfileScreenState
                                                         color: Colors.white,
                                                       ),
                                                 )
-                                              : const Icon(
-                                                  Icons.lock_reset_rounded,
-                                                ),
+                                              : const Icon(Icons.save_rounded),
                                           label: Text(
-                                            _sendingReset
-                                                ? 'Sending reset...'
-                                                : 'Send password reset',
+                                            _saving
+                                                ? 'Saving...'
+                                                : 'Save changes',
                                           ),
                                           style: FilledButton.styleFrom(
                                             padding: const EdgeInsets.symmetric(
                                               vertical: 14,
                                             ),
-                                            backgroundColor: const Color(
-                                              0xFF0E9B90,
-                                            ),
-                                            foregroundColor: Colors.white,
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
                                                   BorderRadius.circular(14),
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(height: 10),
-                                        OutlinedButton.icon(
-                                          onPressed: () => confirmAndLogout(
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                final accountToolsCard = _SettingsCard(
+                                  title: 'Account tools',
+                                  subtitle:
+                                      'Manage your privacy and download your account data.',
+                                  child: Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: [
+                                      OutlinedButton.icon(
+                                        onPressed: () => context.push(
+                                          AppRoute.privacyControls,
+                                        ),
+                                        icon: const Icon(
+                                          Icons.verified_user_outlined,
+                                        ),
+                                        label: const Text('Privacy controls'),
+                                      ),
+                                      OutlinedButton.icon(
+                                        onPressed: () {
+                                          showAccountExportSheet(
                                             context: context,
                                             ref: ref,
+                                            title:
+                                                'Download your admin account data',
+                                            subtitle:
+                                                'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your admin account export.',
+                                          );
+                                        },
+                                        icon: const Icon(
+                                          Icons.download_rounded,
+                                        ),
+                                        label: const Text('Download my data'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                final securityCard = _SettingsCard(
+                                  title: 'Security',
+                                  subtitle:
+                                      'Manage sign-in and account protections.',
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        leading: const Icon(
+                                          Icons.mail_outline_rounded,
+                                        ),
+                                        title: const Text('Email'),
+                                        subtitle: Text(profile.email),
+                                        trailing: IconButton(
+                                          tooltip: 'Copy email',
+                                          icon: const Icon(Icons.copy_rounded),
+                                          onPressed: () async {
+                                            await Clipboard.setData(
+                                              ClipboardData(
+                                                text: profile.email,
+                                              ),
+                                            );
+                                            if (!context.mounted) return;
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Email copied.'),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      FilledButton.icon(
+                                        onPressed: _sendingReset
+                                            ? null
+                                            : () => _sendReset(profile),
+                                        icon: _sendingReset
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2.4,
+                                                      color: Colors.white,
+                                                    ),
+                                              )
+                                            : const Icon(
+                                                Icons.lock_reset_rounded,
+                                              ),
+                                        label: Text(
+                                          _sendingReset
+                                              ? 'Sending reset...'
+                                              : 'Send password reset',
+                                        ),
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 14,
                                           ),
-                                          icon: const Icon(
-                                            Icons.logout_rounded,
+                                          backgroundColor: const Color(
+                                            0xFF0E9B90,
                                           ),
-                                          label: const Text('Log out'),
-                                          style: OutlinedButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 14,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(14),
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
                                             ),
                                           ),
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      OutlinedButton.icon(
+                                        onPressed: () => confirmAndLogout(
+                                          context: context,
+                                          ref: ref,
+                                        ),
+                                        icon: const Icon(Icons.logout_rounded),
+                                        label: const Text('Log out'),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 14,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
-                            );
-                          },
+                                );
+
+                                if (isWide) {
+                                  return Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(child: accountCard),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            accountToolsCard,
+                                            const SizedBox(height: 14),
+                                            securityCard,
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }
+
+                                return Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    accountCard,
+                                    const SizedBox(height: 14),
+                                    accountToolsCard,
+                                    const SizedBox(height: 14),
+                                    securityCard,
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+                SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+                    child: StreamBuilder<int>(
+                      stream: _unreadMessageCount,
+                      builder: (context, snapshot) {
+                        final unread = snapshot.data ?? 0;
+                        return _AdminProfileFloatingHeader(
+                          unreadCount: unread,
+                          onHome: () => context.go(AppRoute.institutionAdmin),
+                          onMessages: () =>
+                              context.go(AppRoute.institutionAdminMessages),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
       },
+    );
+  }
+}
+
+class _AdminProfileFloatingHeader extends StatelessWidget {
+  const _AdminProfileFloatingHeader({
+    required this.unreadCount,
+    required this.onHome,
+    required this.onMessages,
+  });
+
+  final int unreadCount;
+  final VoidCallback onHome;
+  final VoidCallback onMessages;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _ProfileHeaderActionButton(
+              tooltip: 'Institution home',
+              icon: Icons.home_rounded,
+              onPressed: onHome,
+            ),
+            const _ProfileHeaderTitleChip(title: 'Admin Profile'),
+          ],
+        ),
+        const Spacer(),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            _ProfileHeaderActionButton(
+              tooltip: 'Message counselors',
+              icon: Icons.chat_bubble_outline_rounded,
+              onPressed: onMessages,
+            ),
+            if (unreadCount > 0)
+              Positioned(top: -4, right: -4, child: _Badge(count: unreadCount)),
+          ],
+        ),
+        const SizedBox(width: 12),
+        const WindowsDesktopWindowControls(),
+      ],
+    );
+  }
+}
+
+class _ProfileHeaderTitleChip extends StatelessWidget {
+  const _ProfileHeaderTitleChip({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFD8E2EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x140F172A),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 16,
+          letterSpacing: -0.2,
+          color: Color(0xFF081A30),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileHeaderActionButton extends StatelessWidget {
+  const _ProfileHeaderActionButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(18),
+          child: Ink(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFD8E2EE)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x140F172A),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: const Color(0xFF16324F)),
+          ),
+        ),
+      ),
     );
   }
 }

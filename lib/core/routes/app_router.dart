@@ -30,6 +30,7 @@ import 'package:mindnest/features/care/presentation/session_details_screen.dart'
 import 'package:mindnest/features/care/presentation/student_care_plan_screen.dart';
 import 'package:mindnest/features/care/presentation/student_appointments_screen.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
+import 'package:mindnest/features/counselor/models/counselor_institution_access_status.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_dashboard_screen.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_invite_waiting_screen.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_profile_settings_screen.dart';
@@ -43,6 +44,7 @@ import 'package:mindnest/features/institutions/presentation/owner_dashboard_scre
 import 'package:mindnest/features/institutions/presentation/admin_messages_screen.dart';
 import 'package:mindnest/features/institutions/presentation/institution_admin_profile_screen.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/features/institutions/models/user_invite.dart';
 import 'package:mindnest/features/live/presentation/live_hub_screen.dart';
 import 'package:mindnest/features/live/presentation/live_room_screen.dart';
 import 'package:mindnest/features/onboarding/data/onboarding_providers.dart';
@@ -219,6 +221,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final currentAdminInstitutionAsync = ref.watch(
     currentAdminInstitutionRequestProvider,
   );
+  final counselorAccessAsync = ref.watch(
+    currentCounselorInstitutionAccessStatusProvider,
+  );
   final onboardingRepository = ref.watch(onboardingRepositoryProvider);
   final counselorRepository = ref.watch(counselorRepositoryProvider);
   final refreshListenable = ref.watch(_routerRefreshListenableProvider);
@@ -284,15 +289,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   String defaultSignedInRouteForWindows({
     required UserRole role,
     required bool hasCounselorRegistrationIntent,
+    required bool needsCounselorSetup,
+    required bool counselorAccessRemoved,
   }) {
     if (hasCounselorRegistrationIntent) {
-      return AppRoute.counselorInviteWaiting;
+      return windowsSetupRoute('counselor-invite');
     }
     if (role == UserRole.institutionAdmin) {
       return AppRoute.institutionAdmin;
     }
     if (role == UserRole.counselor) {
-      return AppRoute.counselorDashboard;
+      if (counselorAccessRemoved) {
+        return windowsSetupRoute('counselor-access-removed');
+      }
+      return needsCounselorSetup
+          ? windowsSetupRoute('counselor-setup')
+          : AppRoute.counselorDashboard;
     }
     return AppRoute.home;
   }
@@ -319,8 +331,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isWindowsWebOnlySetupRoute =
           location == AppRoute.verifyEmail ||
           location == AppRoute.onboarding ||
-          location == AppRoute.institutionPending ||
-          location == AppRoute.counselorSetup;
+          location == AppRoute.institutionPending;
       final isAuthRoute =
           location == AppRoute.login ||
           location == AppRoute.register ||
@@ -408,7 +419,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
         if (isWindowsLoginOnlyMode) {
           if (profileAsync.isLoading ||
-              currentAdminInstitutionAsync.isLoading) {
+              currentAdminInstitutionAsync.isLoading ||
+              counselorAccessAsync.isLoading) {
             return null;
           }
 
@@ -424,27 +436,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final needsOnboarding = onboardingRepository.requiresQuestionnaire(
             profile,
           );
+          final counselorAccessStatus =
+              counselorAccessAsync.valueOrNull ??
+              CounselorInstitutionAccessStatus.inactive;
+          final counselorAccessRemoved =
+              role == UserRole.counselor &&
+              counselorAccessStatus == CounselorInstitutionAccessStatus.removed;
           final institutionStatus =
               (institutionRequest?['status'] as String?) ?? 'approved';
 
           if (hasCounselorRegistrationIntent) {
-            if (isWindowsWebSetupRoute) {
-              return AppRoute.counselorInviteWaiting;
+            final target = windowsSetupRoute('counselor-invite');
+            final currentReason =
+                state.uri.queryParameters[AppRoute.setupReasonQuery];
+            if (isWindowsWebSetupRoute && currentReason == 'counselor-invite') {
+              return null;
             }
-            if (!isCounselorInviteWaitingRoute) {
-              return AppRoute.counselorInviteWaiting;
-            }
-            return null;
+            return target;
           }
 
           String? windowsSetupReason;
-          if (role == UserRole.counselor && needsCounselorSetup) {
-            windowsSetupReason = 'counselor-setup';
-          } else if (needsOnboarding) {
+          if (needsOnboarding) {
             windowsSetupReason = 'onboarding';
           } else if (role == UserRole.institutionAdmin &&
               institutionStatus != 'approved') {
             windowsSetupReason = 'institution-approval';
+          } else if (role == UserRole.counselor && counselorAccessRemoved) {
+            windowsSetupReason = 'counselor-access-removed';
+          } else if (role == UserRole.counselor && needsCounselorSetup) {
+            windowsSetupReason = 'counselor-setup';
           }
 
           if (windowsSetupReason != null) {
@@ -461,6 +481,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return defaultSignedInRouteForWindows(
               role: role,
               hasCounselorRegistrationIntent: false,
+              needsCounselorSetup: needsCounselorSetup,
+              counselorAccessRemoved: counselorAccessRemoved,
             );
           }
 
@@ -471,10 +493,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return null;
           }
 
-          if (isCounselorInviteWaitingRoute) {
+          if (isCounselorInviteWaitingRoute ||
+              location == AppRoute.counselorSetup) {
             return defaultSignedInRouteForWindows(
               role: role,
-              hasCounselorRegistrationIntent: false,
+              hasCounselorRegistrationIntent: hasCounselorRegistrationIntent,
+              needsCounselorSetup: needsCounselorSetup,
+              counselorAccessRemoved: counselorAccessRemoved,
             );
           }
 
@@ -487,12 +512,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
 
           if (role == UserRole.counselor && location == AppRoute.home) {
-            return AppRoute.counselorDashboard;
+            return needsCounselorSetup
+                ? AppRoute.counselorSetup
+                : AppRoute.counselorDashboard;
           }
 
           if (role != UserRole.institutionAdmin && isInstitutionAdminRoute) {
             if (role == UserRole.counselor) {
-              return AppRoute.counselorDashboard;
+              return needsCounselorSetup
+                  ? AppRoute.counselorSetup
+                  : AppRoute.counselorDashboard;
             }
             return AppRoute.home;
           }
@@ -504,7 +533,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
 
           if (role == UserRole.counselor && isStudentCareRoute) {
-            return AppRoute.counselorDashboard;
+            return needsCounselorSetup
+                ? AppRoute.counselorSetup
+                : AppRoute.counselorDashboard;
           }
 
           if (role == UserRole.institutionAdmin &&
@@ -528,6 +559,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return defaultSignedInRouteForWindows(
               role: role,
               hasCounselorRegistrationIntent: false,
+              needsCounselorSetup: needsCounselorSetup,
+              counselorAccessRemoved: counselorAccessRemoved,
             );
           }
 
@@ -989,6 +1022,69 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
+String _asyncRefreshSignature<T>(
+  AsyncValue<T> value,
+  String Function(T? data) dataSignature,
+) {
+  final data = value.valueOrNull;
+  if (data != null) {
+    return 'data:${dataSignature(data)}';
+  }
+  if (value.hasError) {
+    return 'error:${value.error.runtimeType}:${value.error}';
+  }
+  return value.isLoading ? 'loading-empty' : 'empty';
+}
+
+String _authRouteSignature(AppAuthUser? user) {
+  if (user == null) {
+    return 'signed-out';
+  }
+  return '${user.uid}|${user.email}|${user.emailVerified}';
+}
+
+String _profileRouteSignature(UserProfile? profile) {
+  if (profile == null) {
+    return 'missing-profile';
+  }
+  final completedRoles = profile.onboardingCompletedRoles.entries.toList()
+    ..sort((a, b) => a.key.compareTo(b.key));
+  return [
+    profile.id,
+    profile.role.name,
+    profile.institutionId ?? '',
+    profile.registrationIntent ?? '',
+    '${profile.isCounselorRegistrationIntentPending}',
+    '${profile.institutionWelcomePending}',
+    completedRoles.map((entry) => '${entry.key}:${entry.value}').join(','),
+  ].join('|');
+}
+
+String _inviteRouteSignature(UserInvite? invite) {
+  if (invite == null) {
+    return 'no-invite';
+  }
+  return [
+    invite.id,
+    invite.status.name,
+    invite.institutionId,
+    invite.intendedRole.name,
+    invite.invitedEmail,
+    invite.revokedAt?.toUtc().toIso8601String() ?? '',
+    invite.expiresAt?.toUtc().toIso8601String() ?? '',
+  ].join('|');
+}
+
+String _institutionRouteSignature(Map<String, dynamic>? institution) {
+  if (institution == null) {
+    return 'no-institution';
+  }
+  return [
+    institution['id']?.toString() ?? '',
+    institution['status']?.toString() ?? '',
+  ].join('|');
+}
+
 final _routerRefreshListenableProvider = Provider<ValueNotifier<int>>((ref) {
   final notifier = ValueNotifier<int>(0);
 
@@ -996,23 +1092,41 @@ final _routerRefreshListenableProvider = Provider<ValueNotifier<int>>((ref) {
     notifier.value++;
   }
 
-  ref.listen<AsyncValue<AppAuthUser?>>(authStateChangesProvider, (
-    previous,
-    next,
+  void listenForRouteChanges<T>(
+    ProviderListenable<AsyncValue<T>> provider,
+    String Function(T? data) dataSignature,
   ) {
-    notify();
-  });
-  ref.listen<AsyncValue<UserProfile?>>(
+    ref.listen<AsyncValue<T>>(provider, (previous, next) {
+      final previousSignature = previous == null
+          ? 'uninitialized'
+          : _asyncRefreshSignature(previous, dataSignature);
+      final nextSignature = _asyncRefreshSignature(next, dataSignature);
+      if (previousSignature == nextSignature) {
+        return;
+      }
+      notify();
+    });
+  }
+
+  listenForRouteChanges<AppAuthUser?>(
+    authStateChangesProvider,
+    _authRouteSignature,
+  );
+  listenForRouteChanges<UserProfile?>(
     currentUserProfileProvider,
-    (previous, next) => notify(),
+    _profileRouteSignature,
   );
-  ref.listen<AsyncValue<dynamic>>(
+  listenForRouteChanges<UserInvite?>(
     pendingUserInviteProvider,
-    (previous, next) => notify(),
+    _inviteRouteSignature,
   );
-  ref.listen<AsyncValue<dynamic>>(
+  listenForRouteChanges<Map<String, dynamic>?>(
     currentAdminInstitutionRequestProvider,
-    (previous, next) => notify(),
+    _institutionRouteSignature,
+  );
+  listenForRouteChanges<CounselorInstitutionAccessStatus>(
+    currentCounselorInstitutionAccessStatusProvider,
+    (status) => status?.name ?? CounselorInstitutionAccessStatus.inactive.name,
   );
 
   ref.onDispose(notifier.dispose);

@@ -116,7 +116,8 @@ class _JoinInstitutionScreenState extends ConsumerState<JoinInstitutionScreen> {
                             return;
                           }
 
-                          final isVerified = ref
+                          final isVerified =
+                              ref
                                   .read(authRepositoryProvider)
                                   .currentAuthUser
                                   ?.emailVerified ??

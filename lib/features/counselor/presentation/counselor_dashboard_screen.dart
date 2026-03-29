@@ -1966,10 +1966,7 @@ class _TodayQueueCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               description,
-              style: const TextStyle(
-                color: Color(0xFF6A7C93),
-                height: 1.45,
-              ),
+              style: const TextStyle(color: Color(0xFF6A7C93), height: 1.45),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(

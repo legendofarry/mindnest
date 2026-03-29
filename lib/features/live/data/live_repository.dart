@@ -58,7 +58,7 @@ class LiveRepository {
   final AppAuthClient _auth;
   final WindowsFirestoreRestClient _windowsRest;
   int _windowsRestIdCounter = 0;
-  static const Duration _windowsPollInterval = Duration(seconds: 2);
+  static const Duration _windowsPollInterval = Duration(seconds: 15);
 
   static const Set<String> _allowedCreatorRoles = <String>{
     'student',

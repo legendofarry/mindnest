@@ -50,11 +50,11 @@ class _MindNestShellState extends State<MindNestShell>
     final isPlainWhite =
         widget.backgroundMode == MindNestBackgroundMode.plainWhite;
     final effectivePadding = hasAppBar
-        ? widget.padding.copyWith(top: widget.appBar!.preferredSize.height - 30)
+        ? widget.padding.copyWith(
+            top: widget.padding.top + widget.appBar!.preferredSize.height + 12,
+          )
         : widget.padding;
     return Scaffold(
-      appBar: widget.appBar,
-      extendBodyBehindAppBar: true,
       floatingActionButton: widget.floatingActionButton,
       floatingActionButtonLocation: widget.floatingActionButtonLocation,
       body: AnimatedBuilder(
@@ -125,6 +125,30 @@ class _MindNestShellState extends State<MindNestShell>
                     color: const Color(0x5599F6E4),
                   ),
                 ],
+                if (hasAppBar)
+                  SafeArea(
+                    bottom: false,
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          widget.padding.left,
+                          12,
+                          widget.padding.right,
+                          0,
+                        ),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: widget.maxWidth,
+                          ),
+                          child: SizedBox(
+                            height: widget.appBar!.preferredSize.height,
+                            child: widget.appBar!,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 SafeArea(
                   child: Align(
                     alignment: Alignment.topCenter,

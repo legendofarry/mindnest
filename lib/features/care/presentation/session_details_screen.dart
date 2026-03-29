@@ -15,7 +15,7 @@ import 'package:mindnest/features/counselor/presentation/counselor_workspace_she
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 
-const Duration _windowsPollInterval = Duration(seconds: 2);
+const Duration _windowsPollInterval = Duration(seconds: 15);
 bool get _useWindowsRestFirestore =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
@@ -699,8 +699,8 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                 ? 'null'
                 : '${appointment.id}|${appointment.status.name}|${appointment.startAt.toIso8601String()}|${appointment.endAt.toIso8601String()}|${appointment.counselorSessionNote ?? ''}|${appointment.counselorCancelMessage ?? ''}',
           )
-        : firestore
-              !.collection('appointments')
+        : firestore!
+              .collection('appointments')
               .doc(widget.appointmentId)
               .snapshots()
               .map((doc) {

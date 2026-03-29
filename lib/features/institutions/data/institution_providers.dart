@@ -26,10 +26,27 @@ final institutionRepositoryProvider = Provider<InstitutionRepository>((ref) {
   );
 });
 
-const Duration _windowsPollInterval = Duration(seconds: 2);
+const Duration _windowsPollInterval = Duration(seconds: 15);
 
 bool get _useWindowsPollingWorkaround =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+String _stableValueSignature(Object? value) {
+  if (value == null) {
+    return 'null';
+  }
+  if (value is DateTime) {
+    return 'date:${value.toUtc().toIso8601String()}';
+  }
+  if (value is Iterable) {
+    return 'list:[${value.map(_stableValueSignature).join(',')}]';
+  }
+  if (value is Map) {
+    final keys = value.keys.map((key) => key.toString()).toList()..sort();
+    return 'map:{${keys.map((key) => '$key=${_stableValueSignature(value[key])}').join(',')}}';
+  }
+  return '${value.runtimeType}:$value';
+}
 
 Stream<T> _buildWindowsPollingStream<T>({
   required Future<T> Function() load,
@@ -184,7 +201,7 @@ final currentAdminInstitutionRequestProvider =
         final repository = ref.watch(institutionRepositoryProvider);
         return _buildWindowsPollingStream<Map<String, dynamic>?>(
           load: repository.getCurrentAdminInstitution,
-          signature: (data) => data == null ? 'null' : data.toString(),
+          signature: _stableValueSignature,
         );
       }
       return ref
@@ -202,7 +219,7 @@ final institutionDocumentProvider =
         final repository = ref.watch(institutionRepositoryProvider);
         return _buildWindowsPollingStream<Map<String, dynamic>?>(
           load: () => repository.getInstitutionDocument(normalized),
-          signature: (data) => data == null ? 'null' : data.toString(),
+          signature: _stableValueSignature,
         );
       }
       return ref

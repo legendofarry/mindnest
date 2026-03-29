@@ -58,7 +58,7 @@ class InstitutionRepository {
 
   static const Duration _joinCodeValidity = Duration(hours: 24);
   static const Duration _inviteValidity = Duration(days: 7);
-  static const Duration _windowsPollInterval = Duration(seconds: 2);
+  static const Duration _windowsPollInterval = Duration(seconds: 15);
   static const int _joinCodeMaxUses = 50;
   static const String _joinCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   static const String _pushDispatchEndpointFromDefine = String.fromEnvironment(
@@ -1351,92 +1351,99 @@ class InstitutionRepository {
         limit: 20,
       );
 
-      await _windowsRest.setDocument('users/${currentUser.uid}', {
-        ...userData,
-        'institutionId': invite.institutionId,
-        'institutionName':
-            ((latestInviteData['institutionName'] as String?) ?? '')
-                .trim()
-                .isNotEmpty
-            ? (latestInviteData['institutionName'] as String)
-            : invite.institutionName,
-        'role': intendedRole.name,
-        'registrationIntent': null,
-        if (intendedRole == UserRole.counselor) ...{
-          'counselorSetupCompleted': false,
-          'counselorSetupData': <String, dynamic>{},
-          'counselorApprovalStatus': 'pending',
-        },
-        'updatedAt': nowUtc,
-      });
-      await _windowsRest.setDocument(
-        'institution_members/${invite.institutionId}_${currentUser.uid}',
-        {
+      final writes = <WindowsFirestoreWrite>[
+        WindowsFirestoreWrite.set('users/${currentUser.uid}', {
+          ...userData,
           'institutionId': invite.institutionId,
-          'userId': currentUser.uid,
+          'institutionName':
+              ((latestInviteData['institutionName'] as String?) ?? '')
+                  .trim()
+                  .isNotEmpty
+              ? (latestInviteData['institutionName'] as String)
+              : invite.institutionName,
           'role': intendedRole.name,
-          'userName':
-              (userData['name'] as String?) ??
-              (latestInviteData['invitedName'] as String?) ??
-              '',
-          'email': (userData['email'] as String?) ?? '',
-          'phoneNumber':
-              (latestInviteData['inviteePhoneE164'] as String?) ?? '',
-          'joinedAt': nowUtc,
-          'status': memberStatus,
-          'joinedVia': 'invite',
-          'inviteId': invite.id,
-          'updatedAt': nowUtc,
-        },
-      );
-      await _windowsRest.setDocument('institutions/${invite.institutionId}', {
-        ...institutionData,
-        'joinCodeUsageCount': usageCount + 1,
-        'updatedAt': nowUtc,
-      });
-      await _windowsRest.setDocument('user_invites/${invite.id}', {
-        ...latestInviteData,
-        'status': UserInviteStatus.accepted.name,
-        'acceptedAt': nowUtc,
-        'acceptedByUid': currentUser.uid,
-        'acceptedWithCode': normalizedCode,
-        'updatedAt': nowUtc,
-      });
-      for (final notification in notifications) {
-        await _windowsRest.setDocument('notifications/${notification.id}', {
-          ...notification.data,
-          'isRead': true,
-          'readAt': nowUtc,
-          'isPinned': false,
-          'isArchived': true,
-          'archivedAt': nowUtc,
-          'resolvedAt': nowUtc,
-          'updatedAt': nowUtc,
-        });
-      }
-      await _windowsRest.setDocument(
-        'institution_membership_audit/${_windowsDocId('audit')}',
-        {
-          'institutionId': invite.institutionId,
-          'actorUid': currentUser.uid,
-          'targetUserId': currentUser.uid,
-          'action': 'invite_accepted',
-          'details': <String, dynamic>{
-            'inviteId': invite.id,
-            'intendedRole': intendedRole.name,
-            'memberStatus': memberStatus,
-            'codeVerified': true,
+          'registrationIntent': null,
+          if (intendedRole == UserRole.counselor) ...{
+            'counselorSetupCompleted': false,
+            'counselorSetupData': <String, dynamic>{},
+            'counselorApprovalStatus': 'pending',
           },
-          'createdAt': nowUtc,
-        },
-      );
+          'updatedAt': nowUtc,
+        }),
+        WindowsFirestoreWrite.set(
+          'institution_members/${invite.institutionId}_${currentUser.uid}',
+          {
+            'institutionId': invite.institutionId,
+            'userId': currentUser.uid,
+            'role': intendedRole.name,
+            'userName':
+                (userData['name'] as String?) ??
+                (latestInviteData['invitedName'] as String?) ??
+                '',
+            'email': (userData['email'] as String?) ?? '',
+            'phoneNumber':
+                (latestInviteData['inviteePhoneE164'] as String?) ?? '',
+            'joinedAt': nowUtc,
+            'status': memberStatus,
+            'joinedVia': 'invite',
+            'inviteId': invite.id,
+            'updatedAt': nowUtc,
+          },
+        ),
+        WindowsFirestoreWrite.set('institutions/${invite.institutionId}', {
+          ...institutionData,
+          'joinCodeUsageCount': usageCount + 1,
+          'updatedAt': nowUtc,
+        }),
+        WindowsFirestoreWrite.set('user_invites/${invite.id}', {
+          ...latestInviteData,
+          'status': UserInviteStatus.accepted.name,
+          'acceptedAt': nowUtc,
+          'acceptedByUid': currentUser.uid,
+          'acceptedWithCode': normalizedCode,
+          'updatedAt': nowUtc,
+        }),
+        WindowsFirestoreWrite.set(
+          'institution_membership_audit/${_windowsDocId('audit')}',
+          {
+            'institutionId': invite.institutionId,
+            'actorUid': currentUser.uid,
+            'targetUserId': currentUser.uid,
+            'action': 'invite_accepted',
+            'details': <String, dynamic>{
+              'inviteId': invite.id,
+              'intendedRole': intendedRole.name,
+              'memberStatus': memberStatus,
+              'codeVerified': true,
+            },
+            'createdAt': nowUtc,
+          },
+        ),
+      ];
+      for (final notification in notifications) {
+        writes.add(
+          WindowsFirestoreWrite.set('notifications/${notification.id}', {
+            ...notification.data,
+            'isRead': true,
+            'readAt': nowUtc,
+            'isPinned': false,
+            'isArchived': true,
+            'archivedAt': nowUtc,
+            'resolvedAt': nowUtc,
+            'updatedAt': nowUtc,
+          }),
+        );
+      }
       if (previousInstitutionId != null &&
           previousInstitutionId.isNotEmpty &&
           previousInstitutionId != invite.institutionId) {
-        await _windowsRest.deleteDocument(
-          'institution_members/${previousInstitutionId}_${currentUser.uid}',
+        writes.add(
+          WindowsFirestoreWrite.delete(
+            'institution_members/${previousInstitutionId}_${currentUser.uid}',
+          ),
         );
       }
+      await _windowsRest.commitWrites(writes);
       await _createNotifications(
         _inviteDecisionNotificationPayloads(
           invite: invite,
@@ -1871,42 +1878,6 @@ class InstitutionRepository {
       }
       final previousInstitutionId = userData['institutionId'] as String?;
 
-      await _windowsRest.setDocument('users/${currentUser.uid}', {
-        ...userData,
-        'institutionId': institutionDoc.id,
-        'institutionName': institutionName,
-        'role': UserRole.student.name,
-        'registrationIntent': null,
-        'updatedAt': nowUtc,
-      });
-      await _windowsRest.setDocument(
-        'institution_members/${institutionDoc.id}_${currentUser.uid}',
-        {
-          'institutionId': institutionDoc.id,
-          'userId': currentUser.uid,
-          'role': UserRole.student.name,
-          'userName': currentUser.displayName,
-          'email': currentUser.email,
-          'joinedAt': nowUtc,
-          'status': 'active',
-          'joinedVia': 'code',
-          'joinedCode': normalizedCode,
-          'updatedAt': nowUtc,
-        },
-      );
-      await _windowsRest.setDocument('institutions/${institutionDoc.id}', {
-        ...institutionData,
-        'joinCodeUsageCount': usageCount + 1,
-        'updatedAt': nowUtc,
-      });
-      if (previousInstitutionId != null &&
-          previousInstitutionId.isNotEmpty &&
-          previousInstitutionId != institutionDoc.id) {
-        await _windowsRest.deleteDocument(
-          'institution_members/${previousInstitutionId}_${currentUser.uid}',
-        );
-      }
-
       final pendingInvites = await _windowsRest.queryCollection(
         collectionId: 'user_invites',
         filters: <WindowsFirestoreFieldFilter>[
@@ -1918,15 +1889,56 @@ class InstitutionRepository {
           ),
         ],
       );
+      final writes = <WindowsFirestoreWrite>[
+        WindowsFirestoreWrite.set('users/${currentUser.uid}', {
+          ...userData,
+          'institutionId': institutionDoc.id,
+          'institutionName': institutionName,
+          'role': UserRole.student.name,
+          'registrationIntent': null,
+          'updatedAt': nowUtc,
+        }),
+        WindowsFirestoreWrite.set(
+          'institution_members/${institutionDoc.id}_${currentUser.uid}',
+          {
+            'institutionId': institutionDoc.id,
+            'userId': currentUser.uid,
+            'role': UserRole.student.name,
+            'userName': currentUser.displayName,
+            'email': currentUser.email,
+            'joinedAt': nowUtc,
+            'status': 'active',
+            'joinedVia': 'code',
+            'joinedCode': normalizedCode,
+            'updatedAt': nowUtc,
+          },
+        ),
+        WindowsFirestoreWrite.set('institutions/${institutionDoc.id}', {
+          ...institutionData,
+          'joinCodeUsageCount': usageCount + 1,
+          'updatedAt': nowUtc,
+        }),
+      ];
+      if (previousInstitutionId != null &&
+          previousInstitutionId.isNotEmpty &&
+          previousInstitutionId != institutionDoc.id) {
+        writes.add(
+          WindowsFirestoreWrite.delete(
+            'institution_members/${previousInstitutionId}_${currentUser.uid}',
+          ),
+        );
+      }
       if (pendingInvites.isNotEmpty) {
         final inviteIds = <String>[];
         for (final inviteDoc in pendingInvites) {
           inviteIds.add(inviteDoc.id);
-          await _windowsRest.setDocument('user_invites/${inviteDoc.id}', {
-            ...inviteDoc.data,
-            'status': UserInviteStatus.accepted.name,
-            'updatedAt': nowUtc,
-          });
+          writes.add(
+            WindowsFirestoreWrite.set('user_invites/${inviteDoc.id}', {
+              ...inviteDoc.data,
+              'status': UserInviteStatus.accepted.name,
+              'updatedAt': nowUtc,
+            }),
+          );
         }
         for (var i = 0; i < inviteIds.length; i += 10) {
           final chunk = inviteIds.sublist(
@@ -1941,14 +1953,17 @@ class InstitutionRepository {
             ],
           );
           for (final notification in notifications) {
-            await _windowsRest.setDocument('notifications/${notification.id}', {
-              ...notification.data,
-              'actionRequired': false,
-              'updatedAt': nowUtc,
-            });
+            writes.add(
+              WindowsFirestoreWrite.set('notifications/${notification.id}', {
+                ...notification.data,
+                'actionRequired': false,
+                'updatedAt': nowUtc,
+              }),
+            );
           }
         }
       }
+      await _windowsRest.commitWrites(writes);
 
       await _appendMembershipAudit(
         institutionId: institutionDoc.id,

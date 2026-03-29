@@ -56,6 +56,19 @@ class WindowsFirestoreOrderBy {
   final bool descending;
 }
 
+class WindowsFirestoreWrite {
+  const WindowsFirestoreWrite.set(this.documentPath, this.data)
+    : delete = false;
+
+  const WindowsFirestoreWrite.delete(this.documentPath)
+    : data = null,
+      delete = true;
+
+  final String documentPath;
+  final Map<String, dynamic>? data;
+  final bool delete;
+}
+
 class WindowsFirestoreRestClient {
   WindowsFirestoreRestClient({
     required AppAuthClient authClient,
@@ -248,6 +261,50 @@ class WindowsFirestoreRestClient {
     if (response.statusCode == 404) {
       return;
     }
+    _throwIfFailed(response, _decodeJsonMap(response.body));
+  }
+
+  Future<void> commitWrites(
+    List<WindowsFirestoreWrite> writes, {
+    bool allowUnauthenticated = false,
+  }) async {
+    if (writes.isEmpty) {
+      return;
+    }
+    final uri = _buildUri(
+      '$_documentsRoot:commit',
+      allowUnauthenticated: allowUnauthenticated,
+    );
+    final encodedWrites = <Map<String, dynamic>>[];
+    for (final write in writes) {
+      final trimmedPath = _trimmedPath(write.documentPath);
+      if (trimmedPath.isEmpty) {
+        continue;
+      }
+      final fullName =
+          'projects/$_projectId/databases/(default)/documents/$trimmedPath';
+      if (write.delete) {
+        encodedWrites.add(<String, dynamic>{'delete': fullName});
+        continue;
+      }
+      encodedWrites.add(<String, dynamic>{
+        'update': <String, dynamic>{
+          'name': fullName,
+          'fields': _encodeFields(write.data ?? const <String, dynamic>{}),
+        },
+      });
+    }
+    if (encodedWrites.isEmpty) {
+      return;
+    }
+    final response = await _sendRequest(
+      (headers) => _httpClient.post(
+        uri,
+        headers: headers,
+        body: jsonEncode(<String, dynamic>{'writes': encodedWrites}),
+      ),
+      allowUnauthenticated: allowUnauthenticated,
+    );
     _throwIfFailed(response, _decodeJsonMap(response.body));
   }
 

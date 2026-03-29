@@ -29,7 +29,7 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
   String? _adviceText;
   String _adviceResolvedKey = '';
   String _adviceInFlightKey = '';
-  static const Duration _windowsPollInterval = Duration(seconds: 2);
+  static const Duration _windowsPollInterval = Duration(seconds: 15);
 
   static const List<_MoodChoice> _moods = <_MoodChoice>[
     _MoodChoice(

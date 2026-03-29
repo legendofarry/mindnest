@@ -5,11 +5,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
+import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 
-const Duration _windowsPollInterval = Duration(seconds: 2);
+const Duration _windowsPollInterval = Duration(seconds: 15);
 
 bool get _useWindowsPollingWorkaround =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
@@ -48,7 +51,7 @@ Stream<T> _buildWindowsPollingStream<T>({
     }
   }
 
-  controller = StreamController<T>(
+  controller = StreamController<T>.broadcast(
     onListen: () {
       unawaited(emitIfChanged());
       timer = Timer.periodic(_windowsPollInterval, (_) {
@@ -83,6 +86,10 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
   bool _listeningUnread = false;
   StreamSubscription<Map<String, int>>? _unreadSub;
   double _listPaneWidth = 280;
+  bool _windowsCounselorSidebarLoading = false;
+  bool _windowsCounselorSidebarLoaded = false;
+  String? _windowsCounselorSidebarError;
+  List<_CounselorOption> _windowsCounselors = const [];
 
   @override
   void dispose() {
@@ -201,6 +208,103 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     }, onError: (error, stackTrace) {});
   }
 
+  Future<List<_CounselorOption>> _fetchWindowsCounselorOptions(
+    String institutionId,
+  ) async {
+    final documents = await ref
+        .read(windowsFirestoreRestClientProvider)
+        .queryCollection(
+          collectionId: 'users',
+          filters: <WindowsFirestoreFieldFilter>[
+            WindowsFirestoreFieldFilter.equal('role', UserRole.counselor.name),
+            WindowsFirestoreFieldFilter.equal('institutionId', institutionId),
+          ],
+        );
+    return documents
+        .map((doc) => _CounselorOption.fromMap(doc.id, doc.data))
+        .toList(growable: false);
+  }
+
+  Future<Map<String, int>> _fetchWindowsUnreadCounts(String adminId) async {
+    final documents = await ref
+        .read(windowsFirestoreRestClientProvider)
+        .queryCollection(
+          collectionId: 'admin_counselor_messages',
+          filters: <WindowsFirestoreFieldFilter>[
+            WindowsFirestoreFieldFilter.equal('adminId', adminId),
+            WindowsFirestoreFieldFilter.equal('senderRole', 'counselor'),
+            WindowsFirestoreFieldFilter.equal('isRead', false),
+          ],
+          limit: 200,
+        );
+    final counts = <String, int>{};
+    for (final doc in documents) {
+      final data = doc.data;
+      final counselorId = (data['counselorId'] as String?) ?? '';
+      if (counselorId.isEmpty) {
+        continue;
+      }
+      counts[counselorId] = (counts[counselorId] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  void _ensureWindowsCounselorSidebarLoaded({
+    required String institutionId,
+    required String adminId,
+  }) {
+    if (!_useWindowsPollingWorkaround ||
+        _windowsCounselorSidebarLoaded ||
+        _windowsCounselorSidebarLoading) {
+      return;
+    }
+    unawaited(
+      _refreshWindowsCounselorSidebar(
+        institutionId: institutionId,
+        adminId: adminId,
+      ),
+    );
+  }
+
+  Future<void> _refreshWindowsCounselorSidebar({
+    required String institutionId,
+    required String adminId,
+  }) async {
+    if (_windowsCounselorSidebarLoading) {
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _windowsCounselorSidebarLoading = true;
+        _windowsCounselorSidebarError = null;
+      });
+    }
+    try {
+      final counselors = await _fetchWindowsCounselorOptions(institutionId);
+      final unreadCounts = await _fetchWindowsUnreadCounts(adminId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _windowsCounselors = counselors;
+        _unreadCounts = unreadCounts;
+        _windowsCounselorSidebarLoaded = true;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _windowsCounselorSidebarError = error.toString();
+        _windowsCounselorSidebarLoaded = true;
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _windowsCounselorSidebarLoading = false);
+      }
+    }
+  }
+
   Future<void> _markThreadRead({
     required String adminId,
     required String counselorId,
@@ -226,6 +330,13 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
             'admin_counselor_messages/${document.id}',
             <String, dynamic>{...document.data, 'isRead': true},
           );
+        }
+        if (mounted) {
+          setState(() {
+            final nextCounts = Map<String, int>.from(_unreadCounts);
+            nextCounts.remove(counselorId);
+            _unreadCounts = nextCounts;
+          });
         }
         return;
       }
@@ -506,9 +617,16 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     }
 
     final institutionId = profile.institutionId ?? '';
-    _listenUnread(profile.id);
+    if (_useWindowsPollingWorkaround) {
+      _ensureWindowsCounselorSidebarLoaded(
+        institutionId: institutionId,
+        adminId: profile.id,
+      );
+    } else {
+      _listenUnread(profile.id);
+    }
     final counselorsStream = _useWindowsPollingWorkaround
-        ? _counselorOptionsStream(null)
+        ? null
         : _counselorOptionsStream(
             ref
                 .watch(firestoreProvider)
@@ -521,175 +639,263 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F7FB),
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        centerTitle: false,
-        titleSpacing: 14,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'Counselor Messages',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
-            SizedBox(height: 2),
-          ],
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(58),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: TextField(
-              controller: _search,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Search counselor name or email',
-                prefixIcon: const Icon(Icons.search_rounded),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x140F172A),
-                  blurRadius: 28,
-                  offset: Offset(0, 14),
-                ),
-              ],
-            ),
-            child: isWide
-                ? Row(
-                    children: [
-                      SizedBox(
-                        width: _listPaneWidth,
-                        child: _CounselorListPane(
-                          stream: counselorsStream,
-                          selectedId: _selectedCounselorId,
-                          onSelected: (id, name) {
-                            setState(() {
-                              _selectedCounselorId = id;
-                              _selectedCounselorName = name;
-                            });
-                          },
-                          unreadCounts: _unreadCounts,
-                          onMenu: _showConversationMenu,
-                          filterText: _search.text,
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 92, 16, 16),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: const Color(0xFFD8E2EE)),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x140F172A),
+                          blurRadius: 18,
+                          offset: Offset(0, 8),
                         ),
-                      ),
-                      GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onHorizontalDragUpdate: (details) {
-                          setState(() {
-                            _listPaneWidth = (_listPaneWidth + details.delta.dx)
-                                .clamp(220.0, 520.0);
-                          });
-                        },
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.resizeColumn,
-                          child: const SizedBox(
-                            width: 12,
-                            child: Center(
-                              child: SizedBox(
-                                width: 2,
-                                height: double.infinity,
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: Color(0xFFE2E8F0),
-                                  ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _search,
+                            onChanged: (_) => setState(() {}),
+                            decoration: InputDecoration(
+                              hintText: 'Search counselor name or email',
+                              prefixIcon: const Icon(Icons.search_rounded),
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE2E8F0),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      Expanded(
-                        child: _ChatPane(
-                          profile: profile,
-                          counselorId: _selectedCounselorId,
-                          counselorName: _selectedCounselorName,
-                          messagesBuilder: (cid) =>
-                              _messages(adminId: profile.id, counselorId: cid),
-                          onThreadSeen: (cid) => _markThreadRead(
-                            adminId: profile.id,
-                            counselorId: cid,
+                        if (_useWindowsPollingWorkaround) ...[
+                          const SizedBox(width: 10),
+                          Tooltip(
+                            message: 'Refresh counselors',
+                            child: FilledButton.tonalIcon(
+                              onPressed: _windowsCounselorSidebarLoading
+                                  ? null
+                                  : () => _refreshWindowsCounselorSidebar(
+                                      institutionId: institutionId,
+                                      adminId: profile.id,
+                                    ),
+                              icon: _windowsCounselorSidebarLoading
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.refresh_rounded),
+                              label: Text(
+                                _windowsCounselorSidebarLoading
+                                    ? 'Checking...'
+                                    : 'Refresh',
+                              ),
+                            ),
                           ),
-                          messageController: _message,
-                          sending: _sending,
-                          inlineError: _inlineError,
-                          onSend: () => _send(
-                            admin: profile,
-                            counselorId: _selectedCounselorId!,
-                            counselorName:
-                                _selectedCounselorName ?? 'Counselor',
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    children: [
-                      _MobileCounselorDropdown(
-                        stream: counselorsStream,
-                        selectedId: _selectedCounselorId,
-                        onSelected: (id, name) {
-                          setState(() {
-                            _selectedCounselorId = id;
-                            _selectedCounselorName = name;
-                          });
-                        },
-                      ),
-                      const Divider(height: 24),
-                      Expanded(
-                        child: _ChatPane(
-                          profile: profile,
-                          counselorId: _selectedCounselorId,
-                          counselorName: _selectedCounselorName,
-                          messagesBuilder: (cid) =>
-                              _messages(adminId: profile.id, counselorId: cid),
-                          onThreadSeen: (cid) => _markThreadRead(
-                            adminId: profile.id,
-                            counselorId: cid,
-                          ),
-                          messageController: _message,
-                          sending: _sending,
-                          inlineError: _inlineError,
-                          onSend: () => _send(
-                            admin: profile,
-                            counselorId: _selectedCounselorId!,
-                            counselorName:
-                                _selectedCounselorName ?? 'Counselor',
-                          ),
-                        ),
-                      ),
-                    ],
+                        ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 14),
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x140F172A),
+                            blurRadius: 28,
+                            offset: Offset(0, 14),
+                          ),
+                        ],
+                      ),
+                      child: isWide
+                          ? Row(
+                              children: [
+                                SizedBox(
+                                  width: _listPaneWidth,
+                                  child: _useWindowsPollingWorkaround
+                                      ? _ManualCounselorListPane(
+                                          counselors: _windowsCounselors,
+                                          selectedId: _selectedCounselorId,
+                                          onSelected: (id, name) {
+                                            setState(() {
+                                              _selectedCounselorId = id;
+                                              _selectedCounselorName = name;
+                                            });
+                                          },
+                                          unreadCounts: _unreadCounts,
+                                          onMenu: _showConversationMenu,
+                                          filterText: _search.text,
+                                          isLoading:
+                                              _windowsCounselorSidebarLoading,
+                                          error: _windowsCounselorSidebarError,
+                                        )
+                                      : _CounselorListPane(
+                                          stream: counselorsStream!,
+                                          selectedId: _selectedCounselorId,
+                                          onSelected: (id, name) {
+                                            setState(() {
+                                              _selectedCounselorId = id;
+                                              _selectedCounselorName = name;
+                                            });
+                                          },
+                                          unreadCounts: _unreadCounts,
+                                          onMenu: _showConversationMenu,
+                                          filterText: _search.text,
+                                        ),
+                                ),
+                                GestureDetector(
+                                  behavior: HitTestBehavior.translucent,
+                                  onHorizontalDragUpdate: (details) {
+                                    setState(() {
+                                      _listPaneWidth =
+                                          (_listPaneWidth + details.delta.dx)
+                                              .clamp(220.0, 520.0);
+                                    });
+                                  },
+                                  child: MouseRegion(
+                                    cursor: SystemMouseCursors.resizeColumn,
+                                    child: const SizedBox(
+                                      width: 12,
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 2,
+                                          height: double.infinity,
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              color: Color(0xFFE2E8F0),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: _ChatPane(
+                                    profile: profile,
+                                    counselorId: _selectedCounselorId,
+                                    counselorName: _selectedCounselorName,
+                                    messagesBuilder: (cid) => _messages(
+                                      adminId: profile.id,
+                                      counselorId: cid,
+                                    ),
+                                    onThreadSeen: (cid) => _markThreadRead(
+                                      adminId: profile.id,
+                                      counselorId: cid,
+                                    ),
+                                    messageController: _message,
+                                    sending: _sending,
+                                    inlineError: _inlineError,
+                                    onSend: () => _send(
+                                      admin: profile,
+                                      counselorId: _selectedCounselorId!,
+                                      counselorName:
+                                          _selectedCounselorName ?? 'Counselor',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              children: [
+                                _useWindowsPollingWorkaround
+                                    ? _ManualMobileCounselorDropdown(
+                                        counselors: _windowsCounselors,
+                                        selectedId: _selectedCounselorId,
+                                        onSelected: (id, name) {
+                                          setState(() {
+                                            _selectedCounselorId = id;
+                                            _selectedCounselorName = name;
+                                          });
+                                        },
+                                      )
+                                    : _MobileCounselorDropdown(
+                                        stream: counselorsStream!,
+                                        selectedId: _selectedCounselorId,
+                                        onSelected: (id, name) {
+                                          setState(() {
+                                            _selectedCounselorId = id;
+                                            _selectedCounselorName = name;
+                                          });
+                                        },
+                                      ),
+                                const Divider(height: 24),
+                                Expanded(
+                                  child: _ChatPane(
+                                    profile: profile,
+                                    counselorId: _selectedCounselorId,
+                                    counselorName: _selectedCounselorName,
+                                    messagesBuilder: (cid) => _messages(
+                                      adminId: profile.id,
+                                      counselorId: cid,
+                                    ),
+                                    onThreadSeen: (cid) => _markThreadRead(
+                                      adminId: profile.id,
+                                      counselorId: cid,
+                                    ),
+                                    messageController: _message,
+                                    sending: _sending,
+                                    inlineError: _inlineError,
+                                    onSend: () => _send(
+                                      admin: profile,
+                                      counselorId: _selectedCounselorId!,
+                                      counselorName:
+                                          _selectedCounselorName ?? 'Counselor',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: _AdminMessagesFloatingHeader(
+                  onBack: () => context.go(AppRoute.institutionAdminProfile),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -734,6 +940,111 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
       (snapshot) => snapshot.docs
           .map((doc) => _CounselorOption.fromMap(doc.id, doc.data()))
           .toList(growable: false),
+    );
+  }
+}
+
+class _AdminMessagesFloatingHeader extends StatelessWidget {
+  const _AdminMessagesFloatingHeader({required this.onBack});
+
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _AdminMessagesHeaderActionButton(
+              tooltip: 'Back to admin profile',
+              icon: Icons.arrow_back_rounded,
+              onPressed: onBack,
+            ),
+            const _AdminMessagesHeaderTitleChip(title: 'Counselor Messages'),
+          ],
+        ),
+        const Spacer(),
+        const WindowsDesktopWindowControls(),
+      ],
+    );
+  }
+}
+
+class _AdminMessagesHeaderTitleChip extends StatelessWidget {
+  const _AdminMessagesHeaderTitleChip({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFD8E2EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x140F172A),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 16,
+          letterSpacing: -0.2,
+          color: Color(0xFF081A30),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminMessagesHeaderActionButton extends StatelessWidget {
+  const _AdminMessagesHeaderActionButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(18),
+          child: Ink(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFD8E2EE)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x140F172A),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: const Color(0xFF16324F)),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -868,6 +1179,141 @@ class _CounselorListPane extends StatelessWidget {
   }
 }
 
+class _ManualCounselorListPane extends StatelessWidget {
+  const _ManualCounselorListPane({
+    required this.counselors,
+    required this.selectedId,
+    required this.onSelected,
+    required this.unreadCounts,
+    required this.onMenu,
+    required this.filterText,
+    required this.isLoading,
+    this.error,
+  });
+
+  final List<_CounselorOption> counselors;
+  final String? selectedId;
+  final void Function(String id, String name) onSelected;
+  final Map<String, int> unreadCounts;
+  final void Function(
+    String counselorId,
+    String counselorName,
+    Offset globalPosition,
+  )
+  onMenu;
+  final String filterText;
+  final bool isLoading;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading && counselors.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (error != null && error!.trim().isNotEmpty && counselors.isEmpty) {
+      return Center(
+        child: Text(
+          'Unable to load counselors.\n$error',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Color(0xFF6B7280)),
+        ),
+      );
+    }
+
+    final query = filterText.trim().toLowerCase();
+    final filtered = query.isEmpty
+        ? counselors
+        : counselors
+              .where((counselor) {
+                final target = '${counselor.name} ${counselor.email}'
+                    .toLowerCase();
+                return target.contains(query);
+              })
+              .toList(growable: false);
+
+    if (filtered.isEmpty) {
+      return Center(
+        child: Text(
+          query.isEmpty
+              ? 'No counselors found.\nClick refresh to check again.'
+              : 'No matches.',
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(12),
+      itemBuilder: (context, index) {
+        final counselor = filtered[index];
+        final name = counselor.displayName;
+        final selected = counselor.id == selectedId;
+        final unread = unreadCounts[counselor.id] ?? 0;
+        return ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          tileColor: selected
+              ? const Color(0xFFEFF6FF)
+              : (unread > 0 ? const Color(0xFFFEF3C7) : null),
+          title: Text(
+            name.isEmpty ? 'Counselor' : name,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: selected
+                  ? const Color(0xFF0F172A)
+                  : (unread > 0 ? const Color(0xFF92400E) : null),
+            ),
+          ),
+          subtitle: Text(
+            counselor.email,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (unread > 0)
+                _Badge(count: unread, color: const Color(0xFFDC2626)),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (details) => onMenu(
+                  counselor.id,
+                  name.isEmpty ? 'Counselor' : name,
+                  details.globalPosition,
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(Icons.more_vert_rounded),
+                ),
+              ),
+            ],
+          ),
+          onTap: () =>
+              onSelected(counselor.id, name.isEmpty ? 'Counselor' : name),
+          leading: CircleAvatar(
+            backgroundColor: const Color(0xFF0E9B90),
+            child: Text(
+              _initials(name.isEmpty ? 'C' : name),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        );
+      },
+      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      itemCount: filtered.length,
+    );
+  }
+
+  String _initials(String value) {
+    final parts = value.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty);
+    return parts.take(2).map((e) => e[0].toUpperCase()).join();
+  }
+}
+
 class _MobileCounselorDropdown extends StatelessWidget {
   const _MobileCounselorDropdown({
     required this.stream,
@@ -915,6 +1361,52 @@ class _MobileCounselorDropdown extends StatelessWidget {
             onSelected(value, counselor.displayName);
           },
         );
+      },
+    );
+  }
+}
+
+class _ManualMobileCounselorDropdown extends StatelessWidget {
+  const _ManualMobileCounselorDropdown({
+    required this.counselors,
+    required this.selectedId,
+    required this.onSelected,
+  });
+
+  final List<_CounselorOption> counselors;
+  final String? selectedId;
+  final void Function(String id, String name) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      initialValue: selectedId,
+      decoration: const InputDecoration(
+        labelText: 'Select counselor',
+        prefixIcon: Icon(Icons.person_rounded),
+        filled: true,
+      ),
+      items: counselors
+          .map(
+            (counselor) => DropdownMenuItem(
+              value: counselor.id,
+              child: Text(
+                counselor.displayName,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () => onSelected(counselor.id, counselor.displayName),
+            ),
+          )
+          .toList(growable: false),
+      onChanged: (value) {
+        if (value == null) return;
+        final counselor = counselors.firstWhere(
+          (element) => element.id == value,
+          orElse: () => counselors.isNotEmpty
+              ? counselors.first
+              : (throw StateError('No counselors')),
+        );
+        onSelected(value, counselor.displayName);
       },
     );
   }

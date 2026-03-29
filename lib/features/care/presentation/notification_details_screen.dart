@@ -16,7 +16,7 @@ import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
-const Duration _windowsPollInterval = Duration(seconds: 2);
+const Duration _windowsPollInterval = Duration(seconds: 15);
 bool get _useWindowsRestFirestore =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
@@ -832,8 +832,8 @@ class NotificationDetailsScreen extends ConsumerWidget {
                 ? 'null'
                 : '${notification.id}|${notification.type}|${notification.isRead}|${notification.isPinned}|${notification.isArchived}|${notification.createdAt.toIso8601String()}',
           )
-        : firestore
-              !.collection('notifications')
+        : firestore!
+              .collection('notifications')
               .doc(notificationId)
               .snapshots()
               .map((doc) {
@@ -918,8 +918,8 @@ class NotificationDetailsScreen extends ConsumerWidget {
                     ? 'null'
                     : '${appointment.id}|${appointment.status.name}|${appointment.startAt.toIso8601String()}|${appointment.endAt.toIso8601String()}|${appointment.counselorSessionNote ?? ''}|${appointment.counselorCancelMessage ?? ''}',
               )
-            : firestore
-                  !.collection('appointments')
+            : firestore!
+                  .collection('appointments')
                   .doc(relatedAppointmentId)
                   .snapshots()
                   .map((doc) {
@@ -1050,8 +1050,8 @@ class _AdminMessageReplyCardState
             ))?.data,
             signature: (data) => data == null ? 'null' : data.toString(),
           )
-        : firestore
-              !.collection('admin_counselor_messages')
+        : firestore!
+              .collection('admin_counselor_messages')
               .doc(relatedId)
               .snapshots()
               .map((doc) => doc.data());
@@ -1110,8 +1110,8 @@ class _AdminMessageReplyCardState
                     )
                     .join(';'),
               )
-            : firestore
-                  !.collection('admin_counselor_messages')
+            : firestore!
+                  .collection('admin_counselor_messages')
                   .where('adminId', isEqualTo: adminId)
                   .where('counselorId', isEqualTo: counselorId)
                   .orderBy('createdAt', descending: true)

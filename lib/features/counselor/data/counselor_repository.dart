@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/counselor/models/counselor_institution_access_status.dart';
 
 class CounselorRepository {
   CounselorRepository({
@@ -30,6 +31,86 @@ class CounselorRepository {
     return !profile.counselorSetupCompleted;
   }
 
+  Future<CounselorInstitutionAccessStatus>
+  getCurrentInstitutionAccessStatus() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return CounselorInstitutionAccessStatus.inactive;
+    }
+
+    final userData = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument('users/${user.uid}'))?.data
+        : (await _firestore.collection('users').doc(user.uid).get()).data();
+    if (userData == null) {
+      return CounselorInstitutionAccessStatus.inactive;
+    }
+
+    final role = (userData['role'] as String?) ?? '';
+    if (role != UserRole.counselor.name) {
+      return CounselorInstitutionAccessStatus.inactive;
+    }
+
+    final institutionId = ((userData['institutionId'] as String?) ?? '').trim();
+    if (institutionId.isEmpty) {
+      return CounselorInstitutionAccessStatus.inactive;
+    }
+
+    final membershipData = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument(
+            'institution_members/${institutionId}_${user.uid}',
+          ))?.data
+        : (await _firestore
+                  .collection('institution_members')
+                  .doc('${institutionId}_${user.uid}')
+                  .get())
+              .data();
+    if (membershipData == null) {
+      return CounselorInstitutionAccessStatus.removed;
+    }
+
+    final membershipInstitutionId =
+        ((membershipData['institutionId'] as String?) ?? '').trim();
+    final membershipUserId = ((membershipData['userId'] as String?) ?? '')
+        .trim();
+    final membershipRole = (membershipData['role'] as String?) ?? '';
+    if (membershipInstitutionId != institutionId ||
+        membershipUserId != user.uid ||
+        membershipRole != UserRole.counselor.name) {
+      return CounselorInstitutionAccessStatus.removed;
+    }
+
+    switch (((membershipData['status'] as String?) ?? '')
+        .trim()
+        .toLowerCase()) {
+      case 'active':
+        return CounselorInstitutionAccessStatus.active;
+      case 'pending':
+        return CounselorInstitutionAccessStatus.pending;
+      case 'suspended':
+        return CounselorInstitutionAccessStatus.suspended;
+      case 'removed':
+        return CounselorInstitutionAccessStatus.removed;
+      default:
+        return CounselorInstitutionAccessStatus.removed;
+    }
+  }
+
+  Future<void> ensureInstitutionAccessAllowsCounselorWorkflow() async {
+    final status = await getCurrentInstitutionAccessStatus();
+    if (status.allowsCounselorWorkflow) {
+      return;
+    }
+    if (status == CounselorInstitutionAccessStatus.removed) {
+      throw Exception('Your institution access was removed by the admin.');
+    }
+    if (status == CounselorInstitutionAccessStatus.suspended) {
+      throw Exception(
+        'Your institution access is currently suspended. Contact your institution admin.',
+      );
+    }
+    throw Exception('Your counselor access is no longer active.');
+  }
+
   Future<void> completeSetup({
     required String title,
     required String specialization,
@@ -44,6 +125,8 @@ class CounselorRepository {
     if (user == null) {
       throw Exception('You must be logged in.');
     }
+
+    await ensureInstitutionAccessAllowsCounselorWorkflow();
 
     final userData = kUseWindowsRestAuth
         ? (await _windowsRest.getDocument('users/${user.uid}'))?.data
@@ -184,6 +267,8 @@ class CounselorRepository {
     if (user == null) {
       throw Exception('You must be logged in.');
     }
+
+    await ensureInstitutionAccessAllowsCounselorWorkflow();
 
     final userRef = _firestore.collection('users').doc(user.uid);
     final userData = kUseWindowsRestAuth
