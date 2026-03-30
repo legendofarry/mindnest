@@ -281,6 +281,13 @@ class _WindowsSetupCopy {
           supportingNote: 'Windows opens after access is active again.',
           primaryActionLabel: 'Open Web to Check Access',
         );
+      case 'live':
+        return const _WindowsSetupCopy(
+          title: 'Live Is on the Web',
+          description: 'Join or host live audio in the browser.',
+          supportingNote: 'Windows live is unavailable for now.',
+          primaryActionLabel: 'Open Web for Live',
+        );
       default:
         return const _WindowsSetupCopy(
           title: 'Finish Account Setup on the Web',

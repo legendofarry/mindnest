@@ -1,12 +1,15 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 
 enum CounselorWorkspaceNavSection {
   dashboard,
   sessions,
+  live,
   availability,
   counselors,
 }
@@ -53,7 +56,13 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
             builder: (context, constraints) {
               final isDesktop = constraints.maxWidth >= 1120;
               final isTablet = constraints.maxWidth >= 760;
-              final navItems = _navItems(showCounselorDirectory);
+              final showLive =
+                  !(!kIsWeb &&
+                      defaultTargetPlatform == TargetPlatform.windows);
+              final navItems = _navItems(
+                showCounselorDirectory,
+                showLive: showLive,
+              );
               if (isDesktop) {
                 return Padding(
                   padding: const EdgeInsets.all(18),
@@ -791,7 +800,10 @@ class _ShellSidebarItem {
   final IconData icon;
 }
 
-List<_ShellSidebarItem> _navItems(bool showCounselorDirectory) {
+List<_ShellSidebarItem> _navItems(
+  bool showCounselorDirectory, {
+  required bool showLive,
+}) {
   return [
     const _ShellSidebarItem(
       section: CounselorWorkspaceNavSection.dashboard,
@@ -803,6 +815,12 @@ List<_ShellSidebarItem> _navItems(bool showCounselorDirectory) {
       label: 'Sessions',
       icon: Icons.event_note_rounded,
     ),
+    if (showLive)
+      const _ShellSidebarItem(
+        section: CounselorWorkspaceNavSection.live,
+        label: 'Live',
+        icon: Icons.podcasts_rounded,
+      ),
     const _ShellSidebarItem(
       section: CounselorWorkspaceNavSection.availability,
       label: 'Availability',

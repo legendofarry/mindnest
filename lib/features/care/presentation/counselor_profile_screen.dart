@@ -499,6 +499,8 @@ class _CounselorProfileScreenState
         context.go(AppRoute.counselorDashboard);
       case CounselorWorkspaceNavSection.sessions:
         context.go(AppRoute.counselorAppointments);
+      case CounselorWorkspaceNavSection.live:
+        context.go(AppRoute.counselorLiveHub);
       case CounselorWorkspaceNavSection.availability:
         context.go(AppRoute.counselorAvailability);
       case CounselorWorkspaceNavSection.counselors:

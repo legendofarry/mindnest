@@ -518,13 +518,691 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
     );
   }
 
+  Future<void> _sendComment() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty) {
+      return;
+    }
+    try {
+      await ref
+          .read(liveRepositoryProvider)
+          .sendComment(sessionId: widget.sessionId, text: text);
+      _commentController.clear();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  Future<void> _sendQuickReaction(String emoji) async {
+    try {
+      await ref
+          .read(liveRepositoryProvider)
+          .sendReaction(sessionId: widget.sessionId, emoji: emoji);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  String _initialsFor(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      return 'MN';
+    }
+    final parts = trimmed.split(RegExp(r'\s+'));
+    if (parts.length == 1) {
+      return trimmed.length >= 2
+          ? trimmed.substring(0, 2).toUpperCase()
+          : trimmed.toUpperCase();
+    }
+    final first = parts.first.isNotEmpty ? parts.first[0] : '';
+    final last = parts.last.isNotEmpty ? parts.last[0] : '';
+    return '$first$last'.toUpperCase();
+  }
+
+  List<Color> _avatarPalette(String seed) {
+    const palettes = <List<Color>>[
+      [Color(0xFF14B8A6), Color(0xFF2563EB)],
+      [Color(0xFF0EA5E9), Color(0xFF8B5CF6)],
+      [Color(0xFFF97316), Color(0xFFEF4444)],
+      [Color(0xFF22C55E), Color(0xFF0891B2)],
+      [Color(0xFFEAB308), Color(0xFFF97316)],
+      [Color(0xFFEC4899), Color(0xFF8B5CF6)],
+    ];
+    final code = seed.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
+    return palettes[code % palettes.length];
+  }
+
+  String _hostStatus(LiveSession session) {
+    if (session.status == LiveSessionStatus.paused) {
+      return 'Paused';
+    }
+    if (_isHost && _micEnabled) {
+      return 'Speaking';
+    }
+    return 'Live now';
+  }
+
+  String _speakerStatus(LiveParticipant participant) {
+    if (participant.mutedByHost) {
+      return 'Muted';
+    }
+    if (participant.canSpeak && participant.micEnabled) {
+      return 'Speaking';
+    }
+    if (participant.canSpeak) {
+      return 'On stage';
+    }
+    return 'Pending mic';
+  }
+
+  String _formatShortTime(DateTime value) {
+    final local = value.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final suffix = local.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $suffix';
+  }
+
+  Widget _buildImmersiveDesktopRoom({
+    required LiveSession session,
+    required List<LiveParticipant> participants,
+    required List<LiveMicRequest> requests,
+    required List<LiveComment> comments,
+  }) {
+    final size = MediaQuery.sizeOf(context);
+    final listeners = participants
+        .where((entry) => entry.kind == LiveParticipantKind.listener)
+        .toList(growable: false);
+    final speakers =
+        participants
+            .where((entry) => entry.kind == LiveParticipantKind.guest)
+            .toList()
+          ..sort((a, b) {
+            final aScore = (a.canSpeak ? 2 : 0) + (a.micEnabled ? 1 : 0);
+            final bScore = (b.canSpeak ? 2 : 0) + (b.micEnabled ? 1 : 0);
+            return bScore.compareTo(aScore);
+          });
+    final spotlightSpeakers = speakers.take(3).toList(growable: false);
+    LiveParticipant? hostParticipant;
+    for (final participant in participants) {
+      if (participant.kind == LiveParticipantKind.host) {
+        hostParticipant = participant;
+        break;
+      }
+    }
+    final currentKind = _myParticipant?.kind ?? LiveParticipantKind.listener;
+    final myPendingRequest = requests.any(
+      (request) => request.userId == _myParticipant?.userId,
+    );
+    final showRequests = _isHost;
+    final stageHeight = (size.height - 92).clamp(720.0, 980.0).toDouble();
+    final hostPalette = _avatarPalette(session.hostName);
+
+    return SizedBox(
+      height: stageHeight,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 18),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: const Color(0x160EA5A0)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x120F172A),
+                  blurRadius: 28,
+                  offset: Offset(0, 18),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        session.title,
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 18,
+                        runSpacing: 8,
+                        children: [
+                          _LiveMetric(
+                            icon: Icons.people_outline_rounded,
+                            value: '${listeners.length}',
+                          ),
+                          _LiveMetric(
+                            icon: Icons.favorite_border_rounded,
+                            value: '${session.likeCount}',
+                          ),
+                          _LiveMetric(
+                            icon: Icons.mic_none_rounded,
+                            value: '${speakers.length}/${session.maxGuests}',
+                          ),
+                          _LiveMetric(
+                            icon: _audioConnected
+                                ? Icons.graphic_eq_rounded
+                                : Icons.wifi_off_rounded,
+                            value: _audioConnected
+                                ? 'Audio connected'
+                                : 'Audio offline',
+                          ),
+                          if (session.status == LiveSessionStatus.paused)
+                            const _LiveStatusChip(
+                              label: 'Paused',
+                              color: Color(0xFFF59E0B),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (_isHost) ...[
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: () => ref
+                        .read(liveRepositoryProvider)
+                        .endLiveSession(widget.sessionId),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      foregroundColor: Colors.white,
+                      shape: const StadiumBorder(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                    ),
+                    icon: const Icon(Icons.stop_circle_outlined),
+                    label: const Text('End live'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(36),
+                          border: Border.all(color: const Color(0x260EA5A0)),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFEFFCF9), Color(0xFFF2FBFF)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              left: -100,
+                              top: 90,
+                              child: Container(
+                                width: 230,
+                                height: 230,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Color(0x220EA5A0),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              right: -70,
+                              top: 48,
+                              child: Container(
+                                width: 190,
+                                height: 190,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Color(0x183B82F6),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              right: 90,
+                              bottom: -80,
+                              child: Container(
+                                width: 280,
+                                height: 280,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Color(0x120EA5A0),
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                28,
+                                26,
+                                28,
+                                24,
+                              ),
+                              child: Column(
+                                children: [
+                                  _LivePersonaCard(
+                                    name:
+                                        hostParticipant
+                                                ?.displayName
+                                                .isNotEmpty ==
+                                            true
+                                        ? hostParticipant!.displayName
+                                        : session.hostName,
+                                    badge: 'Host',
+                                    status: _hostStatus(session),
+                                    palette: hostPalette,
+                                    initials: _initialsFor(session.hostName),
+                                    isPrimary: true,
+                                    muted:
+                                        session.status ==
+                                        LiveSessionStatus.paused,
+                                  ),
+                                  const SizedBox(height: 42),
+                                  Expanded(
+                                    child: Center(
+                                      child: spotlightSpeakers.isEmpty
+                                          ? const SizedBox.shrink()
+                                          : Wrap(
+                                              alignment: WrapAlignment.center,
+                                              spacing: 34,
+                                              runSpacing: 28,
+                                              children: [
+                                                for (final speaker
+                                                    in spotlightSpeakers)
+                                                  _LivePersonaCard(
+                                                    name: speaker.displayName,
+                                                    badge: 'Speaker',
+                                                    status: _speakerStatus(
+                                                      speaker,
+                                                    ),
+                                                    palette: _avatarPalette(
+                                                      speaker.displayName,
+                                                    ),
+                                                    initials: _initialsFor(
+                                                      speaker.displayName,
+                                                    ),
+                                                    muted:
+                                                        speaker.mutedByHost ||
+                                                        !speaker.micEnabled,
+                                                  ),
+                                              ],
+                                            ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 18),
+                                  _LiveControlDock(
+                                    isHost: _isHost,
+                                    isSpeaker:
+                                        currentKind ==
+                                        LiveParticipantKind.guest,
+                                    isListener:
+                                        currentKind ==
+                                        LiveParticipantKind.listener,
+                                    micEnabled: _micEnabled,
+                                    paused:
+                                        session.status ==
+                                        LiveSessionStatus.paused,
+                                    requestPending: myPendingRequest,
+                                    onToggleMic:
+                                        (_audioConnected &&
+                                            _canSpeak &&
+                                            session.status ==
+                                                LiveSessionStatus.live)
+                                        ? () => _setMic(!_micEnabled)
+                                        : null,
+                                    onPauseResume: _isHost
+                                        ? () => ref
+                                              .read(liveRepositoryProvider)
+                                              .togglePause(
+                                                sessionId: widget.sessionId,
+                                                pause:
+                                                    session.status ==
+                                                    LiveSessionStatus.live,
+                                              )
+                                        : null,
+                                    onRequestMic:
+                                        currentKind ==
+                                                LiveParticipantKind.listener &&
+                                            _audioConnected &&
+                                            !myPendingRequest
+                                        ? () => ref
+                                              .read(liveRepositoryProvider)
+                                              .requestMic(widget.sessionId)
+                                        : null,
+                                    onReact: () => _sendQuickReaction('❤️'),
+                                    onLeave: () => _leave(goHome: true),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ..._bursts.map(
+                        (burst) => Positioned(
+                          right: burst.right,
+                          bottom: 118,
+                          child: _BurstWidget(
+                            key: ValueKey('burst_${burst.id}'),
+                            emoji: burst.emoji,
+                            onDone: () {
+                              _bursts.removeWhere(
+                                (entry) => entry.id == burst.id,
+                              );
+                              if (mounted) {
+                                setState(() {});
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 340,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      borderRadius: BorderRadius.circular(32),
+                      border: Border.all(color: const Color(0x220EA5A0)),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (showRequests) ...[
+                            Row(
+                              children: [
+                                const Expanded(
+                                  child: Text(
+                                    'Requests',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.5,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  requests.length.toString().padLeft(2, '0'),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFFCBD5E1),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            if (requests.isEmpty)
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(22),
+                                  color: const Color(0xFFF8FAFC),
+                                ),
+                                child: const Text(
+                                  'No mic requests yet.',
+                                  style: TextStyle(color: Color(0xFF64748B)),
+                                ),
+                              )
+                            else
+                              ...requests
+                                  .take(4)
+                                  .map(
+                                    (request) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(14),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            22,
+                                          ),
+                                          color: const Color(0xFFF8FAFC),
+                                          border: Border.all(
+                                            color: const Color(0x120EA5A0),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              request.displayName,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 16,
+                                                color: Color(0xFF0F172A),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Requested at ${_formatShortTime(request.createdAt)}',
+                                              style: const TextStyle(
+                                                color: Color(0xFF64748B),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: OutlinedButton(
+                                                    onPressed: () => ref
+                                                        .read(
+                                                          liveRepositoryProvider,
+                                                        )
+                                                        .denyMicRequest(
+                                                          sessionId:
+                                                              widget.sessionId,
+                                                          targetUserId:
+                                                              request.userId,
+                                                        ),
+                                                    child: const Text(
+                                                      'Decline',
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: FilledButton(
+                                                    onPressed: () => ref
+                                                        .read(
+                                                          liveRepositoryProvider,
+                                                        )
+                                                        .approveMicRequest(
+                                                          sessionId:
+                                                              widget.sessionId,
+                                                          targetUserId:
+                                                              request.userId,
+                                                        ),
+                                                    style:
+                                                        FilledButton.styleFrom(
+                                                          backgroundColor:
+                                                              const Color(
+                                                                0xFF0E9B90,
+                                                              ),
+                                                        ),
+                                                    child: const Text(
+                                                      'Approve',
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                            const SizedBox(height: 8),
+                            const Divider(color: Color(0x120EA5A0)),
+                            const SizedBox(height: 12),
+                          ],
+                          const Text(
+                            'Live chat',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.5,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: comments.isEmpty
+                                ? const Center(
+                                    child: Text(
+                                      'No comments yet. Start the conversation.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Color(0xFF64748B),
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                  )
+                                : ListView.separated(
+                                    itemCount: comments.length,
+                                    separatorBuilder: (context, index) =>
+                                        const SizedBox(height: 14),
+                                    itemBuilder: (context, index) {
+                                      final comment = comments[index];
+                                      return InkWell(
+                                        borderRadius: BorderRadius.circular(18),
+                                        onTap: () => _onCommentTap(comment),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(14),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(
+                                              18,
+                                            ),
+                                            color: const Color(0xFFF7FBFC),
+                                            border: Border.all(
+                                              color: const Color(0x140EA5A0),
+                                            ),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                comment.displayName,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Color(0xFF14B8A6),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                comment.text,
+                                                style: const TextStyle(
+                                                  height: 1.45,
+                                                  color: Color(0xFF334155),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ),
+                          const SizedBox(height: 14),
+                          Wrap(
+                            spacing: 8,
+                            children: const ['🔥', '👏', '❤️', '💯', '😂', '🙌']
+                                .map(
+                                  (emoji) => _ReactionBubble(
+                                    emoji: emoji,
+                                    onTap: () => _sendQuickReaction(emoji),
+                                  ),
+                                )
+                                .toList(growable: false),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _commentController,
+                                  maxLength: 250,
+                                  decoration: const InputDecoration(
+                                    counterText: '',
+                                    hintText: 'Message...',
+                                  ),
+                                  onSubmitted: (_) => _sendComment(),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton.filled(
+                                onPressed: _sendComment,
+                                style: IconButton.styleFrom(
+                                  backgroundColor: const Color(0xFF0E9B90),
+                                  foregroundColor: Colors.white,
+                                ),
+                                icon: const Icon(Icons.send_rounded),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = ref.read(liveRepositoryProvider);
+    final isImmersiveDesktop = MediaQuery.sizeOf(context).width >= 1200;
 
     return MindNestShell(
-      maxWidth: 1080,
+      maxWidth: isImmersiveDesktop ? 1700 : 1080,
       appBar: null,
+      padding: isImmersiveDesktop
+          ? const EdgeInsets.fromLTRB(12, 12, 12, 18)
+          : const EdgeInsets.all(20),
+      backgroundMode: isImmersiveDesktop
+          ? MindNestBackgroundMode.homeStyle
+          : MindNestBackgroundMode.defaultShell,
       child: _joining
           ? const Center(child: CircularProgressIndicator())
           : _joinError != null
@@ -594,6 +1272,14 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                                   reactionSnap.data ??
                                       const <LiveReactionEvent>[],
                                 );
+                                if (isImmersiveDesktop) {
+                                  return _buildImmersiveDesktopRoom(
+                                    session: session,
+                                    participants: participants,
+                                    requests: requests,
+                                    comments: comments,
+                                  );
+                                }
                                 final commentsPanelHeight =
                                     (MediaQuery.sizeOf(context).height * 0.52)
                                         .clamp(320.0, 560.0)
@@ -1076,6 +1762,384 @@ class _Pill extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _LiveMetric extends StatelessWidget {
+  const _LiveMetric({required this.icon, required this.value});
+
+  final IconData icon;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: const Color(0xFF14B8A6)),
+        const SizedBox(width: 6),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Color(0xFF94A3B8),
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LiveStatusChip extends StatelessWidget {
+  const _LiveStatusChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
+
+class _LivePersonaCard extends StatelessWidget {
+  const _LivePersonaCard({
+    required this.name,
+    required this.badge,
+    required this.status,
+    required this.palette,
+    required this.initials,
+    this.isPrimary = false,
+    this.muted = false,
+  });
+
+  final String name;
+  final String badge;
+  final String status;
+  final List<Color> palette;
+  final String initials;
+  final bool isPrimary;
+  final bool muted;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarSize = isPrimary ? 132.0 : 96.0;
+    final nameSize = isPrimary ? 26.0 : 16.0;
+    return SizedBox(
+      width: isPrimary ? 260 : 170,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: avatarSize + 18,
+            height: avatarSize + 18,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: avatarSize + 18,
+                  height: avatarSize + 18,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: palette.first.withValues(alpha: 0.14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: palette.first.withValues(alpha: 0.22),
+                        blurRadius: 38,
+                        spreadRadius: 4,
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: avatarSize,
+                  height: avatarSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: palette,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(color: Colors.white, width: 5),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    initials,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: isPrimary ? 36 : 24,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                if (muted)
+                  Positioned(
+                    right: 12,
+                    bottom: 14,
+                    child: Container(
+                      width: isPrimary ? 34 : 28,
+                      height: isPrimary ? 34 : 28,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
+                      child: Icon(
+                        Icons.mic_off_rounded,
+                        size: isPrimary ? 18 : 16,
+                        color: const Color(0xFF0E9B90),
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0E9B90),
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x320E9B90),
+                          blurRadius: 18,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      badge.toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: nameSize,
+              fontWeight: isPrimary ? FontWeight.w300 : FontWeight.w700,
+              color: const Color(0xFF334155),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            status.toUpperCase(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 4.2,
+              color: Color(0xFF67D3D0),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveControlDock extends StatelessWidget {
+  const _LiveControlDock({
+    required this.isHost,
+    required this.isSpeaker,
+    required this.isListener,
+    required this.micEnabled,
+    required this.paused,
+    required this.requestPending,
+    required this.onToggleMic,
+    required this.onPauseResume,
+    required this.onRequestMic,
+    required this.onReact,
+    required this.onLeave,
+  });
+
+  final bool isHost;
+  final bool isSpeaker;
+  final bool isListener;
+  final bool micEnabled;
+  final bool paused;
+  final bool requestPending;
+  final VoidCallback? onToggleMic;
+  final VoidCallback? onPauseResume;
+  final VoidCallback? onRequestMic;
+  final VoidCallback onReact;
+  final VoidCallback onLeave;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <Widget>[];
+    void addDivider() {
+      if (items.isNotEmpty) {
+        items.add(
+          Container(width: 1, height: 28, color: const Color(0x140F172A)),
+        );
+      }
+    }
+
+    if (isHost || isSpeaker) {
+      addDivider();
+      items.add(
+        _LiveDockButton(
+          icon: micEnabled ? Icons.mic_rounded : Icons.mic_off_rounded,
+          onTap: onToggleMic,
+          active: micEnabled,
+          tooltip: micEnabled ? 'Mute mic' : 'Enable mic',
+        ),
+      );
+    }
+
+    if (isHost) {
+      addDivider();
+      items.add(
+        _LiveDockButton(
+          icon: paused
+              ? Icons.play_arrow_rounded
+              : Icons.pause_circle_outline_rounded,
+          onTap: onPauseResume,
+          tooltip: paused ? 'Resume live' : 'Pause live',
+        ),
+      );
+    }
+
+    if (isListener) {
+      addDivider();
+      items.add(
+        _LiveDockButton(
+          icon: requestPending
+              ? Icons.hourglass_top_rounded
+              : Icons.front_hand_outlined,
+          onTap: requestPending ? null : onRequestMic,
+          tooltip: requestPending ? 'Mic requested' : 'Request mic',
+        ),
+      );
+    }
+
+    addDivider();
+    items.add(
+      _LiveDockButton(
+        icon: Icons.favorite_border_rounded,
+        onTap: onReact,
+        tooltip: 'Send reaction',
+      ),
+    );
+
+    addDivider();
+    items.add(
+      _LiveDockButton(
+        icon: Icons.logout_rounded,
+        onTap: onLeave,
+        tooltip: 'Leave room',
+      ),
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x160F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: items),
+    );
+  }
+}
+
+class _LiveDockButton extends StatelessWidget {
+  const _LiveDockButton({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final VoidCallback? onTap;
+  final String tooltip;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: active
+                ? const Color(0x1F0E9B90)
+                : onTap == null
+                ? const Color(0xFFF1F5F9)
+                : Colors.transparent,
+          ),
+          child: Icon(
+            icon,
+            color: onTap == null
+                ? const Color(0xFFB6C3D4)
+                : const Color(0xFF58C8C4),
+            size: 28,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReactionBubble extends StatelessWidget {
+  const _ReactionBubble({required this.emoji, required this.onTap});
+
+  final String emoji;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        side: const BorderSide(color: Color(0x140EA5A0)),
+        shape: const StadiumBorder(),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        backgroundColor: Colors.white.withValues(alpha: 0.8),
+      ),
+      child: Text(emoji, style: const TextStyle(fontSize: 20)),
     );
   }
 }

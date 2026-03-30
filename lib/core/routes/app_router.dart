@@ -69,6 +69,7 @@ class AppRoute {
   static const onboardingLoading = '/onboarding-loading';
   static const counselorSetup = '/counselor-setup';
   static const counselorDashboard = '/counselor-dashboard';
+  static const counselorLiveHub = '/counselor-live-hub';
   static const counselorAvailability = '/counselor-availability';
   static const counselorAppointments = '/counselor-appointments';
   static const counselorSettings = '/counselor-settings';
@@ -347,6 +348,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isCounselorOpsRoute =
           location == AppRoute.counselorSetup ||
           location == AppRoute.counselorDashboard ||
+          location == AppRoute.counselorLiveHub ||
           location == AppRoute.counselorAvailability ||
           location == AppRoute.counselorAppointments ||
           location == AppRoute.counselorSettings;
@@ -358,7 +360,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.studentAppointments ||
           location == AppRoute.carePlan;
       final isLiveRoute =
-          location == AppRoute.liveHub || location == AppRoute.liveRoom;
+          location == AppRoute.liveHub ||
+          location == AppRoute.counselorLiveHub ||
+          location == AppRoute.liveRoom;
       final isOwnerRoute = location == AppRoute.ownerDashboard;
       final isInstitutionAdminRoute =
           location == AppRoute.institutionAdmin ||
@@ -432,6 +436,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final needsCounselorSetup = counselorRepository.requiresSetup(
             profile,
           );
+          final currentReason =
+              state.uri.queryParameters[AppRoute.setupReasonQuery];
           final institutionRequest = currentAdminInstitutionAsync.valueOrNull;
           final needsOnboarding = onboardingRepository.requiresQuestionnaire(
             profile,
@@ -465,12 +471,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             windowsSetupReason = 'counselor-access-removed';
           } else if (role == UserRole.counselor && needsCounselorSetup) {
             windowsSetupReason = 'counselor-setup';
+          } else if (isLiveRoute || (isWindowsWebSetupRoute && currentReason == 'live')) {
+            windowsSetupReason = 'live';
           }
 
           if (windowsSetupReason != null) {
             final target = windowsSetupRoute(windowsSetupReason);
-            final currentReason =
-                state.uri.queryParameters[AppRoute.setupReasonQuery];
             if (isWindowsWebSetupRoute && currentReason == windowsSetupReason) {
               return null;
             }
@@ -515,6 +521,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return needsCounselorSetup
                 ? AppRoute.counselorSetup
                 : AppRoute.counselorDashboard;
+          }
+
+          if (role == UserRole.counselor && location == AppRoute.liveHub) {
+            return Uri(
+              path: AppRoute.counselorLiveHub,
+              queryParameters: state.uri.queryParameters,
+            ).toString();
           }
 
           if (role != UserRole.institutionAdmin && isInstitutionAdminRoute) {
@@ -736,6 +749,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               : AppRoute.counselorDashboard;
         }
 
+        if (role == UserRole.counselor && location == AppRoute.liveHub) {
+          return Uri(
+            path: AppRoute.counselorLiveHub,
+            queryParameters: state.uri.queryParameters,
+          ).toString();
+        }
+
         if (role != UserRole.institutionAdmin && isInstitutionAdminRoute) {
           if (role == UserRole.counselor) {
             return needsCounselorSetup
@@ -901,6 +921,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.counselorDashboard,
         builder: (context, state) => const CounselorDashboardScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.counselorLiveHub,
+        builder: (context, state) {
+          final openCreate = state.uri.queryParameters['openCreate'] == '1';
+          return CounselorLiveHubScreen(autoOpenCreate: openCreate);
+        },
       ),
       GoRoute(
         path: AppRoute.counselorAvailability,

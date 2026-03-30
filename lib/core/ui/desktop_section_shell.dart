@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+
+bool get _isWindowsApp => !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
 class DesktopSectionBody extends StatelessWidget {
   const DesktopSectionBody({
@@ -148,11 +152,12 @@ class DesktopSectionNav extends StatelessWidget {
         icon: Icons.calendar_month_outlined,
         route: AppRoute.studentAppointments,
       ),
-      const _DesktopNavItem(
-        label: 'Live',
-        icon: Icons.podcasts_outlined,
-        route: AppRoute.liveHub,
-      ),
+      if (!_isWindowsApp)
+        const _DesktopNavItem(
+          label: 'Live',
+          icon: Icons.podcasts_outlined,
+          route: AppRoute.liveHub,
+        ),
     ];
 
     return Container(
@@ -401,11 +406,12 @@ class PrimaryMobileBottomNav extends StatelessWidget {
         icon: Icons.calendar_month_outlined,
         route: AppRoute.studentAppointments,
       ),
-      const _DesktopNavItem(
-        label: 'Live',
-        icon: Icons.podcasts_outlined,
-        route: AppRoute.liveHub,
-      ),
+      if (!_isWindowsApp)
+        const _DesktopNavItem(
+          label: 'Live',
+          icon: Icons.podcasts_outlined,
+          route: AppRoute.liveHub,
+        ),
     ];
 
     return SafeArea(

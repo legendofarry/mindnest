@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
@@ -144,6 +146,8 @@ class _CounselorDashboardScreenState
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(currentUserProfileProvider);
+    final showLive =
+        !(!kIsWeb && defaultTargetPlatform == TargetPlatform.windows);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
@@ -193,7 +197,10 @@ class _CounselorDashboardScreenState
                       .valueOrNull ??
                   const <SessionReassignmentRequest>[];
               _syncReassignmentLifecycle(reassignmentRequests, institutionId);
-              final sidebarItems = _sidebarItems(showCounselorDirectory);
+              final sidebarItems = _sidebarItems(
+                showCounselorDirectory,
+                showLive: showLive,
+              );
 
               return StreamBuilder<List<AppointmentRecord>>(
                 stream: ref
@@ -289,7 +296,7 @@ class _CounselorDashboardScreenState
                   return;
                 }
                 if (section == _CounselorWorkspaceSection.live) {
-                  context.go(AppRoute.liveHub);
+                  context.go(AppRoute.counselorLiveHub);
                   return;
                 }
                 setState(() => _activeSection = section);
@@ -408,7 +415,7 @@ class _CounselorDashboardScreenState
                       return;
                     }
                     if (item.section == _CounselorWorkspaceSection.live) {
-                      context.go(AppRoute.liveHub);
+                      context.go(AppRoute.counselorLiveHub);
                       return;
                     }
                     setState(() => _activeSection = item.section);
@@ -2930,7 +2937,7 @@ class _LiveRedirectPanel extends StatelessWidget {
     // Redirect to Live Hub once the panel becomes active.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (ModalRoute.of(context)?.isCurrent ?? true) {
-        context.go(AppRoute.liveHub);
+        context.go(AppRoute.counselorLiveHub);
       }
     });
 
@@ -2966,7 +2973,10 @@ class _LiveRedirectPanel extends StatelessWidget {
   }
 }
 
-List<_SidebarItem> _sidebarItems(bool showCounselorDirectory) {
+List<_SidebarItem> _sidebarItems(
+  bool showCounselorDirectory, {
+  required bool showLive,
+}) {
   return [
     const _SidebarItem(
       section: _CounselorWorkspaceSection.overview,
@@ -2978,11 +2988,12 @@ List<_SidebarItem> _sidebarItems(bool showCounselorDirectory) {
       label: 'Sessions',
       icon: Icons.event_note_rounded,
     ),
-    const _SidebarItem(
-      section: _CounselorWorkspaceSection.live,
-      label: 'Live',
-      icon: Icons.podcasts_rounded,
-    ),
+    if (showLive)
+      const _SidebarItem(
+        section: _CounselorWorkspaceSection.live,
+        label: 'Live',
+        icon: Icons.podcasts_rounded,
+      ),
     const _SidebarItem(
       section: _CounselorWorkspaceSection.availability,
       label: 'Availability',

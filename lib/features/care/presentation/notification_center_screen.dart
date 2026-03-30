@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/desktop_primary_shell.dart';
-import 'package:mindnest/core/ui/desktop_section_shell.dart';
+import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
@@ -23,6 +23,32 @@ class _NotificationCenterScreenState
   bool _clearingAll = false;
   final Set<String> _openingNotificationIds = <String>{};
   final Set<String> _actionNotificationIds = <String>{};
+
+  _NotificationScreenCopy _screenCopy(UserProfile? profile) {
+    switch (profile?.role) {
+      case UserRole.institutionAdmin:
+        return const _NotificationScreenCopy(
+          headerTitle: 'Notifications',
+          subtitle: 'Track institution updates and action-required alerts.',
+          heroText:
+              'Track institution invites, counselor updates, and action-required changes without losing context.',
+        );
+      case UserRole.counselor:
+        return const _NotificationScreenCopy(
+          headerTitle: 'Notifications',
+          subtitle: 'Track booking updates, reminders, and access changes.',
+          heroText:
+              'Track session changes, reminders, and action-required alerts without losing context.',
+        );
+      default:
+        return const _NotificationScreenCopy(
+          headerTitle: 'Notifications',
+          subtitle: 'Stay updated with your sessions',
+          heroText:
+              'Track session updates, invites, reminders, and action-required changes without losing context.',
+        );
+    }
+  }
 
   String _formatDate(DateTime value) {
     final local = value.toLocal();
@@ -363,6 +389,7 @@ class _NotificationCenterScreenState
     required BuildContext context,
     required String userId,
     required List<AppNotification> notifications,
+    required _NotificationScreenCopy copy,
   }) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
@@ -379,7 +406,7 @@ class _NotificationCenterScreenState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Notifications',
+                copy.headerTitle,
                 style: textTheme.headlineMedium?.copyWith(
                   color: scheme.onSurface,
                   fontWeight: FontWeight.w800,
@@ -388,9 +415,7 @@ class _NotificationCenterScreenState
               ),
               const SizedBox(height: 4),
               Text(
-                unreadCount > 0
-                    ? '$unreadCount unread updates'
-                    : 'Stay updated with your sessions',
+                unreadCount > 0 ? '$unreadCount unread updates' : copy.subtitle,
                 style: textTheme.titleMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
                   fontWeight: FontWeight.w500,
@@ -745,11 +770,13 @@ class _NotificationCenterScreenState
         (profile.role == UserRole.student ||
             profile.role == UserRole.staff ||
             profile.role == UserRole.individual);
-    final hasInstitution = (profile?.institutionId ?? '').isNotEmpty;
-    final canAccessLive =
-        profile != null &&
-        (profile.role == UserRole.student || profile.role == UserRole.staff);
-    final content = _buildNotificationWorkspace(context, userId: userId);
+    final copy = _screenCopy(profile);
+    final content = _buildNotificationWorkspace(
+      context,
+      userId: userId,
+      profile: profile,
+      copy: copy,
+    );
 
     if (isDesktop && isPrimaryUser) {
       return DesktopPrimaryShell(
@@ -768,17 +795,32 @@ class _NotificationCenterScreenState
   Widget _buildNotificationWorkspace(
     BuildContext context, {
     required String userId,
+    required UserProfile? profile,
+    required _NotificationScreenCopy copy,
   }) {
-    return SafeArea(
+    final isDesktop = MediaQuery.sizeOf(context).width >= 900;
+    final usesFloatingHeader =
+        isDesktop &&
+        profile != null &&
+        profile.role != UserRole.student &&
+        profile.role != UserRole.staff &&
+        profile.role != UserRole.individual;
+
+    final body = SafeArea(
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 860),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              usesFloatingHeader ? 92 : 10,
+              16,
+              18,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const _NotificationHeroCard(),
+                _NotificationHeroCard(copy: copy),
                 const SizedBox(height: 16),
                 Expanded(
                   child: userId.isEmpty
@@ -823,6 +865,7 @@ class _NotificationCenterScreenState
                                   context: context,
                                   userId: userId,
                                   notifications: notifications,
+                                  copy: copy,
                                 ),
                                 const SizedBox(height: 16),
                                 _segmentedControl(
@@ -900,11 +943,39 @@ class _NotificationCenterScreenState
         ),
       ),
     );
+
+    if (!usesFloatingHeader) {
+      return body;
+    }
+
+    return Stack(
+      children: [
+        body,
+        SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+            child: _NotificationsFloatingHeader(
+              profile: profile,
+              onLeadingAction: () {
+                if (profile.role == UserRole.institutionAdmin) {
+                  context.go(AppRoute.institutionAdmin);
+                  return;
+                }
+                context.go(AppRoute.counselorDashboard);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
 class _NotificationHeroCard extends StatelessWidget {
-  const _NotificationHeroCard();
+  const _NotificationHeroCard({required this.copy});
+
+  final _NotificationScreenCopy copy;
 
   @override
   Widget build(BuildContext context) {
@@ -954,8 +1025,8 @@ class _NotificationHeroCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Track session updates, invites, reminders, and action-required changes without losing context.',
+          Text(
+            copy.heroText,
             style: TextStyle(
               color: Colors.white,
               fontSize: 22,
@@ -968,6 +1039,130 @@ class _NotificationHeroCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _NotificationsFloatingHeader extends StatelessWidget {
+  const _NotificationsFloatingHeader({
+    required this.profile,
+    required this.onLeadingAction,
+  });
+
+  final UserProfile profile;
+  final VoidCallback onLeadingAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final isAdmin = profile.role == UserRole.institutionAdmin;
+    return Row(
+      children: [
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _NotificationsHeaderActionButton(
+              tooltip: isAdmin
+                  ? 'Institution home'
+                  : 'Back to counselor workspace',
+              icon: isAdmin ? Icons.home_rounded : Icons.arrow_back_rounded,
+              onPressed: onLeadingAction,
+            ),
+            const _NotificationsHeaderTitleChip(title: 'Notifications'),
+          ],
+        ),
+        const Spacer(),
+        const WindowsDesktopWindowControls(),
+      ],
+    );
+  }
+}
+
+class _NotificationsHeaderTitleChip extends StatelessWidget {
+  const _NotificationsHeaderTitleChip({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFD8E2EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x140F172A),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 16,
+          letterSpacing: -0.2,
+          color: Color(0xFF081A30),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationsHeaderActionButton extends StatelessWidget {
+  const _NotificationsHeaderActionButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onPressed,
+          child: Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFD8E2EE)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x140F172A),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: const Color(0xFF1D3557), size: 28),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationScreenCopy {
+  const _NotificationScreenCopy({
+    required this.headerTitle,
+    required this.subtitle,
+    required this.heroText,
+  });
+
+  final String headerTitle;
+  final String subtitle;
+  final String heroText;
 }
 
 enum _NotificationContextAction {

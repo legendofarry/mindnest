@@ -107,7 +107,11 @@ class _StudentAppointmentsScreenState
           showMessage('Your role cannot access Live Hub.');
           return;
         }
-        context.go(AppRoute.liveHub);
+        context.go(
+          profile.role == UserRole.counselor
+              ? AppRoute.counselorLiveHub
+              : AppRoute.liveHub,
+        );
         return;
       case AssistantActionType.goLiveCreate:
         if (!hasInstitution) {
@@ -118,7 +122,10 @@ class _StudentAppointmentsScreenState
           showMessage('Your role cannot create live sessions.');
           return;
         }
-        context.go('${AppRoute.liveHub}?openCreate=1&source=ai');
+        final liveRoute = profile.role == UserRole.counselor
+            ? AppRoute.counselorLiveHub
+            : AppRoute.liveHub;
+        context.go('$liveRoute?openCreate=1&source=ai');
         return;
       case AssistantActionType.openCounselors:
         if (!hasInstitution) {

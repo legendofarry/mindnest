@@ -36,6 +36,7 @@ import 'package:url_launcher/url_launcher.dart';
 const _teal = Color(0xFF0D9488);
 const _slate = Color(0xFF1E293B);
 const _muted = Color(0xFF64748B);
+bool get _isWindowsApp => !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
 final _homeProfileAutoOpenTokenProvider = StateProvider<String?>((_) => null);
 final _joinCodeInlineExpandedProvider = StateProvider.autoDispose<bool>(
@@ -1158,6 +1159,10 @@ class HomeScreen extends ConsumerWidget {
 
     switch (action.type) {
       case AssistantActionType.openLiveHub:
+        if (_isWindowsApp) {
+          showMessage('Live is on the web for now.');
+          return;
+        }
         if (!hasInstitution) {
           showMessage('Join an organization to access Live Hub.');
           return;
@@ -1169,6 +1174,10 @@ class HomeScreen extends ConsumerWidget {
         context.go(AppRoute.liveHub);
         return;
       case AssistantActionType.goLiveCreate:
+        if (_isWindowsApp) {
+          showMessage('Live is on the web for now.');
+          return;
+        }
         if (!hasInstitution) {
           showMessage('Join an organization before creating a live session.');
           return;
@@ -1258,7 +1267,9 @@ class HomeScreen extends ConsumerWidget {
         : 0;
     final hasInstitution = (loadedProfile?.institutionId ?? '').isNotEmpty;
     final canAccessLive =
-        loadedProfile != null && _canAccessLive(loadedProfile);
+        loadedProfile != null &&
+        _canAccessLive(loadedProfile) &&
+        !_isWindowsApp;
 
     final shouldAutoOpenProfile =
         uri.queryParameters[_openProfileQueryKey] == '1';
@@ -1324,7 +1335,7 @@ class HomeScreen extends ConsumerWidget {
           }
 
           final hasInstitution = (profile.institutionId ?? '').isNotEmpty;
-          final canAccessLive = _canAccessLive(profile);
+          final canAccessLive = _canAccessLive(profile) && !_isWindowsApp;
 
           if (kDebugMode) {
             final blockers = <String>[
@@ -1372,6 +1383,7 @@ class HomeScreen extends ConsumerWidget {
                                 institutionName: institutionLabel,
                                 hasInstitution: hasInstitution,
                                 canAccessLive: canAccessLive,
+                                showLive: !_isWindowsApp,
                                 isDark: isDark,
                               ),
                             ),
@@ -1393,6 +1405,7 @@ class HomeScreen extends ConsumerWidget {
                           institutionName: institutionLabel,
                           hasInstitution: hasInstitution,
                           canAccessLive: canAccessLive,
+                          showLive: !_isWindowsApp,
                           isDark: isDark,
                         ),
                       if (showJoinInstitutionNudge) ...[
@@ -1516,7 +1529,8 @@ class HomeScreen extends ConsumerWidget {
 
                   final hasInstitution =
                       (profile.institutionId ?? '').isNotEmpty;
-                  final canAccessLive = _canAccessLive(profile);
+                  final canAccessLive =
+                      _canAccessLive(profile) && !_isWindowsApp;
 
                   if (kDebugMode) {
                     final blockers = <String>[
@@ -1564,6 +1578,13 @@ class HomeScreen extends ConsumerWidget {
                   }
 
                   void goLive() {
+                    if (_isWindowsApp) {
+                      _showTopErrorBanner(
+                        context,
+                        'Live is on the web for now.',
+                      );
+                      return;
+                    }
                     if (!canAccessLive) {
                       _showTopErrorBanner(
                         context,
@@ -1592,6 +1613,7 @@ class HomeScreen extends ConsumerWidget {
                                       institutionName: institutionLabel,
                                       hasInstitution: hasInstitution,
                                       canAccessLive: canAccessLive,
+                                      showLive: !_isWindowsApp,
                                       isDark: isDark,
                                     ),
                                   ),
@@ -1629,6 +1651,7 @@ class HomeScreen extends ConsumerWidget {
                                   flex: 2,
                                   child: _QuickActionsCard(
                                     isDark: isDark,
+                                    showLive: !_isWindowsApp,
                                     onBookSession: goAppointments,
                                     onOpenCounselors: goCounselors,
                                     onOpenLive: goLive,
@@ -1668,6 +1691,7 @@ class HomeScreen extends ConsumerWidget {
                               institutionName: institutionLabel,
                               hasInstitution: hasInstitution,
                               canAccessLive: canAccessLive,
+                              showLive: !_isWindowsApp,
                               isDark: isDark,
                             ),
                             if (showJoinInstitutionNudge) ...[
@@ -1688,6 +1712,7 @@ class HomeScreen extends ConsumerWidget {
                             const SizedBox(height: 14),
                             _QuickActionsCard(
                               isDark: isDark,
+                              showLive: !_isWindowsApp,
                               onBookSession: goAppointments,
                               onOpenCounselors: goCounselors,
                               onOpenLive: goLive,
@@ -1901,6 +1926,7 @@ class _HeroCarousel extends ConsumerStatefulWidget {
     required this.institutionName,
     required this.hasInstitution,
     required this.canAccessLive,
+    required this.showLive,
     required this.isDark,
   });
 
@@ -1910,6 +1936,7 @@ class _HeroCarousel extends ConsumerStatefulWidget {
   final String institutionName;
   final bool hasInstitution;
   final bool canAccessLive;
+  final bool showLive;
   final bool isDark;
 
   @override
@@ -1917,10 +1944,9 @@ class _HeroCarousel extends ConsumerStatefulWidget {
 }
 
 class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
-  static const int _cardCount = 4;
   static const Duration _autoSlideDelay = Duration(seconds: 4);
   late final PageController _pageController = PageController(
-    initialPage: 1000 * _cardCount,
+    initialPage: 1000 * (widget.showLive ? 4 : 3),
   );
   Timer? _autoSlideTimer;
   Timer? _resumeTimer;
@@ -1969,6 +1995,7 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    final cardCount = widget.showLive ? 4 : 3;
     return SizedBox(
       height: 230,
       child: GestureDetector(
@@ -1978,7 +2005,7 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
         child: PageView.builder(
           controller: _pageController,
           itemBuilder: (context, index) {
-            final cardIndex = index % _cardCount;
+            final cardIndex = index % cardCount;
             switch (cardIndex) {
               case 0:
                 return _WelcomeHero(
@@ -4155,12 +4182,14 @@ class _NotificationsSummaryBar extends StatelessWidget {
 class _QuickActionsCard extends StatelessWidget {
   const _QuickActionsCard({
     required this.isDark,
+    required this.showLive,
     required this.onBookSession,
     required this.onOpenCounselors,
     required this.onOpenLive,
   });
 
   final bool isDark;
+  final bool showLive;
   final VoidCallback onBookSession;
   final VoidCallback onOpenCounselors;
   final VoidCallback onOpenLive;
@@ -4182,11 +4211,12 @@ class _QuickActionsCard extends StatelessWidget {
         icon: Icons.groups_rounded,
         onTap: onOpenCounselors,
       ),
-      _ActionItem(
-        label: 'Join live',
-        icon: Icons.podcasts_rounded,
-        onTap: onOpenLive,
-      ),
+      if (showLive)
+        _ActionItem(
+          label: 'Join live',
+          icon: Icons.podcasts_rounded,
+          onTap: onOpenLive,
+        ),
       _ActionItem(
         label: 'Messages',
         icon: Icons.chat_bubble_outline_rounded,

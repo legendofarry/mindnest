@@ -211,7 +211,11 @@ class _CounselorDirectoryScreenState
           showMessage('Your role cannot access Live Hub.');
           return;
         }
-        context.go(AppRoute.liveHub);
+        context.go(
+          profile.role == UserRole.counselor
+              ? AppRoute.counselorLiveHub
+              : AppRoute.liveHub,
+        );
         return;
       case AssistantActionType.goLiveCreate:
         if (!hasInstitution) {
@@ -222,7 +226,10 @@ class _CounselorDirectoryScreenState
           showMessage('Your role cannot create live sessions.');
           return;
         }
-        context.go('${AppRoute.liveHub}?openCreate=1&source=ai');
+        final liveRoute = profile.role == UserRole.counselor
+            ? AppRoute.counselorLiveHub
+            : AppRoute.liveHub;
+        context.go('$liveRoute?openCreate=1&source=ai');
         return;
       case AssistantActionType.openCounselors:
         if (!hasInstitution) {
@@ -562,6 +569,8 @@ class _CounselorDirectoryScreenState
                   context.go(AppRoute.counselorDashboard);
                 case CounselorWorkspaceNavSection.sessions:
                   context.go(AppRoute.counselorAppointments);
+                case CounselorWorkspaceNavSection.live:
+                  context.go(AppRoute.counselorLiveHub);
                 case CounselorWorkspaceNavSection.availability:
                   context.go(AppRoute.counselorAvailability);
                 case CounselorWorkspaceNavSection.counselors:
@@ -633,6 +642,8 @@ class _CounselorDirectoryScreenState
                 context.go(AppRoute.counselorDashboard);
               case CounselorWorkspaceNavSection.sessions:
                 context.go(AppRoute.counselorAppointments);
+              case CounselorWorkspaceNavSection.live:
+                context.go(AppRoute.counselorLiveHub);
               case CounselorWorkspaceNavSection.availability:
                 context.go(AppRoute.counselorAvailability);
               case CounselorWorkspaceNavSection.counselors:
@@ -658,6 +669,8 @@ class _CounselorDirectoryScreenState
                 context.go(AppRoute.counselorDashboard);
               case CounselorWorkspaceNavSection.sessions:
                 context.go(AppRoute.counselorAppointments);
+              case CounselorWorkspaceNavSection.live:
+                context.go(AppRoute.counselorLiveHub);
               case CounselorWorkspaceNavSection.availability:
                 context.go(AppRoute.counselorAvailability);
               case CounselorWorkspaceNavSection.counselors:
