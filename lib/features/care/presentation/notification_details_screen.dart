@@ -70,9 +70,16 @@ Stream<T> _buildWindowsPollingStream<T>({
 }
 
 class NotificationDetailsScreen extends ConsumerWidget {
-  const NotificationDetailsScreen({super.key, required this.notificationId});
+  const NotificationDetailsScreen({
+    super.key,
+    required this.notificationId,
+    this.embedded = false,
+    this.showBackToNotifications = true,
+  });
 
   final String notificationId;
+  final bool embedded;
+  final bool showBackToNotifications;
 
   String _formatDate(DateTime value) {
     final local = value.toLocal();
@@ -221,11 +228,44 @@ class NotificationDetailsScreen extends ConsumerWidget {
     return 'All Sessions';
   }
 
+  String _inviteAcceptRoute(String inviteId) {
+    return Uri(
+      path: AppRoute.inviteAccept,
+      queryParameters: <String, String>{'inviteId': inviteId},
+    ).toString();
+  }
+
   List<_NotificationAction> _buildActions({
+    required AppNotification notification,
     required UserRole role,
     required AppointmentRecord? appointment,
   }) {
     final actions = <_NotificationAction>[];
+    final normalizedType = notification.type.toLowerCase();
+    final rawRoute = (notification.route ?? '').trim();
+    final relatedId = (notification.relatedId ?? '').trim();
+
+    if (normalizedType == 'institution_invite' && relatedId.isNotEmpty) {
+      actions.add(
+        _NotificationAction(
+          label: 'Review invite',
+          route: _inviteAcceptRoute(relatedId),
+          icon: Icons.mark_email_unread_rounded,
+          primary: true,
+        ),
+      );
+    } else if (rawRoute.isNotEmpty &&
+        rawRoute != AppRoute.notifications &&
+        rawRoute != AppRoute.notificationDetails) {
+      actions.add(
+        _NotificationAction(
+          label: 'Open related item',
+          route: rawRoute,
+          icon: Icons.open_in_new_rounded,
+          primary: true,
+        ),
+      );
+    }
 
     if (appointment != null &&
         appointment.counselorId.trim().isNotEmpty &&
@@ -420,7 +460,11 @@ class NotificationDetailsScreen extends ConsumerWidget {
     final textTheme = theme.textTheme;
     final accent = _typeAccent(scheme, notification.type);
     final icon = _typeIcon(notification.type);
-    final actions = _buildActions(role: role, appointment: appointment);
+    final actions = _buildActions(
+      notification: notification,
+      role: role,
+      appointment: appointment,
+    );
 
     return Container(
       width: double.infinity,
@@ -718,6 +762,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
     required AppointmentRecord? appointment,
     required UserRole role,
     required UserProfile profile,
+    required bool showBackAction,
   }) {
     final isAdminMessage =
         notification.type.toLowerCase().trim() == 'admin_message';
@@ -731,20 +776,25 @@ class NotificationDetailsScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
-            onPressed: () => context.go(AppRoute.notifications),
-            icon: const Icon(Icons.arrow_back_rounded, size: 18),
-            label: const Text('Back to notifications'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF0C2233),
-              side: const BorderSide(color: Color(0xFFD7E0EA)),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        if (showBackAction) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => context.go(AppRoute.notifications),
+              icon: const Icon(Icons.arrow_back_rounded, size: 18),
+              label: const Text('Back to notifications'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF0C2233),
+                side: const BorderSide(color: Color(0xFFD7E0EA)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
+          const SizedBox(height: 16),
+        ],
         _buildCounselorHero(
           context: context,
           notification: notification,
@@ -802,6 +852,11 @@ class NotificationDetailsScreen extends ConsumerWidget {
           child: const _CounselorDetailStateCard(
             message: 'Invalid notification.',
           ),
+        );
+      }
+      if (embedded) {
+        return const _CounselorDetailStateCard(
+          message: 'Invalid notification.',
         );
       }
       return Scaffold(
@@ -891,6 +946,7 @@ class NotificationDetailsScreen extends ConsumerWidget {
               appointment: appointment,
               role: role,
               profile: profile,
+              showBackAction: showBackToNotifications,
             );
           }
           return _buildDetails(
@@ -939,6 +995,10 @@ class NotificationDetailsScreen extends ConsumerWidget {
         );
       },
     );
+
+    if (embedded) {
+      return detailStream;
+    }
 
     if (isCounselorWorkspace) {
       final unreadCount =

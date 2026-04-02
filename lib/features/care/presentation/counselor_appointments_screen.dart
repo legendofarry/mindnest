@@ -15,7 +15,12 @@ import 'package:mindnest/features/institutions/models/counselor_workflow_setting
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class CounselorAppointmentsScreen extends ConsumerWidget {
-  const CounselorAppointmentsScreen({super.key});
+  const CounselorAppointmentsScreen({
+    super.key,
+    this.embeddedInCounselorShell = false,
+  });
+
+  final bool embeddedInCounselorShell;
 
   String _formatDate(DateTime value) {
     final local = value.toLocal();
@@ -224,8 +229,8 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
   }) {
     final sorted = [...appointments]
       ..sort((a, b) => a.startAt.compareTo(b.startAt));
-    final now = DateTime.now().toUtc();
-    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayNow = DateTime.now().toUtc();
+    final todayStart = DateTime(todayNow.year, todayNow.month, todayNow.day);
     final todayEnd = todayStart.add(const Duration(days: 1));
     final pending = sorted
         .where((entry) => entry.status == AppointmentStatus.pending)
@@ -243,70 +248,10 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
               entry.startAt.isBefore(todayEnd),
         )
         .length;
-    final nextLive = sorted.cast<AppointmentRecord?>().firstWhere(
-      (entry) => entry != null && entry.startAt.isAfter(now),
-      orElse: () => null,
-    );
 
-    return Column(
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _AppointmentsHero(
-          nextLive: nextLive,
-          total: sorted.length,
-          onOpenNotifications: () => context.go(AppRoute.notifications),
-          onOpenDirectory: workflowSettings.directoryEnabled
-              ? () => context.go(AppRoute.counselorDirectory)
-              : null,
-        ),
-        const SizedBox(height: 20),
-        _ReassignmentBoardModule(
-          profile: profile,
-          workflowSettings: workflowSettings,
-          onOpenSession: (appointmentId) {
-            context.go(
-              Uri(
-                path: AppRoute.sessionDetails,
-                queryParameters: <String, String>{
-                  'appointmentId': appointmentId,
-                },
-              ).toString(),
-            );
-          },
-          onOpenDirectory: () => context.go(AppRoute.counselorDirectory),
-        ),
-        const SizedBox(height: 20),
-        Wrap(
-          spacing: 16,
-          runSpacing: 16,
-          children: [
-            _SessionStatCard(
-              label: 'Today',
-              value: '$todayCount',
-              hint: 'scheduled sessions',
-              accent: const Color(0xFF0E9B90),
-            ),
-            _SessionStatCard(
-              label: 'Pending',
-              value: '$pending',
-              hint: 'waiting response',
-              accent: const Color(0xFFF59E0B),
-            ),
-            _SessionStatCard(
-              label: 'Confirmed',
-              value: '$confirmed',
-              hint: 'currently live',
-              accent: const Color(0xFF2563EB),
-            ),
-            _SessionStatCard(
-              label: 'Completed',
-              value: '$completed',
-              hint: 'recorded',
-              accent: const Color(0xFF7C3AED),
-            ),
-          ].map((card) => SizedBox(width: 190, child: card)).toList(),
-        ),
-        const SizedBox(height: 20),
         Container(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.92),
@@ -348,8 +293,10 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
                                 ),
                           ),
                           const SizedBox(height: 6),
-                          const Text(
-                            'Review pending requests, close completed sessions, and handle cancellations or no-shows from a stable workflow surface.',
+                          Text(
+                            sorted.isEmpty
+                                ? 'New booking requests and active appointments will appear here as soon as students create them.'
+                                : 'Approve pending requests, manage live sessions, and close completed work directly from this screen.',
                             style: TextStyle(
                               color: Color(0xFF6A7C93),
                               height: 1.45,
@@ -444,7 +391,69 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
             ),
           ),
         ),
+        const SizedBox(height: 20),
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            _SessionStatCard(
+              label: 'Today',
+              value: '$todayCount',
+              hint: 'scheduled sessions',
+              accent: const Color(0xFF0E9B90),
+            ),
+            _SessionStatCard(
+              label: 'Pending',
+              value: '$pending',
+              hint: 'waiting response',
+              accent: const Color(0xFFF59E0B),
+            ),
+            _SessionStatCard(
+              label: 'Confirmed',
+              value: '$confirmed',
+              hint: 'currently live',
+              accent: const Color(0xFF2563EB),
+            ),
+            _SessionStatCard(
+              label: 'Completed',
+              value: '$completed',
+              hint: 'recorded',
+              accent: const Color(0xFF7C3AED),
+            ),
+          ].map((card) => SizedBox(width: 190, child: card)).toList(),
+        ),
+        const SizedBox(height: 20),
+        _ReassignmentBoardModule(
+          profile: profile,
+          workflowSettings: workflowSettings,
+          onOpenSession: (appointmentId) {
+            context.go(
+              Uri(
+                path: AppRoute.sessionDetails,
+                queryParameters: <String, String>{
+                  'appointmentId': appointmentId,
+                },
+              ).toString(),
+            );
+          },
+          onOpenDirectory: () => context.go(AppRoute.counselorDirectory),
+        ),
       ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.hasBoundedHeight) {
+          return content;
+        }
+        return SingleChildScrollView(
+          primary: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: content,
+          ),
+        );
+      },
     );
   }
 
@@ -461,8 +470,6 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
       );
     }
 
-    final unreadCount =
-        ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
     final workflowSettings =
         ref
             .watch(
@@ -470,6 +477,35 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
             )
             .valueOrNull ??
         const CounselorWorkflowSettings.disabled();
+
+    final appointmentsBody = StreamBuilder<List<AppointmentRecord>>(
+      stream: ref
+          .read(careRepositoryProvider)
+          .watchCounselorAppointments(
+            institutionId: profile.institutionId ?? '',
+            counselorId: profile.id,
+          ),
+      builder: (context, snapshot) {
+        final appointments = snapshot.data ?? const <AppointmentRecord>[];
+        return _buildBody(
+          context,
+          ref,
+          profile: profile,
+          workflowSettings: workflowSettings,
+          appointments: appointments,
+          loading:
+              snapshot.connectionState == ConnectionState.waiting &&
+              appointments.isEmpty,
+        );
+      },
+    );
+
+    if (embeddedInCounselorShell) {
+      return appointmentsBody;
+    }
+
+    final unreadCount =
+        ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
 
     return CounselorWorkspaceScaffold(
       profile: profile,
@@ -483,178 +519,7 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
       onNotifications: () => context.go(AppRoute.notifications),
       onProfile: () => context.go(AppRoute.counselorSettings),
       onLogout: () => confirmAndLogout(context: context, ref: ref),
-      child: StreamBuilder<List<AppointmentRecord>>(
-        stream: ref
-            .read(careRepositoryProvider)
-            .watchCounselorAppointments(
-              institutionId: profile.institutionId ?? '',
-              counselorId: profile.id,
-            ),
-        builder: (context, snapshot) {
-          final appointments = snapshot.data ?? const <AppointmentRecord>[];
-          return _buildBody(
-            context,
-            ref,
-            profile: profile,
-            workflowSettings: workflowSettings,
-            appointments: appointments,
-            loading:
-                snapshot.connectionState == ConnectionState.waiting &&
-                appointments.isEmpty,
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _AppointmentsHero extends StatelessWidget {
-  const _AppointmentsHero({
-    required this.nextLive,
-    required this.total,
-    required this.onOpenNotifications,
-    required this.onOpenDirectory,
-  });
-
-  final AppointmentRecord? nextLive;
-  final int total;
-  final VoidCallback onOpenNotifications;
-  final VoidCallback? onOpenDirectory;
-
-  String _formatHeadline(DateTime value) {
-    final local = value.toLocal();
-    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final suffix = local.hour >= 12 ? 'PM' : 'AM';
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return '${days[local.weekday - 1]} ${local.day} at $hour:${local.minute.toString().padLeft(2, '0')} $suffix';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0D1B2A), Color(0xFF173D63), Color(0xFF1AA9A1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final stacked = constraints.maxWidth < 820;
-          final intro = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _ModuleEyebrow(
-                label: 'COUNSELOR APPOINTMENTS',
-                color: Color(0xFFFDE68A),
-                background: Color(0x24FFFFFF),
-                border: Color(0x44FFFFFF),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                nextLive == null
-                    ? 'No live session is queued right now.'
-                    : 'Next session is ${_formatHeadline(nextLive!.startAt)}.',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 38,
-                  height: 1.04,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1.8,
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'This screen keeps the active counseling queue visible while preserving fast status actions for each session.',
-                style: TextStyle(
-                  color: Color(0xFFD7E5F0),
-                  fontSize: 15.5,
-                  height: 1.5,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: onOpenNotifications,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF0C2233),
-                ),
-                icon: const Icon(Icons.notifications_active_outlined),
-                label: const Text('Open Notifications'),
-              ),
-              if (onOpenDirectory != null) ...[
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: onOpenDirectory,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0x48FFFFFF)),
-                  ),
-                  icon: const Icon(Icons.groups_2_outlined),
-                  label: const Text('Counselor Directory'),
-                ),
-              ],
-            ],
-          );
-
-          final sideCard = Container(
-            width: stacked ? double.infinity : 270,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0x33FFFFFF),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: const Color(0x55FFFFFF)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Queue pulse',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _MiniSignal(
-                  label: 'Sessions visible',
-                  value: '$total',
-                  tone: const Color(0xFFFDE68A),
-                ),
-                const SizedBox(height: 10),
-                _MiniSignal(
-                  label: 'Next live status',
-                  value: nextLive == null ? 'idle' : 'queued',
-                  tone: nextLive == null
-                      ? const Color(0xFF94A3B8)
-                      : const Color(0xFF10B981),
-                ),
-              ],
-            ),
-          );
-
-          if (stacked) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [intro, const SizedBox(height: 18), sideCard],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: intro),
-              const SizedBox(width: 18),
-              sideCard,
-            ],
-          );
-        },
-      ),
+      child: appointmentsBody,
     );
   }
 }
@@ -1300,55 +1165,6 @@ class _ModuleEyebrow extends StatelessWidget {
           fontWeight: FontWeight.w800,
           letterSpacing: 1.3,
         ),
-      ),
-    );
-  }
-}
-
-class _MiniSignal extends StatelessWidget {
-  const _MiniSignal({
-    required this.label,
-    required this.value,
-    required this.tone,
-  });
-
-  final String label;
-  final String value;
-  final Color tone;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0x1FFFFFFF),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Color(0xFFD6E4EE),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
       ),
     );
   }

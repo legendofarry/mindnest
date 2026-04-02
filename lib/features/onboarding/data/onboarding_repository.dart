@@ -34,8 +34,10 @@ class OnboardingRepository {
     if (!OnboardingQuestionBank.roleRequiresQuestionnaire(profile.role)) {
       return false;
     }
-    final completedVersion =
-        profile.onboardingCompletedRoles[profile.role.name] ?? 0;
+    final completedVersion = _completedVersionForRole(
+      role: profile.role,
+      completedRoles: profile.onboardingCompletedRoles,
+    );
     return completedVersion < OnboardingQuestionBank.version;
   }
 
@@ -73,7 +75,10 @@ class OnboardingRepository {
         (existingUser['onboardingCompletedRoles'] as Map?) ??
             const <String, dynamic>{},
       );
-      completedRoles[role.name] = OnboardingQuestionBank.version;
+      for (final completedRole
+          in OnboardingQuestionBank.completionEquivalentRoles(role)) {
+        completedRoles[completedRole.name] = OnboardingQuestionBank.version;
+      }
       final existingAiPreferences = Map<String, dynamic>.from(
         (existingUser['aiAssistantPreferences'] as Map?) ??
             const <String, dynamic>{},
@@ -103,6 +108,13 @@ class OnboardingRepository {
       return;
     }
 
+    final completedRoleUpdates = <String, Object?>{
+      for (final completedRole
+          in OnboardingQuestionBank.completionEquivalentRoles(role))
+        'onboardingCompletedRoles.${completedRole.name}':
+            OnboardingQuestionBank.version,
+    };
+
     batch
         .set(_firestore.collection('onboarding_responses').doc(responseDocId), {
           'userId': user.uid,
@@ -112,7 +124,7 @@ class OnboardingRepository {
           'submittedAt': FieldValue.serverTimestamp(),
         });
     batch.update(_firestore.collection('users').doc(user.uid), {
-      'onboardingCompletedRoles.${role.name}': OnboardingQuestionBank.version,
+      ...completedRoleUpdates,
       'onboardingLastCompletedRole': role.name,
       'onboardingUpdatedAt': FieldValue.serverTimestamp(),
       'aiAssistantPreferences': {
@@ -125,5 +137,20 @@ class OnboardingRepository {
     });
 
     await batch.commit();
+  }
+
+  int _completedVersionForRole({
+    required UserRole role,
+    required Map<String, int> completedRoles,
+  }) {
+    var completedVersion = 0;
+    for (final completedRole
+        in OnboardingQuestionBank.completionEquivalentRoles(role)) {
+      final roleVersion = completedRoles[completedRole.name] ?? 0;
+      if (roleVersion > completedVersion) {
+        completedVersion = roleVersion;
+      }
+    }
+    return completedVersion;
   }
 }

@@ -3,11 +3,21 @@ import 'package:mindnest/features/onboarding/models/onboarding_question.dart';
 
 class OnboardingQuestionBank {
   static const int version = 4;
+  static const List<UserRole> _sharedQuestionnaireRoles = <UserRole>[
+    UserRole.individual,
+    UserRole.student,
+    UserRole.staff,
+  ];
 
   static bool roleRequiresQuestionnaire(UserRole role) {
-    return role == UserRole.individual ||
-        role == UserRole.student ||
-        role == UserRole.staff;
+    return _sharedQuestionnaireRoles.contains(role);
+  }
+
+  static List<UserRole> completionEquivalentRoles(UserRole role) {
+    if (!roleRequiresQuestionnaire(role)) {
+      return const <UserRole>[];
+    }
+    return _sharedQuestionnaireRoles;
   }
 
   static List<OnboardingQuestion> forRole(

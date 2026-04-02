@@ -18,7 +18,12 @@ import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 
 class CounselorDashboardScreen extends ConsumerStatefulWidget {
-  const CounselorDashboardScreen({super.key});
+  const CounselorDashboardScreen({
+    super.key,
+    this.embeddedInCounselorShell = false,
+  });
+
+  final bool embeddedInCounselorShell;
 
   @override
   ConsumerState<CounselorDashboardScreen> createState() =>
@@ -108,12 +113,11 @@ class _CounselorDashboardScreenState
         isError: true,
       );
     } finally {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        setState(() {
+          _homePendingRequestIds.remove(request.id);
+        });
       }
-      setState(() {
-        _homePendingRequestIds.remove(request.id);
-      });
     }
   }
 
@@ -149,123 +153,148 @@ class _CounselorDashboardScreenState
     final showLive =
         !(!kIsWeb && defaultTargetPlatform == TargetPlatform.windows);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
-      body: _DashboardBackdrop(
-        child: SafeArea(
-          child: profileAsync.when(
-            data: (profile) {
-              if (profile == null) {
-                return const Center(
-                  child: _StateCard(message: 'Profile not found.'),
-                );
-              }
-              if (profile.role != UserRole.counselor) {
-                return const Center(
-                  child: _StateCard(
-                    message: 'This workspace is available only for counselors.',
+    final dashboardContent = profileAsync.when(
+      data: (profile) {
+        if (profile == null) {
+          return const Center(child: _StateCard(message: 'Profile not found.'));
+        }
+        if (profile.role != UserRole.counselor) {
+          return const Center(
+            child: _StateCard(
+              message: 'This workspace is available only for counselors.',
+            ),
+          );
+        }
+
+        final institutionId = (profile.institutionId ?? '').trim();
+        if (institutionId.isEmpty) {
+          return const Center(
+            child: _StateCard(
+              message: 'Your counselor profile is missing an institution link.',
+            ),
+          );
+        }
+
+        final unreadCount =
+            ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
+        final workflowSettings =
+            ref
+                .watch(counselorWorkflowSettingsProvider(institutionId))
+                .valueOrNull ??
+            const CounselorWorkflowSettings.disabled();
+        final showCounselorDirectory = workflowSettings.directoryEnabled;
+        final reassignmentRequests =
+            ref
+                .watch(institutionReassignmentBoardProvider(institutionId))
+                .valueOrNull ??
+            const <SessionReassignmentRequest>[];
+        _syncReassignmentLifecycle(reassignmentRequests, institutionId);
+        final sidebarItems = _sidebarItems(
+          showCounselorDirectory,
+          showLive: showLive,
+        );
+
+        return StreamBuilder<List<AppointmentRecord>>(
+          stream: ref
+              .read(careRepositoryProvider)
+              .watchCounselorAppointments(
+                institutionId: institutionId,
+                counselorId: profile.id,
+              ),
+          builder: (context, appointmentsSnapshot) {
+            final appointments = appointmentsSnapshot.data ?? const [];
+
+            return StreamBuilder<List<AvailabilitySlot>>(
+              stream: ref
+                  .read(careRepositoryProvider)
+                  .watchCounselorSlots(
+                    institutionId: institutionId,
+                    counselorId: profile.id,
                   ),
+              builder: (context, slotsSnapshot) {
+                final slots = slotsSnapshot.data ?? const [];
+                final summary = _WorkspaceSummary.build(
+                  profile: profile,
+                  appointments: appointments,
+                  slots: slots,
+                  unreadNotifications: unreadCount,
                 );
-              }
 
-              final institutionId = (profile.institutionId ?? '').trim();
-              if (institutionId.isEmpty) {
-                return const Center(
-                  child: _StateCard(
-                    message:
-                        'Your counselor profile is missing an institution link.',
-                  ),
-                );
-              }
-
-              final unreadCount =
-                  ref
-                      .watch(unreadNotificationCountProvider(profile.id))
-                      .value ??
-                  0;
-              final workflowSettings =
-                  ref
-                      .watch(counselorWorkflowSettingsProvider(institutionId))
-                      .valueOrNull ??
-                  const CounselorWorkflowSettings.disabled();
-              final showCounselorDirectory = workflowSettings.directoryEnabled;
-              final reassignmentRequests =
-                  ref
-                      .watch(
-                        institutionReassignmentBoardProvider(institutionId),
-                      )
-                      .valueOrNull ??
-                  const <SessionReassignmentRequest>[];
-              _syncReassignmentLifecycle(reassignmentRequests, institutionId);
-              final sidebarItems = _sidebarItems(
-                showCounselorDirectory,
-                showLive: showLive,
-              );
-
-              return StreamBuilder<List<AppointmentRecord>>(
-                stream: ref
-                    .read(careRepositoryProvider)
-                    .watchCounselorAppointments(
-                      institutionId: institutionId,
-                      counselorId: profile.id,
-                    ),
-                builder: (context, appointmentsSnapshot) {
-                  final appointments = appointmentsSnapshot.data ?? const [];
-
-                  return StreamBuilder<List<AvailabilitySlot>>(
-                    stream: ref
-                        .read(careRepositoryProvider)
-                        .watchCounselorSlots(
-                          institutionId: institutionId,
-                          counselorId: profile.id,
-                        ),
-                    builder: (context, slotsSnapshot) {
-                      final slots = slotsSnapshot.data ?? const [];
-                      final summary = _WorkspaceSummary.build(
+                if (widget.embeddedInCounselorShell) {
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isDesktop = constraints.maxWidth >= 1120;
+                      final overviewContent = _buildOverviewSection(
                         profile: profile,
-                        appointments: appointments,
-                        slots: slots,
-                        unreadNotifications: unreadCount,
+                        summary: summary,
+                        workflowSettings: workflowSettings,
+                        reassignmentRequests: reassignmentRequests,
+                        isDesktop: isDesktop,
+                        onOpenAppointments: () =>
+                            context.go(AppRoute.counselorAppointments),
+                        onOpenAvailability: () =>
+                            context.go(AppRoute.counselorAvailability),
                       );
-
-                      return LayoutBuilder(
-                        builder: (context, constraints) {
-                          final isDesktop = constraints.maxWidth >= 1120;
-                          final isTablet = constraints.maxWidth >= 760;
-                          return isDesktop
-                              ? _buildDesktopWorkspace(
-                                  context: context,
-                                  profile: profile,
-                                  summary: summary,
-                                  workflowSettings: workflowSettings,
-                                  reassignmentRequests: reassignmentRequests,
-                                  sidebarItems: sidebarItems,
-                                )
-                              : _buildMobileWorkspace(
-                                  context: context,
-                                  profile: profile,
-                                  summary: summary,
-                                  workflowSettings: workflowSettings,
-                                  reassignmentRequests: reassignmentRequests,
-                                  isTablet: isTablet,
-                                  sidebarItems: sidebarItems,
-                                );
-                        },
+                      if (!constraints.hasBoundedHeight) {
+                        return overviewContent;
+                      }
+                      return SingleChildScrollView(
+                        primary: false,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
+                          ),
+                          child: overviewContent,
+                        ),
                       );
                     },
                   );
-                },
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Center(
-              child: _StateCard(
-                message: error.toString().replaceFirst('Exception: ', ''),
-              ),
-            ),
-          ),
+                }
+
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isDesktop = constraints.maxWidth >= 1120;
+                    final isTablet = constraints.maxWidth >= 760;
+                    return isDesktop
+                        ? _buildDesktopWorkspace(
+                            context: context,
+                            profile: profile,
+                            summary: summary,
+                            workflowSettings: workflowSettings,
+                            reassignmentRequests: reassignmentRequests,
+                            sidebarItems: sidebarItems,
+                          )
+                        : _buildMobileWorkspace(
+                            context: context,
+                            profile: profile,
+                            summary: summary,
+                            workflowSettings: workflowSettings,
+                            reassignmentRequests: reassignmentRequests,
+                            isTablet: isTablet,
+                            sidebarItems: sidebarItems,
+                          );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => Center(
+        child: _StateCard(
+          message: error.toString().replaceFirst('Exception: ', ''),
         ),
       ),
+    );
+
+    if (widget.embeddedInCounselorShell) {
+      return dashboardContent;
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FB),
+      body: _DashboardBackdrop(child: SafeArea(child: dashboardContent)),
     );
   }
 
@@ -464,7 +493,6 @@ class _CounselorDashboardScreenState
           isDesktop: isDesktop,
           onOpenAppointments: () => context.go(AppRoute.counselorAppointments),
           onOpenAvailability: () => context.go(AppRoute.counselorAvailability),
-          onOpenNotifications: () => context.go(AppRoute.notifications),
         );
       case _CounselorWorkspaceSection.sessions:
         return _buildSessionsSection(
@@ -509,7 +537,6 @@ class _CounselorDashboardScreenState
     required bool isDesktop,
     required VoidCallback onOpenAppointments,
     required VoidCallback onOpenAvailability,
-    required VoidCallback onOpenNotifications,
   }) {
     final activeRequests = reassignmentRequests
         .where(
@@ -582,7 +609,6 @@ class _CounselorDashboardScreenState
                 child: _QuickActionsCard(
                   onOpenAppointments: onOpenAppointments,
                   onOpenAvailability: onOpenAvailability,
-                  onOpenNotifications: onOpenNotifications,
                 ),
               ),
             ],
@@ -601,7 +627,6 @@ class _CounselorDashboardScreenState
           _QuickActionsCard(
             onOpenAppointments: onOpenAppointments,
             onOpenAvailability: onOpenAvailability,
-            onOpenNotifications: onOpenNotifications,
           ),
         ],
       ],
@@ -2001,12 +2026,10 @@ class _QuickActionsCard extends StatelessWidget {
   const _QuickActionsCard({
     required this.onOpenAppointments,
     required this.onOpenAvailability,
-    required this.onOpenNotifications,
   });
 
   final VoidCallback onOpenAppointments;
   final VoidCallback onOpenAvailability;
-  final VoidCallback onOpenNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -2047,13 +2070,6 @@ class _QuickActionsCard extends StatelessWidget {
             subtitle: 'Publish and maintain future booking windows.',
             onTap: onOpenAvailability,
           ),
-          const SizedBox(height: 12),
-          _ActionTile(
-            icon: Icons.notifications_active_outlined,
-            title: 'Open notifications',
-            subtitle: 'See booking changes and unread alerts in full.',
-            onTap: onOpenNotifications,
-          ),
         ],
       ),
     );
@@ -2067,8 +2083,6 @@ class _SpotlightPanel extends StatelessWidget {
     required this.body,
     required this.primaryLabel,
     required this.onPrimaryTap,
-    this.secondaryLabel,
-    this.onSecondaryTap,
     required this.accent,
   });
 
@@ -2077,8 +2091,6 @@ class _SpotlightPanel extends StatelessWidget {
   final String body;
   final String primaryLabel;
   final VoidCallback onPrimaryTap;
-  final String? secondaryLabel;
-  final VoidCallback? onSecondaryTap;
   final List<Color> accent;
 
   @override
@@ -2131,16 +2143,6 @@ class _SpotlightPanel extends StatelessWidget {
                 icon: const Icon(Icons.arrow_outward_rounded),
                 label: Text(primaryLabel),
               ),
-              if (secondaryLabel != null && onSecondaryTap != null)
-                OutlinedButton.icon(
-                  onPressed: onSecondaryTap,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0x88FFFFFF)),
-                  ),
-                  icon: const Icon(Icons.swap_horiz_rounded),
-                  label: Text(secondaryLabel!),
-                ),
             ],
           ),
         ],

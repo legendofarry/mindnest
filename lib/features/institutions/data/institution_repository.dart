@@ -14,6 +14,7 @@ import 'package:mindnest/features/auth/models/app_auth_user.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 import 'package:mindnest/features/institutions/models/user_invite.dart';
+import 'package:mindnest/features/onboarding/data/onboarding_question_bank.dart';
 
 class InAppInviteDraft {
   const InAppInviteDraft({
@@ -1337,6 +1338,11 @@ class InstitutionRepository {
       if (userData == null) {
         throw Exception('User profile not found.');
       }
+      final synchronizedOnboardingCompletedRoles =
+          _synchronizedOnboardingCompletedRoles(
+            userData: userData,
+            targetRole: intendedRole,
+          );
       final previousInstitutionId = userData['institutionId'] as String?;
       final memberStatus = intendedRole == UserRole.counselor
           ? 'pending'
@@ -1350,26 +1356,31 @@ class InstitutionRepository {
         ],
         limit: 20,
       );
+      final updatedUserData = <String, dynamic>{
+        ...userData,
+        'institutionId': invite.institutionId,
+        'institutionName':
+            ((latestInviteData['institutionName'] as String?) ?? '')
+                .trim()
+                .isNotEmpty
+            ? (latestInviteData['institutionName'] as String)
+            : invite.institutionName,
+        'role': intendedRole.name,
+        'registrationIntent': null,
+        if (intendedRole == UserRole.counselor) ...{
+          'counselorSetupCompleted': false,
+          'counselorSetupData': <String, dynamic>{},
+          'counselorApprovalStatus': 'pending',
+        },
+        'updatedAt': nowUtc,
+      };
+      if (synchronizedOnboardingCompletedRoles != null) {
+        updatedUserData['onboardingCompletedRoles'] =
+            synchronizedOnboardingCompletedRoles;
+      }
 
       final writes = <WindowsFirestoreWrite>[
-        WindowsFirestoreWrite.set('users/${currentUser.uid}', {
-          ...userData,
-          'institutionId': invite.institutionId,
-          'institutionName':
-              ((latestInviteData['institutionName'] as String?) ?? '')
-                  .trim()
-                  .isNotEmpty
-              ? (latestInviteData['institutionName'] as String)
-              : invite.institutionName,
-          'role': intendedRole.name,
-          'registrationIntent': null,
-          if (intendedRole == UserRole.counselor) ...{
-            'counselorSetupCompleted': false,
-            'counselorSetupData': <String, dynamic>{},
-            'counselorApprovalStatus': 'pending',
-          },
-          'updatedAt': nowUtc,
-        }),
+        WindowsFirestoreWrite.set('users/${currentUser.uid}', updatedUserData),
         WindowsFirestoreWrite.set(
           'institution_members/${invite.institutionId}_${currentUser.uid}',
           {
@@ -1539,6 +1550,11 @@ class InstitutionRepository {
       if (!userSnapshot.exists || userSnapshot.data() == null) {
         throw Exception('User profile not found.');
       }
+      final synchronizedOnboardingCompletedRoles =
+          _synchronizedOnboardingCompletedRoles(
+            userData: userSnapshot.data()!,
+            targetRole: intendedRole,
+          );
       final previousInstitutionId =
           userSnapshot.data()!['institutionId'] as String?;
 
@@ -1548,8 +1564,7 @@ class InstitutionRepository {
       final membershipRef = _firestore
           .collection('institution_members')
           .doc('${invite.institutionId}_${currentUser.uid}');
-
-      transaction.update(userRef, {
+      final userUpdates = <String, dynamic>{
         'institutionId': invite.institutionId,
         'institutionName':
             ((latestInviteData['institutionName'] as String?) ?? '')
@@ -1565,7 +1580,13 @@ class InstitutionRepository {
           'counselorApprovalStatus': 'pending',
         },
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+      if (synchronizedOnboardingCompletedRoles != null) {
+        userUpdates['onboardingCompletedRoles'] =
+            synchronizedOnboardingCompletedRoles;
+      }
+
+      transaction.update(userRef, userUpdates);
       transaction.set(membershipRef, {
         'institutionId': invite.institutionId,
         'userId': currentUser.uid,
@@ -4138,6 +4159,49 @@ class InstitutionRepository {
       'joinCodeUsageCount': usageCount,
       'updatedAt': kUseWindowsRestAuth ? nowUtc : FieldValue.serverTimestamp(),
     };
+  }
+
+  Map<String, dynamic>? _synchronizedOnboardingCompletedRoles({
+    required Map<String, dynamic> userData,
+    required UserRole targetRole,
+  }) {
+    if (!OnboardingQuestionBank.roleRequiresQuestionnaire(targetRole)) {
+      return null;
+    }
+
+    final completedRoles = Map<String, dynamic>.from(
+      (userData['onboardingCompletedRoles'] as Map?) ??
+          const <String, dynamic>{},
+    );
+    if (completedRoles.isEmpty) {
+      return null;
+    }
+
+    var highestEquivalentVersion = 0;
+    for (final role in OnboardingQuestionBank.completionEquivalentRoles(
+      targetRole,
+    )) {
+      final rawValue = completedRoles[role.name];
+      final normalizedValue = rawValue is num ? rawValue.toInt() : 0;
+      if (normalizedValue > highestEquivalentVersion) {
+        highestEquivalentVersion = normalizedValue;
+      }
+    }
+
+    if (highestEquivalentVersion == 0) {
+      return completedRoles;
+    }
+
+    final currentTargetVersion = completedRoles[targetRole.name];
+    final normalizedTargetVersion = currentTargetVersion is num
+        ? currentTargetVersion.toInt()
+        : 0;
+    if (normalizedTargetVersion >= highestEquivalentVersion) {
+      return completedRoles;
+    }
+
+    completedRoles[targetRole.name] = highestEquivalentVersion;
+    return completedRoles;
   }
 }
 

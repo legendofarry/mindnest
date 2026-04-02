@@ -49,6 +49,7 @@ class _OnboardingQuestionnaireScreenState
       await ref
           .read(onboardingRepositoryProvider)
           .submitResponses(role: role, answers: _submissionPayload(questions));
+      await ref.read(currentUserProfileProvider.notifier).refreshProfile();
       if (!mounted) {
         return;
       }

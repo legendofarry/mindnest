@@ -44,6 +44,7 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
       await ref
           .read(institutionRepositoryProvider)
           .acceptInvite(invite: invite, institutionCode: institutionCode);
+      await _syncConnectedState(invite);
       if (!mounted) return;
 
       ScaffoldMessenger.of(
@@ -64,6 +65,30 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _syncConnectedState(UserInvite invite) async {
+    final startedAt = DateTime.now();
+    final inviteId = invite.id.trim();
+
+    while (mounted &&
+        DateTime.now().difference(startedAt) < const Duration(seconds: 3)) {
+      ref.invalidate(pendingUserInviteProvider);
+      ref.invalidate(pendingUserInvitesProvider);
+      if (inviteId.isNotEmpty) {
+        ref.invalidate(pendingUserInviteByIdProvider(inviteId));
+        ref.invalidate(inviteByIdProvider(inviteId));
+      }
+      await ref.read(currentUserProfileProvider.notifier).refreshProfile();
+      final profile = ref.read(currentUserProfileProvider).valueOrNull;
+      final institutionReady =
+          (profile?.institutionId ?? '').trim() == invite.institutionId;
+      final roleReady = profile?.role == invite.intendedRole;
+      if (institutionReady && roleReady) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 250));
     }
   }
 

@@ -41,6 +41,49 @@ class AppNotification {
   final String? relatedAppointmentId;
   final String? relatedId;
 
+  AppNotification copyWith({
+    String? id,
+    String? userId,
+    String? institutionId,
+    String? type,
+    String? title,
+    String? body,
+    DateTime? createdAt,
+    bool? isRead,
+    bool? isPinned,
+    bool? isArchived,
+    String? priority,
+    bool? actionRequired,
+    String? route,
+    DateTime? pinnedAt,
+    DateTime? archivedAt,
+    DateTime? resolvedAt,
+    String? relatedAppointmentId,
+    String? relatedId,
+  }) {
+    return AppNotification(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      institutionId: institutionId ?? this.institutionId,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      body: body ?? this.body,
+      createdAt: createdAt ?? this.createdAt,
+      isRead: isRead ?? this.isRead,
+      isPinned: isPinned ?? this.isPinned,
+      isArchived: isArchived ?? this.isArchived,
+      priority: priority ?? this.priority,
+      actionRequired: actionRequired ?? this.actionRequired,
+      route: route ?? this.route,
+      pinnedAt: pinnedAt ?? this.pinnedAt,
+      archivedAt: archivedAt ?? this.archivedAt,
+      resolvedAt: resolvedAt ?? this.resolvedAt,
+      relatedAppointmentId:
+          relatedAppointmentId ?? this.relatedAppointmentId,
+      relatedId: relatedId ?? this.relatedId,
+    );
+  }
+
   factory AppNotification.fromMap(String id, Map<String, dynamic> data) {
     DateTime parseDate(dynamic raw) {
       if (raw is Timestamp) {

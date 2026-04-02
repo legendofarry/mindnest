@@ -14,7 +14,12 @@ import 'package:mindnest/features/counselor/presentation/counselor_workspace_she
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
 class CounselorAvailabilityScreen extends ConsumerStatefulWidget {
-  const CounselorAvailabilityScreen({super.key});
+  const CounselorAvailabilityScreen({
+    super.key,
+    this.embeddedInCounselorShell = false,
+  });
+
+  final bool embeddedInCounselorShell;
 
   @override
   ConsumerState<CounselorAvailabilityScreen> createState() =>
@@ -740,7 +745,7 @@ class _CounselorAvailabilityScreenState
                 primary: false,
                 padding: EdgeInsets.zero,
                 physics: const ClampingScrollPhysics(),
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemCount: orderedKeys.length,
                 itemBuilder: (context, index) {
                   final key = orderedKeys[index];
@@ -1003,7 +1008,7 @@ class _CounselorAvailabilityScreenState
                 child: ListView.separated(
                   primary: false,
                   itemCount: rows.length,
-                  separatorBuilder: (_, __) =>
+                  separatorBuilder: (_, _) =>
                       const Divider(height: 1, color: Color(0xFFE2E8F0)),
                   itemBuilder: (context, index) {
                     final slot = rows[index];
@@ -1111,24 +1116,9 @@ class _CounselorAvailabilityScreenState
     required List<AvailabilitySlot> slots,
     required bool loading,
   }) {
-    final nextOpen =
-        slots
-            .where(
-              (slot) =>
-                  slot.status == AvailabilitySlotStatus.available &&
-                  slot.startAt.isAfter(DateTime.now().toUtc()),
-            )
-            .toList()
-          ..sort((a, b) => a.startAt.compareTo(b.startAt));
-
-    return Column(
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _AvailabilityHero(
-          nextOpen: nextOpen.isEmpty ? null : nextOpen.first,
-          onOpenSessions: () => context.go(AppRoute.counselorAppointments),
-        ),
-        const SizedBox(height: 20),
         Container(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.92),
@@ -1163,7 +1153,7 @@ class _CounselorAvailabilityScreenState
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Publish a visible booking window for students. You can create slots from the picker below or directly from empty cells in the weekly calendar.',
+                  'Publish a visible booking window for students. Create a slot here or directly from an empty cell in the weekly calendar below.',
                   style: TextStyle(
                     color: Color(0xFF6A7C93),
                     height: 1.45,
@@ -1242,32 +1232,10 @@ class _CounselorAvailabilityScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const _AvailabilityEyebrow(
-                            label: 'SLOT FEED',
-                            color: Color(0xFF2563EB),
-                            background: Color(0xFFEFF6FF),
-                            border: Color(0xFFBFDBFE),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Published slots',
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF081A30),
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Wrap(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isCompact = constraints.maxWidth < 540;
+                    final feedControls = Wrap(
                       spacing: 10,
                       runSpacing: 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
@@ -1298,7 +1266,9 @@ class _CounselorAvailabilityScreenState
                                   : Icons.unfold_less_rounded,
                             ),
                             label: Text(
-                              _isFeedCollapsed
+                              isCompact
+                                  ? (_isFeedCollapsed ? 'Expand' : 'Collapse')
+                                  : _isFeedCollapsed
                                   ? 'Expand timeline'
                                   : 'Collapse timeline',
                             ),
@@ -1310,8 +1280,60 @@ class _CounselorAvailabilityScreenState
                             child: CircularProgressIndicator(strokeWidth: 2.4),
                           ),
                       ],
-                    ),
-                  ],
+                    );
+
+                    final feedCopy = Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const _AvailabilityEyebrow(
+                          label: 'SLOT FEED',
+                          color: Color(0xFF2563EB),
+                          background: Color(0xFFEFF6FF),
+                          border: Color(0xFFBFDBFE),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          isCompact ? 'Live slots' : 'Published slots',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF081A30),
+                              ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          isCompact
+                              ? 'Edit live slots below.'
+                              : 'Review the booking windows that are already live and edit or remove them from the feed below.',
+                          style: const TextStyle(
+                            color: Color(0xFF6A7C93),
+                            height: 1.45,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    );
+
+                    if (isCompact) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          feedCopy,
+                          const SizedBox(height: 14),
+                          feedControls,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: feedCopy),
+                        const SizedBox(width: 16),
+                        feedControls,
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
                 if (slots.isEmpty)
@@ -1330,6 +1352,21 @@ class _CounselorAvailabilityScreenState
         ),
       ],
     );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.hasBoundedHeight) {
+          return content;
+        }
+        return SingleChildScrollView(
+          primary: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: content,
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -1345,8 +1382,6 @@ class _CounselorAvailabilityScreenState
       );
     }
 
-    final unreadCount =
-        ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
     final showCounselorDirectory =
         ref
             .watch(
@@ -1355,6 +1390,33 @@ class _CounselorAvailabilityScreenState
             .valueOrNull
             ?.directoryEnabled ??
         false;
+
+    final availabilityBody = StreamBuilder<List<AvailabilitySlot>>(
+      stream: ref
+          .read(careRepositoryProvider)
+          .watchCounselorSlots(
+            institutionId: profile.institutionId ?? '',
+            counselorId: profile.id,
+          ),
+      builder: (context, snapshot) {
+        final slots = snapshot.data ?? const <AvailabilitySlot>[];
+        return _buildBody(
+          context,
+          profile: profile,
+          slots: slots,
+          loading:
+              snapshot.connectionState == ConnectionState.waiting &&
+              slots.isEmpty,
+        );
+      },
+    );
+
+    if (widget.embeddedInCounselorShell) {
+      return availabilityBody;
+    }
+
+    final unreadCount =
+        ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
 
     return CounselorWorkspaceScaffold(
       profile: profile,
@@ -1368,160 +1430,7 @@ class _CounselorAvailabilityScreenState
       onNotifications: () => context.go(AppRoute.notifications),
       onProfile: () => context.go(AppRoute.counselorSettings),
       onLogout: () => confirmAndLogout(context: context, ref: ref),
-      child: StreamBuilder<List<AvailabilitySlot>>(
-        stream: ref
-            .read(careRepositoryProvider)
-            .watchCounselorSlots(
-              institutionId: profile.institutionId ?? '',
-              counselorId: profile.id,
-            ),
-        builder: (context, snapshot) {
-          final slots = snapshot.data ?? const <AvailabilitySlot>[];
-          return _buildBody(
-            context,
-            profile: profile,
-            slots: slots,
-            loading:
-                snapshot.connectionState == ConnectionState.waiting &&
-                slots.isEmpty,
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _AvailabilityHero extends StatelessWidget {
-  const _AvailabilityHero({
-    required this.nextOpen,
-    required this.onOpenSessions,
-  });
-
-  final AvailabilitySlot? nextOpen;
-  final VoidCallback onOpenSessions;
-
-  String _formatHeadline(DateTime value) {
-    final local = value.toLocal();
-    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final suffix = local.hour >= 12 ? 'PM' : 'AM';
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return '${days[local.weekday - 1]} ${local.day} at $hour:${local.minute.toString().padLeft(2, '0')} $suffix';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0D1B2A), Color(0xFF173D63), Color(0xFF1AA9A1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final stacked = constraints.maxWidth < 820;
-          final intro = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _AvailabilityEyebrow(
-                label: 'COUNSELOR AVAILABILITY',
-                color: Color(0xFFFDE68A),
-                background: Color(0x24FFFFFF),
-                border: Color(0x44FFFFFF),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                nextOpen == null
-                    ? 'No future open slot is published right now.'
-                    : 'Next open slot is ${_formatHeadline(nextOpen!.startAt)}.',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 38,
-                  height: 1.04,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1.8,
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Keep your calendar bookable, publish forward coverage, and use the weekly grid for fast slot management.',
-                style: TextStyle(
-                  color: Color(0xFFD7E5F0),
-                  fontSize: 15.5,
-                  height: 1.5,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: onOpenSessions,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF0C2233),
-                ),
-                icon: const Icon(Icons.arrow_outward_rounded),
-                label: const Text('Open Sessions'),
-              ),
-            ],
-          );
-
-          final sideCard = Container(
-            width: stacked ? double.infinity : 270,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0x33FFFFFF),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: const Color(0x55FFFFFF)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Coverage pulse',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _AvailabilityMiniSignal(
-                  label: 'Forward slot',
-                  value: nextOpen == null ? 'missing' : 'live',
-                  tone: nextOpen == null
-                      ? const Color(0xFF94A3B8)
-                      : const Color(0xFF10B981),
-                ),
-                const SizedBox(height: 10),
-                const _AvailabilityMiniSignal(
-                  label: 'Calendar mode',
-                  value: 'weekly',
-                  tone: Color(0xFFFDE68A),
-                ),
-              ],
-            ),
-          );
-
-          if (stacked) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [intro, const SizedBox(height: 18), sideCard],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: intro),
-              const SizedBox(width: 18),
-              sideCard,
-            ],
-          );
-        },
-      ),
+      child: availabilityBody,
     );
   }
 }
@@ -1556,55 +1465,6 @@ class _AvailabilityEyebrow extends StatelessWidget {
           fontWeight: FontWeight.w800,
           letterSpacing: 1.3,
         ),
-      ),
-    );
-  }
-}
-
-class _AvailabilityMiniSignal extends StatelessWidget {
-  const _AvailabilityMiniSignal({
-    required this.label,
-    required this.value,
-    required this.tone,
-  });
-
-  final String label;
-  final String value;
-  final Color tone;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0x1FFFFFFF),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Color(0xFFD6E4EE),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
       ),
     );
   }

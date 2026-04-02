@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
@@ -8,9 +10,17 @@ import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/app_notification.dart';
+import 'package:mindnest/features/care/presentation/notification_details_screen.dart';
 
 class NotificationCenterScreen extends ConsumerStatefulWidget {
-  const NotificationCenterScreen({super.key});
+  const NotificationCenterScreen({
+    super.key,
+    this.initialSelectedNotificationId,
+    this.embeddedInCounselorShell = false,
+  });
+
+  final String? initialSelectedNotificationId;
+  final bool embeddedInCounselorShell;
 
   @override
   ConsumerState<NotificationCenterScreen> createState() =>
@@ -21,8 +31,190 @@ class _NotificationCenterScreenState
     extends ConsumerState<NotificationCenterScreen> {
   _NotificationFilter _activeFilter = _NotificationFilter.all;
   bool _clearingAll = false;
+  bool _refreshingNotifications = false;
+  bool _notificationsLoaded = false;
   final Set<String> _openingNotificationIds = <String>{};
   final Set<String> _actionNotificationIds = <String>{};
+  Stream<List<AppNotification>>? _notificationsStream;
+  String? _notificationsStreamUserId;
+  String? _loadedNotificationsUserId;
+  String? _notificationsErrorMessage;
+  String? _selectedNotificationId;
+  List<AppNotification> _cachedNotifications = const <AppNotification>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedNotificationId = widget.initialSelectedNotificationId?.trim();
+  }
+
+  @override
+  void didUpdateWidget(covariant NotificationCenterScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextSelected = widget.initialSelectedNotificationId?.trim();
+    if (nextSelected != oldWidget.initialSelectedNotificationId?.trim() &&
+        nextSelected != _selectedNotificationId) {
+      _selectedNotificationId = nextSelected;
+    }
+  }
+
+  bool get _useManualRefreshMode =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+  Stream<List<AppNotification>> _notificationStreamFor(String userId) {
+    if (_notificationsStream == null || _notificationsStreamUserId != userId) {
+      _notificationsStreamUserId = userId;
+      _notificationsStream = ref
+          .read(careRepositoryProvider)
+          .watchUserNotifications(userId);
+    }
+    return _notificationsStream!;
+  }
+
+  List<AppNotification> _sortNotifications(
+    Iterable<AppNotification> notifications,
+  ) {
+    final items = notifications.toList(growable: false);
+    items.sort((a, b) {
+      if (a.isPinned != b.isPinned) {
+        return a.isPinned ? -1 : 1;
+      }
+      if (a.isPinned && b.isPinned) {
+        final aPinned = a.pinnedAt ?? a.createdAt;
+        final bPinned = b.pinnedAt ?? b.createdAt;
+        final pinnedCompare = bPinned.compareTo(aPinned);
+        if (pinnedCompare != 0) {
+          return pinnedCompare;
+        }
+      }
+      return b.createdAt.compareTo(a.createdAt);
+    });
+    return items;
+  }
+
+  String _messageFromError(Object error) =>
+      error.toString().replaceFirst('Exception: ', '').trim();
+
+  void _ensureManualNotificationsLoaded(String userId) {
+    if (!_useManualRefreshMode || userId.trim().isEmpty) {
+      return;
+    }
+    if (_loadedNotificationsUserId == userId &&
+        (_notificationsLoaded || _refreshingNotifications)) {
+      return;
+    }
+    _loadedNotificationsUserId = userId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _refreshNotifications(userId: userId, silent: true);
+    });
+  }
+
+  Future<void> _refreshNotifications({
+    required String userId,
+    bool silent = false,
+  }) async {
+    if (userId.trim().isEmpty || _refreshingNotifications) {
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _refreshingNotifications = true;
+        if (!silent) {
+          _notificationsErrorMessage = null;
+        }
+      });
+    }
+    try {
+      final items = await ref
+          .read(careRepositoryProvider)
+          .getUserNotifications(userId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadedNotificationsUserId = userId;
+        _cachedNotifications = _sortNotifications(items);
+        _notificationsLoaded = true;
+        _notificationsErrorMessage = null;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final message = _messageFromError(error);
+      setState(() {
+        _loadedNotificationsUserId = userId;
+        _notificationsLoaded = true;
+        _notificationsErrorMessage = message;
+      });
+      if (!silent) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _refreshingNotifications = false);
+      }
+    }
+  }
+
+  void _replaceCachedNotification(AppNotification updated) {
+    if (!_useManualRefreshMode || !mounted) {
+      return;
+    }
+    setState(() {
+      _cachedNotifications = _sortNotifications(
+        _cachedNotifications.map(
+          (entry) => entry.id == updated.id ? updated : entry,
+        ),
+      );
+    });
+  }
+
+  void _removeCachedNotification(String notificationId) {
+    if (!_useManualRefreshMode || !mounted) {
+      return;
+    }
+    setState(() {
+      _cachedNotifications = _cachedNotifications
+          .where((entry) => entry.id != notificationId)
+          .toList(growable: false);
+      if (_selectedNotificationId == notificationId) {
+        _selectedNotificationId = null;
+      }
+    });
+  }
+
+  void _markAllCachedNotificationsRead() {
+    if (!_useManualRefreshMode || !mounted) {
+      return;
+    }
+    setState(() {
+      _cachedNotifications = _cachedNotifications
+          .map(
+            (entry) => entry.isArchived ? entry : entry.copyWith(isRead: true),
+          )
+          .toList(growable: false);
+    });
+  }
+
+  List<AppNotification> _filteredNotifications(
+    List<AppNotification> notifications,
+  ) {
+    return notifications
+        .where(
+          (entry) => switch (_activeFilter) {
+            _NotificationFilter.all => !entry.isArchived,
+            _NotificationFilter.unread => !entry.isArchived && !entry.isRead,
+            _NotificationFilter.archived => entry.isArchived,
+          },
+        )
+        .toList(growable: false);
+  }
 
   _NotificationScreenCopy _screenCopy(UserProfile? profile) {
     switch (profile?.role) {
@@ -153,6 +345,7 @@ class _NotificationCenterScreenState
         await ref
             .read(careRepositoryProvider)
             .markNotificationRead(notification.id);
+        _replaceCachedNotification(notification.copyWith(isRead: true));
       }
       if (!mounted) {
         return;
@@ -162,16 +355,72 @@ class _NotificationCenterScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_messageFromError(error))));
     } finally {
       if (mounted) {
         setState(() => _openingNotificationIds.remove(notification.id));
       }
     }
+  }
+
+  Future<void> _selectNotification(AppNotification notification) async {
+    if (_openingNotificationIds.contains(notification.id)) {
+      return;
+    }
+
+    setState(() {
+      _selectedNotificationId = notification.id;
+      _openingNotificationIds.add(notification.id);
+    });
+
+    try {
+      if (!notification.isRead) {
+        await ref
+            .read(careRepositoryProvider)
+            .markNotificationRead(notification.id);
+        _replaceCachedNotification(notification.copyWith(isRead: true));
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_messageFromError(error))));
+    } finally {
+      if (mounted) {
+        setState(() => _openingNotificationIds.remove(notification.id));
+      }
+    }
+  }
+
+  String? _effectiveSelectedNotificationId(
+    List<AppNotification> notifications,
+    List<AppNotification> filtered,
+    bool useInlineDetails,
+  ) {
+    if (!useInlineDetails || filtered.isEmpty) {
+      return null;
+    }
+
+    final current = _selectedNotificationId?.trim();
+    if (current != null &&
+        current.isNotEmpty &&
+        filtered.any((entry) => entry.id == current)) {
+      return current;
+    }
+
+    if (widget.initialSelectedNotificationId?.trim().isNotEmpty == true) {
+      final initial = widget.initialSelectedNotificationId!.trim();
+      if (filtered.any((entry) => entry.id == initial)) {
+        return initial;
+      }
+    }
+
+    final fallback = filtered.isNotEmpty ? filtered.first.id : null;
+    return fallback;
   }
 
   RelativeRect _menuPosition(Offset globalPosition) {
@@ -273,41 +522,54 @@ class _NotificationCenterScreenState
     setState(() => _actionNotificationIds.add(notification.id));
     try {
       final repo = ref.read(careRepositoryProvider);
+      final now = DateTime.now();
       switch (action) {
         case _NotificationContextAction.pin:
           await repo.setNotificationPinned(
             notificationId: notification.id,
             pinned: true,
           );
+          _replaceCachedNotification(
+            notification.copyWith(isPinned: true, pinnedAt: now),
+          );
         case _NotificationContextAction.unpin:
           await repo.setNotificationPinned(
             notificationId: notification.id,
             pinned: false,
           );
+          _replaceCachedNotification(
+            notification.copyWith(isPinned: false, pinnedAt: null),
+          );
         case _NotificationContextAction.markRead:
           await repo.markNotificationRead(notification.id);
+          _replaceCachedNotification(notification.copyWith(isRead: true));
         case _NotificationContextAction.archive:
           await repo.setNotificationArchived(
             notificationId: notification.id,
             archived: true,
+          );
+          _replaceCachedNotification(
+            notification.copyWith(isArchived: true, archivedAt: now),
           );
         case _NotificationContextAction.unarchive:
           await repo.setNotificationArchived(
             notificationId: notification.id,
             archived: false,
           );
+          _replaceCachedNotification(
+            notification.copyWith(isArchived: false, archivedAt: null),
+          );
         case _NotificationContextAction.delete:
           await repo.deleteNotification(notification.id);
+          _removeCachedNotification(notification.id);
       }
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_messageFromError(error))));
     } finally {
       if (mounted) {
         setState(() => _actionNotificationIds.remove(notification.id));
@@ -363,6 +625,14 @@ class _NotificationCenterScreenState
     setState(() => _clearingAll = true);
     try {
       await ref.read(careRepositoryProvider).clearAllNotifications(userId);
+      if (_useManualRefreshMode && mounted) {
+        setState(() {
+          _cachedNotifications = const <AppNotification>[];
+          _selectedNotificationId = null;
+          _notificationsLoaded = true;
+          _notificationsErrorMessage = null;
+        });
+      }
       if (!mounted) {
         return;
       }
@@ -373,11 +643,9 @@ class _NotificationCenterScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_messageFromError(error))));
     } finally {
       if (mounted) {
         setState(() => _clearingAll = false);
@@ -390,6 +658,9 @@ class _NotificationCenterScreenState
     required String userId,
     required List<AppNotification> notifications,
     required _NotificationScreenCopy copy,
+    required bool showRefresh,
+    required bool refreshing,
+    required VoidCallback? onRefresh,
   }) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
@@ -424,38 +695,136 @@ class _NotificationCenterScreenState
             ],
           ),
         ),
-        Tooltip(
-          message: 'Permanently delete all notifications',
-          child: TextButton.icon(
-            onPressed: canClearAll
-                ? () => _confirmAndClearAllNotifications(
-                    userId: userId,
-                    totalCount: notifications.length,
-                    pinnedCount: notifications
-                        .where((entry) => entry.isPinned)
-                        .length,
-                  )
-                : null,
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFDC2626),
-              textStyle: textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w800,
+        Wrap(
+          spacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (showRefresh)
+              Tooltip(
+                message: 'Refresh notifications',
+                child: IconButton(
+                  onPressed: onRefresh,
+                  style: IconButton.styleFrom(
+                    foregroundColor: scheme.primary,
+                    backgroundColor: scheme.surface,
+                    side: BorderSide(
+                      color: scheme.outlineVariant.withValues(alpha: 0.55),
+                    ),
+                  ),
+                  icon: refreshing
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: scheme.primary,
+                          ),
+                        )
+                      : const Icon(Icons.refresh_rounded, size: 20),
+                ),
+              ),
+            Tooltip(
+              message: 'Permanently delete all notifications',
+              child: TextButton.icon(
+                onPressed: canClearAll
+                    ? () => _confirmAndClearAllNotifications(
+                        userId: userId,
+                        totalCount: notifications.length,
+                        pinnedCount: notifications
+                            .where((entry) => entry.isPinned)
+                            .length,
+                      )
+                    : null,
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFDC2626),
+                  textStyle: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                icon: _clearingAll
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      )
+                    : const Icon(Icons.delete_sweep_rounded, size: 18),
+                label: Text(_clearingAll ? 'Clearing...' : 'Clear'),
               ),
             ),
-            icon: _clearingAll
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  )
-                : const Icon(Icons.delete_sweep_rounded, size: 18),
-            label: Text(_clearingAll ? 'Clearing...' : 'Clear'),
-          ),
+          ],
         ),
       ],
+    );
+  }
+
+  Future<void> _markAllNotificationsRead(String userId) async {
+    if (userId.trim().isEmpty) {
+      return;
+    }
+    try {
+      await ref.read(careRepositoryProvider).markAllNotificationsRead(userId);
+      _markAllCachedNotificationsRead();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_messageFromError(error))));
+    }
+  }
+
+  Widget _statusCard(
+    BuildContext context, {
+    required String message,
+    VoidCallback? onRetry,
+    bool retrying = false,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.45),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message,
+            style: textTheme.titleMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+              height: 1.4,
+            ),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: retrying ? null : onRetry,
+              icon: retrying
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: scheme.primary,
+                      ),
+                    )
+                  : const Icon(Icons.refresh_rounded, size: 18),
+              label: Text(retrying ? 'Refreshing...' : 'Try again'),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -523,9 +892,7 @@ class _NotificationCenterScreenState
                 (_activeFilter == _NotificationFilter.archived ||
                     !canMarkAllRead)
                 ? null
-                : () => ref
-                      .read(careRepositoryProvider)
-                      .markAllNotificationsRead(userId),
+                : () => _markAllNotificationsRead(userId),
             style: TextButton.styleFrom(
               foregroundColor: scheme.primary,
               textStyle: textTheme.titleSmall?.copyWith(
@@ -591,6 +958,7 @@ class _NotificationCenterScreenState
     required BuildContext context,
     required AppNotification entry,
     required bool isBusy,
+    required bool selected,
     required VoidCallback onTap,
   }) {
     final scheme = Theme.of(context).colorScheme;
@@ -600,8 +968,12 @@ class _NotificationCenterScreenState
         entry.type.toLowerCase() == 'institution_invite' ||
         entry.actionRequired;
     final iconBg = accent.withValues(alpha: 0.12);
-    final cardBg = scheme.surface;
-    final borderColor = isInviteAction
+    final cardBg = selected
+        ? scheme.primary.withValues(alpha: 0.05)
+        : scheme.surface;
+    final borderColor = selected
+        ? scheme.primary.withValues(alpha: 0.52)
+        : isInviteAction
         ? accent.withValues(alpha: 0.45)
         : entry.isRead
         ? scheme.outlineVariant.withValues(alpha: 0.45)
@@ -620,8 +992,10 @@ class _NotificationCenterScreenState
             border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: scheme.shadow.withValues(alpha: 0.06),
-                blurRadius: 16,
+                color: selected
+                    ? scheme.primary.withValues(alpha: 0.12)
+                    : scheme.shadow.withValues(alpha: 0.06),
+                blurRadius: selected ? 18 : 16,
                 offset: const Offset(0, 8),
               ),
             ],
@@ -732,29 +1106,220 @@ class _NotificationCenterScreenState
   }
 
   Widget _emptyCard(BuildContext context, {required bool forUnread}) {
+    return _statusCard(
+      context,
+      message: forUnread
+          ? 'No unread notifications right now.'
+          : _activeFilter == _NotificationFilter.archived
+          ? 'No archived notifications yet.'
+          : 'No notifications yet. Booking, reminders, and cancellations will show here.',
+    );
+  }
+
+  Widget _buildNotificationResults({
+    required BuildContext context,
+    required String userId,
+    required _NotificationScreenCopy copy,
+    required List<AppNotification> notifications,
+    required bool showInlineDetails,
+    required bool showRefresh,
+    required bool refreshing,
+    required VoidCallback? onRefresh,
+  }) {
+    final filtered = _filteredNotifications(notifications);
+    final selectedNotificationId = _effectiveSelectedNotificationId(
+      notifications,
+      filtered,
+      showInlineDetails,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _header(
+          context: context,
+          userId: userId,
+          notifications: notifications,
+          copy: copy,
+          showRefresh: showRefresh,
+          refreshing: refreshing,
+          onRefresh: onRefresh,
+        ),
+        const SizedBox(height: 16),
+        _segmentedControl(
+          context: context,
+          notifications: notifications,
+          userId: userId,
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: showInlineDetails
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 11,
+                      child: filtered.isEmpty
+                          ? Align(
+                              alignment: Alignment.topCenter,
+                              child: _emptyCard(
+                                context,
+                                forUnread:
+                                    _activeFilter == _NotificationFilter.unread,
+                              ),
+                            )
+                          : ListView.separated(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.only(bottom: 8),
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (context, index) {
+                                final entry = filtered[index];
+                                final isBusy =
+                                    _openingNotificationIds.contains(
+                                      entry.id,
+                                    ) ||
+                                    _actionNotificationIds.contains(entry.id);
+                                return GestureDetector(
+                                  onSecondaryTapDown: isBusy
+                                      ? null
+                                      : (details) => _showNotificationMenu(
+                                          notification: entry,
+                                          globalPosition:
+                                              details.globalPosition,
+                                        ),
+                                  onLongPressStart: isBusy
+                                      ? null
+                                      : (details) => _showNotificationMenu(
+                                          notification: entry,
+                                          globalPosition:
+                                              details.globalPosition,
+                                        ),
+                                  child: _notificationCard(
+                                    context: context,
+                                    entry: entry,
+                                    isBusy: isBusy,
+                                    selected:
+                                        selectedNotificationId == entry.id,
+                                    onTap: () => _selectNotification(entry),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    const SizedBox(width: 18),
+                    Expanded(
+                      flex: 10,
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: selectedNotificationId == null
+                            ? _emptyDetailsState(context)
+                            : SingleChildScrollView(
+                                physics: const BouncingScrollPhysics(),
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: NotificationDetailsScreen(
+                                  notificationId: selectedNotificationId,
+                                  embedded: true,
+                                  showBackToNotifications: false,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                )
+              : filtered.isEmpty
+              ? Align(
+                  alignment: Alignment.topCenter,
+                  child: _emptyCard(
+                    context,
+                    forUnread: _activeFilter == _NotificationFilter.unread,
+                  ),
+                )
+              : ListView.separated(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 8),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final entry = filtered[index];
+                    final isBusy =
+                        _openingNotificationIds.contains(entry.id) ||
+                        _actionNotificationIds.contains(entry.id);
+                    return GestureDetector(
+                      onSecondaryTapDown: isBusy
+                          ? null
+                          : (details) => _showNotificationMenu(
+                              notification: entry,
+                              globalPosition: details.globalPosition,
+                            ),
+                      onLongPressStart: isBusy
+                          ? null
+                          : (details) => _showNotificationMenu(
+                              notification: entry,
+                              globalPosition: details.globalPosition,
+                            ),
+                      child: _notificationCard(
+                        context: context,
+                        entry: entry,
+                        isBusy: isBusy,
+                        selected: false,
+                        onTap: () => _openNotification(entry),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _emptyDetailsState(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: scheme.surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: scheme.outlineVariant.withValues(alpha: 0.45),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      child: Text(
-        forUnread
-            ? 'No unread notifications right now.'
-            : _activeFilter == _NotificationFilter.archived
-            ? 'No archived notifications yet.'
-            : 'No notifications yet. Booking, reminders, and cancellations will show here.',
-        style: textTheme.titleMedium?.copyWith(
-          color: scheme.onSurfaceVariant,
-          fontWeight: FontWeight.w600,
-          height: 1.4,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.notifications_none_rounded,
+            size: 28,
+            color: scheme.primary,
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Select a notification',
+            style: textTheme.headlineSmall?.copyWith(
+              color: scheme.onSurface,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Open any notification on the left to review its details and actions here without leaving the page.',
+            style: textTheme.bodyLarge?.copyWith(
+              color: scheme.onSurfaceVariant,
+              height: 1.4,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -776,7 +1341,12 @@ class _NotificationCenterScreenState
       userId: userId,
       profile: profile,
       copy: copy,
+      embeddedInCounselorShell: widget.embeddedInCounselorShell,
     );
+
+    if (widget.embeddedInCounselorShell) {
+      return content;
+    }
 
     if (isDesktop && isPrimaryUser) {
       return DesktopPrimaryShell(
@@ -797,152 +1367,117 @@ class _NotificationCenterScreenState
     required String userId,
     required UserProfile? profile,
     required _NotificationScreenCopy copy,
+    required bool embeddedInCounselorShell,
   }) {
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
     final usesFloatingHeader =
+        !embeddedInCounselorShell &&
         isDesktop &&
         profile != null &&
         profile.role != UserRole.student &&
         profile.role != UserRole.staff &&
         profile.role != UserRole.individual;
 
-    final body = SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 860),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              usesFloatingHeader ? 92 : 10,
-              16,
-              18,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _NotificationHeroCard(copy: copy),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: userId.isEmpty
-                      ? _emptyCard(context, forUnread: false)
-                      : StreamBuilder<List<AppNotification>>(
-                          stream: ref
-                              .read(careRepositoryProvider)
-                              .watchUserNotifications(userId),
-                          builder: (context, snapshot) {
-                            if (snapshot.hasError) {
-                              return _emptyCard(context, forUnread: false);
-                            }
-
-                            final notifications = snapshot.data ?? const [];
-                            final filtered = notifications
-                                .where(
-                                  (entry) => switch (_activeFilter) {
-                                    _NotificationFilter.all =>
-                                      !entry.isArchived,
-                                    _NotificationFilter.unread =>
-                                      !entry.isArchived && !entry.isRead,
-                                    _NotificationFilter.archived =>
-                                      entry.isArchived,
-                                  },
-                                )
-                                .toList(growable: false);
-
-                            if (snapshot.connectionState ==
-                                    ConnectionState.waiting &&
-                                notifications.isEmpty) {
-                              return const Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.6,
-                                ),
-                              );
-                            }
-
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _header(
-                                  context: context,
-                                  userId: userId,
-                                  notifications: notifications,
-                                  copy: copy,
-                                ),
-                                const SizedBox(height: 16),
-                                _segmentedControl(
-                                  context: context,
-                                  notifications: notifications,
-                                  userId: userId,
-                                ),
-                                const SizedBox(height: 16),
-                                Expanded(
-                                  child: filtered.isEmpty
-                                      ? Align(
-                                          alignment: Alignment.topCenter,
-                                          child: _emptyCard(
-                                            context,
-                                            forUnread:
-                                                _activeFilter ==
-                                                _NotificationFilter.unread,
-                                          ),
-                                        )
-                                      : ListView.separated(
-                                          physics:
-                                              const BouncingScrollPhysics(),
-                                          padding: const EdgeInsets.only(
-                                            bottom: 8,
-                                          ),
-                                          itemCount: filtered.length,
-                                          separatorBuilder: (_, _) =>
-                                              const SizedBox(height: 12),
-                                          itemBuilder: (context, index) {
-                                            final entry = filtered[index];
-                                            final isBusy =
-                                                _openingNotificationIds
-                                                    .contains(entry.id) ||
-                                                _actionNotificationIds.contains(
-                                                  entry.id,
-                                                );
-                                            return GestureDetector(
-                                              onSecondaryTapDown: isBusy
-                                                  ? null
-                                                  : (
-                                                      details,
-                                                    ) => _showNotificationMenu(
-                                                      notification: entry,
-                                                      globalPosition: details
-                                                          .globalPosition,
-                                                    ),
-                                              onLongPressStart: isBusy
-                                                  ? null
-                                                  : (
-                                                      details,
-                                                    ) => _showNotificationMenu(
-                                                      notification: entry,
-                                                      globalPosition: details
-                                                          .globalPosition,
-                                                    ),
-                                              child: _notificationCard(
-                                                context: context,
-                                                entry: entry,
-                                                isBusy: isBusy,
-                                                onTap: () =>
-                                                    _openNotification(entry),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                ),
-                              ],
+    final showInlineDetails = MediaQuery.sizeOf(context).width >= 1180;
+    final workspace = Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: showInlineDetails ? 1320 : 860),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            embeddedInCounselorShell ? 0 : (usesFloatingHeader ? 92 : 10),
+            16,
+            18,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _NotificationHeroCard(copy: copy),
+              const SizedBox(height: 16),
+              Expanded(
+                child: userId.isEmpty
+                    ? _emptyCard(context, forUnread: false)
+                    : _useManualRefreshMode
+                    ? Builder(
+                        builder: (context) {
+                          _ensureManualNotificationsLoaded(userId);
+                          if (!_notificationsLoaded &&
+                              _cachedNotifications.isEmpty) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.6,
+                              ),
                             );
-                          },
-                        ),
-                ),
-              ],
-            ),
+                          }
+
+                          if (_notificationsErrorMessage != null &&
+                              _cachedNotifications.isEmpty) {
+                            return _statusCard(
+                              context,
+                              message: _notificationsErrorMessage!,
+                              onRetry: () =>
+                                  _refreshNotifications(userId: userId),
+                              retrying: _refreshingNotifications,
+                            );
+                          }
+
+                          return _buildNotificationResults(
+                            context: context,
+                            userId: userId,
+                            copy: copy,
+                            notifications: _cachedNotifications,
+                            showInlineDetails: showInlineDetails,
+                            showRefresh: true,
+                            refreshing: _refreshingNotifications,
+                            onRefresh: _refreshingNotifications
+                                ? null
+                                : () => _refreshNotifications(userId: userId),
+                          );
+                        },
+                      )
+                    : StreamBuilder<List<AppNotification>>(
+                        stream: _notificationStreamFor(userId),
+                        builder: (context, snapshot) {
+                          final notifications = snapshot.data ?? const [];
+                          if (snapshot.hasError && notifications.isEmpty) {
+                            return _statusCard(
+                              context,
+                              message: _messageFromError(snapshot.error!),
+                            );
+                          }
+
+                          if (snapshot.connectionState ==
+                                  ConnectionState.waiting &&
+                              notifications.isEmpty) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.6,
+                              ),
+                            );
+                          }
+
+                          return _buildNotificationResults(
+                            context: context,
+                            userId: userId,
+                            copy: copy,
+                            notifications: notifications,
+                            showInlineDetails: showInlineDetails,
+                            showRefresh: false,
+                            refreshing: false,
+                            onRefresh: null,
+                          );
+                        },
+                      ),
+              ),
+            ],
           ),
         ),
       ),
     );
+
+    final body = embeddedInCounselorShell
+        ? workspace
+        : SafeArea(child: workspace);
 
     if (!usesFloatingHeader) {
       return body;

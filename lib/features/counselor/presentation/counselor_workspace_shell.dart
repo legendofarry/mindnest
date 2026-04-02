@@ -1,10 +1,17 @@
 import 'dart:math' as math;
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'package:go_router/go_router.dart';
+import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
+import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
+import 'package:mindnest/features/care/data/care_providers.dart';
+import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
 enum CounselorWorkspaceNavSection {
   dashboard,
@@ -12,6 +19,207 @@ enum CounselorWorkspaceNavSection {
   live,
   availability,
   counselors,
+}
+
+class CounselorWorkspaceRouteShell extends ConsumerWidget {
+  const CounselorWorkspaceRouteShell({
+    super.key,
+    required this.state,
+    required this.child,
+  });
+
+  final GoRouterState state;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(currentUserProfileProvider).valueOrNull;
+    if (profile == null || profile.role != UserRole.counselor) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF5F7FB),
+        body: Center(
+          child: Text(
+            'This workspace is available only for counselors.',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+      );
+    }
+
+    final unreadCount =
+        ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
+    final showCounselorDirectory =
+        ref
+            .watch(
+              counselorWorkflowSettingsProvider(profile.institutionId ?? ''),
+            )
+            .valueOrNull
+            ?.directoryEnabled ??
+        false;
+    final shell = _routeShellForState(state);
+    final notificationsReturnTo =
+        _normalizedCounselorWorkspaceRoute(
+          state.uri.queryParameters[AppRoute.returnToQuery],
+        ) ??
+        AppRoute.counselorDashboard;
+    final profileReturnTo =
+        _normalizedCounselorWorkspaceRoute(
+          state.uri.queryParameters[AppRoute.returnToQuery],
+        ) ??
+        AppRoute.counselorDashboard;
+    final overlayAnchorRoute = switch (state.matchedLocation) {
+      AppRoute.counselorNotifications => notificationsReturnTo,
+      AppRoute.counselorSettings => profileReturnTo,
+      _ => state.matchedLocation,
+    };
+
+    return CounselorWorkspaceScaffold(
+      profile: profile,
+      activeSection: shell.section,
+      showCounselorDirectory: showCounselorDirectory,
+      unreadNotifications: unreadCount,
+      title: shell.title,
+      subtitle: shell.subtitle,
+      childHandlesOwnScroll: shell.childHandlesOwnScroll,
+      onSelectSection: (section) {
+        switch (section) {
+          case CounselorWorkspaceNavSection.dashboard:
+            context.go(AppRoute.counselorDashboard);
+          case CounselorWorkspaceNavSection.sessions:
+            context.go(AppRoute.counselorAppointments);
+          case CounselorWorkspaceNavSection.live:
+            context.go(AppRoute.counselorLiveHub);
+          case CounselorWorkspaceNavSection.availability:
+            context.go(AppRoute.counselorAvailability);
+          case CounselorWorkspaceNavSection.counselors:
+            context.go(AppRoute.counselorDirectory);
+        }
+      },
+      onNotifications: () {
+        if (state.matchedLocation == AppRoute.counselorNotifications) {
+          context.go(notificationsReturnTo);
+          return;
+        }
+        context.go(
+          AppRoute.counselorNotificationsRoute(returnTo: overlayAnchorRoute),
+        );
+      },
+      onProfile: () {
+        if (state.matchedLocation == AppRoute.counselorSettings) {
+          context.go(profileReturnTo);
+          return;
+        }
+        context.go(
+          AppRoute.counselorSettingsRoute(returnTo: overlayAnchorRoute),
+        );
+      },
+      onLogout: () => confirmAndLogout(context: context, ref: ref),
+      notificationsHighlighted: shell.notificationsHighlighted,
+      profileHighlighted: shell.profileHighlighted,
+      child: child,
+    );
+  }
+}
+
+class _CounselorRouteShellConfig {
+  const _CounselorRouteShellConfig({
+    required this.section,
+    required this.title,
+    required this.subtitle,
+    this.notificationsHighlighted = false,
+    this.profileHighlighted = false,
+    this.childHandlesOwnScroll = false,
+  });
+
+  final CounselorWorkspaceNavSection section;
+  final String title;
+  final String subtitle;
+  final bool notificationsHighlighted;
+  final bool profileHighlighted;
+  final bool childHandlesOwnScroll;
+}
+
+_CounselorRouteShellConfig _routeShellForState(GoRouterState state) {
+  if (state.matchedLocation == AppRoute.counselorNotifications) {
+    final returnTo =
+        _normalizedCounselorWorkspaceRoute(
+          state.uri.queryParameters[AppRoute.returnToQuery],
+        ) ??
+        AppRoute.counselorDashboard;
+    final anchorShell = _routeShellForLocation(returnTo);
+    return _CounselorRouteShellConfig(
+      section: anchorShell.section,
+      title: 'Notifications',
+      subtitle:
+          'Track booking updates, reminders, and action-required alerts without leaving the counselor workspace.',
+      notificationsHighlighted: true,
+      childHandlesOwnScroll: true,
+    );
+  }
+  if (state.matchedLocation == AppRoute.counselorSettings) {
+    final returnTo =
+        _normalizedCounselorWorkspaceRoute(
+          state.uri.queryParameters[AppRoute.returnToQuery],
+        ) ??
+        AppRoute.counselorDashboard;
+    final anchorShell = _routeShellForLocation(returnTo);
+    return _CounselorRouteShellConfig(
+      section: anchorShell.section,
+      title: 'Profile Settings',
+      subtitle:
+          'Manage the professional profile students see, tune booking rules, and update counselor account controls from one workspace.',
+      profileHighlighted: true,
+    );
+  }
+  return _routeShellForLocation(state.matchedLocation);
+}
+
+String? _normalizedCounselorWorkspaceRoute(String? rawRoute) {
+  final normalized = (rawRoute ?? '').trim();
+  switch (normalized) {
+    case AppRoute.counselorDashboard:
+    case AppRoute.counselorAppointments:
+    case AppRoute.counselorAvailability:
+    case AppRoute.counselorLiveHub:
+    case AppRoute.counselorDirectory:
+      return normalized;
+    default:
+      return null;
+  }
+}
+
+_CounselorRouteShellConfig _routeShellForLocation(String matchedLocation) {
+  switch (matchedLocation) {
+    case AppRoute.counselorAppointments:
+      return const _CounselorRouteShellConfig(
+        section: CounselorWorkspaceNavSection.sessions,
+        title: 'Sessions',
+        subtitle:
+            'Keep booking requests, live appointments, and session outcomes in one stable counselor workflow.',
+      );
+    case AppRoute.counselorAvailability:
+      return const _CounselorRouteShellConfig(
+        section: CounselorWorkspaceNavSection.availability,
+        title: 'Availability',
+        subtitle:
+            'Publish booking windows, manage the weekly grid, and keep your open inventory healthy.',
+      );
+    case AppRoute.counselorLiveHub:
+      return const _CounselorRouteShellConfig(
+        section: CounselorWorkspaceNavSection.live,
+        title: 'Live',
+        subtitle:
+            'Join institution audio sessions and host live conversations without leaving the counselor workspace.',
+      );
+    case AppRoute.counselorDashboard:
+    default:
+      return const _CounselorRouteShellConfig(
+        section: CounselorWorkspaceNavSection.dashboard,
+        title: 'Dashboard',
+        subtitle:
+            'A fixed workspace frame with your live activity, quick actions, and daily priorities in one place.',
+      );
+  }
 }
 
 class CounselorWorkspaceScaffold extends StatelessWidget {
@@ -27,6 +235,7 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
     required this.onNotifications,
     required this.onProfile,
     required this.onLogout,
+    this.childHandlesOwnScroll = false,
     this.notificationsHighlighted = false,
     this.profileHighlighted = false,
     this.showCounselorDirectory = false,
@@ -42,6 +251,7 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
   final VoidCallback onNotifications;
   final VoidCallback onProfile;
   final VoidCallback onLogout;
+  final bool childHandlesOwnScroll;
   final bool notificationsHighlighted;
   final bool profileHighlighted;
   final bool showCounselorDirectory;
@@ -57,8 +267,7 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
               final isDesktop = constraints.maxWidth >= 1120;
               final isTablet = constraints.maxWidth >= 760;
               final showLive =
-                  !(!kIsWeb &&
-                      defaultTargetPlatform == TargetPlatform.windows);
+                  !(!kIsWeb && defaultTargetPlatform == TargetPlatform.windows);
               final navItems = _navItems(
                 showCounselorDirectory,
                 showLive: showLive,
@@ -111,15 +320,25 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
                                 profileHighlighted: profileHighlighted,
                               ),
                               Expanded(
-                                child: SingleChildScrollView(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    28,
-                                    8,
-                                    28,
-                                    28,
-                                  ),
-                                  child: child,
-                                ),
+                                child: childHandlesOwnScroll
+                                    ? Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          28,
+                                          8,
+                                          28,
+                                          28,
+                                        ),
+                                        child: child,
+                                      )
+                                    : SingleChildScrollView(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          28,
+                                          8,
+                                          28,
+                                          28,
+                                        ),
+                                        child: child,
+                                      ),
                               ),
                             ],
                           ),
@@ -169,7 +388,11 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    Expanded(child: SingleChildScrollView(child: child)),
+                    Expanded(
+                      child: childHandlesOwnScroll
+                          ? child
+                          : SingleChildScrollView(child: child),
+                    ),
                   ],
                 ),
               );

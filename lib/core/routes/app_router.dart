@@ -35,6 +35,7 @@ import 'package:mindnest/features/counselor/presentation/counselor_dashboard_scr
 import 'package:mindnest/features/counselor/presentation/counselor_invite_waiting_screen.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_profile_settings_screen.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_setup_screen.dart';
+import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/home/presentation/home_screen.dart';
 import 'package:mindnest/features/home/presentation/privacy_controls_screen.dart';
 import 'package:mindnest/features/institutions/presentation/institution_admin_screen.dart';
@@ -72,6 +73,7 @@ class AppRoute {
   static const counselorLiveHub = '/counselor-live-hub';
   static const counselorAvailability = '/counselor-availability';
   static const counselorAppointments = '/counselor-appointments';
+  static const counselorNotifications = '/counselor-notifications';
   static const counselorSettings = '/counselor-settings';
   static const counselorDirectory = '/counselors';
   static const counselorProfile = '/counselor-profile';
@@ -100,6 +102,8 @@ class AppRoute {
   static const registrationIntentQuery = 'registrationIntent';
   static const openJoinCodeQuery = 'openJoinCode';
   static const setupReasonQuery = 'reason';
+  static const notificationIdQuery = 'notificationId';
+  static const returnToQuery = 'returnTo';
 
   static String homeWithJoinCodeIntent() {
     return Uri(
@@ -211,6 +215,35 @@ class AppRoute {
     return Uri(
       path: windowsWebSetupRequired,
       queryParameters: <String, String>{setupReasonQuery: reason},
+    ).toString();
+  }
+
+  static String counselorNotificationsRoute({
+    String? returnTo,
+    String? notificationId,
+  }) {
+    final query = <String, String>{};
+    final normalizedReturnTo = (returnTo ?? '').trim();
+    if (normalizedReturnTo.isNotEmpty) {
+      query[returnToQuery] = normalizedReturnTo;
+    }
+    final normalizedNotificationId = (notificationId ?? '').trim();
+    if (normalizedNotificationId.isNotEmpty) {
+      query[notificationIdQuery] = normalizedNotificationId;
+    }
+    return Uri(
+      path: counselorNotifications,
+      queryParameters: query.isEmpty ? null : query,
+    ).toString();
+  }
+
+  static String counselorSettingsRoute({String? returnTo}) {
+    final normalizedReturnTo = (returnTo ?? '').trim();
+    return Uri(
+      path: counselorSettings,
+      queryParameters: normalizedReturnTo.isEmpty
+          ? null
+          : <String, String>{returnToQuery: normalizedReturnTo},
     ).toString();
   }
 }
@@ -351,6 +384,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.counselorLiveHub ||
           location == AppRoute.counselorAvailability ||
           location == AppRoute.counselorAppointments ||
+          location == AppRoute.counselorNotifications ||
           location == AppRoute.counselorSettings;
       final isSharedCareRoute =
           location == AppRoute.counselorDirectory ||
@@ -471,7 +505,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             windowsSetupReason = 'counselor-access-removed';
           } else if (role == UserRole.counselor && needsCounselorSetup) {
             windowsSetupReason = 'counselor-setup';
-          } else if (isLiveRoute || (isWindowsWebSetupRoute && currentReason == 'live')) {
+          } else if (isLiveRoute ||
+              (isWindowsWebSetupRoute && currentReason == 'live')) {
             windowsSetupReason = 'live';
           }
 
@@ -721,7 +756,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         final needsOnboarding = onboardingRepository.requiresQuestionnaire(
           profile,
         );
-        if (needsOnboarding && location != AppRoute.onboarding) {
+        if (needsOnboarding &&
+            location != AppRoute.onboarding &&
+            location != AppRoute.onboardingLoading) {
           return AppRoute.onboarding;
         }
 
@@ -747,6 +784,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return needsCounselorSetup
               ? AppRoute.counselorSetup
               : AppRoute.counselorDashboard;
+        }
+
+        if (role == UserRole.counselor && location == AppRoute.notifications) {
+          return AppRoute.counselorNotificationsRoute(
+            returnTo: AppRoute.counselorDashboard,
+            notificationId:
+                state.uri.queryParameters[AppRoute.notificationIdQuery],
+          );
         }
 
         if (role == UserRole.counselor && location == AppRoute.liveHub) {
@@ -918,28 +963,52 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.counselorSetup,
         builder: (context, state) => const CounselorSetupScreen(),
       ),
-      GoRoute(
-        path: AppRoute.counselorDashboard,
-        builder: (context, state) => const CounselorDashboardScreen(),
-      ),
-      GoRoute(
-        path: AppRoute.counselorLiveHub,
-        builder: (context, state) {
-          final openCreate = state.uri.queryParameters['openCreate'] == '1';
-          return CounselorLiveHubScreen(autoOpenCreate: openCreate);
-        },
-      ),
-      GoRoute(
-        path: AppRoute.counselorAvailability,
-        builder: (context, state) => const CounselorAvailabilityScreen(),
-      ),
-      GoRoute(
-        path: AppRoute.counselorAppointments,
-        builder: (context, state) => const CounselorAppointmentsScreen(),
-      ),
-      GoRoute(
-        path: AppRoute.counselorSettings,
-        builder: (context, state) => const CounselorProfileSettingsScreen(),
+      ShellRoute(
+        builder: (context, state, child) =>
+            CounselorWorkspaceRouteShell(state: state, child: child),
+        routes: [
+          GoRoute(
+            path: AppRoute.counselorDashboard,
+            builder: (context, state) =>
+                const CounselorDashboardScreen(embeddedInCounselorShell: true),
+          ),
+          GoRoute(
+            path: AppRoute.counselorAvailability,
+            builder: (context, state) => const CounselorAvailabilityScreen(
+              embeddedInCounselorShell: true,
+            ),
+          ),
+          GoRoute(
+            path: AppRoute.counselorAppointments,
+            builder: (context, state) => const CounselorAppointmentsScreen(
+              embeddedInCounselorShell: true,
+            ),
+          ),
+          GoRoute(
+            path: AppRoute.counselorLiveHub,
+            builder: (context, state) {
+              final openCreate = state.uri.queryParameters['openCreate'] == '1';
+              return LiveHubScreen(
+                autoOpenCreate: openCreate,
+                embeddedInCounselorShell: true,
+              );
+            },
+          ),
+          GoRoute(
+            path: AppRoute.counselorNotifications,
+            builder: (context, state) => NotificationCenterScreen(
+              initialSelectedNotificationId:
+                  state.uri.queryParameters[AppRoute.notificationIdQuery],
+              embeddedInCounselorShell: true,
+            ),
+          ),
+          GoRoute(
+            path: AppRoute.counselorSettings,
+            builder: (context, state) => const CounselorProfileSettingsScreen(
+              embeddedInCounselorShell: true,
+            ),
+          ),
+        ],
       ),
       ShellRoute(
         builder: (context, state, child) => DesktopPrimaryShell(
@@ -991,7 +1060,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoute.notifications,
-        builder: (context, state) => const NotificationCenterScreen(),
+        builder: (context, state) => NotificationCenterScreen(
+          initialSelectedNotificationId:
+              state.uri.queryParameters[AppRoute.notificationIdQuery],
+        ),
       ),
       GoRoute(
         path: AppRoute.notificationDetails,

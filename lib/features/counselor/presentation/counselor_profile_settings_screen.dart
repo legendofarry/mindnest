@@ -13,7 +13,12 @@ import 'package:mindnest/features/counselor/presentation/counselor_workspace_she
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
 class CounselorProfileSettingsScreen extends ConsumerStatefulWidget {
-  const CounselorProfileSettingsScreen({super.key});
+  const CounselorProfileSettingsScreen({
+    super.key,
+    this.embeddedInCounselorShell = false,
+  });
+
+  final bool embeddedInCounselorShell;
 
   @override
   ConsumerState<CounselorProfileSettingsScreen> createState() =>
@@ -280,6 +285,391 @@ class _CounselorProfileSettingsScreenState
                 .valueOrNull
                 ?.directoryEnabled ??
             false;
+        final settingsBody = StreamBuilder<CounselorProfile?>(
+          stream: ref
+              .read(careRepositoryProvider)
+              .watchCounselorProfile(profile.id),
+          builder: (context, cpSnap) {
+            return StreamBuilder<Map<String, dynamic>>(
+              stream: ref
+                  .read(careRepositoryProvider)
+                  .watchNotificationSettings(profile.id),
+              builder: (context, nSnap) {
+                _seed(profile, cpSnap.data, nSnap.data ?? const {});
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _SettingsHero(
+                      profile: profile,
+                      specialization: _specialization,
+                      isActive: _active,
+                      duration: _duration,
+                      directBooking: _direct,
+                    ),
+                    const SizedBox(height: 20),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final useTwoColumns = constraints.maxWidth >= 980;
+                        final halfWidth = useTwoColumns
+                            ? (constraints.maxWidth - 18) / 2
+                            : constraints.maxWidth;
+                        return Wrap(
+                          spacing: 18,
+                          runSpacing: 18,
+                          children: [
+                            SizedBox(
+                              width: halfWidth,
+                              child: _SettingsSectionCard(
+                                title: 'Public Profile',
+                                description:
+                                    'Control whether students can discover and book you from the institution directory.',
+                                child: SwitchListTile.adaptive(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    _active
+                                        ? 'Visible to students'
+                                        : 'Hidden from students',
+                                  ),
+                                  subtitle: Text(
+                                    profile.institutionName ??
+                                        'Institution not set',
+                                  ),
+                                  value: _active,
+                                  onChanged: (value) =>
+                                      setState(() => _active = value),
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: halfWidth,
+                              child: _SettingsSectionCard(
+                                title: 'Practice Settings',
+                                description:
+                                    'Define the default session rhythm and how booking requests should behave.',
+                                child: Column(
+                                  children: [
+                                    DropdownButtonFormField<int>(
+                                      initialValue: _duration,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Default Session Duration',
+                                        prefixIcon: Icon(Icons.timer_outlined),
+                                      ),
+                                      items: _durations
+                                          .map(
+                                            (e) => DropdownMenuItem(
+                                              value: e,
+                                              child: Text('$e min'),
+                                            ),
+                                          )
+                                          .toList(growable: false),
+                                      onChanged: (value) => setState(
+                                        () => _duration = value ?? _duration,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        const Expanded(
+                                          child: Text('Break Between Sessions'),
+                                        ),
+                                        Text('$_breakMins min'),
+                                      ],
+                                    ),
+                                    Slider(
+                                      value: _breakMins.toDouble(),
+                                      min: 0,
+                                      max: 30,
+                                      divisions: 6,
+                                      onChanged: (value) => setState(
+                                        () => _breakMins = value.round(),
+                                      ),
+                                    ),
+                                    SwitchListTile.adaptive(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text('Allow Direct Booking'),
+                                      value: _direct,
+                                      onChanged: (value) =>
+                                          setState(() => _direct = value),
+                                    ),
+                                    SwitchListTile.adaptive(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text(
+                                        'Auto-approve Follow-ups',
+                                      ),
+                                      value: _followUps,
+                                      onChanged: (value) =>
+                                          setState(() => _followUps = value),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: useTwoColumns
+                                  ? constraints.maxWidth
+                                  : halfWidth,
+                              child: _SettingsSectionCard(
+                                title: 'Professional Details',
+                                description:
+                                    'Edit the professional identity and public profile content students see in your counselor listing.',
+                                trailing: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _savingProfile
+                                        ? null
+                                        : () => _save(profile),
+                                    icon: const Icon(Icons.save_rounded),
+                                    label: Text(
+                                      _savingProfile
+                                          ? 'Saving...'
+                                          : 'Save All Changes',
+                                    ),
+                                  ),
+                                ),
+                                child: Form(
+                                  key: _formKey,
+                                  child: Column(
+                                    children: [
+                                      TextFormField(
+                                        controller: _name,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Display Name',
+                                          prefixIcon: Icon(Icons.person),
+                                        ),
+                                        validator: (value) =>
+                                            (value ?? '').trim().length < 2
+                                            ? 'Enter at least 2 characters.'
+                                            : null,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      TextFormField(
+                                        controller: _title,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Professional Title',
+                                          prefixIcon: Icon(Icons.badge),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _SpecializationChips(
+                                        options: _specs,
+                                        selected: _specializations,
+                                        onChanged: (set) => setState(() {
+                                          _specializations = set.isNotEmpty
+                                              ? set
+                                              : {_specs.first};
+                                          _specialization =
+                                              _specializations.first;
+                                        }),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextFormField(
+                                              controller: _years,
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Years',
+                                                prefixIcon: Icon(
+                                                  Icons.timeline,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child:
+                                                DropdownButtonFormField<String>(
+                                                  initialValue: _mode,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                        labelText: 'Mode',
+                                                        prefixIcon: Icon(
+                                                          Icons.video_call,
+                                                        ),
+                                                      ),
+                                                  items: _modes
+                                                      .map(
+                                                        (e) => DropdownMenuItem(
+                                                          value: e,
+                                                          child: Text(e),
+                                                        ),
+                                                      )
+                                                      .toList(growable: false),
+                                                  onChanged: (value) =>
+                                                      setState(
+                                                        () => _mode =
+                                                            value ?? _mode,
+                                                      ),
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      DropdownButtonFormField<String>(
+                                        initialValue: _timezone,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Timezone',
+                                          prefixIcon: Icon(Icons.public),
+                                        ),
+                                        items: _zones
+                                            .map(
+                                              (e) => DropdownMenuItem(
+                                                value: e,
+                                                child: Text(e),
+                                              ),
+                                            )
+                                            .toList(growable: false),
+                                        onChanged: (value) => setState(
+                                          () => _timezone = value ?? _timezone,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _LanguageSelector(
+                                        options: _languageOptions,
+                                        selected:
+                                            _languages ??
+                                            {_languageOptions.first},
+                                        onToggle: (lang) {
+                                          setState(() {
+                                            _languages ??= {
+                                              _languageOptions.first,
+                                            };
+                                            if (_languages!.contains(lang)) {
+                                              _languages!.remove(lang);
+                                            } else {
+                                              _languages!.add(lang);
+                                            }
+                                          });
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      TextFormField(
+                                        controller: _bio,
+                                        minLines: 3,
+                                        maxLines: 5,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Bio',
+                                          alignLabelWithHint: true,
+                                          prefixIcon: Icon(Icons.notes),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: halfWidth,
+                              child: _SettingsSectionCard(
+                                title: 'Notifications',
+                                description:
+                                    'Choose which counselor workflow alerts should be pushed into your notification center.',
+                                trailing: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _savingNotif
+                                        ? null
+                                        : () => _saveNotif(profile),
+                                    icon: const Icon(
+                                      Icons.notifications_active,
+                                    ),
+                                    label: Text(
+                                      _savingNotif
+                                          ? 'Saving...'
+                                          : 'Save Notifications',
+                                    ),
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    SwitchListTile.adaptive(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text('Booking Updates'),
+                                      value: _bookingUpdates,
+                                      onChanged: (value) => setState(
+                                        () => _bookingUpdates = value,
+                                      ),
+                                    ),
+                                    SwitchListTile.adaptive(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text('Reminders'),
+                                      value: _reminders,
+                                      onChanged: (value) =>
+                                          setState(() => _reminders = value),
+                                    ),
+                                    SwitchListTile.adaptive(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text('Cancellations'),
+                                      value: _cancellations,
+                                      onChanged: (value) => setState(
+                                        () => _cancellations = value,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: halfWidth,
+                              child: _SettingsSectionCard(
+                                title: 'Account',
+                                description:
+                                    'Security, privacy, and export actions for your counselor account.',
+                                child: Column(
+                                  children: [
+                                    _ActionTile(
+                                      icon: Icons.lock_reset,
+                                      title: 'Send Password Reset Link',
+                                      subtitle: profile.email,
+                                      onTap: _sendingReset
+                                          ? null
+                                          : () => _sendReset(profile),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _ActionTile(
+                                      icon: Icons.privacy_tip_outlined,
+                                      title: 'Privacy & Data Controls',
+                                      subtitle:
+                                          'Open privacy controls and account data settings.',
+                                      onTap: () =>
+                                          context.go(AppRoute.privacyControls),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _ActionTile(
+                                      icon: Icons.download_rounded,
+                                      title: 'Download My Data',
+                                      subtitle:
+                                          'Download a polished PDF summary, CSV tables, or advanced raw JSON for your counselor account.',
+                                      onTap: () {
+                                        showAccountExportSheet(
+                                          context: context,
+                                          ref: ref,
+                                          title:
+                                              'Download your counselor account data',
+                                          subtitle:
+                                              'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your counselor account export.',
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+        if (widget.embeddedInCounselorShell) {
+          return settingsBody;
+        }
         return CounselorWorkspaceScaffold(
           profile: profile,
           activeSection: CounselorWorkspaceNavSection.dashboard,
@@ -293,402 +683,7 @@ class _CounselorProfileSettingsScreenState
           onNotifications: () => context.go(AppRoute.notifications),
           onProfile: () {},
           onLogout: () => confirmAndLogout(context: context, ref: ref),
-          child: StreamBuilder<CounselorProfile?>(
-            stream: ref
-                .read(careRepositoryProvider)
-                .watchCounselorProfile(profile.id),
-            builder: (context, cpSnap) {
-              return StreamBuilder<Map<String, dynamic>>(
-                stream: ref
-                    .read(careRepositoryProvider)
-                    .watchNotificationSettings(profile.id),
-                builder: (context, nSnap) {
-                  _seed(profile, cpSnap.data, nSnap.data ?? const {});
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _SettingsHero(
-                        profile: profile,
-                        specialization: _specialization,
-                        isActive: _active,
-                        duration: _duration,
-                        directBooking: _direct,
-                      ),
-                      const SizedBox(height: 20),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final useTwoColumns = constraints.maxWidth >= 980;
-                          final halfWidth = useTwoColumns
-                              ? (constraints.maxWidth - 18) / 2
-                              : constraints.maxWidth;
-                          return Wrap(
-                            spacing: 18,
-                            runSpacing: 18,
-                            children: [
-                              SizedBox(
-                                width: halfWidth,
-                                child: _SettingsSectionCard(
-                                  title: 'Public Profile',
-                                  description:
-                                      'Control whether students can discover and book you from the institution directory.',
-                                  child: SwitchListTile.adaptive(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: Text(
-                                      _active
-                                          ? 'Visible to students'
-                                          : 'Hidden from students',
-                                    ),
-                                    subtitle: Text(
-                                      profile.institutionName ??
-                                          'Institution not set',
-                                    ),
-                                    value: _active,
-                                    onChanged: (value) =>
-                                        setState(() => _active = value),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                width: halfWidth,
-                                child: _SettingsSectionCard(
-                                  title: 'Practice Settings',
-                                  description:
-                                      'Define the default session rhythm and how booking requests should behave.',
-                                  child: Column(
-                                    children: [
-                                      DropdownButtonFormField<int>(
-                                        initialValue: _duration,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Default Session Duration',
-                                          prefixIcon: Icon(
-                                            Icons.timer_outlined,
-                                          ),
-                                        ),
-                                        items: _durations
-                                            .map(
-                                              (e) => DropdownMenuItem(
-                                                value: e,
-                                                child: Text('$e min'),
-                                              ),
-                                            )
-                                            .toList(growable: false),
-                                        onChanged: (value) => setState(
-                                          () => _duration = value ?? _duration,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Row(
-                                        children: [
-                                          const Expanded(
-                                            child: Text(
-                                              'Break Between Sessions',
-                                            ),
-                                          ),
-                                          Text('$_breakMins min'),
-                                        ],
-                                      ),
-                                      Slider(
-                                        value: _breakMins.toDouble(),
-                                        min: 0,
-                                        max: 30,
-                                        divisions: 6,
-                                        onChanged: (value) => setState(
-                                          () => _breakMins = value.round(),
-                                        ),
-                                      ),
-                                      SwitchListTile.adaptive(
-                                        contentPadding: EdgeInsets.zero,
-                                        title: const Text(
-                                          'Allow Direct Booking',
-                                        ),
-                                        value: _direct,
-                                        onChanged: (value) =>
-                                            setState(() => _direct = value),
-                                      ),
-                                      SwitchListTile.adaptive(
-                                        contentPadding: EdgeInsets.zero,
-                                        title: const Text(
-                                          'Auto-approve Follow-ups',
-                                        ),
-                                        value: _followUps,
-                                        onChanged: (value) =>
-                                            setState(() => _followUps = value),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                width: useTwoColumns
-                                    ? constraints.maxWidth
-                                    : halfWidth,
-                                child: _SettingsSectionCard(
-                                  title: 'Professional Details',
-                                  description:
-                                      'Edit the professional identity and public profile content students see in your counselor listing.',
-                                  trailing: Align(
-                                    alignment: Alignment.centerRight,
-                                    child: ElevatedButton.icon(
-                                      onPressed: _savingProfile
-                                          ? null
-                                          : () => _save(profile),
-                                      icon: const Icon(Icons.save_rounded),
-                                      label: Text(
-                                        _savingProfile
-                                            ? 'Saving...'
-                                            : 'Save All Changes',
-                                      ),
-                                    ),
-                                  ),
-                                  child: Form(
-                                    key: _formKey,
-                                    child: Column(
-                                      children: [
-                                        TextFormField(
-                                          controller: _name,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Display Name',
-                                            prefixIcon: Icon(Icons.person),
-                                          ),
-                                          validator: (value) =>
-                                              (value ?? '').trim().length < 2
-                                              ? 'Enter at least 2 characters.'
-                                              : null,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        TextFormField(
-                                          controller: _title,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Professional Title',
-                                            prefixIcon: Icon(Icons.badge),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        _SpecializationChips(
-                                          options: _specs,
-                                          selected: _specializations,
-                                          onChanged: (set) => setState(() {
-                                            _specializations = set.isNotEmpty
-                                                ? set
-                                                : {_specs.first};
-                                            _specialization =
-                                                _specializations.first;
-                                          }),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: TextFormField(
-                                                controller: _years,
-                                                keyboardType:
-                                                    TextInputType.number,
-                                                decoration:
-                                                    const InputDecoration(
-                                                      labelText: 'Years',
-                                                      prefixIcon: Icon(
-                                                        Icons.timeline,
-                                                      ),
-                                                    ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child:
-                                                  DropdownButtonFormField<
-                                                    String
-                                                  >(
-                                                    initialValue: _mode,
-                                                    decoration:
-                                                        const InputDecoration(
-                                                          labelText: 'Mode',
-                                                          prefixIcon: Icon(
-                                                            Icons.video_call,
-                                                          ),
-                                                        ),
-                                                    items: _modes
-                                                        .map(
-                                                          (e) =>
-                                                              DropdownMenuItem(
-                                                                value: e,
-                                                                child: Text(e),
-                                                              ),
-                                                        )
-                                                        .toList(
-                                                          growable: false,
-                                                        ),
-                                                    onChanged: (value) =>
-                                                        setState(
-                                                          () => _mode =
-                                                              value ?? _mode,
-                                                        ),
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        DropdownButtonFormField<String>(
-                                          initialValue: _timezone,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Timezone',
-                                            prefixIcon: Icon(Icons.public),
-                                          ),
-                                          items: _zones
-                                              .map(
-                                                (e) => DropdownMenuItem(
-                                                  value: e,
-                                                  child: Text(e),
-                                                ),
-                                              )
-                                              .toList(growable: false),
-                                          onChanged: (value) => setState(
-                                            () =>
-                                                _timezone = value ?? _timezone,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        _LanguageSelector(
-                                          options: _languageOptions,
-                                          selected:
-                                              _languages ??
-                                              {_languageOptions.first},
-                                          onToggle: (lang) {
-                                            setState(() {
-                                              _languages ??= {
-                                                _languageOptions.first,
-                                              };
-                                              if (_languages!.contains(lang)) {
-                                                _languages!.remove(lang);
-                                              } else {
-                                                _languages!.add(lang);
-                                              }
-                                            });
-                                          },
-                                        ),
-                                        const SizedBox(height: 16),
-                                        TextFormField(
-                                          controller: _bio,
-                                          minLines: 3,
-                                          maxLines: 5,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Bio',
-                                            alignLabelWithHint: true,
-                                            prefixIcon: Icon(Icons.notes),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                width: halfWidth,
-                                child: _SettingsSectionCard(
-                                  title: 'Notifications',
-                                  description:
-                                      'Choose which counselor workflow alerts should be pushed into your notification center.',
-                                  trailing: Align(
-                                    alignment: Alignment.centerRight,
-                                    child: OutlinedButton.icon(
-                                      onPressed: _savingNotif
-                                          ? null
-                                          : () => _saveNotif(profile),
-                                      icon: const Icon(
-                                        Icons.notifications_active,
-                                      ),
-                                      label: Text(
-                                        _savingNotif
-                                            ? 'Saving...'
-                                            : 'Save Notifications',
-                                      ),
-                                    ),
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      SwitchListTile.adaptive(
-                                        contentPadding: EdgeInsets.zero,
-                                        title: const Text('Booking Updates'),
-                                        value: _bookingUpdates,
-                                        onChanged: (value) => setState(
-                                          () => _bookingUpdates = value,
-                                        ),
-                                      ),
-                                      SwitchListTile.adaptive(
-                                        contentPadding: EdgeInsets.zero,
-                                        title: const Text('Reminders'),
-                                        value: _reminders,
-                                        onChanged: (value) =>
-                                            setState(() => _reminders = value),
-                                      ),
-                                      SwitchListTile.adaptive(
-                                        contentPadding: EdgeInsets.zero,
-                                        title: const Text('Cancellations'),
-                                        value: _cancellations,
-                                        onChanged: (value) => setState(
-                                          () => _cancellations = value,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                width: halfWidth,
-                                child: _SettingsSectionCard(
-                                  title: 'Account',
-                                  description:
-                                      'Security, privacy, and export actions for your counselor account.',
-                                  child: Column(
-                                    children: [
-                                      _ActionTile(
-                                        icon: Icons.lock_reset,
-                                        title: 'Send Password Reset Link',
-                                        subtitle: profile.email,
-                                        onTap: _sendingReset
-                                            ? null
-                                            : () => _sendReset(profile),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      _ActionTile(
-                                        icon: Icons.privacy_tip_outlined,
-                                        title: 'Privacy & Data Controls',
-                                        subtitle:
-                                            'Open privacy controls and account data settings.',
-                                        onTap: () => context.go(
-                                          AppRoute.privacyControls,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      _ActionTile(
-                                        icon: Icons.download_rounded,
-                                        title: 'Download My Data',
-                                        subtitle:
-                                            'Download a polished PDF summary, CSV tables, or advanced raw JSON for your counselor account.',
-                                        onTap: () {
-                                          showAccountExportSheet(
-                                            context: context,
-                                            ref: ref,
-                                            title:
-                                                'Download your counselor account data',
-                                            subtitle:
-                                                'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your counselor account export.',
-                                          );
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
-          ),
+          child: settingsBody,
         );
       },
       loading: () =>

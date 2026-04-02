@@ -352,13 +352,7 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                       ),
                     ),
                   ),
-                  if (useWideShell) ...[
-                    const SizedBox(height: 14),
-                    _LiveHubInfoCard(isDark: isDark),
-                    const SizedBox(height: 18),
-                  ] else ...[
-                    const SizedBox(height: 8),
-                  ],
+                  if (!useWideShell) ...[const SizedBox(height: 8)],
                   if (sessions.isEmpty)
                     Center(
                       child: ConstrainedBox(
@@ -638,79 +632,6 @@ class _LiveHeroChip extends StatelessWidget {
           color: Color(0xFFD6E3F5),
           fontWeight: FontWeight.w700,
         ),
-      ),
-    );
-  }
-}
-
-class _LiveHubInfoCard extends StatelessWidget {
-  const _LiveHubInfoCard({required this.isDark});
-
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF151F31) : Colors.white,
-        borderRadius: BorderRadius.circular(34),
-        border: Border.all(
-          color: isDark ? const Color(0xFF2A3A52) : const Color(0xFFDDE6F1),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: (isDark ? Colors.black : const Color(0x120F172A)).withValues(
-              alpha: isDark ? 0.28 : 0.07,
-            ),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0E9B90),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.podcasts_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Text(
-                'What is Live Hub?',
-                style: TextStyle(
-                  color: isDark
-                      ? const Color(0xFFE2E8F0)
-                      : const Color(0xFF1E293B),
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Join institution-only live audio sessions. Listen in, request mic access, comment, and react in real-time with your community.',
-            style: TextStyle(
-              color: isDark ? const Color(0xFF9FB2CC) : const Color(0xFF516784),
-              fontSize: 33 / 2,
-              height: 1.45,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
       ),
     );
   }

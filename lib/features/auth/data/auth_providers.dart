@@ -243,6 +243,8 @@ class CurrentUserProfileController extends AsyncNotifier<UserProfile?> {
     if (profile == null) {
       return 'missing-profile';
     }
+    final completedRoles = profile.onboardingCompletedRoles.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
     return [
       profile.id,
       profile.email,
@@ -255,6 +257,8 @@ class CurrentUserProfileController extends AsyncNotifier<UserProfile?> {
       profile.registrationIntent ?? '',
       profile.phoneNumbers.join(','),
       '${profile.institutionWelcomePending}',
+      '${profile.isCounselorRegistrationIntentPending}',
+      completedRoles.map((entry) => '${entry.key}:${entry.value}').join(','),
     ].join('|');
   }
 }
