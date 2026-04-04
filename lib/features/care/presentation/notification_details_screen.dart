@@ -240,6 +240,17 @@ class NotificationDetailsScreen extends ConsumerWidget {
     required UserRole role,
     required AppointmentRecord? appointment,
   }) {
+    switch (role) {
+      case UserRole.student:
+      case UserRole.staff:
+      case UserRole.individual:
+      case UserRole.other:
+        return const <_NotificationAction>[];
+      case UserRole.counselor:
+      case UserRole.institutionAdmin:
+        break;
+    }
+
     final actions = <_NotificationAction>[];
     final normalizedType = notification.type.toLowerCase();
     final rawRoute = (notification.route ?? '').trim();
@@ -1084,7 +1095,7 @@ class _AdminMessageReplyCardState
   String _formatTimestamp(DateTime? value) {
     if (value == null) return 'pending...';
     final local = value.toLocal();
-    final twoDigits = (int v) => v.toString().padLeft(2, '0');
+    String twoDigits(int v) => v.toString().padLeft(2, '0');
     final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
     final suffix = local.hour >= 12 ? 'PM' : 'AM';
     return '${local.month}/${local.day}/${local.year} ${twoDigits(hour12)}:${twoDigits(local.minute)} $suffix';
@@ -1325,7 +1336,7 @@ class _AdminMessageReplyCardState
                     reverse: true,
                     padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
                     itemCount: docs.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, index) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final data = docs[index];
                       final isCounselor =

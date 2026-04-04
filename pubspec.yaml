@@ -82,6 +82,7 @@ flutter:
   assets:
     - assets/loading/
     - assets/logo.png
+    - assets/mindnest-logo.png
     - assets/google.svg
 
   # An image asset can refer to one or more resolution-specific "variants", see

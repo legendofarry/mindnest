@@ -189,29 +189,14 @@ class DesktopSectionNav extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              SizedBox(
-                width: 58,
-                height: 58,
-                child: const Image(
-                  image: AssetImage('assets/logo.png'),
-                  fit: BoxFit.contain,
-                ),
-              ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Text(
-                  'MindNest',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 23,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.6,
-                  ),
-                ),
-              ),
-            ],
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Image(
+              image: AssetImage('assets/mindnest-logo.png'),
+              height: 84,
+              fit: BoxFit.contain,
+              alignment: Alignment.centerLeft,
+            ),
           ),
           const SizedBox(height: 18),
           Container(height: 1, color: Colors.white.withValues(alpha: 0.08)),
@@ -412,12 +397,6 @@ class DesktopSectionNav extends ConsumerWidget {
                   ],
                 ),
               ),
-              _SidebarFooterIconButton(
-                tooltip: 'Settings',
-                icon: Icons.settings_outlined,
-                onTap: () => context.go(AppRoute.privacyControls),
-              ),
-              const SizedBox(width: 8),
               _SidebarFooterIconButton(
                 tooltip: 'Logout',
                 icon: Icons.logout_rounded,

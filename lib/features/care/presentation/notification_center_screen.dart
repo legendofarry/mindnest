@@ -426,92 +426,73 @@ class _NotificationCenterScreenState
     return fallback;
   }
 
-  RelativeRect _menuPosition(Offset globalPosition) {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    return RelativeRect.fromRect(
-      Rect.fromCircle(center: globalPosition, radius: 1),
-      Offset.zero & overlay.size,
-    );
-  }
-
-  Future<void> _showNotificationMenu({
-    required AppNotification notification,
-    required Offset globalPosition,
-  }) async {
-    final selected = await showMenu<_NotificationContextAction>(
-      context: context,
-      position: _menuPosition(globalPosition),
-      items: <PopupMenuEntry<_NotificationContextAction>>[
-        PopupMenuItem<_NotificationContextAction>(
-          value: notification.isPinned
-              ? _NotificationContextAction.unpin
-              : _NotificationContextAction.pin,
-          child: Row(
-            children: [
-              Icon(
-                notification.isPinned
-                    ? Icons.push_pin_outlined
-                    : Icons.push_pin_rounded,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                notification.isPinned
-                    ? 'Unpin notification'
-                    : 'Pin notification',
-              ),
-            ],
-          ),
+  List<PopupMenuEntry<_NotificationContextAction>> _notificationMenuEntries(
+    AppNotification notification,
+  ) {
+    return <PopupMenuEntry<_NotificationContextAction>>[
+      PopupMenuItem<_NotificationContextAction>(
+        value: notification.isPinned
+            ? _NotificationContextAction.unpin
+            : _NotificationContextAction.pin,
+        child: Row(
+          children: [
+            Icon(
+              notification.isPinned
+                  ? Icons.push_pin_outlined
+                  : Icons.push_pin_rounded,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              notification.isPinned ? 'Unpin notification' : 'Pin notification',
+            ),
+          ],
         ),
-        if (!notification.isRead)
-          const PopupMenuItem<_NotificationContextAction>(
-            value: _NotificationContextAction.markRead,
-            child: Row(
-              children: [
-                Icon(Icons.mark_email_read_outlined),
-                SizedBox(width: 10),
-                Text('Mark as read'),
-              ],
-            ),
-          ),
-        if (notification.isArchived)
-          const PopupMenuItem<_NotificationContextAction>(
-            value: _NotificationContextAction.unarchive,
-            child: Row(
-              children: [
-                Icon(Icons.unarchive_outlined),
-                SizedBox(width: 10),
-                Text('Unarchive'),
-              ],
-            ),
-          )
-        else
-          const PopupMenuItem<_NotificationContextAction>(
-            value: _NotificationContextAction.archive,
-            child: Row(
-              children: [
-                Icon(Icons.archive_outlined),
-                SizedBox(width: 10),
-                Text('Archive'),
-              ],
-            ),
-          ),
-        const PopupMenuDivider(),
+      ),
+      if (!notification.isRead)
         const PopupMenuItem<_NotificationContextAction>(
-          value: _NotificationContextAction.delete,
+          value: _NotificationContextAction.markRead,
           child: Row(
             children: [
-              Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
+              Icon(Icons.mark_email_read_outlined),
               SizedBox(width: 10),
-              Text('Delete notification'),
+              Text('Mark as read'),
             ],
           ),
         ),
-      ],
-    );
-    if (selected == null) {
-      return;
-    }
-    await _runNotificationAction(notification: notification, action: selected);
+      if (notification.isArchived)
+        const PopupMenuItem<_NotificationContextAction>(
+          value: _NotificationContextAction.unarchive,
+          child: Row(
+            children: [
+              Icon(Icons.unarchive_outlined),
+              SizedBox(width: 10),
+              Text('Unarchive'),
+            ],
+          ),
+        )
+      else
+        const PopupMenuItem<_NotificationContextAction>(
+          value: _NotificationContextAction.archive,
+          child: Row(
+            children: [
+              Icon(Icons.archive_outlined),
+              SizedBox(width: 10),
+              Text('Archive'),
+            ],
+          ),
+        ),
+      const PopupMenuDivider(),
+      const PopupMenuItem<_NotificationContextAction>(
+        value: _NotificationContextAction.delete,
+        child: Row(
+          children: [
+            Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
+            SizedBox(width: 10),
+            Text('Delete notification'),
+          ],
+        ),
+      ),
+    ];
   }
 
   Future<void> _runNotificationAction({
@@ -967,6 +948,8 @@ class _NotificationCenterScreenState
     required bool isBusy,
     required bool selected,
     required VoidCallback onTap,
+    required ValueChanged<_NotificationContextAction> onMenuSelected,
+    required List<PopupMenuEntry<_NotificationContextAction>> menuEntries,
   }) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
@@ -1062,7 +1045,45 @@ class _NotificationCenterScreenState
                               color: scheme.primary,
                               shape: BoxShape.circle,
                             ),
+                          )
+                        else
+                          const SizedBox(width: 9, height: 9),
+                        const SizedBox(width: 8),
+                        PopupMenuButton<_NotificationContextAction>(
+                          enabled: !isBusy,
+                          tooltip: 'Notification options',
+                          offset: const Offset(0, 42),
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
+                          color: scheme.surface,
+                          surfaceTintColor: scheme.surface,
+                          onSelected: onMenuSelected,
+                          itemBuilder: (_) => menuEntries,
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? scheme.primary.withValues(alpha: 0.10)
+                                  : scheme.surfaceContainerHighest.withValues(
+                                      alpha: 0.45,
+                                    ),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: scheme.outlineVariant.withValues(
+                                  alpha: 0.35,
+                                ),
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.more_horiz_rounded,
+                              size: 18,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     if (isInviteAction) ...[
@@ -1188,29 +1209,19 @@ class _NotificationCenterScreenState
                                       entry.id,
                                     ) ||
                                     _actionNotificationIds.contains(entry.id);
-                                return GestureDetector(
-                                  onSecondaryTapDown: isBusy
-                                      ? null
-                                      : (details) => _showNotificationMenu(
-                                          notification: entry,
-                                          globalPosition:
-                                              details.globalPosition,
-                                        ),
-                                  onLongPressStart: isBusy
-                                      ? null
-                                      : (details) => _showNotificationMenu(
-                                          notification: entry,
-                                          globalPosition:
-                                              details.globalPosition,
-                                        ),
-                                  child: _notificationCard(
-                                    context: context,
-                                    entry: entry,
-                                    isBusy: isBusy,
-                                    selected:
-                                        selectedNotificationId == entry.id,
-                                    onTap: () => _selectNotification(entry),
-                                  ),
+                                return _notificationCard(
+                                  context: context,
+                                  entry: entry,
+                                  isBusy: isBusy,
+                                  selected: selectedNotificationId == entry.id,
+                                  onTap: () => _selectNotification(entry),
+                                  onMenuSelected: (action) {
+                                    _runNotificationAction(
+                                      notification: entry,
+                                      action: action,
+                                    );
+                                  },
+                                  menuEntries: _notificationMenuEntries(entry),
                                 );
                               },
                             ),
@@ -1253,26 +1264,19 @@ class _NotificationCenterScreenState
                     final isBusy =
                         _openingNotificationIds.contains(entry.id) ||
                         _actionNotificationIds.contains(entry.id);
-                    return GestureDetector(
-                      onSecondaryTapDown: isBusy
-                          ? null
-                          : (details) => _showNotificationMenu(
-                              notification: entry,
-                              globalPosition: details.globalPosition,
-                            ),
-                      onLongPressStart: isBusy
-                          ? null
-                          : (details) => _showNotificationMenu(
-                              notification: entry,
-                              globalPosition: details.globalPosition,
-                            ),
-                      child: _notificationCard(
-                        context: context,
-                        entry: entry,
-                        isBusy: isBusy,
-                        selected: false,
-                        onTap: () => _openNotification(entry),
-                      ),
+                    return _notificationCard(
+                      context: context,
+                      entry: entry,
+                      isBusy: isBusy,
+                      selected: false,
+                      onTap: () => _openNotification(entry),
+                      onMenuSelected: (action) {
+                        _runNotificationAction(
+                          notification: entry,
+                          action: action,
+                        );
+                      },
+                      menuEntries: _notificationMenuEntries(entry),
                     );
                   },
                 ),
@@ -1319,7 +1323,7 @@ class _NotificationCenterScreenState
           ),
           const SizedBox(height: 8),
           Text(
-            'Open any notification on the left to review its details and actions here without leaving the page.',
+            'Open any notification on the left to review its details here without leaving the page.',
             style: textTheme.bodyLarge?.copyWith(
               color: scheme.onSurfaceVariant,
               height: 1.4,
