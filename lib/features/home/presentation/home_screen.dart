@@ -1,6 +1,7 @@
 // features/home/presentation/home_screen.dart
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -38,6 +39,7 @@ import 'package:mindnest/core/ui/modern_banner.dart';
 const _teal = Color(0xFF0D9488);
 const _slate = Color(0xFF1E293B);
 const _muted = Color(0xFF64748B);
+const _workspaceModalScrim = Color(0x88161C28);
 bool get _isWindowsApp =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
@@ -337,33 +339,9 @@ class HomeScreen extends ConsumerWidget {
     final homeContext = context;
     final isDesktopPanel = MediaQuery.sizeOf(context).width >= 900;
 
-    void showComingSoonDialog() {
-      showDialog<void>(
-        context: homeContext,
-        barrierDismissible: true,
-        builder: (dialogContext) {
-          Future.delayed(const Duration(seconds: 2), () {
-            if (Navigator.of(dialogContext).canPop()) {
-              Navigator.of(dialogContext).pop();
-            }
-          });
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-            ),
-            title: const Text('Coming soon'),
-            content: const Text('Stay tuned!'),
-          );
-        },
-      );
-    }
-
     Widget panelFor(BuildContext panelContext, {required bool desktopPanel}) {
       final radius = desktopPanel
-          ? const BorderRadius.only(
-              topLeft: Radius.circular(24),
-              bottomLeft: Radius.circular(24),
-            )
+          ? BorderRadius.circular(32)
           : const BorderRadius.vertical(top: Radius.circular(36));
 
       final panelContent = ClipRRect(
@@ -373,16 +351,14 @@ class HomeScreen extends ConsumerWidget {
             color: Colors.white,
             borderRadius: radius,
             border: desktopPanel
-                ? const Border(
-                    left: BorderSide(color: Color(0xFFDDE6F1), width: 1),
-                  )
+                ? Border.all(color: const Color(0xFFDDE6F1))
                 : null,
             boxShadow: desktopPanel
                 ? [
                     BoxShadow(
                       color: const Color(0xFF0F172A).withValues(alpha: 0.12),
-                      blurRadius: 30,
-                      offset: const Offset(-8, 0),
+                      blurRadius: 32,
+                      offset: const Offset(0, 18),
                     ),
                   ]
                 : null,
@@ -467,47 +443,7 @@ class HomeScreen extends ConsumerWidget {
                       number: '0800723253',
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: showComingSoonDialog,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0E9B90),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFF0E9B90,
-                            ).withValues(alpha: 0.30),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      alignment: Alignment.center,
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.support_agent_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Talk to a counselor',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   GestureDetector(
                     onTap: () => Navigator.of(panelContext).pop(),
                     child: Container(
@@ -546,21 +482,20 @@ class HomeScreen extends ConsumerWidget {
       );
 
       if (!desktopPanel) {
-        return panelContent;
+        return FractionallySizedBox(
+          heightFactor: 0.95,
+          widthFactor: 1,
+          alignment: Alignment.bottomCenter,
+          child: panelContent,
+        );
       }
-      final viewportWidth = MediaQuery.sizeOf(panelContext).width;
-      final panelWidth = viewportWidth >= 1400
-          ? 430.0
-          : viewportWidth >= 1100
-          ? 400.0
-          : 360.0;
-      return Align(
-        alignment: Alignment.centerRight,
-        child: SizedBox(
-          width: panelWidth,
-          height: double.infinity,
-          child: Material(color: Colors.transparent, child: panelContent),
-        ),
+      final viewport = MediaQuery.sizeOf(panelContext);
+      final panelWidth = math.min(viewport.width - 48, 520.0);
+      final panelHeight = math.min(viewport.height - 40, 860.0);
+      return SizedBox(
+        width: panelWidth,
+        height: panelHeight,
+        child: Material(color: Colors.transparent, child: panelContent),
       );
     }
 
@@ -572,33 +507,30 @@ class HomeScreen extends ConsumerWidget {
         barrierColor: Colors.transparent,
         transitionDuration: const Duration(milliseconds: 170),
         pageBuilder: (dialogContext, animation, secondaryAnimation) =>
-            panelFor(dialogContext, desktopPanel: true),
-        transitionBuilder:
-            (dialogContext, animation, secondaryAnimation, child) {
-              final curved = CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-              );
-              return FadeTransition(
-                opacity: curved,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.10, 0),
-                    end: Offset.zero,
-                  ).animate(curved),
-                  child: child,
-                ),
-              );
-            },
+            _BlurredWorkspaceOverlay(
+              animation: animation,
+              alignment: Alignment.topRight,
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+              slideBegin: const Offset(0.10, 0),
+              child: panelFor(dialogContext, desktopPanel: true),
+            ),
       );
       return;
     }
 
-    showModalBottomSheet<void>(
+    showGeneralDialog<void>(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) => panelFor(sheetContext, desktopPanel: false),
+      barrierLabel: 'Crisis Support',
+      barrierDismissible: true,
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) =>
+          _BlurredWorkspaceOverlay(
+            animation: animation,
+            alignment: Alignment.bottomCenter,
+            slideBegin: const Offset(0, 0.08),
+            child: panelFor(dialogContext, desktopPanel: false),
+          ),
     );
   }
 
@@ -675,10 +607,7 @@ class HomeScreen extends ConsumerWidget {
               : const Color(0xFFDDE6F1);
 
           final radius = desktopModal
-              ? const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  bottomLeft: Radius.circular(24),
-                )
+              ? BorderRadius.circular(32)
               : const BorderRadius.vertical(top: Radius.circular(36));
 
           final panelContent = ClipRRect(
@@ -688,13 +617,10 @@ class HomeScreen extends ConsumerWidget {
                 color: sheetBg,
                 borderRadius: radius,
                 border: desktopModal
-                    ? Border(
-                        left: BorderSide(
-                          color: isDark
-                              ? const Color(0xFF2A3A52)
-                              : const Color(0xFFDDE6F1),
-                          width: 1,
-                        ),
+                    ? Border.all(
+                        color: isDark
+                            ? const Color(0xFF2A3A52)
+                            : const Color(0xFFDDE6F1),
                       )
                     : null,
                 boxShadow: desktopModal
@@ -703,8 +629,8 @@ class HomeScreen extends ConsumerWidget {
                           color:
                               (isDark ? Colors.black : const Color(0xFF0F172A))
                                   .withValues(alpha: isDark ? 0.34 : 0.12),
-                          blurRadius: 30,
-                          offset: const Offset(-8, 0),
+                          blurRadius: 32,
+                          offset: const Offset(0, 18),
                         ),
                       ]
                     : null,
@@ -982,23 +908,19 @@ class HomeScreen extends ConsumerWidget {
           if (!desktopModal) {
             return FractionallySizedBox(
               heightFactor: 0.95,
+              widthFactor: 1,
+              alignment: Alignment.bottomCenter,
               child: panelContent,
             );
           }
 
-          final viewportWidth = MediaQuery.sizeOf(sheetContext).width;
-          final panelWidth = viewportWidth >= 1400
-              ? 430.0
-              : viewportWidth >= 1100
-              ? 400.0
-              : 360.0;
-          return Align(
-            alignment: Alignment.centerRight,
-            child: SizedBox(
-              width: panelWidth,
-              height: double.infinity,
-              child: Material(color: Colors.transparent, child: panelContent),
-            ),
+          final viewport = MediaQuery.sizeOf(sheetContext);
+          final panelWidth = math.min(viewport.width - 48, 520.0);
+          final panelHeight = math.min(viewport.height - 40, 860.0);
+          return SizedBox(
+            width: panelWidth,
+            height: panelHeight,
+            child: Material(color: Colors.transparent, child: panelContent),
           );
         },
       );
@@ -1011,34 +933,31 @@ class HomeScreen extends ConsumerWidget {
         barrierDismissible: true,
         barrierColor: Colors.transparent,
         transitionDuration: const Duration(milliseconds: 170),
-        pageBuilder: (dialogContext, primaryAnimation, secondaryAnimation) =>
-            panelFor(dialogContext, desktopModal: true),
-        transitionBuilder:
-            (dialogContext, animation, secondaryAnimation, child) {
-              final curved = CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-              );
-              return FadeTransition(
-                opacity: curved,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.10, 0),
-                    end: Offset.zero,
-                  ).animate(curved),
-                  child: child,
-                ),
-              );
-            },
+        pageBuilder: (dialogContext, animation, secondaryAnimation) =>
+            _BlurredWorkspaceOverlay(
+              animation: animation,
+              alignment: Alignment.topRight,
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+              slideBegin: const Offset(0.10, 0),
+              child: panelFor(dialogContext, desktopModal: true),
+            ),
       );
       return;
     }
 
-    showModalBottomSheet<void>(
+    showGeneralDialog<void>(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) => panelFor(sheetContext, desktopModal: false),
+      barrierLabel: 'Profile',
+      barrierDismissible: true,
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) =>
+          _BlurredWorkspaceOverlay(
+            animation: animation,
+            alignment: Alignment.bottomCenter,
+            slideBegin: const Offset(0, 0.08),
+            child: panelFor(dialogContext, desktopModal: false),
+          ),
     );
   }
 
@@ -2015,6 +1934,66 @@ class HomeScreen extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 // Extracted sub-widgets (UI only)
 // ---------------------------------------------------------------------------
+
+class _BlurredWorkspaceOverlay extends StatelessWidget {
+  const _BlurredWorkspaceOverlay({
+    required this.animation,
+    required this.alignment,
+    required this.slideBegin,
+    required this.child,
+    this.padding = EdgeInsets.zero,
+  });
+
+  final Animation<double> animation;
+  final Alignment alignment;
+  final Offset slideBegin;
+  final Widget child;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+    );
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: FadeTransition(
+                opacity: curved,
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(color: _workspaceModalScrim),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: padding,
+              child: Align(
+                alignment: alignment,
+                child: FadeTransition(
+                  opacity: curved,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: slideBegin,
+                      end: Offset.zero,
+                    ).animate(curved),
+                    child: child,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _AnimatedHomeBlobs extends StatefulWidget {
   const _AnimatedHomeBlobs({required this.isDark});

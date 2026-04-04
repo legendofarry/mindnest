@@ -191,25 +191,9 @@ class DesktopSectionNav extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Container(
+              SizedBox(
                 width: 58,
                 height: 58,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF52DFE5), Color(0xFF1F8EB6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x3A47D5D8),
-                      blurRadius: 24,
-                      offset: Offset(0, 12),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(10),
                 child: const Image(
                   image: AssetImage('assets/logo.png'),
                   fit: BoxFit.contain,
