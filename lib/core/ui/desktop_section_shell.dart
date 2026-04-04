@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 
-bool get _isWindowsApp => !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+bool get _isWindowsApp =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
 class DesktopSectionBody extends StatelessWidget {
   const DesktopSectionBody({
@@ -13,7 +18,7 @@ class DesktopSectionBody extends StatelessWidget {
     required this.hasInstitution,
     required this.canAccessLive,
     required this.child,
-    this.sidebarWidth = 240,
+    this.sidebarWidth = 296,
     this.gap = 18,
   });
 
@@ -122,7 +127,7 @@ void _handlePrimaryNavTap(
   context.go(route);
 }
 
-class DesktopSectionNav extends StatelessWidget {
+class DesktopSectionNav extends ConsumerWidget {
   const DesktopSectionNav({
     super.key,
     required this.hasInstitution,
@@ -133,9 +138,12 @@ class DesktopSectionNav extends StatelessWidget {
   final bool canAccessLive;
 
   @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).matchedLocation;
+    final profile = ref.watch(currentUserProfileProvider).valueOrNull;
+    final displayName = _displayName(profile);
+    final roleLabel = _roleLabel(profile);
+    final initials = _initialsForProfile(profile);
     final items = <_DesktopNavItem>[
       const _DesktopNavItem(
         label: 'Home',
@@ -161,9 +169,9 @@ class DesktopSectionNav extends StatelessWidget {
     ];
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+      padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0B1220) : const Color(0xFF0C1B33),
+        color: const Color(0xFF1F2430),
         borderRadius: BorderRadius.circular(28),
         boxShadow: const [
           BoxShadow(
@@ -176,73 +184,58 @@ class DesktopSectionNav extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    SizedBox(
-                      width: 38,
-                      height: 38,
-                      child: Image(
-                        image: AssetImage('assets/logo.png'),
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'MindNest',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
+          Row(
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF52DFE5), Color(0xFF1F8EB6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x3A47D5D8),
+                      blurRadius: 24,
+                      offset: Offset(0, 12),
                     ),
                   ],
                 ),
-                SizedBox(height: 14),
-                Text(
-                  'Student Workspace',
+                padding: const EdgeInsets.all(10),
+                child: const Image(
+                  image: AssetImage('assets/logo.png'),
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Text(
+                  'MindNest',
                   style: TextStyle(
-                    color: Color(0xFFD6E3F5),
-                    fontSize: 12,
+                    color: Colors.white,
+                    fontSize: 23,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 0.9,
+                    letterSpacing: -0.6,
                   ),
                 ),
-                SizedBox(height: 6),
-                Text(
-                  'Core navigation for care, live spaces, and counselor discovery.',
-                  style: TextStyle(
-                    color: Color(0xFF9FB2CC),
-                    fontSize: 13,
-                    height: 1.4,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: 18),
+          Container(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+          const SizedBox(height: 18),
           Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+            padding: const EdgeInsets.fromLTRB(6, 0, 6, 14),
             child: Text(
-              'Navigation',
+              'NAVIGATION',
               style: TextStyle(
-                color: const Color(0xFF9FB2CC),
+                color: Colors.white.withValues(alpha: 0.76),
                 fontWeight: FontWeight.w700,
-                fontSize: 12,
-                letterSpacing: 0.5,
+                fontSize: 13,
+                letterSpacing: 1.8,
               ),
             ),
           ),
@@ -259,7 +252,7 @@ class DesktopSectionNav extends StatelessWidget {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 6),
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(18),
                         onTap: () => _handlePrimaryNavTap(
                           context,
                           route: item.route,
@@ -269,64 +262,61 @@ class DesktopSectionNav extends StatelessWidget {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
+                            horizontal: 16,
+                            vertical: 14,
                           ),
                           decoration: BoxDecoration(
                             color: active
-                                ? const Color(0xFF12314B)
-                                : Colors.white.withValues(alpha: 0.04),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: active
-                                  ? const Color(
-                                      0xFF1F6BFF,
-                                    ).withValues(alpha: 0.34)
-                                  : Colors.white.withValues(alpha: 0.06),
-                            ),
+                                ? const Color(0xFF2C3442)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(18),
                           ),
                           child: Row(
                             children: [
                               Container(
-                                width: 34,
-                                height: 34,
+                                width: 38,
+                                height: 38,
                                 decoration: BoxDecoration(
                                   color: active
                                       ? const Color(
-                                          0xFF15A39A,
-                                        ).withValues(alpha: 0.18)
-                                      : Colors.white.withValues(alpha: 0.06),
-                                  borderRadius: BorderRadius.circular(12),
+                                          0xFF60E2CC,
+                                        ).withValues(alpha: 0.14)
+                                      : Colors.white.withValues(alpha: 0.05),
+                                  borderRadius: BorderRadius.circular(14),
                                 ),
                                 child: Icon(
                                   item.icon,
-                                  size: 18,
+                                  size: 20,
                                   color: active
-                                      ? const Color(0xFF6EE7D8)
-                                      : const Color(0xFF8FA4C2),
+                                      ? const Color(0xFF60E2CC)
+                                      : Colors.white.withValues(alpha: 0.84),
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 14),
                               Expanded(
                                 child: Text(
                                   item.label,
                                   style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 15,
                                     fontWeight: active
                                         ? FontWeight.w700
                                         : FontWeight.w600,
                                     color: active
-                                        ? Colors.white
-                                        : const Color(0xFFB7C6DA),
+                                        ? const Color(0xFF60E2CC)
+                                        : Colors.white.withValues(alpha: 0.9),
                                   ),
                                 ),
                               ),
-                              Icon(
-                                Icons.arrow_outward_rounded,
-                                size: 16,
-                                color: active
-                                    ? const Color(0xFFD6E3F5)
-                                    : const Color(0xFF67819E),
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: active
+                                      ? const Color(0xFF60E2CC)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
                               ),
                             ],
                           ),
@@ -336,31 +326,38 @@ class DesktopSectionNav extends StatelessWidget {
                   }),
                   const SizedBox(height: 18),
                   Container(
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(18),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF2A3140), Color(0xFF242B38)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.07),
+                        color: Colors.white.withValues(alpha: 0.05),
                       ),
                     ),
-                    child: const Row(
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.shield_moon_outlined,
-                          color: Color(0xFF8FA4C2),
-                          size: 18,
+                        Text(
+                          'PRO TIP',
+                          style: TextStyle(
+                            color: Color(0xFF60E2CC),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.6,
+                          ),
                         ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Student, staff, and individual screens keep the same mobile bottom navigation.',
-                            style: TextStyle(
-                              color: Color(0xFF9FB2CC),
-                              fontSize: 12,
-                              height: 1.4,
-                              fontWeight: FontWeight.w500,
-                            ),
+                        SizedBox(height: 12),
+                        Text(
+                          'Regular check-ins help counselors better understand your journey.',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            height: 1.55,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
@@ -370,10 +367,152 @@ class DesktopSectionNav extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 18),
+          Container(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF60E2CC), Color(0xFF1F8EB6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  initials,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      roleLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _SidebarFooterIconButton(
+                tooltip: 'Settings',
+                icon: Icons.settings_outlined,
+                onTap: () => context.go(AppRoute.privacyControls),
+              ),
+              const SizedBox(width: 8),
+              _SidebarFooterIconButton(
+                tooltip: 'Logout',
+                icon: Icons.logout_rounded,
+                onTap: () => confirmAndLogout(context: context, ref: ref),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
+}
+
+class _SidebarFooterIconButton extends StatelessWidget {
+  const _SidebarFooterIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            icon,
+            color: Colors.white.withValues(alpha: 0.86),
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _displayName(UserProfile? profile) {
+  final rawName = profile?.name.trim() ?? '';
+  if (rawName.isNotEmpty) {
+    return rawName;
+  }
+  final email = profile?.email.trim() ?? '';
+  if (email.contains('@')) {
+    return email.split('@').first;
+  }
+  if (email.isNotEmpty) {
+    return email;
+  }
+  return 'MindNest User';
+}
+
+String _roleLabel(UserProfile? profile) {
+  return profile?.role.label ?? 'Member';
+}
+
+String _initialsForProfile(UserProfile? profile) {
+  final parts = _displayName(profile)
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .toList(growable: false);
+  if (parts.isEmpty) {
+    return 'MN';
+  }
+  final buffer = StringBuffer();
+  buffer.write(parts.first.substring(0, 1).toUpperCase());
+  if (parts.length > 1) {
+    buffer.write(parts.last.substring(0, 1).toUpperCase());
+  } else if (parts.first.length > 1) {
+    buffer.write(parts.first[1].toUpperCase());
+  }
+  return buffer.toString();
 }
 
 class PrimaryMobileBottomNav extends StatelessWidget {

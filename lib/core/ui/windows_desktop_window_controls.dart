@@ -2,8 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
+bool get _supportsWindowManager =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
 bool isWindowsDesktopShell(BuildContext context) {
-  if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
+  if (!_supportsWindowManager) {
     return false;
   }
   final mediaQuery = MediaQuery.maybeOf(context);
@@ -27,13 +30,18 @@ class _WindowsDesktopWindowControlsState
   @override
   void initState() {
     super.initState();
+    if (!_supportsWindowManager) {
+      return;
+    }
     windowManager.addListener(this);
     _syncWindowState();
   }
 
   @override
   void dispose() {
-    windowManager.removeListener(this);
+    if (_supportsWindowManager) {
+      windowManager.removeListener(this);
+    }
     super.dispose();
   }
 
@@ -52,6 +60,9 @@ class _WindowsDesktopWindowControlsState
   }
 
   Future<void> _syncWindowState() async {
+    if (!_supportsWindowManager) {
+      return;
+    }
     final isMaximized = await windowManager.isMaximized();
     if (!mounted) {
       return;
@@ -150,10 +161,16 @@ class _WindowControlButton extends StatelessWidget {
 }
 
 Future<void> _minimizeWindow() async {
+  if (!_supportsWindowManager) {
+    return;
+  }
   await windowManager.minimize();
 }
 
 Future<void> _toggleMaximizeWindow() async {
+  if (!_supportsWindowManager) {
+    return;
+  }
   if (await windowManager.isMaximized()) {
     await windowManager.unmaximize();
     return;
@@ -161,4 +178,9 @@ Future<void> _toggleMaximizeWindow() async {
   await windowManager.maximize();
 }
 
-Future<void> _closeWindow() => windowManager.close();
+Future<void> _closeWindow() async {
+  if (!_supportsWindowManager) {
+    return;
+  }
+  await windowManager.close();
+}

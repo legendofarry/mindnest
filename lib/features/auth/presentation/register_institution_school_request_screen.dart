@@ -6,6 +6,7 @@ import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/core/ui/auth_desktop_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class RegisterInstitutionSchoolRequestScreen extends ConsumerStatefulWidget {
   const RegisterInstitutionSchoolRequestScreen({super.key});
@@ -84,7 +85,8 @@ class _RegisterInstitutionSchoolRequestScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(
           content: Text(
             'Institution request sent. We will review the name and add it if approved.',

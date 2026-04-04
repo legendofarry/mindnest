@@ -141,7 +141,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         return;
       }
       setState(() {
-        _formError = error.message ?? 'Login failed.';
+        _formError = _friendlyLoginErrorMessage(error);
       });
       await _triggerShake();
     } catch (error) {
@@ -182,7 +182,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         return;
       }
       setState(() {
-        _formError = error.message ?? 'Google sign-in failed.';
+        _formError = _friendlyLoginErrorMessage(
+          error,
+          fallback: 'Google sign-in failed. Please try again.',
+        );
       });
       await _triggerShake();
     } catch (error) {
@@ -198,6 +201,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         setState(() => _isGoogleSubmitting = false);
       }
     }
+  }
+
+  String _friendlyLoginErrorMessage(
+    FirebaseAuthException error, {
+    String fallback = 'Login failed. Please try again.',
+  }) {
+    final code = error.code.trim().toLowerCase();
+    final rawMessage = (error.message ?? '').trim().toLowerCase();
+
+    if (code == 'invalid-credential' ||
+        code == 'wrong-password' ||
+        code == 'user-not-found' ||
+        rawMessage.contains('supplied auth credential is incorrect') ||
+        rawMessage.contains('malformed or has expired')) {
+      return 'The email or password is incorrect. Please try again.';
+    }
+
+    if (code == 'invalid-email') {
+      return 'Please enter a valid email address.';
+    }
+
+    if (code == 'user-disabled') {
+      return 'This account has been disabled. Please contact support.';
+    }
+
+    if (code == 'too-many-requests') {
+      return 'Too many attempts were made. Please wait a moment and try again.';
+    }
+
+    if (code == 'network-request-failed') {
+      return 'We could not reach the server. Check your internet connection and try again.';
+    }
+
+    if (code == 'popup-closed-by-user') {
+      return 'Sign-in was cancelled before it could finish.';
+    }
+
+    if (code == 'popup-blocked') {
+      return 'Your browser blocked the sign-in window. Allow pop-ups and try again.';
+    }
+
+    if (rawMessage.isNotEmpty) {
+      return error.message!;
+    }
+
+    return fallback;
   }
 
   Uri _buildWindowsSignupUri() {

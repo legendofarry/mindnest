@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/core/config/owner_config.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
-import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class OwnerDashboardScreen extends ConsumerStatefulWidget {
   const OwnerDashboardScreen({super.key});
@@ -18,7 +18,6 @@ class OwnerDashboardScreen extends ConsumerStatefulWidget {
 
 class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   final _declineReasonController = TextEditingController();
-  bool _isClearingDatabase = false;
 
   @override
   void dispose() {
@@ -34,14 +33,16 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Institution approved successfully.')),
       );
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -84,7 +85,8 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Enter a valid decline reason.')),
       );
       return;
@@ -100,14 +102,16 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Institution declined.')));
+        const SnackBar(content: Text('Institution declined.')),
+      );
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -126,7 +130,8 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(
             approved ? 'School request approved.' : 'School request declined.',
@@ -137,47 +142,12 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
       );
-    }
-  }
-
-  Future<void> _clearDatabase() async {
-    if (_isClearingDatabase) {
-      return;
-    }
-    setState(() => _isClearingDatabase = true);
-    try {
-      await ref
-          .read(institutionRepositoryProvider)
-          .clearAllDataForDevelopment();
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Database cleared.')));
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error
-                .toString()
-                .replaceFirst('Exception: ', '')
-                .replaceFirst('[cloud_firestore/permission-denied] ', ''),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isClearingDatabase = false);
-      }
     }
   }
 
@@ -202,27 +172,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          FilledButton.icon(
-            onPressed: _isClearingDatabase ? null : _clearDatabase,
-            icon: Icon(
-              _isClearingDatabase
-                  ? Icons.hourglass_top_rounded
-                  : Icons.delete_forever_rounded,
-            ),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
-              foregroundColor: Colors.white,
-            ),
-            label: Text(_isClearingDatabase ? 'Clearing...' : 'Clear DB'),
-          ),
-          const SizedBox(width: 8),
           TextButton.icon(
             onPressed: () => confirmAndLogout(context: context, ref: ref),
             icon: const Icon(Icons.logout_rounded),
             label: const Text('Logout'),
           ),
-          const SizedBox(width: 8),
-          const WindowsDesktopWindowControls(),
           const SizedBox(width: 8),
         ],
       ),

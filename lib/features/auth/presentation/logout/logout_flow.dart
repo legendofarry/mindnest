@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 Future<void> confirmAndLogout({
   required BuildContext context,
@@ -41,7 +42,8 @@ Future<void> confirmAndLogout({
     if (!context.mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
+    showModernBannerFromSnackBar(
+      context,
       SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
     );
   } finally {

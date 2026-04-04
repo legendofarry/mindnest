@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 enum LegalDocumentType { termsOfService, privacyPolicy }
@@ -125,7 +126,7 @@ class TermsAndPrivacyScreen extends StatelessWidget {
         : 'Open Terms of Service';
 
     return Scaffold(
-      appBar: AppBar(title: Text(_title)),
+      appBar: kIsWeb ? null : AppBar(title: Text(_title)),
       body: SafeArea(
         child: Container(
           decoration: const BoxDecoration(
@@ -147,7 +148,7 @@ class TermsAndPrivacyScreen extends StatelessWidget {
                   child: SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
                       horizontalPadding,
-                      14,
+                      kIsWeb ? 24 : 14,
                       horizontalPadding,
                       28,
                     ),

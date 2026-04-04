@@ -1561,8 +1561,10 @@ class _RoundedInput extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: hasError ? const Color(0xFFFECDD3) : const Color(0xFFD2DCE9),
-          width: hasError ? 1.2 : 1.0,
+          color: hasError
+              ? const Color.fromARGB(255, 255, 90, 109)
+              : const Color(0xFFD2DCE9),
+          width: hasError ? 2.2 : 1.0,
         ),
         boxShadow: const [
           BoxShadow(

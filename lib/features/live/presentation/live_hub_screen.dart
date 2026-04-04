@@ -16,6 +16,7 @@ import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/live/data/live_providers.dart';
 import 'package:mindnest/features/live/models/live_participant.dart';
 import 'package:mindnest/features/live/models/live_session.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class LiveHubScreen extends ConsumerStatefulWidget {
   const LiveHubScreen({
@@ -41,6 +42,8 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
   bool _allowCounselors = true;
   bool _creating = false;
   bool _autoCreateHandled = false;
+  Stream<List<LiveSession>>? _liveSessionsStream;
+  String? _liveSessionsInstitutionId;
 
   @override
   void dispose() {
@@ -53,6 +56,21 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
     return profile.role == UserRole.student ||
         profile.role == UserRole.staff ||
         profile.role == UserRole.counselor;
+  }
+
+  Stream<List<LiveSession>> _liveSessionsStreamFor(String institutionId) {
+    final normalized = institutionId.trim();
+    if (normalized.isEmpty) {
+      return Stream<List<LiveSession>>.value(const <LiveSession>[]);
+    }
+    if (_liveSessionsStream == null ||
+        _liveSessionsInstitutionId != normalized) {
+      _liveSessionsInstitutionId = normalized;
+      _liveSessionsStream = ref
+          .read(liveRepositoryProvider)
+          .watchInstitutionLives(institutionId: normalized);
+    }
+    return _liveSessionsStream!;
   }
 
   String _statusLabel(LiveSessionStatus status) {
@@ -97,7 +115,8 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
             Future<void> submit() async {
               final title = _titleController.text.trim();
               if (title.length < 4) {
-                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                showModernBannerFromSnackBar(
+                  sheetContext,
                   const SnackBar(
                     content: Text('Title must be at least 4 characters.'),
                   ),
@@ -110,7 +129,8 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                 if (_allowCounselors) UserRole.counselor,
               ];
               if (allowedRoles.isEmpty) {
-                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                showModernBannerFromSnackBar(
+                  sheetContext,
                   const SnackBar(
                     content: Text('Select at least one allowed role.'),
                   ),
@@ -138,7 +158,8 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
                 if (!sheetContext.mounted) {
                   return;
                 }
-                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                showModernBannerFromSnackBar(
+                  sheetContext,
                   SnackBar(
                     content: Text(
                       error.toString().replaceFirst('Exception: ', ''),
@@ -279,7 +300,8 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
           return;
         }
         if (!canUse || institutionId.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          showModernBannerFromSnackBar(
+            context,
             const SnackBar(
               content: Text(
                 'You cannot start a live session from this account right now.',
@@ -305,82 +327,90 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
             isDark: isDark,
             message: 'Join an institution to access live sessions.',
           )
-        : StreamBuilder<List<LiveSession>>(
-            stream: ref
-                .read(liveRepositoryProvider)
-                .watchInstitutionLives(institutionId: institutionId),
-            builder: (context, snapshot) {
-              final sessions = snapshot.data ?? const <LiveSession>[];
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  sessions.isEmpty) {
-                return const SizedBox(
-                  height: 320,
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF0E9B90),
-                      strokeWidth: 2.5,
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _LiveHubHeroCard(profile: profile, showChips: useWideShell),
+              const SizedBox(height: 14),
+              Align(
+                alignment: Alignment.topRight,
+                child: FilledButton.icon(
+                  onPressed: () => _openCreateLiveDialog(profile),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF0E9B90),
+                    foregroundColor: Colors.white,
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 12,
                     ),
                   ),
-                );
-              }
+                  icon: const Icon(Icons.podcasts_rounded, size: 18),
+                  label: const Text(
+                    'Go Live',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                  ),
+                ),
+              ),
+              if (!useWideShell) ...[const SizedBox(height: 8)],
+              StreamBuilder<List<LiveSession>>(
+                stream: _liveSessionsStreamFor(institutionId),
+                builder: (context, snapshot) {
+                  final sessions = snapshot.data ?? const <LiveSession>[];
+                  if (snapshot.hasError && sessions.isEmpty) {
+                    return _LiveHubInfoMessageCard(
+                      isDark: isDark,
+                      message: snapshot.error.toString().replaceFirst(
+                        'Exception: ',
+                        '',
+                      ),
+                    );
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      sessions.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.only(top: 24),
+                      child: SizedBox(
+                        height: 320,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF0E9B90),
+                            strokeWidth: 2.5,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _LiveHubHeroCard(profile: profile, showChips: useWideShell),
-                  const SizedBox(height: 14),
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: FilledButton.icon(
-                      onPressed: () => _openCreateLiveDialog(profile),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF0E9B90),
-                        foregroundColor: Colors.white,
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 12,
-                        ),
-                      ),
-                      icon: const Icon(Icons.podcasts_rounded, size: 18),
-                      label: const Text(
-                        'Go Live',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (!useWideShell) ...[const SizedBox(height: 8)],
-                  if (sessions.isEmpty)
-                    Center(
+                  if (sessions.isEmpty) {
+                    return Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 420),
                         child: _LiveHubEmptyState(isDark: isDark),
                       ),
-                    )
-                  else
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.only(bottom: 12),
-                      itemCount: sessions.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final session = sessions[index];
-                        final statusColor = _statusColor(session.status);
-                        return _LiveSessionCard(
-                          session: session,
-                          statusLabel: _statusLabel(session.status),
-                          statusColor: statusColor,
-                        );
-                      },
-                    ),
-                ],
-              );
-            },
+                    );
+                  }
+
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 12),
+                    itemCount: sessions.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final session = sessions[index];
+                      final statusColor = _statusColor(session.status);
+                      return _LiveSessionCard(
+                        session: session,
+                        statusLabel: _statusLabel(session.status),
+                        statusColor: statusColor,
+                      );
+                    },
+                  );
+                },
+              ),
+            ],
           );
 
     if (useDesktopShell) {

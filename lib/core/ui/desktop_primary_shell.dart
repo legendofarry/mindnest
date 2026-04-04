@@ -40,6 +40,27 @@ class DesktopPrimaryShell extends ConsumerWidget {
     context.go(uri.toString());
   }
 
+  String? _normalizedPrimaryWorkspaceRoute(String? rawRoute) {
+    final normalized = (rawRoute ?? '').trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    final uri = Uri.tryParse(normalized);
+    if (uri == null) {
+      return null;
+    }
+    switch (uri.path) {
+      case AppRoute.home:
+      case AppRoute.counselorDirectory:
+      case AppRoute.studentAppointments:
+      case AppRoute.liveHub:
+      case AppRoute.privacyControls:
+        return uri.toString();
+      default:
+        return null;
+    }
+  }
+
   void _showNotificationsUnavailable(BuildContext context) {
     showDialog<void>(
       context: context,
@@ -76,6 +97,7 @@ class DesktopPrimaryShell extends ConsumerWidget {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
+    final currentUri = GoRouterState.of(context).uri;
     final bypassShellForCounselorDirectory =
         matchedLocation == AppRoute.counselorDirectory &&
         profile?.role == UserRole.counselor;
@@ -91,6 +113,15 @@ class DesktopPrimaryShell extends ConsumerWidget {
         : 0;
     final notificationsActive = matchedLocation == AppRoute.notifications;
     final profileActive = matchedLocation == AppRoute.privacyControls;
+    final homeOwnsTopHeader = matchedLocation == AppRoute.home;
+    final notificationsReturnTo =
+        _normalizedPrimaryWorkspaceRoute(
+          currentUri.queryParameters[AppRoute.returnToQuery],
+        ) ??
+        AppRoute.home;
+    final overlayAnchorRoute =
+        _normalizedPrimaryWorkspaceRoute(currentUri.toString()) ??
+        AppRoute.home;
 
     return Scaffold(
       backgroundColor: isDark
@@ -106,142 +137,97 @@ class DesktopPrimaryShell extends ConsumerWidget {
             end: Alignment.bottomRight,
           ),
         ),
-        child: Stack(
-          children: [
-            SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                child: Row(
-                  children: [
-                    _ShellTitleCard(isDark: isDark),
-                    const Spacer(),
-                    _HeaderActionButton(
-                      tooltip: 'Notifications',
-                      active: notificationsActive,
-                      onPressed: hasInstitution
-                          ? () => context.go(AppRoute.notifications)
-                          : () => _showNotificationsUnavailable(context),
-                      child: _HeaderBellIcon(
-                        unreadCount: unreadCount,
-                        active: notificationsActive,
-                      ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 22, 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 296,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: DesktopSectionNav(
+                      hasInstitution: hasInstitution,
+                      canAccessLive: canAccessLive,
                     ),
-                    const SizedBox(width: 8),
-                    _HeaderActionButton(
-                      tooltip: 'Profile',
-                      active: profileActive,
-                      onPressed: profile == null
-                          ? null
-                          : () {
-                              if (matchedLocation == AppRoute.home) {
-                                ref
-                                        .read(
-                                          desktopProfileOpenRequestProvider
-                                              .notifier,
-                                        )
-                                        .state =
-                                    DateTime.now().microsecondsSinceEpoch;
-                                return;
-                              }
-                              _openProfileFromHeader(context);
-                            },
-                      child: Icon(
-                        Icons.person_outline_rounded,
-                        color: profileActive
-                            ? const Color(0xFF0B2442)
-                            : (isDark
-                                  ? const Color(0xFFD6E3F5)
-                                  : const Color(0xFF16324F)),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    const WindowsDesktopWindowControls(),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-            SafeArea(
-              top: false,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 96, 0, 20),
-                    child: SizedBox(
-                      width: 272,
-                      child: DesktopSectionNav(
-                        hasInstitution: hasInstitution,
-                        canAccessLive: canAccessLive,
-                      ),
-                    ),
+                const SizedBox(width: 24),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!homeOwnsTopHeader)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 4, 0, 16),
+                          child: Row(
+                            children: [
+                              const Spacer(),
+                              _HeaderActionButton(
+                                tooltip: 'Notifications',
+                                active: notificationsActive,
+                                onPressed: hasInstitution
+                                    ? () {
+                                        if (notificationsActive) {
+                                          context.go(notificationsReturnTo);
+                                          return;
+                                        }
+                                        context.go(
+                                          AppRoute.notificationsRoute(
+                                            returnTo: overlayAnchorRoute,
+                                          ),
+                                        );
+                                      }
+                                    : () => _showNotificationsUnavailable(
+                                        context,
+                                      ),
+                                child: _HeaderBellIcon(
+                                  unreadCount: unreadCount,
+                                  active: notificationsActive,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _HeaderActionButton(
+                                tooltip: 'Profile',
+                                active: profileActive,
+                                onPressed: profile == null
+                                    ? null
+                                    : () {
+                                        if (matchedLocation == AppRoute.home) {
+                                          ref
+                                              .read(
+                                                desktopProfileOpenRequestProvider
+                                                    .notifier,
+                                              )
+                                              .state = DateTime.now()
+                                              .microsecondsSinceEpoch;
+                                          return;
+                                        }
+                                        _openProfileFromHeader(context);
+                                      },
+                                child: Icon(
+                                  Icons.person_outline_rounded,
+                                  color: profileActive
+                                      ? const Color(0xFF0B2442)
+                                      : (isDark
+                                            ? const Color(0xFFD6E3F5)
+                                            : const Color(0xFF16324F)),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              const WindowsDesktopWindowControls(),
+                            ],
+                          ),
+                        ),
+                      Expanded(child: child),
+                    ],
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 96, 24, 24),
-                      child: child,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
-    );
-  }
-}
-
-class _ShellTitleCard extends StatelessWidget {
-  const _ShellTitleCard({required this.isDark});
-
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-      decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xF0122034)
-            : Colors.white.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : const Color(0xFFD8E2EE),
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x160F172A),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'MindNest',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF071937),
-              fontSize: 20,
-              letterSpacing: -0.4,
-            ),
-          ),
-          Text(
-            'Student Workspace',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: isDark ? const Color(0xFF8FA4C2) : const Color(0xFF62748B),
-              fontSize: 12,
-              letterSpacing: 0.4,
-            ),
-          ),
-        ],
       ),
     );
   }

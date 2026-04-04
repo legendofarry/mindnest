@@ -33,7 +33,8 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
   Future<void> _accept(UserInvite invite) async {
     final institutionCode = _codeController.text.trim().toUpperCase();
     if (institutionCode.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Enter the institution code to accept.')),
       );
       return;
@@ -47,9 +48,10 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
       await _syncConnectedState(invite);
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Invite accepted.')));
+        const SnackBar(content: Text('Invite accepted.')),
+      );
 
       if (invite.intendedRole == UserRole.counselor) {
         context.go(AppRoute.counselorSetup);
@@ -58,7 +60,8 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -97,13 +100,15 @@ class _InviteAcceptScreenState extends ConsumerState<InviteAcceptScreen> {
     try {
       await ref.read(institutionRepositoryProvider).declineInvite(invite);
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Invite declined.')));
+        const SnackBar(content: Text('Invite declined.')),
+      );
       context.go(AppRoute.home);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),

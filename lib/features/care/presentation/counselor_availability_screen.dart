@@ -12,6 +12,7 @@ import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class CounselorAvailabilityScreen extends ConsumerStatefulWidget {
   const CounselorAvailabilityScreen({
@@ -164,13 +165,15 @@ class _CounselorAvailabilityScreenState
     final startLocal = _composeDateTime(_date, _startTime);
     final endLocal = _composeDateTime(_date, _endTime);
     if (startLocal == null || endLocal == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Choose date, start, and end time.')),
       );
       return;
     }
     if (!endLocal.isAfter(startLocal)) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('End time must be after start time.')),
       );
       return;
@@ -192,7 +195,8 @@ class _CounselorAvailabilityScreenState
   }) async {
     final institutionId = profile.institutionId ?? '';
     if (institutionId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(
           content: Text('Counselor must be linked to institution.'),
         ),
@@ -212,9 +216,10 @@ class _CounselorAvailabilityScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(successText)));
+        SnackBar(content: Text(successText)),
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -226,7 +231,8 @@ class _CounselorAvailabilityScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -276,7 +282,8 @@ class _CounselorAvailabilityScreenState
                   return;
                 }
                 Navigator.of(this.context).pop();
-                ScaffoldMessenger.of(this.context).showSnackBar(
+                showModernBannerFromSnackBar(
+                  this.context,
                   const SnackBar(
                     content: Text(
                       'Index link copied. Open it in your browser and create the index.',
@@ -842,9 +849,8 @@ class _CounselorAvailabilityScreenState
                                                 .deleteAvailabilitySlot(slot);
                                           } catch (error) {
                                             if (!context.mounted) return;
-                                            ScaffoldMessenger.of(
+                                            showModernBannerFromSnackBar(
                                               context,
-                                            ).showSnackBar(
                                               SnackBar(
                                                 content: Text(
                                                   error.toString().replaceFirst(
@@ -1055,7 +1061,8 @@ class _CounselorAvailabilityScreenState
                                       .deleteAvailabilitySlot(slot);
                                 } catch (error) {
                                   if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  showModernBannerFromSnackBar(
+                                    context,
                                     SnackBar(
                                       content: Text(
                                         error.toString().replaceFirst(

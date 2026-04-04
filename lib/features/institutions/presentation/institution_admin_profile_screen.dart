@@ -11,6 +11,7 @@ import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/account_export_sheet.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 const Duration _windowsPollInterval = Duration(seconds: 15);
 
@@ -155,12 +156,14 @@ class _InstitutionAdminProfileScreenState
                 : _additionalPhone.text.trim(),
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Account updated.')));
+        const SnackBar(content: Text('Account updated.')),
+      );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -177,12 +180,14 @@ class _InstitutionAdminProfileScreenState
           .read(authRepositoryProvider)
           .sendPasswordReset(profile.email.trim());
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Password reset email sent.')),
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -377,9 +382,8 @@ class _InstitutionAdminProfileScreenState
                                               ),
                                             );
                                             if (!context.mounted) return;
-                                            ScaffoldMessenger.of(
+                                            showModernBannerFromSnackBar(
                                               context,
-                                            ).showSnackBar(
                                               const SnackBar(
                                                 content: Text('Email copied.'),
                                               ),

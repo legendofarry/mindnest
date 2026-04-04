@@ -13,6 +13,7 @@ import 'package:mindnest/features/counselor/presentation/counselor_workspace_she
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class CounselorAppointmentsScreen extends ConsumerWidget {
   const CounselorAppointmentsScreen({
@@ -178,7 +179,8 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(
             status == AppointmentStatus.cancelled
@@ -193,7 +195,8 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -783,7 +786,8 @@ class _ReassignmentBoardModule extends ConsumerWidget {
                                   if (!context.mounted) {
                                     return;
                                   }
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  showModernBannerFromSnackBar(
+                                    context,
                                     const SnackBar(
                                       content: Text(
                                         'You were added to the interested counselors list.',
@@ -794,7 +798,8 @@ class _ReassignmentBoardModule extends ConsumerWidget {
                                   if (!context.mounted) {
                                     return;
                                   }
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  showModernBannerFromSnackBar(
+                                    context,
                                     SnackBar(
                                       content: Text(
                                         error.toString().replaceFirst(

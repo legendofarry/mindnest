@@ -1,5 +1,6 @@
 // features/ai/presentation/home_ai_assistant_section.dart
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -93,6 +94,27 @@ Future<void> showMindNestAssistantSheet({
   required UserProfile profile,
   required Future<void> Function(AssistantAction action) onActionRequested,
 }) async {
+  final isDesktop = MediaQuery.sizeOf(context).width >= 900;
+  if (isDesktop) {
+    await showGeneralDialog<void>(
+      context: context,
+      barrierLabel: 'Close MindNest AI',
+      barrierDismissible: true,
+      barrierColor: Colors.transparent,
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        return _DesktopAssistantOverlay(
+          animation: animation,
+          child: AssistantChatSheet(
+            profile: profile,
+            onActionRequested: onActionRequested,
+            desktopMode: true,
+          ),
+        );
+      },
+    );
+    return;
+  }
+
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -101,9 +123,69 @@ Future<void> showMindNestAssistantSheet({
       return AssistantChatSheet(
         profile: profile,
         onActionRequested: onActionRequested,
+        desktopMode: false,
       );
     },
   );
+}
+
+class _DesktopAssistantOverlay extends StatelessWidget {
+  const _DesktopAssistantOverlay({
+    required this.animation,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final panelHeight = math.min(MediaQuery.sizeOf(context).height - 40, 860.0);
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(color: const Color(0x88161C28)),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: FadeTransition(
+                  opacity: CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
+                  child: SlideTransition(
+                    position:
+                        Tween<Offset>(
+                          begin: const Offset(0.12, 0),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                          ),
+                        ),
+                    child: SizedBox(
+                      width: 520,
+                      height: panelHeight,
+                      child: child,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class AssistantChatSheet extends ConsumerStatefulWidget {
@@ -111,10 +193,12 @@ class AssistantChatSheet extends ConsumerStatefulWidget {
     super.key,
     required this.profile,
     required this.onActionRequested,
+    this.desktopMode = false,
   });
 
   final UserProfile profile;
   final Future<void> Function(AssistantAction action) onActionRequested;
+  final bool desktopMode;
 
   @override
   ConsumerState<AssistantChatSheet> createState() => _AssistantChatSheetState();
@@ -528,11 +612,499 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final activeConversation = _activeConversationOrNull;
+  Future<void> _sendPresetPrompt(String prompt) async {
+    if (_sending || _loading) {
+      return;
+    }
+    _inputController.text = prompt;
+    await _send();
+  }
 
+  List<_UiQuickAction> _latestQuickActions(_UiConversation? conversation) {
+    if (conversation == null) {
+      return const <_UiQuickAction>[];
+    }
+    for (final message in conversation.messages.reversed) {
+      if (!message.isUser && message.quickActions.isNotEmpty) {
+        return message.quickActions;
+      }
+    }
+    return const <_UiQuickAction>[];
+  }
+
+  Widget _buildConversationControls(_UiConversation? activeConversation) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F8FB),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFDDE6F1)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.history_rounded, size: 18, color: Color(0xFF5E728D)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: activeConversation?.id,
+                isExpanded: true,
+                borderRadius: BorderRadius.circular(16),
+                items: _conversations
+                    .map(
+                      (item) => DropdownMenuItem<String>(
+                        value: item.id,
+                        child: Text(
+                          item.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: _sending
+                    ? null
+                    : (value) async {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() => _activeConversationId = value);
+                        await _persistConversations();
+                        _scrollToBottom(jump: true);
+                      },
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'New chat',
+            onPressed: _sending ? null : () => _createConversation(),
+            icon: const Icon(Icons.add_comment_rounded),
+            color: const Color(0xFF4A607C),
+          ),
+          IconButton(
+            tooltip: 'Delete current chat',
+            onPressed: _sending ? null : _deleteActiveConversation,
+            icon: const Icon(Icons.delete_outline_rounded),
+            color: const Color(0xFF4A607C),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageList(
+    _UiConversation? activeConversation, {
+    required bool desktopMode,
+  }) {
+    return ListView.separated(
+      controller: _scrollController,
+      itemCount: activeConversation?.messages.length ?? 0,
+      separatorBuilder: (context, index) =>
+          SizedBox(height: desktopMode ? 12 : 6),
+      itemBuilder: (context, index) {
+        final message = activeConversation!.messages[index];
+        final quickActions = desktopMode
+            ? const <_UiQuickAction>[]
+            : message.quickActions;
+        final bubble = ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: desktopMode ? 330 : 360),
+          child: Column(
+            crossAxisAlignment: message.isUser
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: desktopMode ? 16 : 11,
+                  vertical: desktopMode ? 14 : 9,
+                ),
+                decoration: BoxDecoration(
+                  color: message.isUser
+                      ? const Color(0xFF16A3A0)
+                      : const Color(0xFFF7F4F1),
+                  borderRadius: BorderRadius.circular(desktopMode ? 22 : 12),
+                ),
+                child: Text(
+                  message.text,
+                  style: TextStyle(
+                    color: message.isUser
+                        ? Colors.white
+                        : const Color(0xFF1E293B),
+                    height: desktopMode ? 1.55 : 1.3,
+                    fontSize: desktopMode ? 15 : 13.5,
+                    fontWeight: desktopMode && !message.isUser
+                        ? FontWeight.w500
+                        : FontWeight.w400,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _timeLabel(message.createdAtMs),
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  color: Color(0xFF94A3B8),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (quickActions.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: quickActions
+                      .map(
+                        (item) => OutlinedButton(
+                          onPressed: () => _runQuickAction(item.action),
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            foregroundColor: const Color(0xFF0E7490),
+                            side: const BorderSide(color: Color(0xFFBFE5F4)),
+                            backgroundColor: const Color(0xFFF0F9FF),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                          ),
+                          child: Text(
+                            item.label,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              ],
+            ],
+          ),
+        );
+
+        if (!desktopMode) {
+          return Align(
+            alignment: message.isUser
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+            child: bubble,
+          );
+        }
+
+        if (message.isUser) {
+          return Align(alignment: Alignment.centerRight, child: bubble);
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              margin: const EdgeInsets.only(top: 2, right: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1F96A4),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(
+                Icons.psychology_alt_rounded,
+                color: Colors.white,
+                size: 19,
+              ),
+            ),
+            bubble,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDesktopSuggestions(_UiConversation? activeConversation) {
+    final quickActions = _latestQuickActions(activeConversation);
+    if (quickActions.isNotEmpty) {
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: quickActions
+            .map(
+              (item) => OutlinedButton(
+                onPressed: () => _runQuickAction(item.action),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF5E728D),
+                  backgroundColor: const Color(0xFFF8FAFC),
+                  side: const BorderSide(color: Color(0xFFE1E8F0)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 11,
+                  ),
+                ),
+                child: Text(
+                  item.label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            )
+            .toList(growable: false),
+      );
+    }
+
+    final prompts = <MapEntry<String, String>>[
+      const MapEntry(
+        'Coping strategies',
+        'Share a few coping strategies I can try today.',
+      ),
+      const MapEntry(
+        'Self-care tips',
+        'Give me simple self-care tips for today.',
+      ),
+      const MapEntry(
+        'Book a session',
+        'Help me book a session with a counselor.',
+      ),
+    ];
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: prompts
+          .map(
+            (entry) => OutlinedButton(
+              onPressed: () => _sendPresetPrompt(entry.value),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF5E728D),
+                backgroundColor: const Color(0xFFF8FAFC),
+                side: const BorderSide(color: Color(0xFFE1E8F0)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 11,
+                ),
+              ),
+              child: Text(
+                entry.key,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  Widget _buildDesktopComposer() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(18, 8, 8, 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFFBFE6E2)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _inputController,
+                  minLines: 1,
+                  maxLines: 4,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _send(),
+                  decoration: const InputDecoration(
+                    hintText: 'Ask anything...',
+                    border: InputBorder.none,
+                    isCollapsed: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFAFDCE9),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: IconButton(
+                  onPressed: _sending ? null : _send,
+                  icon: _sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(
+                          Icons.send_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'AI responses are for guidance only — not professional advice.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Color(0xFF9BA8BC),
+            fontSize: 11.5,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopBody(_UiConversation? activeConversation) {
+    final showMemoryBadge =
+        activeConversation != null &&
+        activeConversation.memorySummary.trim().isNotEmpty;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F0F172A),
+            blurRadius: 36,
+            offset: Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF27B2B0), Color(0xFF1C8AB4)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Colors.white,
+                    size: 21,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'MindNest AI',
+                        style: TextStyle(
+                          color: Color(0xFF151B28),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Your wellness companion',
+                        style: TextStyle(
+                          color: Color(0xFF7B8AA1),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (showMemoryBadge)
+                  Container(
+                    margin: const EdgeInsets.only(right: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8FBF8),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFFBEEDE4)),
+                    ),
+                    child: const Text(
+                      'Memory on',
+                      style: TextStyle(
+                        color: Color(0xFF137F76),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                  color: const Color(0xFF8A94A8),
+                ),
+              ],
+            ),
+          ),
+          Container(height: 1, color: const Color(0xFFE8EDF4)),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_loading)
+                    const Expanded(
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else ...[
+                    _buildConversationControls(activeConversation),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: _buildMessageList(
+                        activeConversation,
+                        desktopMode: true,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildDesktopSuggestions(activeConversation),
+                    const SizedBox(height: 16),
+                    _buildDesktopComposer(),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileBody(
+    BuildContext context,
+    _UiConversation? activeConversation,
+    double bottomInset,
+  ) {
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -595,169 +1167,12 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
                 child: CircularProgressIndicator(),
               )
             else ...[
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFDCE6F2)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.history_rounded,
-                      size: 18,
-                      color: Color(0xFF4A607C),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: activeConversation?.id,
-                          isExpanded: true,
-                          borderRadius: BorderRadius.circular(12),
-                          items: _conversations
-                              .map(
-                                (item) => DropdownMenuItem<String>(
-                                  value: item.id,
-                                  child: Text(
-                                    item.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF1E293B),
-                                    ),
-                                  ),
-                                ),
-                              )
-                              .toList(growable: false),
-                          onChanged: _sending
-                              ? null
-                              : (value) async {
-                                  if (value == null) {
-                                    return;
-                                  }
-                                  setState(() => _activeConversationId = value);
-                                  await _persistConversations();
-                                  _scrollToBottom(jump: true);
-                                },
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'New chat',
-                      onPressed: _sending ? null : () => _createConversation(),
-                      icon: const Icon(Icons.add_comment_rounded),
-                    ),
-                    IconButton(
-                      tooltip: 'Delete current chat',
-                      onPressed: _sending ? null : _deleteActiveConversation,
-                      icon: const Icon(Icons.delete_outline_rounded),
-                    ),
-                  ],
-                ),
-              ),
+              _buildConversationControls(activeConversation),
               const SizedBox(height: 10),
               Flexible(
-                child: ListView.separated(
-                  controller: _scrollController,
-                  shrinkWrap: true,
-                  itemCount: activeConversation?.messages.length ?? 0,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 6),
-                  itemBuilder: (context, index) {
-                    final message = activeConversation!.messages[index];
-                    return Align(
-                      alignment: message.isUser
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 360),
-                        child: Column(
-                          crossAxisAlignment: message.isUser
-                              ? CrossAxisAlignment.end
-                              : CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 11,
-                                vertical: 9,
-                              ),
-                              decoration: BoxDecoration(
-                                color: message.isUser
-                                    ? const Color(0xFF0E9B90)
-                                    : const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                message.text,
-                                style: TextStyle(
-                                  color: message.isUser
-                                      ? Colors.white
-                                      : const Color(0xFF1E293B),
-                                  height: 1.3,
-                                  fontSize: 13.5,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              _timeLabel(message.createdAtMs),
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                color: Color(0xFF94A3B8),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (!message.isUser &&
-                                message.quickActions.isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: message.quickActions
-                                    .map(
-                                      (item) => OutlinedButton(
-                                        onPressed: () =>
-                                            _runQuickAction(item.action),
-                                        style: OutlinedButton.styleFrom(
-                                          visualDensity: VisualDensity.compact,
-                                          foregroundColor: const Color(
-                                            0xFF0E7490,
-                                          ),
-                                          side: const BorderSide(
-                                            color: Color(0xFFBFE5F4),
-                                          ),
-                                          backgroundColor: const Color(
-                                            0xFFF0F9FF,
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 7,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          item.label,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                    .toList(growable: false),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                child: _buildMessageList(
+                  activeConversation,
+                  desktopMode: false,
                 ),
               ),
               const SizedBox(height: 10),
@@ -793,6 +1208,16 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
         ),
       ),
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final activeConversation = _activeConversationOrNull;
+    if (widget.desktopMode) {
+      return _buildDesktopBody(activeConversation);
+    }
+    return _buildMobileBody(context, activeConversation, bottomInset);
   }
 }
 

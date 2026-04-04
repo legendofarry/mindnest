@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class RegisterInstitutionSuccessScreen extends ConsumerStatefulWidget {
   const RegisterInstitutionSuccessScreen({super.key, this.institutionName});
@@ -60,7 +61,8 @@ class _RegisterInstitutionSuccessScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -325,7 +327,7 @@ class _HeroPanel extends StatelessWidget {
           SizedBox(height: compact ? 18 : 24),
           Text(
             hasInstitution
-                ? '$institutionName is live in MindNest.'
+                ? '$institutionName is now live in MindNest.'
                 : 'Your institution workspace is live.',
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
               fontSize: compact ? 32 : 48,
@@ -372,7 +374,7 @@ class _HeroPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  'Track approval, manage join access, and prepare counselor '
+                  'Track approval, manage join access, and prepare counselor , students '
                   'or staff invitations without leaving the workspace.',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: const Color(0xFFC7D8F6),

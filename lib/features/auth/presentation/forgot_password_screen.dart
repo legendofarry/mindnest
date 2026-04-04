@@ -63,7 +63,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       if (mounted) {
         showModernBanner(
           context,
-          message: 'Password reset email sent. Check your inbox.',
+          message:
+              'If an account exists for this email, we\'ll send a reset link.',
           icon: Icons.mark_email_read_rounded,
           color: const Color(0xFF0E9B90),
         );
@@ -98,8 +99,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         heroHighlightText: 'Reset your access',
         heroBaseText: 'securely and quickly.',
         heroDescription:
-            'Enter your account email and we will send a secure reset link so '
-            'you can get back to your wellness workspace.',
+            'Enter your account email and, if it exists in MindNest, we will '
+            'send a secure reset link so you can get back to your wellness '
+            'workspace.',
         formChild: _buildFormContent(context),
       );
     }
@@ -193,7 +195,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            'Enter your email and we\'ll send you a\nlink to reset your password.',
+            'Enter your email and, if an account exists,\nwe\'ll send a link to reset your password.',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: const Color(0xFF516784),
               height: 1.4,

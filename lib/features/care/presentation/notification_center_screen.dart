@@ -11,6 +11,7 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/app_notification.dart';
 import 'package:mindnest/features/care/presentation/notification_details_screen.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class NotificationCenterScreen extends ConsumerStatefulWidget {
   const NotificationCenterScreen({
@@ -151,9 +152,7 @@ class _NotificationCenterScreenState
         _notificationsErrorMessage = message;
       });
       if (!silent) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        showModernBannerFromSnackBar(context, SnackBar(content: Text(message)));
       }
     } finally {
       if (mounted) {
@@ -355,9 +354,10 @@ class _NotificationCenterScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(_messageFromError(error))));
+        SnackBar(content: Text(_messageFromError(error))),
+      );
     } finally {
       if (mounted) {
         setState(() => _openingNotificationIds.remove(notification.id));
@@ -386,9 +386,10 @@ class _NotificationCenterScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(_messageFromError(error))));
+        SnackBar(content: Text(_messageFromError(error))),
+      );
     } finally {
       if (mounted) {
         setState(() => _openingNotificationIds.remove(notification.id));
@@ -567,9 +568,10 @@ class _NotificationCenterScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(_messageFromError(error))));
+        SnackBar(content: Text(_messageFromError(error))),
+      );
     } finally {
       if (mounted) {
         setState(() => _actionNotificationIds.remove(notification.id));
@@ -636,16 +638,18 @@ class _NotificationCenterScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('All notifications deleted.')),
       );
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(_messageFromError(error))));
+        SnackBar(content: Text(_messageFromError(error))),
+      );
     } finally {
       if (mounted) {
         setState(() => _clearingAll = false);
@@ -771,9 +775,10 @@ class _NotificationCenterScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(_messageFromError(error))));
+        SnackBar(content: Text(_messageFromError(error))),
+      );
     }
   }
 

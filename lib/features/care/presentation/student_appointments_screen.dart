@@ -16,6 +16,7 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 enum _AppointmentSort { newest, oldest, counselorAz, status }
 
@@ -87,7 +88,7 @@ class _StudentAppointmentsScreenState
     final canUseLive = _canUseLive(profile);
 
     void showMessage(String text) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+      showModernBannerFromSnackBar(context, SnackBar(content: Text(text)));
     }
 
     String withQuery(String path, Map<String, String> params) {
@@ -548,14 +549,16 @@ class _StudentAppointmentsScreenState
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Appointment cancelled.')));
+        const SnackBar(content: Text('Appointment cancelled.')),
+      );
     } catch (error) {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -571,7 +574,8 @@ class _StudentAppointmentsScreenState
   ) async {
     final institutionId = profile.institutionId ?? '';
     if (institutionId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Join an institution first.')),
       );
       return;
@@ -655,9 +659,8 @@ class _StudentAppointmentsScreenState
                                       return;
                                     }
                                     Navigator.of(this.context).pop();
-                                    ScaffoldMessenger.of(
+                                    showModernBannerFromSnackBar(
                                       this.context,
-                                    ).showSnackBar(
                                       const SnackBar(
                                         content: Text(
                                           'Appointment rescheduled.',
@@ -668,9 +671,8 @@ class _StudentAppointmentsScreenState
                                     if (!mounted) {
                                       return;
                                     }
-                                    ScaffoldMessenger.of(
+                                    showModernBannerFromSnackBar(
                                       this.context,
-                                    ).showSnackBar(
                                       SnackBar(
                                         content: Text(
                                           error.toString().replaceFirst(
@@ -773,14 +775,16 @@ class _StudentAppointmentsScreenState
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Rating submitted.')));
+        const SnackBar(content: Text('Rating submitted.')),
+      );
     } catch (error) {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),

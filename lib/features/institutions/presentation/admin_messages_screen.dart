@@ -11,6 +11,7 @@ import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 const Duration _windowsPollInterval = Duration(seconds: 15);
 
@@ -1529,7 +1530,8 @@ class _ChatPane extends StatelessWidget {
                             ClipboardData(text: msg.body),
                           );
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            showModernBannerFromSnackBar(
+                              context,
                               const SnackBar(
                                 content: Text('Message copied to clipboard'),
                                 duration: Duration(seconds: 2),

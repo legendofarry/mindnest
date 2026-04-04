@@ -125,6 +125,21 @@ class _MindNestShellState extends State<MindNestShell>
                     color: const Color(0x5599F6E4),
                   ),
                 ],
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                      padding: effectivePadding,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: widget.maxWidth),
+                        child: FadeSlideIn(child: widget.child),
+                      ),
+                    ),
+                  ),
+                ),
                 if (hasAppBar)
                   SafeArea(
                     bottom: false,
@@ -149,21 +164,6 @@ class _MindNestShellState extends State<MindNestShell>
                       ),
                     ),
                   ),
-                SafeArea(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(
-                        parent: AlwaysScrollableScrollPhysics(),
-                      ),
-                      padding: effectivePadding,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: widget.maxWidth),
-                        child: FadeSlideIn(child: widget.child),
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
           );

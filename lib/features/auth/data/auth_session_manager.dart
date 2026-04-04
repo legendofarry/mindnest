@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -33,6 +34,11 @@ class AuthSessionManager {
     final mode = prefs.getString(_modeKey);
 
     if (mode == _modeSession) {
+      if (kIsWeb) {
+        // On web, Firebase session persistence should survive page refreshes
+        // within the same tab. Do not force a sign-out on reload.
+        return true;
+      }
       await clear();
       return false;
     }

@@ -11,6 +11,7 @@ import 'package:mindnest/features/care/models/counselor_profile.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class CounselorProfileSettingsScreen extends ConsumerStatefulWidget {
   const CounselorProfileSettingsScreen({
@@ -182,13 +183,15 @@ class _CounselorProfileSettingsScreenState
             autoApproveFollowUps: _followUps,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Counselor profile updated.')),
       );
       _seeded = false;
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -210,12 +213,14 @@ class _CounselorProfileSettingsScreenState
             cancellations: _cancellations,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Notification settings saved.')),
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -230,12 +235,14 @@ class _CounselorProfileSettingsScreenState
     try {
       await ref.read(authRepositoryProvider).sendPasswordReset(profile.email);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(content: Text('Password reset sent to ${profile.email}.')),
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),

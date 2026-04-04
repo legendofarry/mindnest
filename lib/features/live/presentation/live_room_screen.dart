@@ -14,6 +14,7 @@ import 'package:mindnest/features/live/models/live_mic_request.dart';
 import 'package:mindnest/features/live/models/live_participant.dart';
 import 'package:mindnest/features/live/models/live_reaction_event.dart';
 import 'package:mindnest/features/live/models/live_session.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class LiveRoomScreen extends ConsumerStatefulWidget {
   const LiveRoomScreen({super.key, required this.sessionId});
@@ -76,14 +77,16 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
             if (!mounted) {
               return;
             }
-            ScaffoldMessenger.of(context).showSnackBar(
+            showModernBannerFromSnackBar(
+              context,
               const SnackBar(content: Text('You were removed from this live.')),
             );
             await _leave(goHome: true);
           } else if (participant.mutedByHost && _micEnabled) {
             await _setMic(false);
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              showModernBannerFromSnackBar(
+                context,
                 const SnackBar(content: Text('Host muted your microphone.')),
               );
             }
@@ -109,9 +112,10 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
         return;
       }
       setState(() => _audioConnected = false);
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Audio disconnected.')));
+        const SnackBar(content: Text('Audio disconnected.')),
+      );
     });
     return listener;
   }
@@ -161,7 +165,8 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(
             'Failed to refresh audio permissions: '
@@ -251,7 +256,8 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -532,7 +538,8 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -549,7 +556,8 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -1669,9 +1677,8 @@ class _LiveRoomScreenState extends ConsumerState<LiveRoomScreen> {
                                                                     if (!mounted) {
                                                                       return;
                                                                     }
-                                                                    ScaffoldMessenger.of(
+                                                                    showModernBannerFromSnackBar(
                                                                       this.context,
-                                                                    ).showSnackBar(
                                                                       SnackBar(
                                                                         content: Text(
                                                                           error.toString().replaceFirst(

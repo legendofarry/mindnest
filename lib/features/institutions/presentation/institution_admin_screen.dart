@@ -17,6 +17,7 @@ import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/data/institution_repository.dart';
 import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 enum AdminWorkspaceView {
   overview,
@@ -473,17 +474,19 @@ class _InstitutionAdminScreenState
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(
+    showModernBannerFromSnackBar(
       context,
-    ).showSnackBar(SnackBar(content: Text(successMessage)));
+      SnackBar(content: Text(successMessage)),
+    );
   }
 
   Future<void> _openWhatsAppDraft(String deepLink) async {
     final uri = Uri.tryParse(deepLink);
     if (uri == null) {
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Invalid WhatsApp link.')));
+        const SnackBar(content: Text('Invalid WhatsApp link.')),
+      );
       return;
     }
     final launched = await launchUrl(uri);
@@ -493,7 +496,8 @@ class _InstitutionAdminScreenState
     if (launched) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
+    showModernBannerFromSnackBar(
+      context,
       const SnackBar(
         content: Text(
           'Could not open WhatsApp. Copy message and send manually.',
@@ -607,14 +611,16 @@ class _InstitutionAdminScreenState
       if (!mounted || silent) {
         return;
       }
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Join code regenerated.')));
+        const SnackBar(content: Text('Join code regenerated.')),
+      );
     } catch (error) {
       if (!mounted || silent) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -731,9 +737,10 @@ class _InstitutionAdminScreenState
   Future<void> _revokeInvite(_WorkspaceEntry entry) async {
     final inviteId = entry.recordId;
     if (inviteId.isEmpty) {
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Invite id missing.')));
+        const SnackBar(content: Text('Invite id missing.')),
+      );
       return;
     }
     try {
@@ -743,14 +750,16 @@ class _InstitutionAdminScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Invite revoked.')));
+        const SnackBar(content: Text('Invite revoked.')),
+      );
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -764,9 +773,10 @@ class _InstitutionAdminScreenState
   ) async {
     final userId = (entry.raw['userId'] as String?) ?? '';
     if (userId.isEmpty) {
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Member user id missing.')));
+        const SnackBar(content: Text('Member user id missing.')),
+      );
       return;
     }
     try {
@@ -780,14 +790,16 @@ class _InstitutionAdminScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      showModernBannerFromSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text('Member marked as $nextStatus.')));
+        SnackBar(content: Text('Member marked as $nextStatus.')),
+      );
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -2353,7 +2365,8 @@ class _HeroCardState extends ConsumerState<_HeroCard> {
                                   ClipboardData(text: joinCode),
                                 );
                                 if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  showModernBannerFromSnackBar(
+                                    context,
                                     const SnackBar(
                                       content: Text('Join code copied.'),
                                     ),
@@ -3706,7 +3719,8 @@ class _CounselorWorkflowSettingsCardState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(
             !current.directoryEnabled
@@ -3719,7 +3733,8 @@ class _CounselorWorkflowSettingsCardState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -3746,7 +3761,8 @@ class _CounselorWorkflowSettingsCardState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(
             !current.reassignmentEnabled
@@ -3759,7 +3775,8 @@ class _CounselorWorkflowSettingsCardState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),

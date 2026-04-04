@@ -237,6 +237,25 @@ class AppRoute {
     ).toString();
   }
 
+  static String notificationsRoute({
+    String? returnTo,
+    String? notificationId,
+  }) {
+    final query = <String, String>{};
+    final normalizedReturnTo = (returnTo ?? '').trim();
+    if (normalizedReturnTo.isNotEmpty) {
+      query[returnToQuery] = normalizedReturnTo;
+    }
+    final normalizedNotificationId = (notificationId ?? '').trim();
+    if (normalizedNotificationId.isNotEmpty) {
+      query[notificationIdQuery] = normalizedNotificationId;
+    }
+    return Uri(
+      path: notifications,
+      queryParameters: query.isEmpty ? null : query,
+    ).toString();
+  }
+
   static String counselorSettingsRoute({String? returnTo}) {
     final normalizedReturnTo = (returnTo ?? '').trim();
     return Uri(

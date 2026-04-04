@@ -9,6 +9,7 @@ import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/features/ai/data/assistant_providers.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class WellnessCheckInCard extends ConsumerStatefulWidget {
   const WellnessCheckInCard({super.key, required this.profile});
@@ -161,7 +162,8 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -1110,41 +1112,101 @@ class _WellnessCheckInCardState extends ConsumerState<WellnessCheckInCard> {
         final selectedMood = _resolveMood(today?.mood);
         final selectedEnergy = today?.energy ?? 3;
 
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: borderColor),
-            boxShadow: [
-              BoxShadow(
-                color: (isDark ? Colors.black : const Color(0x120F172A))
-                    .withValues(alpha: isDark ? 0.22 : 0.07),
-                blurRadius: 14,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: _analyticsMode
-              ? _buildAnalyticsContent(
-                  userId: userId,
-                  isDark: isDark,
-                  borderColor: borderColor,
-                  headingColor: headingColor,
-                  mutedColor: mutedColor,
-                  selectedBg: selectedBg,
-                )
-              : _buildBaseContent(
-                  selectedMood: selectedMood,
-                  selectedEnergy: selectedEnergy,
-                  headingColor: headingColor,
-                  mutedColor: mutedColor,
-                  borderColor: borderColor,
-                  selectedBg: selectedBg,
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cardColor,
+              gradient: isDark
+                  ? null
+                  : const LinearGradient(
+                      colors: [
+                        Color(0xFFFFFFFF),
+                        Color(0xFFFBFDFE),
+                        Color(0xFFF2FBF8),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: borderColor),
+              boxShadow: [
+                BoxShadow(
+                  color: (isDark ? Colors.black : const Color(0x120F172A))
+                      .withValues(alpha: isDark ? 0.22 : 0.07),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
                 ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                if (!isDark)
+                  Positioned(
+                    top: -42,
+                    right: -30,
+                    child: _WellnessGlow(
+                      size: 130,
+                      color: const Color(0xFF0E9B90).withValues(alpha: 0.10),
+                    ),
+                  ),
+                if (!isDark)
+                  Positioned(
+                    bottom: -56,
+                    left: -24,
+                    child: _WellnessGlow(
+                      size: 120,
+                      color: const Color(0xFF60A5FA).withValues(alpha: 0.08),
+                    ),
+                  ),
+                _analyticsMode
+                    ? _buildAnalyticsContent(
+                        userId: userId,
+                        isDark: isDark,
+                        borderColor: borderColor,
+                        headingColor: headingColor,
+                        mutedColor: mutedColor,
+                        selectedBg: selectedBg,
+                      )
+                    : _buildBaseContent(
+                        selectedMood: selectedMood,
+                        selectedEnergy: selectedEnergy,
+                        headingColor: headingColor,
+                        mutedColor: mutedColor,
+                        borderColor: borderColor,
+                        selectedBg: selectedBg,
+                      ),
+              ],
+            ),
+          ),
         );
       },
+    );
+  }
+}
+
+class _WellnessGlow extends StatelessWidget {
+  const _WellnessGlow({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [color, color.withValues(alpha: 0)],
+            stops: const [0, 1],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -27,8 +27,10 @@ import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/models/user_invite.dart';
 import 'package:mindnest/features/live/data/live_providers.dart';
 import 'package:mindnest/features/live/models/live_session.dart';
+import 'package:mindnest/features/home/presentation/widgets/recent_activity_card.dart';
 import 'package:mindnest/features/home/presentation/widgets/wellness_check_in_card.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 // ---------------------------------------------------------------------------
 // Constants & theme helpers
@@ -36,7 +38,8 @@ import 'package:url_launcher/url_launcher.dart';
 const _teal = Color(0xFF0D9488);
 const _slate = Color(0xFF1E293B);
 const _muted = Color(0xFF64748B);
-bool get _isWindowsApp => !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+bool get _isWindowsApp =>
+    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
 final _homeProfileAutoOpenTokenProvider = StateProvider<String?>((_) => null);
 final _joinCodeInlineExpandedProvider = StateProvider.autoDispose<bool>(
@@ -51,6 +54,73 @@ final _joinCodeTextControllerProvider =
       ref.onDispose(controller.dispose);
       return controller;
     });
+
+final _dashboardMoodStreakProvider = StreamProvider.autoDispose
+    .family<int, String>((ref, userId) {
+      final normalized = userId.trim();
+      if (normalized.isEmpty || kUseWindowsRestAuth) {
+        return Stream.value(0);
+      }
+      return ref
+          .watch(firestoreProvider)
+          .collection('mood_entries')
+          .where('userId', isEqualTo: normalized)
+          .snapshots()
+          .map((snapshot) {
+            final dateKeys = snapshot.docs
+                .map((doc) => (doc.data()['dateKey'] as String?)?.trim() ?? '')
+                .where((key) => key.isNotEmpty)
+                .toSet();
+            if (dateKeys.isEmpty) {
+              return 0;
+            }
+            final now = DateTime.now().toLocal();
+            var streak = 0;
+            for (var day = 0; day < 365; day++) {
+              final candidate = now.subtract(Duration(days: day));
+              if (!dateKeys.contains(_dashboardDateKey(candidate))) {
+                break;
+              }
+              streak += 1;
+            }
+            return streak;
+          });
+    });
+
+final _dashboardAppointmentsProvider = StreamProvider.autoDispose
+    .family<List<AppointmentRecord>, _DashboardScope>((ref, scope) {
+      if (scope.institutionId.isEmpty || scope.userId.isEmpty) {
+        return Stream.value(const <AppointmentRecord>[]);
+      }
+      return ref
+          .watch(careRepositoryProvider)
+          .watchStudentAppointments(
+            institutionId: scope.institutionId,
+            studentId: scope.userId,
+          );
+    });
+
+String _dashboardDateKey(DateTime value) {
+  final local = value.toLocal();
+  return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+}
+
+class _DashboardScope {
+  const _DashboardScope({required this.institutionId, required this.userId});
+
+  final String institutionId;
+  final String userId;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _DashboardScope &&
+        other.institutionId == institutionId &&
+        other.userId == userId;
+  }
+
+  @override
+  int get hashCode => Object.hash(institutionId, userId);
+}
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -251,12 +321,11 @@ class HomeScreen extends ConsumerWidget {
       final message = cancelledCount > 0
           ? 'Left institution. Cancelled $cancelledCount future appointment(s).'
           : 'Left institution.';
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      showModernBannerFromSnackBar(context, SnackBar(content: Text(message)));
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -540,7 +609,8 @@ class HomeScreen extends ConsumerWidget {
     final telUri = Uri(scheme: 'tel', path: number);
     final didLaunch = await launchUrl(telUri);
     if (!didLaunch && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Could not open the phone dialer.')),
       );
     }
@@ -1147,7 +1217,7 @@ class HomeScreen extends ConsumerWidget {
     final canUseLive = _canAccessLive(profile);
 
     void showMessage(String text) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+      showModernBannerFromSnackBar(context, SnackBar(content: Text(text)));
     }
 
     String withQuery(String path, Map<String, String> params) {
@@ -1252,7 +1322,6 @@ class HomeScreen extends ConsumerWidget {
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final isDesktop = viewportWidth >= 900;
     final useDesktopShell = embeddedInDesktopShell && isDesktop;
-    final showDesktopRightRailCards = useDesktopShell && viewportWidth >= 1200;
     final uri = GoRouterState.of(context).uri;
     final profileAsync = ref.watch(currentUserProfileProvider);
     final loadedProfile = profileAsync.valueOrNull;
@@ -1355,93 +1424,185 @@ class HomeScreen extends ConsumerWidget {
           }
 
           final firstName = profile.name.split(' ')[0];
-          final institutionLabel = hasInstitution
-              ? _formatInstitutionBadge(profile.institutionName)
-              : 'INDIVIDUAL';
           final showJoinInstitutionNudge =
               profile.role == UserRole.individual && !hasInstitution;
 
-          return Stack(
-            children: [
-              SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 86),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1260),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (showDesktopRightRailCards)
-                        Row(
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final contentWidth = constraints.maxWidth.clamp(0.0, 1280.0);
+              final showDesktopRightRailCards = contentWidth >= 1040;
+              return Stack(
+                children: [
+                  SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 86),
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1280),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: _HeroCarousel(
+                            _DesktopWorkspaceTopStrip(
+                              firstName: firstName,
+                              unreadCount: unreadCount,
+                              canOpenNotifications: canOpenNotifications,
+                              onNotifications: canOpenNotifications
+                                  ? () => context.go(
+                                      AppRoute.notificationsRoute(
+                                        returnTo: AppRoute.home,
+                                      ),
+                                    )
+                                  : null,
+                              onProfile: () =>
+                                  _openProfilePanel(context, ref, profile),
+                            ),
+                            const SizedBox(height: 18),
+                            _DesktopOverviewMetricsRow(
+                              profile: profile,
+                              hasInstitution: hasInstitution,
+                              unreadCount: unreadCount,
+                            ),
+                            if (showJoinInstitutionNudge) ...[
+                              const SizedBox(height: 18),
+                              _InstitutionJoinNudgeCard(
+                                onHowItWorks: () =>
+                                    _showInstitutionJoinGuide(context),
+                                prefilledCode: joinCodeFromQuery,
+                              ),
+                            ],
+                            if (unreadCount > 0) ...[
+                              const SizedBox(height: 14),
+                              _NotificationsSummaryBar(
+                                unreadCount: unreadCount,
+                                onTap: () => context.go(
+                                  AppRoute.notificationsRoute(
+                                    returnTo: AppRoute.home,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                            if (showDesktopRightRailCards)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: _HeroCardFrame(
+                                      isDark: isDark,
+                                      title: 'Open Slots',
+                                      subtitle: 'Next counselor availability',
+                                      icon: Icons.event_available_rounded,
+                                      child: _OpenSlotsPreviewCard(
+                                        profile: profile,
+                                        onTapCounselor: (counselorId) {
+                                          context.go(
+                                            '${AppRoute.counselorProfile}?counselorId=$counselorId',
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  SizedBox(
+                                    width: 340,
+                                    child: _DesktopNextSessionCard(
+                                      profile: profile,
+                                      isDark: isDark,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else ...[
+                              _HeroCardFrame(
+                                isDark: isDark,
+                                title: 'Open Slots',
+                                subtitle: 'Next counselor availability',
+                                icon: Icons.event_available_rounded,
+                                child: _OpenSlotsPreviewCard(
+                                  profile: profile,
+                                  onTapCounselor: (counselorId) {
+                                    context.go(
+                                      '${AppRoute.counselorProfile}?counselorId=$counselorId',
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              _DesktopNextSessionCard(
                                 profile: profile,
-                                firstName: firstName,
-                                roleLabel: profile.role.label,
-                                institutionName: institutionLabel,
-                                hasInstitution: hasInstitution,
-                                canAccessLive: canAccessLive,
-                                showLive: !_isWindowsApp,
                                 isDark: isDark,
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            SizedBox(
-                              width: 320,
-                              child: _DesktopNextSessionCard(
+                            ],
+                            const SizedBox(height: 14),
+                            if (showDesktopRightRailCards)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    flex: 5,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        WellnessCheckInCard(profile: profile),
+                                        const SizedBox(height: 14),
+                                        _DesktopCrisisSupportCard(
+                                          isDark: isDark,
+                                          onTap: () =>
+                                              _openCrisisSupport(context),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    flex: 3,
+                                    child: RecentActivityCard(
+                                      profile: profile,
+                                      sideBySide: true,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else ...[
+                              WellnessCheckInCard(profile: profile),
+                              const SizedBox(height: 14),
+                              RecentActivityCard(
                                 profile: profile,
-                                isDark: isDark,
+                                sideBySide: true,
                               ),
-                            ),
+                              const SizedBox(height: 14),
+                              _DesktopCrisisSupportCard(
+                                isDark: isDark,
+                                onTap: () => _openCrisisSupport(context),
+                              ),
+                            ],
                           ],
-                        )
-                      else
-                        _HeroCarousel(
-                          profile: profile,
-                          firstName: firstName,
-                          roleLabel: profile.role.label,
-                          institutionName: institutionLabel,
-                          hasInstitution: hasInstitution,
-                          canAccessLive: canAccessLive,
-                          showLive: !_isWindowsApp,
-                          isDark: isDark,
                         ),
-                      if (showJoinInstitutionNudge) ...[
-                        const SizedBox(height: 14),
-                        _InstitutionJoinNudgeCard(
-                          onHowItWorks: () =>
-                              _showInstitutionJoinGuide(context),
-                          prefilledCode: joinCodeFromQuery,
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      WellnessCheckInCard(profile: profile),
-                      const SizedBox(height: 14),
-                      _SosButton(onTap: () => _openCrisisSupport(context)),
-                    ],
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 20,
-                bottom: 20,
-                child: AssistantFab(
-                  heroTag: 'assistant-fab-home-desktop',
-                  onPressed: () => showMindNestAssistantSheet(
-                    context: context,
-                    profile: profile,
-                    onActionRequested: (action) => _runAssistantAction(
-                      context: context,
-                      ref: ref,
-                      profile: profile,
-                      action: action,
+                      ),
                     ),
                   ),
-                ),
-              ),
-            ],
+                  Positioned(
+                    right: 20,
+                    bottom: 20,
+                    child: AssistantFab(
+                      heroTag: 'assistant-fab-home-desktop',
+                      onPressed: () => showMindNestAssistantSheet(
+                        context: context,
+                        profile: profile,
+                        onActionRequested: (action) => _runAssistantAction(
+                          context: context,
+                          ref: ref,
+                          profile: profile,
+                          action: action,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         },
         loading: () => const Center(
@@ -1673,7 +1834,35 @@ class HomeScreen extends ConsumerWidget {
                               onOpen: () => context.go(AppRoute.notifications),
                             ),
                             const SizedBox(height: 16),
-                            WellnessCheckInCard(profile: profile),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 5,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      WellnessCheckInCard(profile: profile),
+                                      const SizedBox(height: 14),
+                                      _DesktopCrisisSupportCard(
+                                        isDark: isDark,
+                                        onTap: () =>
+                                            _openCrisisSupport(context),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  flex: 4,
+                                  child: RecentActivityCard(
+                                    profile: profile,
+                                    sideBySide: true,
+                                  ),
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: 14),
                             _SosButton(
                               onTap: () => _openCrisisSupport(context),
@@ -1730,7 +1919,10 @@ class HomeScreen extends ConsumerWidget {
                             const SizedBox(height: 18),
                             WellnessCheckInCard(profile: profile),
                             const SizedBox(height: 14),
-                            _SosButton(
+                            RecentActivityCard(profile: profile),
+                            const SizedBox(height: 14),
+                            _DesktopCrisisSupportCard(
+                              isDark: isDark,
                               onTap: () => _openCrisisSupport(context),
                             ),
                             const SizedBox(height: 8),
@@ -1748,7 +1940,7 @@ class HomeScreen extends ConsumerWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               SizedBox(
-                                width: 240,
+                                width: 296,
                                 child: DesktopSectionNav(
                                   hasInstitution: hasInstitution,
                                   canAccessLive: canAccessLive,
@@ -2066,6 +2258,347 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
   }
 }
 
+class _DesktopWorkspaceTopStrip extends StatelessWidget {
+  const _DesktopWorkspaceTopStrip({
+    required this.firstName,
+    required this.unreadCount,
+    required this.canOpenNotifications,
+    required this.onNotifications,
+    required this.onProfile,
+  });
+
+  final String firstName;
+  final int unreadCount;
+  final bool canOpenNotifications;
+  final VoidCallback? onNotifications;
+  final VoidCallback onProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Good morning, $firstName',
+                    style: const TextStyle(
+                      color: Color(0xFF1E2432),
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.8,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Color(0xFFF59E0B),
+                    size: 22,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                "Here's your wellness overview for today.",
+                style: TextStyle(
+                  color: Color(0xFF6B7280),
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 16),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AppBarIconBtn(
+              icon: Icons.notifications_none_rounded,
+              enabled: canOpenNotifications,
+              badgeCount: unreadCount,
+              onTap: onNotifications,
+            ),
+            const SizedBox(width: 10),
+            _AppBarIconBtn(
+              icon: Icons.person_outline_rounded,
+              enabled: true,
+              onTap: onProfile,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopOverviewMetricsRow extends ConsumerWidget {
+  const _DesktopOverviewMetricsRow({
+    required this.profile,
+    required this.hasInstitution,
+    required this.unreadCount,
+  });
+
+  final UserProfile profile;
+  final bool hasInstitution;
+  final int unreadCount;
+
+  String _formatHours(double totalHours) {
+    if (totalHours <= 0) {
+      return '0h';
+    }
+    if (totalHours >= 10 || totalHours == totalHours.roundToDouble()) {
+      return '${totalHours.toStringAsFixed(totalHours == totalHours.roundToDouble() ? 0 : 1)}h';
+    }
+    return '${totalHours.toStringAsFixed(1)}h';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final institutionId = (profile.institutionId ?? '').trim();
+    final scope = _DashboardScope(
+      institutionId: institutionId,
+      userId: profile.id.trim(),
+    );
+    final streakDays =
+        ref.watch(_dashboardMoodStreakProvider(profile.id)).valueOrNull ?? 0;
+    final appointments = hasInstitution
+        ? (ref.watch(_dashboardAppointmentsProvider(scope)).valueOrNull ??
+              const <AppointmentRecord>[])
+        : const <AppointmentRecord>[];
+
+    final completedAppointments = appointments
+        .where((entry) => entry.status == AppointmentStatus.completed)
+        .toList(growable: false);
+    final upcomingAppointments = appointments
+        .where(
+          (entry) =>
+              (entry.status == AppointmentStatus.pending ||
+                  entry.status == AppointmentStatus.confirmed) &&
+              entry.startAt.isAfter(DateTime.now().toUtc()),
+        )
+        .length;
+    final totalHours = completedAppointments.fold<double>(
+      0,
+      (runningTotal, entry) =>
+          runningTotal + entry.endAt.difference(entry.startAt).inMinutes / 60,
+    );
+
+    final cards = <_DesktopMetricData>[
+      _DesktopMetricData(
+        icon: Icons.local_fire_department_outlined,
+        iconColor: const Color(0xFFF97316),
+        value: '$streakDays',
+        label: 'STREAK',
+        sublabel: streakDays == 1 ? 'day' : 'days',
+      ),
+      _DesktopMetricData(
+        icon: Icons.event_available_rounded,
+        iconColor: const Color(0xFF10B981),
+        value: '$upcomingAppointments',
+        label: 'UPCOMING',
+        sublabel: 'booked',
+      ),
+      _DesktopMetricData(
+        icon: Icons.schedule_rounded,
+        iconColor: const Color(0xFF0D9488),
+        value: _formatHours(totalHours),
+        label: 'HOURS',
+        sublabel: 'completed',
+      ),
+      _DesktopMetricData(
+        icon: Icons.notifications_active_outlined,
+        iconColor: const Color(0xFFF97316),
+        value: '$unreadCount',
+        label: 'UNREAD',
+        sublabel: 'updates',
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final twoColumn = constraints.maxWidth < 980;
+        if (twoColumn) {
+          return Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: cards
+                .map(
+                  (entry) => SizedBox(
+                    width: (constraints.maxWidth - 16) / 2,
+                    child: _DesktopMetricCard(data: entry),
+                  ),
+                )
+                .toList(growable: false),
+          );
+        }
+        return Row(
+          children: [
+            for (var index = 0; index < cards.length; index++) ...[
+              Expanded(child: _DesktopMetricCard(data: cards[index])),
+              if (index != cards.length - 1) const SizedBox(width: 16),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _DesktopMetricData {
+  const _DesktopMetricData({
+    required this.icon,
+    required this.iconColor,
+    required this.value,
+    required this.label,
+    required this.sublabel,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String value;
+  final String label;
+  final String sublabel;
+}
+
+class _DesktopMetricCard extends StatelessWidget {
+  const _DesktopMetricCard({required this.data});
+
+  final _DesktopMetricData data;
+
+  @override
+  Widget build(BuildContext context) {
+    const baseColor = Color(0xFF232733);
+    final startColor = Color.alphaBlend(
+      data.iconColor.withValues(alpha: 0.10),
+      const Color(0xFF2A2F3D),
+    );
+    final endColor = Color.alphaBlend(
+      data.iconColor.withValues(alpha: 0.05),
+      const Color(0xFF1D212C),
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [startColor, baseColor, endColor],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          boxShadow: [
+            BoxShadow(
+              color: baseColor.withValues(alpha: 0.22),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -32,
+              right: -18,
+              child: _AmbientOrb(
+                size: 114,
+                color: data.iconColor.withValues(alpha: 0.14),
+              ),
+            ),
+            Positioned(
+              bottom: -42,
+              left: -22,
+              child: _AmbientOrb(
+                size: 96,
+                color: data.iconColor.withValues(alpha: 0.09),
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Color.alphaBlend(
+                      data.iconColor.withValues(alpha: 0.18),
+                      const Color(0xFF2C3140),
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: data.iconColor.withValues(alpha: 0.24),
+                    ),
+                  ),
+                  child: Icon(data.icon, color: data.iconColor, size: 22),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  data.value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  data.label,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.74),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  data.sublabel,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.50),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AmbientOrb extends StatelessWidget {
+  const _AmbientOrb({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [color, color.withValues(alpha: 0)],
+            stops: const [0, 1],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DesktopNextSessionCard extends ConsumerWidget {
   const _DesktopNextSessionCard({required this.profile, required this.isDark});
 
@@ -2349,25 +2882,68 @@ class _DesktopSideCardShell extends StatelessWidget {
     final borderColor = isDark
         ? const Color(0xFF2A3A52)
         : const Color(0xFFDDE6F1);
-    return Container(
-      height: 230,
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF151F31) : Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: (isDark ? Colors.black : const Color(0x120F172A)).withValues(
-              alpha: isDark ? 0.22 : 0.07,
+    const primaryAccent = Color(0xFFF97316);
+    const secondaryAccent = Color(0xFF5146FF);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        height: 230,
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF151F31) : Colors.white,
+          gradient: isDark
+              ? null
+              : LinearGradient(
+                  colors: [
+                    Color.alphaBlend(
+                      primaryAccent.withValues(alpha: 0.08),
+                      Colors.white,
+                    ),
+                    Colors.white,
+                    Color.alphaBlend(
+                      secondaryAccent.withValues(alpha: 0.06),
+                      Colors.white,
+                    ),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: borderColor),
+          boxShadow: [
+            BoxShadow(
+              color: (isDark ? Colors.black : const Color(0x120F172A))
+                  .withValues(alpha: isDark ? 0.22 : 0.07),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
             ),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
+          ],
+        ),
+        child: Stack(
+          children: [
+            if (!isDark)
+              Positioned(
+                top: -30,
+                right: -18,
+                child: _AmbientOrb(
+                  size: 118,
+                  color: primaryAccent.withValues(alpha: 0.13),
+                ),
+              ),
+            if (!isDark)
+              Positioned(
+                bottom: -36,
+                left: -24,
+                child: _AmbientOrb(
+                  size: 96,
+                  color: secondaryAccent.withValues(alpha: 0.09),
+                ),
+              ),
+            child,
+          ],
+        ),
       ),
-      child: child,
     );
   }
 }
@@ -3190,7 +3766,7 @@ class _InstitutionJoinNudgeCardState
           ),
           const SizedBox(height: 8),
           Text(
-            'If your school/workplace uses MindNest, ask for your join code and connect your account.',
+            'Once you receive an invite, this part will automatically open up. All you need to do is just connect!.',
             style: TextStyle(
               color: isDark ? const Color(0xFFB7C6DA) : const Color(0xFF516784),
               height: 1.35,
@@ -3793,7 +4369,8 @@ class _WellnessCheckInCardState extends ConsumerState<_WellnessCheckInCard> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -4220,9 +4797,10 @@ class _QuickActionsCard extends StatelessWidget {
       _ActionItem(
         label: 'Messages',
         icon: Icons.chat_bubble_outline_rounded,
-        onTap: () => ScaffoldMessenger.of(
+        onTap: () => showModernBannerFromSnackBar(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Messages coming soon.'))),
+          const SnackBar(content: Text('Messages coming soon.')),
+        ),
       ),
     ];
 
@@ -4617,6 +5195,199 @@ class _SosButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DesktopCrisisSupportCard extends StatelessWidget {
+  const _DesktopCrisisSupportCard({required this.isDark, required this.onTap});
+
+  final bool isDark;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = isDark
+        ? const Color(0xFF463144)
+        : const Color(0xFFFECACA);
+    final titleColor = isDark
+        ? const Color(0xFFFCE7F3)
+        : const Color(0xFF111827);
+    final bodyColor = isDark
+        ? const Color(0xFFF9A8D4)
+        : const Color(0xFF6B7280);
+
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 196),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: isDark
+            ? const LinearGradient(
+                colors: [Color(0xFF2B1F2B), Color(0xFF1E1925)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : const LinearGradient(
+                colors: [
+                  Color(0xFFFFFBFB),
+                  Color(0xFFFFF1F2),
+                  Color(0xFFFFF7ED),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? Colors.black : const Color(0xFFFDA4AF)).withValues(
+              alpha: isDark ? 0.24 : 0.16,
+            ),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -34,
+            right: -26,
+            child: _AmbientOrb(
+              size: 124,
+              color: const Color(0xFFFB7185).withValues(alpha: 0.15),
+            ),
+          ),
+          Positioned(
+            bottom: -42,
+            left: -28,
+            child: _AmbientOrb(
+              size: 108,
+              color: const Color(0xFFF97316).withValues(alpha: 0.11),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF3A2636)
+                          : const Color(0xFFFFE4E6),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: const Color(0xFFFB7185).withValues(alpha: 0.24),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.health_and_safety_rounded,
+                      color: Color(0xFFE11D48),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Need immediate support?',
+                          style: TextStyle(
+                            color: titleColor,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.35,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'If things feel overwhelming, pause, breathe once, and open support for emergency contacts and next steps.',
+                          style: TextStyle(
+                            color: bodyColor,
+                            fontSize: 13.5,
+                            height: 1.4,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.04)
+                      : Colors.white.withValues(alpha: 0.68),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : const Color(0xFFFBCFE8),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.lightbulb_outline_rounded,
+                      size: 18,
+                      color: Color(0xFFF97316),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'You do not have to figure this out alone. Reaching out early is a strength, not a failure.',
+                        style: TextStyle(
+                          color: isDark
+                              ? const Color(0xFFE5E7EB)
+                              : const Color(0xFF4B5563),
+                          fontSize: 12.7,
+                          height: 1.35,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onTap,
+                  icon: const Icon(Icons.warning_amber_rounded, size: 18),
+                  label: const Text('Open Crisis Support'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFE11D48),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -22,6 +22,7 @@ import 'package:mindnest/features/care/models/counselor_public_rating.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 const Duration _windowsPollInterval = Duration(seconds: 15);
 bool get _useWindowsRestFirestore =>
@@ -115,6 +116,15 @@ class _CounselorDirectoryScreenState
   int _rowsPerPage = 6;
   int _currentPage = 0;
   String? _appliedAssistantFilterToken;
+  Stream<List<CounselorProfile>>? _counselorsStream;
+  String? _counselorsStreamInstitutionId;
+  int? _counselorsStreamRefreshTick;
+  Stream<List<CounselorPublicRating>>? _publicRatingsStream;
+  String? _publicRatingsStreamInstitutionId;
+  int? _publicRatingsStreamRefreshTick;
+  Stream<List<AvailabilitySlot>>? _availabilityStream;
+  String? _availabilityStreamInstitutionId;
+  int? _availabilityStreamRefreshTick;
 
   @override
   void dispose() {
@@ -174,6 +184,65 @@ class _CounselorDirectoryScreenState
     });
   }
 
+  Stream<List<CounselorProfile>> _counselorsStreamFor(String institutionId) {
+    final normalized = institutionId.trim();
+    if (normalized.isEmpty) {
+      return Stream<List<CounselorProfile>>.value(
+        const <CounselorProfile>[],
+      );
+    }
+    if (_counselorsStream == null ||
+        _counselorsStreamInstitutionId != normalized ||
+        _counselorsStreamRefreshTick != _refreshTick) {
+      _counselorsStreamInstitutionId = normalized;
+      _counselorsStreamRefreshTick = _refreshTick;
+      _counselorsStream = ref
+          .read(careRepositoryProvider)
+          .watchCounselors(institutionId: normalized);
+    }
+    return _counselorsStream!;
+  }
+
+  Stream<List<CounselorPublicRating>> _publicRatingsStreamFor(
+    String institutionId,
+  ) {
+    final normalized = institutionId.trim();
+    if (normalized.isEmpty) {
+      return Stream<List<CounselorPublicRating>>.value(
+        const <CounselorPublicRating>[],
+      );
+    }
+    if (_publicRatingsStream == null ||
+        _publicRatingsStreamInstitutionId != normalized ||
+        _publicRatingsStreamRefreshTick != _refreshTick) {
+      _publicRatingsStreamInstitutionId = normalized;
+      _publicRatingsStreamRefreshTick = _refreshTick;
+      _publicRatingsStream = ref
+          .read(careRepositoryProvider)
+          .watchInstitutionCounselorPublicRatings(institutionId: normalized);
+    }
+    return _publicRatingsStream!;
+  }
+
+  Stream<List<AvailabilitySlot>> _availabilityStreamFor(String institutionId) {
+    final normalized = institutionId.trim();
+    if (normalized.isEmpty) {
+      return Stream<List<AvailabilitySlot>>.value(
+        const <AvailabilitySlot>[],
+      );
+    }
+    if (_availabilityStream == null ||
+        _availabilityStreamInstitutionId != normalized ||
+        _availabilityStreamRefreshTick != _refreshTick) {
+      _availabilityStreamInstitutionId = normalized;
+      _availabilityStreamRefreshTick = _refreshTick;
+      _availabilityStream = ref
+          .read(careRepositoryProvider)
+          .watchInstitutionPublicAvailability(institutionId: normalized);
+    }
+    return _availabilityStream!;
+  }
+
   bool _canUseLive(UserProfile profile) {
     final hasInstitution = (profile.institutionId ?? '').isNotEmpty;
     return hasInstitution &&
@@ -191,7 +260,7 @@ class _CounselorDirectoryScreenState
     final canUseLive = _canUseLive(profile);
 
     void showMessage(String text) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+      showModernBannerFromSnackBar(context, SnackBar(content: Text(text)));
     }
 
     String withQuery(String path, Map<String, String> params) {
@@ -727,9 +796,7 @@ class _CounselorDirectoryScreenState
             else
               StreamBuilder<List<CounselorProfile>>(
                 key: ValueKey(_refreshTick),
-                stream: ref
-                    .read(careRepositoryProvider)
-                    .watchCounselors(institutionId: institutionId),
+                stream: _counselorsStreamFor(institutionId),
                 builder: (context, counselorSnapshot) {
                   if (counselorSnapshot.hasError) {
                     return GlassCard(
@@ -762,11 +829,7 @@ class _CounselorDirectoryScreenState
                   }
 
                   return StreamBuilder<List<CounselorPublicRating>>(
-                    stream: ref
-                        .read(careRepositoryProvider)
-                        .watchInstitutionCounselorPublicRatings(
-                          institutionId: institutionId,
-                        ),
+                    stream: _publicRatingsStreamFor(institutionId),
                     builder: (context, publicRatingsSnapshot) {
                       final publicRatings =
                           publicRatingsSnapshot.data ?? const [];
@@ -782,11 +845,7 @@ class _CounselorDirectoryScreenState
                       }
 
                       return StreamBuilder<List<AvailabilitySlot>>(
-                        stream: ref
-                            .read(careRepositoryProvider)
-                            .watchInstitutionPublicAvailability(
-                              institutionId: institutionId,
-                            ),
+                        stream: _availabilityStreamFor(institutionId),
                         builder: (context, availabilitySnapshot) {
                           final availability =
                               availabilitySnapshot.data ?? const [];

@@ -8,6 +8,7 @@ import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart' show GlassCard;
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class InstitutionPendingScreen extends ConsumerStatefulWidget {
   const InstitutionPendingScreen({super.key});
@@ -43,7 +44,8 @@ class _InstitutionPendingScreenState
     final schoolId = _selectedSchoolId?.trim() ?? '';
     final selectedSchool = catalogSchoolById(schoolId);
     if (selectedSchool == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Select your school to resubmit.')),
       );
       return;
@@ -59,7 +61,8 @@ class _InstitutionPendingScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(
           content: Text(
             'Request resubmitted. Approval usually takes about 30 minutes.',
@@ -70,7 +73,8 @@ class _InstitutionPendingScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),

@@ -18,6 +18,7 @@ import 'package:mindnest/features/care/models/counselor_profile.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 const Duration _windowsPollInterval = Duration(seconds: 15);
 bool get _useWindowsRestFirestore =>
@@ -515,7 +516,8 @@ class _CounselorProfileScreenState
   }) async {
     final institutionId = currentProfile.institutionId ?? '';
     if (institutionId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Join an institution first.')),
       );
       return;
@@ -533,14 +535,16 @@ class _CounselorProfileScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Session booked successfully.')),
       );
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),

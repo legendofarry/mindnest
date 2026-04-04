@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class CrisisCounselorSupportScreen extends StatelessWidget {
   const CrisisCounselorSupportScreen({super.key});
@@ -165,7 +166,8 @@ class _CrisisCounselorCard extends StatelessWidget {
           const SizedBox(width: 8),
           ElevatedButton.icon(
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
+              showModernBannerFromSnackBar(
+                context,
                 const SnackBar(
                   content: Text(
                     'Crisis calling flow will be connected after counselor opt-in is added.',

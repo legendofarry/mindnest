@@ -8,6 +8,7 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/onboarding/data/onboarding_providers.dart';
 import 'package:mindnest/features/onboarding/data/onboarding_question_bank.dart';
 import 'package:mindnest/features/onboarding/models/onboarding_question.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class OnboardingQuestionnaireScreen extends ConsumerStatefulWidget {
   const OnboardingQuestionnaireScreen({super.key});
@@ -58,7 +59,8 @@ class _OnboardingQuestionnaireScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
@@ -77,9 +79,7 @@ class _OnboardingQuestionnaireScreenState
     final question = questions[_currentStep];
     final error = _validationError(question);
     if (error != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error)));
+      showModernBannerFromSnackBar(context, SnackBar(content: Text(error)));
       return;
     }
 

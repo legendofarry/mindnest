@@ -12,6 +12,7 @@ import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
 import 'package:mindnest/features/counselor/models/counselor_institution_access_status.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class CounselorSetupScreen extends ConsumerStatefulWidget {
   const CounselorSetupScreen({super.key});
@@ -455,7 +456,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      showModernBannerFromSnackBar(
+        context,
         const SnackBar(content: Text('Counselor profile setup completed.')),
       );
       context.go(AppRoute.counselorDashboard);
