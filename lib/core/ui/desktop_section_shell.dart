@@ -193,6 +193,7 @@ class DesktopSectionNav extends ConsumerWidget {
             alignment: Alignment.center,
             child: Image(
               image: AssetImage('assets/mindnest-logo.png'),
+              height: 44,
               fit: BoxFit.contain,
               alignment: Alignment.center,
             ),

@@ -456,6 +456,10 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       if (!mounted) {
         return;
       }
+      await syncAuthSessionState(ref);
+      if (!mounted) {
+        return;
+      }
       showModernBannerFromSnackBar(
         context,
         const SnackBar(content: Text('Counselor profile setup completed.')),

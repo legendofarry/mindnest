@@ -250,6 +250,7 @@ class CurrentUserProfileController extends AsyncNotifier<UserProfile?> {
       profile.email,
       profile.name,
       profile.role.name,
+      '${profile.counselorSetupCompleted}',
       profile.institutionId ?? '',
       profile.institutionName ?? '',
       profile.phoneNumber ?? '',
