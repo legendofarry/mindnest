@@ -190,12 +190,12 @@ class DesktopSectionNav extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Align(
-            alignment: Alignment.centerLeft,
+            alignment: Alignment.center,
             child: Image(
               image: AssetImage('assets/mindnest-logo.png'),
               height: 84,
               fit: BoxFit.contain,
-              alignment: Alignment.centerLeft,
+              alignment: Alignment.center,
             ),
           ),
           const SizedBox(height: 18),
