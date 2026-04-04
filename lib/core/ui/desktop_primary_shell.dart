@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -222,7 +224,7 @@ String _firstNameForProfile(UserProfile? profile) {
   return 'there';
 }
 
-class _PrimaryWorkspaceHeader extends StatelessWidget {
+class _PrimaryWorkspaceHeader extends StatefulWidget {
   const _PrimaryWorkspaceHeader({
     required this.firstName,
     required this.unreadCount,
@@ -242,6 +244,67 @@ class _PrimaryWorkspaceHeader extends StatelessWidget {
   final bool isDark;
 
   @override
+  State<_PrimaryWorkspaceHeader> createState() =>
+      _PrimaryWorkspaceHeaderState();
+}
+
+class _PrimaryWorkspaceHeaderState extends State<_PrimaryWorkspaceHeader>
+    with WidgetsBindingObserver {
+  late _GreetingPeriod _greetingPeriod = _currentGreetingPeriod();
+  Timer? _greetingTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _scheduleGreetingRefresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _greetingTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshGreetingPeriod();
+    }
+  }
+
+  void _refreshGreetingPeriod() {
+    final nextPeriod = _currentGreetingPeriod();
+    if (mounted && nextPeriod != _greetingPeriod) {
+      setState(() => _greetingPeriod = nextPeriod);
+    }
+    _scheduleGreetingRefresh();
+  }
+
+  void _scheduleGreetingRefresh() {
+    _greetingTimer?.cancel();
+    final now = DateTime.now();
+    final nextBoundary = _nextGreetingBoundary(now);
+    final delay = nextBoundary.difference(now);
+    _greetingTimer = Timer(
+      delay.isNegative ? Duration.zero : delay + const Duration(seconds: 1),
+      _refreshGreetingPeriod,
+    );
+  }
+
+  String get _greetingLabel {
+    switch (_greetingPeriod) {
+      case _GreetingPeriod.morning:
+        return 'Good morning';
+      case _GreetingPeriod.afternoon:
+        return 'Good afternoon';
+      case _GreetingPeriod.evening:
+        return 'Good evening';
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,7 +316,7 @@ class _PrimaryWorkspaceHeader extends StatelessWidget {
               Row(
                 children: [
                   Text(
-                    'Good morning, $firstName',
+                    '$_greetingLabel, ${widget.firstName}',
                     style: const TextStyle(
                       color: Color(0xFF1E2432),
                       fontSize: 28,
@@ -287,23 +350,23 @@ class _PrimaryWorkspaceHeader extends StatelessWidget {
           children: [
             _HeaderActionButton(
               tooltip: 'Notifications',
-              active: notificationsActive,
-              onPressed: onNotifications,
+              active: widget.notificationsActive,
+              onPressed: widget.onNotifications,
               child: _HeaderBellIcon(
-                unreadCount: unreadCount,
-                active: notificationsActive,
+                unreadCount: widget.unreadCount,
+                active: widget.notificationsActive,
               ),
             ),
             const SizedBox(width: 8),
             _HeaderActionButton(
               tooltip: 'Profile',
-              active: profileActive,
-              onPressed: onProfile,
+              active: widget.profileActive,
+              onPressed: widget.onProfile,
               child: Icon(
                 Icons.person_outline_rounded,
-                color: profileActive
+                color: widget.profileActive
                     ? const Color(0xFF0B2442)
-                    : (isDark
+                    : (widget.isDark
                           ? const Color(0xFFD6E3F5)
                           : const Color(0xFF16324F)),
               ),
@@ -315,6 +378,30 @@ class _PrimaryWorkspaceHeader extends StatelessWidget {
       ],
     );
   }
+}
+
+enum _GreetingPeriod { morning, afternoon, evening }
+
+_GreetingPeriod _currentGreetingPeriod([DateTime? now]) {
+  final current = now ?? DateTime.now();
+  final hour = current.hour;
+  if (hour < 12) {
+    return _GreetingPeriod.morning;
+  }
+  if (hour < 18) {
+    return _GreetingPeriod.afternoon;
+  }
+  return _GreetingPeriod.evening;
+}
+
+DateTime _nextGreetingBoundary(DateTime now) {
+  if (now.hour < 12) {
+    return DateTime(now.year, now.month, now.day, 12);
+  }
+  if (now.hour < 18) {
+    return DateTime(now.year, now.month, now.day, 18);
+  }
+  return DateTime(now.year, now.month, now.day + 1);
 }
 
 class _HeaderBellIcon extends StatelessWidget {
