@@ -187,12 +187,11 @@ class _CounselorInviteWaitingScreenState
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= 1100;
-    final counselorAccessStatus = _isWindowsDesktop
-        ? (ref
-                  .watch(currentCounselorInstitutionAccessStatusProvider)
-                  .valueOrNull ??
-              CounselorInstitutionAccessStatus.inactive)
-        : CounselorInstitutionAccessStatus.inactive;
+    final counselorAccessStatus =
+        ref
+            .watch(currentCounselorInstitutionAccessStatusProvider)
+            .valueOrNull ??
+        CounselorInstitutionAccessStatus.inactive;
     if (_isWindowsDesktop) {
       if (_windowsInvite != null) {
         return _buildWindowsInviteScreen(context, _windowsInvite!, isDesktop);
@@ -217,7 +216,8 @@ class _CounselorInviteWaitingScreenState
         28,
       ),
       child: inviteAsync.when(
-        data: (invite) => _buildContent(context, invite, isDesktop),
+        data: (invite) =>
+            _buildContent(context, invite, isDesktop, counselorAccessStatus),
         loading: () => const GlassCard(
           child: Padding(
             padding: EdgeInsets.all(28),
@@ -470,9 +470,13 @@ class _CounselorInviteWaitingScreenState
     BuildContext context,
     UserInvite? invite,
     bool isDesktop,
+    CounselorInstitutionAccessStatus accessStatus,
   ) {
     if (invite != null) {
       return _buildInviteExperience(context, invite, isDesktop);
+    }
+    if (accessStatus == CounselorInstitutionAccessStatus.removed) {
+      return _buildRemovedRecoveryExperience(context, isDesktop);
     }
 
     final side = _waitingPanel(isDesktop);
@@ -545,6 +549,79 @@ class _CounselorInviteWaitingScreenState
     );
   }
 
+  Widget _buildRemovedRecoveryExperience(BuildContext context, bool isDesktop) {
+    final side = _removedRecoveryPanel(context, isDesktop);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: _LogoutIcon(
+            onTap: () {
+              confirmAndLogout(context: context, ref: ref);
+            },
+          ),
+        ),
+        const SizedBox(height: 6),
+        Align(
+          alignment: isDesktop ? Alignment.centerLeft : Alignment.center,
+          child: _StatusPill(
+            controller: _controller,
+            label: 'Access removed: recovery mode',
+            ready: false,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const _Banner(
+          message:
+              'Your institution admin removed counselor access. You can review notifications here while waiting for a new invite.',
+          isError: true,
+        ),
+        const SizedBox(height: 18),
+        if (isDesktop)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 12,
+                child: GlassCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(28),
+                    child: _recoveryHero(context, isDesktop),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                flex: 9,
+                child: GlassCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(22),
+                    child: side,
+                  ),
+                ),
+              ),
+            ],
+          )
+        else
+          GlassCard(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _recoveryHero(context, false),
+                  const SizedBox(height: 22),
+                  side,
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildInviteExperience(
     BuildContext context,
     UserInvite invite,
@@ -597,6 +674,89 @@ class _CounselorInviteWaitingScreenState
               child: _invitePanel(invite, false),
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _recoveryHero(BuildContext context, bool isDesktop) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          height: isDesktop ? 320 : 228,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF3B0B24), Color(0xFFB42318), Color(0xFFF97316)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x22B42318),
+                blurRadius: 30,
+                offset: Offset(0, 18),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                left: -28,
+                top: -20,
+                child: _blob(118, const Color(0x26FFFFFF)),
+              ),
+              Positioned(
+                right: -36,
+                bottom: -36,
+                child: _blob(150, const Color(0x33FED7AA)),
+              ),
+              Center(
+                child: Container(
+                  width: 116,
+                  height: 116,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFFFFFFF), Color(0xFFFFE4E6)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.person_off_rounded,
+                    size: 48,
+                    color: Color(0xFFB42318),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+        Text(
+          'Counselor access was removed.',
+          textAlign: isDesktop ? TextAlign.left : TextAlign.center,
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontSize: isDesktop ? 40 : 30,
+            fontWeight: FontWeight.w900,
+            color: const Color(0xFF071937),
+            height: 1.04,
+            letterSpacing: -0.8,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'You are still signed in, but this institution no longer grants counselor access. Stay on this recovery screen, keep an eye on notifications, and accept the next invite when it arrives.',
+          textAlign: isDesktop ? TextAlign.left : TextAlign.center,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontSize: isDesktop ? 18 : 16,
+            color: const Color(0xFF4E627A),
+            fontWeight: FontWeight.w500,
+            height: 1.55,
+          ),
+        ),
       ],
     );
   }
@@ -736,6 +896,55 @@ class _CounselorInviteWaitingScreenState
           const Color(0xFF2563EB),
         ),
       ],
+    );
+  }
+
+  Widget _removedRecoveryPanel(BuildContext context, bool isDesktop) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Recovery lane', isDesktop),
+        const SizedBox(height: 14),
+        _infoCard(
+          isDesktop,
+          '01',
+          'Notifications stay available',
+          'Open your notification center any time. Admin updates and future invites can still reach you there.',
+          const Color(0xFF0D7FA1),
+        ),
+        const SizedBox(height: 12),
+        _infoCard(
+          isDesktop,
+          '02',
+          'Wait for the next invite',
+          'The moment a fresh counselor invite is issued, this screen flips back into the action panel automatically.',
+          const Color(0xFFB45309),
+        ),
+        const SizedBox(height: 12),
+        _infoCard(
+          isDesktop,
+          '03',
+          'Counselor tools stay blocked',
+          'Dashboard actions, live rooms, and counselor bookings remain unavailable until a new institution invite is accepted.',
+          const Color(0xFFB42318),
+        ),
+        const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          child: _PrimaryButton(
+            label: 'Open Notifications',
+            onPressed: () => _openNotificationsFromRecovery(context),
+            gradient: const [Color(0xFF155EEF), Color(0xFF0E9B90)],
+            glowColor: const Color(0x33155EEF),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _openNotificationsFromRecovery(BuildContext context) {
+    context.go(
+      AppRoute.notificationsRoute(returnTo: AppRoute.counselorInviteWaiting),
     );
   }
 

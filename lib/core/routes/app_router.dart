@@ -32,6 +32,7 @@ import 'package:mindnest/features/care/presentation/student_appointments_screen.
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
 import 'package:mindnest/features/counselor/models/counselor_institution_access_status.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_dashboard_screen.dart';
+import 'package:mindnest/features/counselor/presentation/counselor_access_suspended_screen.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_invite_waiting_screen.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_profile_settings_screen.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_setup_screen.dart';
@@ -69,6 +70,7 @@ class AppRoute {
   static const onboarding = '/onboarding';
   static const onboardingLoading = '/onboarding-loading';
   static const counselorSetup = '/counselor-setup';
+  static const counselorAccessSuspended = '/counselor-access-suspended';
   static const counselorDashboard = '/counselor-dashboard';
   static const counselorLiveHub = '/counselor-live-hub';
   static const counselorAvailability = '/counselor-availability';
@@ -341,6 +343,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     required bool hasCounselorRegistrationIntent,
     required bool needsCounselorSetup,
     required bool counselorAccessRemoved,
+    required bool counselorAccessSuspended,
   }) {
     if (hasCounselorRegistrationIntent) {
       return windowsSetupRoute('counselor-invite');
@@ -351,6 +354,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     if (role == UserRole.counselor) {
       if (counselorAccessRemoved) {
         return windowsSetupRoute('counselor-access-removed');
+      }
+      if (counselorAccessSuspended) {
+        return windowsSetupRoute('counselor-access-suspended');
       }
       return needsCounselorSetup
           ? windowsSetupRoute('counselor-setup')
@@ -394,8 +400,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoute.joinInstitution;
       final isCounselorInviteWaitingRoute =
           location == AppRoute.counselorInviteWaiting;
+      final isCounselorAccessSuspendedRoute =
+          location == AppRoute.counselorAccessSuspended;
       final isCounselorOpsRoute =
           location == AppRoute.counselorSetup ||
+          location == AppRoute.counselorAccessSuspended ||
           location == AppRoute.counselorDashboard ||
           location == AppRoute.counselorLiveHub ||
           location == AppRoute.counselorAvailability ||
@@ -498,6 +507,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final counselorAccessRemoved =
               role == UserRole.counselor &&
               counselorAccessStatus == CounselorInstitutionAccessStatus.removed;
+          final counselorAccessSuspended =
+              role == UserRole.counselor &&
+              counselorAccessStatus ==
+                  CounselorInstitutionAccessStatus.suspended;
           final institutionStatus =
               (institutionRequest?['status'] as String?) ?? 'approved';
 
@@ -519,6 +532,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             windowsSetupReason = 'institution-approval';
           } else if (role == UserRole.counselor && counselorAccessRemoved) {
             windowsSetupReason = 'counselor-access-removed';
+          } else if (role == UserRole.counselor && counselorAccessSuspended) {
+            windowsSetupReason = 'counselor-access-suspended';
           } else if (role == UserRole.counselor && needsCounselorSetup) {
             windowsSetupReason = 'counselor-setup';
           } else if (isLiveRoute ||
@@ -540,6 +555,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               hasCounselorRegistrationIntent: false,
               needsCounselorSetup: needsCounselorSetup,
               counselorAccessRemoved: counselorAccessRemoved,
+              counselorAccessSuspended: counselorAccessSuspended,
             );
           }
 
@@ -557,6 +573,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               hasCounselorRegistrationIntent: hasCounselorRegistrationIntent,
               needsCounselorSetup: needsCounselorSetup,
               counselorAccessRemoved: counselorAccessRemoved,
+              counselorAccessSuspended: counselorAccessSuspended,
             );
           }
 
@@ -625,6 +642,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               hasCounselorRegistrationIntent: false,
               needsCounselorSetup: needsCounselorSetup,
               counselorAccessRemoved: counselorAccessRemoved,
+              counselorAccessSuspended: counselorAccessSuspended,
             );
           }
 
@@ -633,7 +651,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
         if (profileAsync.isLoading ||
             pendingInviteAsync.isLoading ||
-            currentAdminInstitutionAsync.isLoading) {
+            currentAdminInstitutionAsync.isLoading ||
+            (profileAsync.valueOrNull?.role == UserRole.counselor &&
+                counselorAccessAsync.isLoading &&
+                counselorAccessAsync.valueOrNull == null)) {
           return null;
         }
 
@@ -657,10 +678,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         final hasCounselorRegistrationIntent =
             profile?.isCounselorRegistrationIntentPending ?? false;
         final needsCounselorSetup = counselorRepository.requiresSetup(profile);
+        final counselorAccessStatus = role == UserRole.counselor
+            ? (counselorAccessAsync.valueOrNull ??
+                  CounselorInstitutionAccessStatus.inactive)
+            : CounselorInstitutionAccessStatus.inactive;
+        final counselorAccessRemoved =
+            role == UserRole.counselor &&
+            counselorAccessStatus == CounselorInstitutionAccessStatus.removed;
+        final counselorAccessSuspended =
+            role == UserRole.counselor &&
+            counselorAccessStatus == CounselorInstitutionAccessStatus.suspended;
         final institutionRequest = currentAdminInstitutionAsync.valueOrNull;
         final alreadyInInstitution = (profile?.institutionId ?? '')
             .trim()
             .isNotEmpty;
+        final canRemainInCounselorRecoveryRoutes =
+            isCounselorInviteWaitingRoute ||
+            location == AppRoute.inviteAccept ||
+            location == AppRoute.notifications ||
+            location == AppRoute.notificationDetails;
         // 3. Verified but counselor-registration users stay on the waiting
         // screen even after an invite arrives so they can respond there or
         // from Notifications.
@@ -713,6 +749,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return AppRoute.institutionAdmin;
           }
           if (role == UserRole.counselor) {
+            if (counselorAccessRemoved) {
+              return AppRoute.counselorInviteWaiting;
+            }
+            if (counselorAccessSuspended) {
+              return AppRoute.counselorAccessSuspended;
+            }
             return needsCounselorSetup
                 ? AppRoute.counselorSetup
                 : AppRoute.counselorDashboard;
@@ -754,12 +796,44 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
         }
 
+        if (role == UserRole.counselor && counselorAccessRemoved) {
+          if (!canRemainInCounselorRecoveryRoutes) {
+            return AppRoute.counselorInviteWaiting;
+          }
+        }
+
+        if (role == UserRole.counselor && counselorAccessSuspended) {
+          final canRemainInSuspendedRoutes =
+              isCounselorAccessSuspendedRoute ||
+              location == AppRoute.notifications ||
+              location == AppRoute.notificationDetails;
+          if (!canRemainInSuspendedRoutes) {
+            return AppRoute.counselorAccessSuspended;
+          }
+        }
+
         // 6. Counselor setup gate (counselors do not run wellness onboarding).
         if (role == UserRole.counselor) {
+          if (counselorAccessRemoved) {
+            if (!canRemainInCounselorRecoveryRoutes) {
+              return AppRoute.counselorInviteWaiting;
+            }
+          }
+          if (counselorAccessSuspended) {
+            if (!isCounselorAccessSuspendedRoute &&
+                location != AppRoute.notifications &&
+                location != AppRoute.notificationDetails) {
+              return AppRoute.counselorAccessSuspended;
+            }
+          }
           if (needsCounselorSetup && location != AppRoute.counselorSetup) {
             return AppRoute.counselorSetup;
           }
           if (!needsCounselorSetup && location == AppRoute.counselorSetup) {
+            return AppRoute.counselorDashboard;
+          }
+          if (!counselorAccessSuspended &&
+              location == AppRoute.counselorAccessSuspended) {
             return AppRoute.counselorDashboard;
           }
           if (!needsCounselorSetup &&
@@ -797,12 +871,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         }
 
         if (role == UserRole.counselor && location == AppRoute.home) {
+          if (counselorAccessRemoved) {
+            return AppRoute.counselorInviteWaiting;
+          }
+          if (counselorAccessSuspended) {
+            return AppRoute.counselorAccessSuspended;
+          }
           return needsCounselorSetup
               ? AppRoute.counselorSetup
               : AppRoute.counselorDashboard;
         }
 
         if (role == UserRole.counselor && location == AppRoute.notifications) {
+          if (counselorAccessRemoved || counselorAccessSuspended) {
+            return null;
+          }
           return AppRoute.counselorNotificationsRoute(
             returnTo: AppRoute.counselorDashboard,
             notificationId:
@@ -937,6 +1020,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoute.counselorInviteWaiting,
         builder: (context, state) => const CounselorInviteWaitingScreen(),
+      ),
+      GoRoute(
+        path: AppRoute.counselorAccessSuspended,
+        builder: (context, state) => const CounselorAccessSuspendedScreen(),
       ),
       GoRoute(
         path: AppRoute.inviteAccept,

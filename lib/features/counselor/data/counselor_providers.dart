@@ -76,18 +76,31 @@ final currentCounselorInstitutionAccessStatusProvider =
     StreamProvider<CounselorInstitutionAccessStatus>((ref) {
       final authUser = ref.watch(authStateChangesProvider).valueOrNull;
       final profile = ref.watch(currentUserProfileProvider).valueOrNull;
-      if (!_useWindowsCounselorAccessPolling ||
-          authUser == null ||
+      if (authUser == null ||
           profile == null ||
           profile.role != UserRole.counselor) {
         return Stream.value(CounselorInstitutionAccessStatus.inactive);
       }
 
       final repository = ref.watch(counselorRepositoryProvider);
-      return _buildWindowsCounselorPollingStream<
-        CounselorInstitutionAccessStatus
-      >(
-        load: repository.getCurrentInstitutionAccessStatus,
-        signature: (status) => status.name,
-      );
+      if (_useWindowsCounselorAccessPolling) {
+        return _buildWindowsCounselorPollingStream<
+          CounselorInstitutionAccessStatus
+        >(
+          load: repository.getCurrentInstitutionAccessStatus,
+          signature: (status) => status.name,
+        );
+      }
+
+      final institutionId = (profile.institutionId ?? '').trim();
+      if (institutionId.isEmpty) {
+        return Stream.value(CounselorInstitutionAccessStatus.inactive);
+      }
+
+      final firestore = ref.watch(firestoreProvider);
+      return firestore
+          .collection('institution_members')
+          .doc('${institutionId}_${authUser.uid}')
+          .snapshots()
+          .asyncMap((_) => repository.getCurrentInstitutionAccessStatus());
     });

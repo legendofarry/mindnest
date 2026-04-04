@@ -1389,7 +1389,10 @@ class AssistantRepository {
               .docs
               .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
               .toList(growable: false);
-    if (profiles.isEmpty) {
+    final activeProfiles = profiles
+        .where((data) => (data['isActive'] as bool?) ?? true)
+        .toList(growable: false);
+    if (activeProfiles.isEmpty) {
       return const AssistantReply(
         text: 'There are no active counselor profiles available yet.',
       );
@@ -1397,7 +1400,7 @@ class AssistantRepository {
 
     Map<String, dynamic>? selected;
     var bestScore = 0;
-    for (final data in profiles) {
+    for (final data in activeProfiles) {
       final name = ((data['displayName'] as String?) ?? '').toLowerCase();
       final specialization = ((data['specialization'] as String?) ?? '')
           .toLowerCase();

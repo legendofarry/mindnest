@@ -1860,6 +1860,13 @@ class CareRepository {
       throw Exception('Selected slot is no longer available.');
     }
 
+    final freshCounselor = await getCounselorProfile(counselor.id);
+    if (freshCounselor == null || !freshCounselor.isActive) {
+      throw Exception(
+        'This counselor is not currently available for new bookings.',
+      );
+    }
+
     final appointmentId = kUseWindowsRestAuth
         ? _windowsDocId('appt')
         : _firestore.collection('appointments').doc().id;

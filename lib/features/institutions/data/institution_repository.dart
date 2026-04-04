@@ -1742,6 +1742,7 @@ class InstitutionRepository {
   }) async {
     const allowed = <String>{'active', 'suspended', 'removed'};
     final normalizedStatus = status.trim().toLowerCase();
+    final normalizedReason = _normalizedLifecycleReason(reason);
     if (!allowed.contains(normalizedStatus)) {
       throw Exception('Unsupported member status.');
     }
@@ -1777,9 +1778,22 @@ class InstitutionRepository {
       throw Exception('Member record not found.');
     }
     final memberRole = (membership['role'] as String?) ?? '';
+    final previousStatus = ((membership['status'] as String?) ?? 'active')
+        .trim()
+        .toLowerCase();
     if (memberRole == UserRole.institutionAdmin.name &&
         memberUserId == currentUser.uid) {
       throw Exception('You cannot change your own admin membership status.');
+    }
+    if (previousStatus == normalizedStatus) {
+      return;
+    }
+    if (memberRole == UserRole.counselor.name &&
+        previousStatus == 'removed' &&
+        normalizedStatus != 'removed') {
+      throw Exception(
+        'Removed counselor access must be restored through a new invite.',
+      );
     }
 
     if (kUseWindowsRestAuth) {
@@ -1787,7 +1801,7 @@ class InstitutionRepository {
       await _windowsRest.setDocument('institution_members/$membershipId', {
         ...membership,
         'status': normalizedStatus,
-        'lifecycleReason': (reason ?? '').trim(),
+        'lifecycleReason': normalizedReason,
         'lifecycleUpdatedBy': currentUser.uid,
         'lifecycleUpdatedAt': now,
         'updatedAt': now,
@@ -1798,11 +1812,44 @@ class InstitutionRepository {
           .doc(membershipId)
           .update({
             'status': normalizedStatus,
-            'lifecycleReason': (reason ?? '').trim(),
+            'lifecycleReason': normalizedReason,
             'lifecycleUpdatedBy': currentUser.uid,
             'lifecycleUpdatedAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
           });
+    }
+
+    var cancelledAppointments = 0;
+    if (memberRole == UserRole.counselor.name) {
+      await _syncCounselorLifecycleState(
+        institutionId: institutionId,
+        counselorId: memberUserId,
+        status: normalizedStatus,
+      );
+      if (normalizedStatus == 'suspended' || normalizedStatus == 'removed') {
+        cancelledAppointments =
+            await _cancelFutureCounselorAppointmentsForLifecycleChange(
+              institutionId: institutionId,
+              counselorId: memberUserId,
+              counselorDisplayName: ((membership['userName'] as String?) ?? '')
+                  .trim(),
+              status: normalizedStatus,
+            );
+      }
+      await _syncFutureCounselorAvailabilityForLifecycleStatus(
+        institutionId: institutionId,
+        counselorId: memberUserId,
+        status: normalizedStatus,
+      );
+      await _createNotifications(
+        _counselorLifecycleNotificationPayloads(
+          userId: memberUserId,
+          institutionId: institutionId,
+          status: normalizedStatus,
+          cancelledAppointments: cancelledAppointments,
+          reason: normalizedReason,
+        ),
+      );
     }
 
     await _appendMembershipAudit(
@@ -1811,8 +1858,11 @@ class InstitutionRepository {
       targetUserId: memberUserId,
       action: 'member_status_changed',
       details: <String, dynamic>{
+        'previousStatus': previousStatus,
         'nextStatus': normalizedStatus,
-        'reason': (reason ?? '').trim(),
+        'reason': normalizedReason,
+        if (memberRole == UserRole.counselor.name)
+          'cancelledAppointments': cancelledAppointments,
       },
     );
   }
@@ -3458,6 +3508,462 @@ class InstitutionRepository {
       );
     }
     return user;
+  }
+
+  String _normalizedLifecycleReason(String? reason) {
+    final normalized = (reason ?? '').trim();
+    if (normalized.isEmpty || normalized == 'admin_dashboard') {
+      return '';
+    }
+    return normalized;
+  }
+
+  Future<void> _syncCounselorLifecycleState({
+    required String institutionId,
+    required String counselorId,
+    required String status,
+  }) async {
+    final isActive = status == 'active';
+    if (kUseWindowsRestAuth) {
+      final now = DateTime.now().toUtc();
+      final userDocument = await _windowsRest.getDocument('users/$counselorId');
+      if (userDocument != null) {
+        final userData = userDocument.data;
+        final rawSetup = userData['counselorSetupData'];
+        final setupData = <String, dynamic>{};
+        if (rawSetup is Map) {
+          for (final entry in rawSetup.entries) {
+            setupData[entry.key.toString()] = entry.value;
+          }
+        }
+        setupData['isActive'] = isActive;
+        await _windowsRest.setDocument('users/$counselorId', {
+          ...userData,
+          'counselorApprovalStatus': status,
+          'counselorSetupData': setupData,
+          'updatedAt': now,
+        });
+      }
+
+      final profileDocument = await _windowsRest.getDocument(
+        'counselor_profiles/$counselorId',
+      );
+      if (profileDocument != null) {
+        await _windowsRest.setDocument('counselor_profiles/$counselorId', {
+          ...profileDocument.data,
+          'institutionId': institutionId,
+          'isActive': isActive,
+          'updatedAt': now,
+        });
+      }
+      return;
+    }
+
+    final userRef = _firestore.collection('users').doc(counselorId);
+    final profileRef = _firestore
+        .collection('counselor_profiles')
+        .doc(counselorId);
+    final userSnapshot = await userRef.get();
+    final profileSnapshot = await profileRef.get();
+    final batch = _firestore.batch();
+    var hasWrites = false;
+    if (userSnapshot.exists) {
+      batch.update(userRef, {
+        'counselorApprovalStatus': status,
+        'counselorSetupData.isActive': isActive,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      hasWrites = true;
+    }
+    if (profileSnapshot.exists) {
+      batch.set(profileRef, {
+        'institutionId': institutionId,
+        'isActive': isActive,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      hasWrites = true;
+    }
+    if (hasWrites) {
+      await batch.commit();
+    }
+  }
+
+  Future<int> _cancelFutureCounselorAppointmentsForLifecycleChange({
+    required String institutionId,
+    required String counselorId,
+    required String counselorDisplayName,
+    required String status,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final statusToCancel = <String>{'pending', 'confirmed'};
+    final normalizedCounselorName = counselorDisplayName.trim().isEmpty
+        ? 'your counselor'
+        : counselorDisplayName.trim();
+    final cancellationMessage = status == 'removed'
+        ? 'Session cancelled because counselor access was removed by the institution admin.'
+        : 'Session cancelled because counselor access was suspended by the institution admin.';
+    final studentNotificationBody = status == 'removed'
+        ? 'Your upcoming session with $normalizedCounselorName was cancelled because the institution admin removed counselor access.'
+        : 'Your upcoming session with $normalizedCounselorName was cancelled because the institution admin suspended counselor access.';
+
+    if (kUseWindowsRestAuth) {
+      final documents = await _windowsRest.queryCollection(
+        collectionId: 'appointments',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal('institutionId', institutionId),
+          WindowsFirestoreFieldFilter.equal('counselorId', counselorId),
+        ],
+      );
+
+      final cancellable = <String, WindowsFirestoreDocument>{};
+      for (final doc in documents) {
+        final data = doc.data;
+        final appointmentStatus = (data['status'] as String?) ?? '';
+        final startAt = _asUtcDate(data['startAt']);
+        if (!statusToCancel.contains(appointmentStatus) || startAt == null) {
+          continue;
+        }
+        if (startAt.isBefore(now)) {
+          continue;
+        }
+        cancellable[doc.id] = doc;
+      }
+
+      if (cancellable.isEmpty) {
+        return 0;
+      }
+
+      final slotIds = cancellable.values
+          .map((doc) => (doc.data['slotId'] as String?) ?? '')
+          .where((slotId) => slotId.isNotEmpty)
+          .toSet();
+      final existingSlots = <String, WindowsFirestoreDocument>{};
+      for (final slotId in slotIds) {
+        final slot = await _windowsRest.getDocument(
+          'counselor_availability/$slotId',
+        );
+        if (slot != null) {
+          existingSlots[slot.id] = slot;
+        }
+      }
+
+      final notifications = <Map<String, dynamic>>[];
+      for (final appointment in cancellable.values) {
+        final data = appointment.data;
+        await _windowsRest.setDocument('appointments/${appointment.id}', {
+          ...data,
+          'status': 'cancelled',
+          'cancelledByRole': 'institution_admin',
+          'counselorCancelMessage': cancellationMessage,
+          'cancelledAt': now,
+          'updatedAt': now,
+        });
+
+        final slotId = (data['slotId'] as String?) ?? '';
+        final slot = existingSlots[slotId];
+        if (slot != null) {
+          await _windowsRest.setDocument('counselor_availability/$slotId', {
+            ...slot.data,
+            'status': 'available',
+            'bookedBy': null,
+            'appointmentId': null,
+            'updatedAt': now,
+          });
+        }
+
+        final studentId = ((data['studentId'] as String?) ?? '').trim();
+        if (studentId.isNotEmpty) {
+          notifications.add(
+            _notificationPayload(
+              userId: studentId,
+              institutionId: institutionId,
+              type: 'appointment_cancelled',
+              title: 'Counseling session cancelled',
+              body: studentNotificationBody,
+              relatedId: appointment.id,
+              priority: 'high',
+            ),
+          );
+        }
+      }
+
+      await _createNotifications(notifications);
+      return cancellable.length;
+    }
+
+    final snapshot = await _firestore
+        .collection('appointments')
+        .where('institutionId', isEqualTo: institutionId)
+        .where('counselorId', isEqualTo: counselorId)
+        .get();
+
+    final cancellable = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final appointmentStatus = (data['status'] as String?) ?? '';
+      final startAt = _asUtcDate(data['startAt']);
+      if (!statusToCancel.contains(appointmentStatus) || startAt == null) {
+        continue;
+      }
+      if (startAt.isBefore(now)) {
+        continue;
+      }
+      cancellable[doc.id] = doc;
+    }
+
+    if (cancellable.isEmpty) {
+      return 0;
+    }
+
+    final slotIds = cancellable.values
+        .map((doc) => (doc.data()['slotId'] as String?) ?? '')
+        .where((slotId) => slotId.isNotEmpty)
+        .toSet();
+    final slotRefs = slotIds
+        .map(
+          (slotId) =>
+              _firestore.collection('counselor_availability').doc(slotId),
+        )
+        .toList(growable: false);
+    final slotSnaps = await Future.wait(slotRefs.map((ref) => ref.get()));
+    final existingSlotById =
+        <String, DocumentReference<Map<String, dynamic>>>{};
+    for (var index = 0; index < slotSnaps.length; index++) {
+      if (slotSnaps[index].exists) {
+        existingSlotById[slotSnaps[index].id] = slotRefs[index];
+      }
+    }
+
+    final batch = _firestore.batch();
+    final notifications = <Map<String, dynamic>>[];
+    for (final appointment in cancellable.values) {
+      final data = appointment.data();
+      batch.update(appointment.reference, {
+        'status': 'cancelled',
+        'cancelledByRole': 'institution_admin',
+        'counselorCancelMessage': cancellationMessage,
+        'cancelledAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      final slotId = (data['slotId'] as String?) ?? '';
+      final slotRef = existingSlotById[slotId];
+      if (slotRef != null) {
+        batch.update(slotRef, {
+          'status': 'available',
+          'bookedBy': null,
+          'appointmentId': null,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      final studentId = ((data['studentId'] as String?) ?? '').trim();
+      if (studentId.isNotEmpty) {
+        notifications.add(
+          _notificationPayload(
+            userId: studentId,
+            institutionId: institutionId,
+            type: 'appointment_cancelled',
+            title: 'Counseling session cancelled',
+            body: studentNotificationBody,
+            relatedId: appointment.id,
+            priority: 'high',
+          ),
+        );
+      }
+    }
+
+    await batch.commit();
+    await _createNotifications(notifications);
+    return cancellable.length;
+  }
+
+  Future<void> _syncFutureCounselorAvailabilityForLifecycleStatus({
+    required String institutionId,
+    required String counselorId,
+    required String status,
+  }) async {
+    final now = DateTime.now().toUtc();
+    if (kUseWindowsRestAuth) {
+      final documents = await _windowsRest.queryCollection(
+        collectionId: 'counselor_availability',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal('institutionId', institutionId),
+          WindowsFirestoreFieldFilter.equal('counselorId', counselorId),
+        ],
+      );
+
+      for (final doc in documents) {
+        final data = doc.data;
+        final endAt = _asUtcDate(data['endAt']);
+        if (endAt == null || !endAt.isAfter(now)) {
+          continue;
+        }
+        final slotStatus = ((data['status'] as String?) ?? '')
+            .trim()
+            .toLowerCase();
+        final lifecycleLockReason =
+            ((data['lifecycleLockReason'] as String?) ?? '')
+                .trim()
+                .toLowerCase();
+
+        if (status == 'active') {
+          if (slotStatus == 'blocked' &&
+              lifecycleLockReason == 'member_suspended') {
+            await _windowsRest.setDocument('counselor_availability/${doc.id}', {
+              ...data,
+              'status': 'available',
+              'bookedBy': null,
+              'appointmentId': null,
+              'lifecycleLocked': false,
+              'lifecycleLockReason': null,
+              'updatedAt': now,
+            });
+          }
+          continue;
+        }
+
+        if (status == 'suspended') {
+          if (slotStatus == 'available') {
+            await _windowsRest.setDocument('counselor_availability/${doc.id}', {
+              ...data,
+              'status': 'blocked',
+              'bookedBy': null,
+              'appointmentId': null,
+              'lifecycleLocked': true,
+              'lifecycleLockReason': 'member_suspended',
+              'updatedAt': now,
+            });
+          }
+          continue;
+        }
+
+        if (status == 'removed') {
+          await _windowsRest.deleteDocument('counselor_availability/${doc.id}');
+        }
+      }
+      return;
+    }
+
+    final snapshot = await _firestore
+        .collection('counselor_availability')
+        .where('institutionId', isEqualTo: institutionId)
+        .where('counselorId', isEqualTo: counselorId)
+        .get();
+    final batch = _firestore.batch();
+    var hasWrites = false;
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final endAt = _asUtcDate(data['endAt']);
+      if (endAt == null || !endAt.isAfter(now)) {
+        continue;
+      }
+      final slotStatus = ((data['status'] as String?) ?? '')
+          .trim()
+          .toLowerCase();
+      final lifecycleLockReason =
+          ((data['lifecycleLockReason'] as String?) ?? '').trim().toLowerCase();
+
+      if (status == 'active') {
+        if (slotStatus == 'blocked' &&
+            lifecycleLockReason == 'member_suspended') {
+          batch.update(doc.reference, {
+            'status': 'available',
+            'bookedBy': null,
+            'appointmentId': null,
+            'lifecycleLocked': FieldValue.delete(),
+            'lifecycleLockReason': FieldValue.delete(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          hasWrites = true;
+        }
+        continue;
+      }
+
+      if (status == 'suspended') {
+        if (slotStatus == 'available') {
+          batch.update(doc.reference, {
+            'status': 'blocked',
+            'bookedBy': null,
+            'appointmentId': null,
+            'lifecycleLocked': true,
+            'lifecycleLockReason': 'member_suspended',
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          hasWrites = true;
+        }
+        continue;
+      }
+
+      if (status == 'removed') {
+        batch.delete(doc.reference);
+        hasWrites = true;
+      }
+    }
+
+    if (hasWrites) {
+      await batch.commit();
+    }
+  }
+
+  List<Map<String, dynamic>> _counselorLifecycleNotificationPayloads({
+    required String userId,
+    required String institutionId,
+    required String status,
+    required int cancelledAppointments,
+    required String reason,
+  }) {
+    final normalizedReason = reason.trim();
+    String title;
+    String body;
+    String route;
+    switch (status) {
+      case 'suspended':
+        title = 'Counselor access suspended';
+        body =
+            'Your institution admin suspended your counselor access. You can stay signed in and review notifications, but counselor tools are blocked until access is restored.';
+        route = AppRoute.notificationsRoute(
+          returnTo: AppRoute.counselorAccessSuspended,
+        );
+        break;
+      case 'removed':
+        title = 'Counselor access removed';
+        body =
+            'Your institution admin removed your counselor access. You have been moved to the recovery screen and can wait there for a new invite.';
+        route = AppRoute.notificationsRoute(
+          returnTo: AppRoute.counselorInviteWaiting,
+        );
+        break;
+      default:
+        title = 'Counselor access restored';
+        body =
+            'Your institution admin restored your counselor access. You can return to the counselor dashboard.';
+        route = AppRoute.counselorDashboard;
+        break;
+    }
+
+    if (cancelledAppointments > 0) {
+      body =
+          '$body $cancelledAppointments upcoming ${cancelledAppointments == 1 ? 'session was' : 'sessions were'} cancelled.';
+    }
+    if (normalizedReason.isNotEmpty) {
+      body = '$body Reason: $normalizedReason';
+    }
+
+    return <Map<String, dynamic>>[
+      _notificationPayload(
+        userId: userId,
+        institutionId: institutionId,
+        type: 'counselor_access_$status',
+        title: title,
+        body: body,
+        route: route,
+        priority: 'high',
+        actionRequired: status != 'active',
+        isPinned: status != 'active',
+      ),
+    ];
   }
 
   Future<QueryDocumentSnapshot<Map<String, dynamic>>> _resolveInviteeByPhone(
