@@ -1521,6 +1521,7 @@ class _StudentAppointmentsScreenState
       backgroundMode: widget.embeddedInDesktopShell && isDesktop
           ? MindNestBackgroundMode.plainWhite
           : MindNestBackgroundMode.defaultShell,
+      animateContent: !(widget.embeddedInDesktopShell && isDesktop),
       appBar: null,
       floatingActionButton: profile == null
           ? null

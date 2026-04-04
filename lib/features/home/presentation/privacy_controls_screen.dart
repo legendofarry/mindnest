@@ -65,7 +65,9 @@ Stream<T> _buildWindowsPollingStream<T>({
 }
 
 class PrivacyControlsScreen extends ConsumerStatefulWidget {
-  const PrivacyControlsScreen({super.key});
+  const PrivacyControlsScreen({super.key, this.embeddedInDesktopShell = false});
+
+  final bool embeddedInDesktopShell;
 
   @override
   ConsumerState<PrivacyControlsScreen> createState() =>
@@ -92,7 +94,8 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
         role == UserRole.student ||
         role == UserRole.staff ||
         role == UserRole.individual;
-    final usesFloatingDesktopHeader = isDesktop && !isPrimaryUser;
+    final usesFloatingDesktopHeader =
+        isDesktop && !isPrimaryUser && !widget.embeddedInDesktopShell;
     final privacySettingsStream = userId.isEmpty || !showsVisibilityControls
         ? null
         : _useWindowsRestFirestore
@@ -289,6 +292,10 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
         ),
       ),
     );
+
+    if (widget.embeddedInDesktopShell) {
+      return content;
+    }
 
     if (isDesktop && isPrimaryUser) {
       return DesktopPrimaryShell(

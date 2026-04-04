@@ -18,10 +18,12 @@ class NotificationCenterScreen extends ConsumerStatefulWidget {
     super.key,
     this.initialSelectedNotificationId,
     this.embeddedInCounselorShell = false,
+    this.embeddedInDesktopShell = false,
   });
 
   final String? initialSelectedNotificationId;
   final bool embeddedInCounselorShell;
+  final bool embeddedInDesktopShell;
 
   @override
   ConsumerState<NotificationCenterScreen> createState() =>
@@ -1347,9 +1349,10 @@ class _NotificationCenterScreenState
       profile: profile,
       copy: copy,
       embeddedInCounselorShell: widget.embeddedInCounselorShell,
+      embeddedInDesktopShell: widget.embeddedInDesktopShell,
     );
 
-    if (widget.embeddedInCounselorShell) {
+    if (widget.embeddedInCounselorShell || widget.embeddedInDesktopShell) {
       return content;
     }
 
@@ -1373,10 +1376,12 @@ class _NotificationCenterScreenState
     required UserProfile? profile,
     required _NotificationScreenCopy copy,
     required bool embeddedInCounselorShell,
+    required bool embeddedInDesktopShell,
   }) {
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
     final usesFloatingHeader =
         !embeddedInCounselorShell &&
+        !embeddedInDesktopShell &&
         isDesktop &&
         profile != null &&
         profile.role != UserRole.student &&
@@ -1480,7 +1485,7 @@ class _NotificationCenterScreenState
       ),
     );
 
-    final body = embeddedInCounselorShell
+    final body = embeddedInCounselorShell || embeddedInDesktopShell
         ? workspace
         : SafeArea(child: workspace);
 

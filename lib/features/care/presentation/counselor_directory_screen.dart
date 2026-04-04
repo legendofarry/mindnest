@@ -187,9 +187,7 @@ class _CounselorDirectoryScreenState
   Stream<List<CounselorProfile>> _counselorsStreamFor(String institutionId) {
     final normalized = institutionId.trim();
     if (normalized.isEmpty) {
-      return Stream<List<CounselorProfile>>.value(
-        const <CounselorProfile>[],
-      );
+      return Stream<List<CounselorProfile>>.value(const <CounselorProfile>[]);
     }
     if (_counselorsStream == null ||
         _counselorsStreamInstitutionId != normalized ||
@@ -227,9 +225,7 @@ class _CounselorDirectoryScreenState
   Stream<List<AvailabilitySlot>> _availabilityStreamFor(String institutionId) {
     final normalized = institutionId.trim();
     if (normalized.isEmpty) {
-      return Stream<List<AvailabilitySlot>>.value(
-        const <AvailabilitySlot>[],
-      );
+      return Stream<List<AvailabilitySlot>>.value(const <AvailabilitySlot>[]);
     }
     if (_availabilityStream == null ||
         _availabilityStreamInstitutionId != normalized ||
@@ -761,6 +757,7 @@ class _CounselorDirectoryScreenState
       backgroundMode: widget.embeddedInDesktopShell && isDesktop
           ? MindNestBackgroundMode.plainWhite
           : MindNestBackgroundMode.homeStyle,
+      animateContent: !(widget.embeddedInDesktopShell && isDesktop),
       appBar: null,
       floatingActionButton: profile == null
           ? null

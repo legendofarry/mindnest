@@ -417,6 +417,7 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
       return MindNestShell(
         maxWidth: 1240,
         backgroundMode: MindNestBackgroundMode.plainWhite,
+        animateContent: false,
         appBar: null,
         child: liveContent,
       );

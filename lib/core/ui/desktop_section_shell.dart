@@ -139,7 +139,12 @@ class DesktopSectionNav extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final location = GoRouterState.of(context).matchedLocation;
+    final state = GoRouterState.of(context);
+    final location = state.matchedLocation;
+    final activeLocation = _resolvePrimaryNavLocation(
+      matchedLocation: location,
+      currentUri: state.uri,
+    );
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final displayName = _displayName(profile);
     final roleLabel = _roleLabel(profile);
@@ -246,9 +251,9 @@ class DesktopSectionNav extends ConsumerWidget {
                 children: [
                   ...items.map((item) {
                     final active =
-                        location == item.route ||
+                        activeLocation == item.route ||
                         (item.route == AppRoute.liveHub &&
-                            location == AppRoute.liveRoom);
+                            activeLocation == AppRoute.liveRoom);
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 6),
                       child: InkWell(
@@ -439,6 +444,27 @@ class DesktopSectionNav extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+String _resolvePrimaryNavLocation({
+  required String matchedLocation,
+  required Uri currentUri,
+}) {
+  if (matchedLocation != AppRoute.notifications) {
+    return matchedLocation;
+  }
+
+  final rawReturnTo = currentUri.queryParameters[AppRoute.returnToQuery];
+  final returnToUri = Uri.tryParse((rawReturnTo ?? '').trim());
+  switch (returnToUri?.path) {
+    case AppRoute.home:
+    case AppRoute.counselorDirectory:
+    case AppRoute.studentAppointments:
+    case AppRoute.liveHub:
+      return returnToUri!.path;
+    default:
+      return AppRoute.home;
   }
 }
 

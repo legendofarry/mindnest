@@ -54,6 +54,7 @@ class DesktopPrimaryShell extends ConsumerWidget {
       case AppRoute.counselorDirectory:
       case AppRoute.studentAppointments:
       case AppRoute.liveHub:
+      case AppRoute.notifications:
       case AppRoute.privacyControls:
         return uri.toString();
       default:
@@ -111,9 +112,9 @@ class DesktopPrimaryShell extends ConsumerWidget {
         ? (ref.watch(unreadNotificationCountProvider(profile.id)).valueOrNull ??
               0)
         : 0;
+    final firstName = _firstNameForProfile(profile);
     final notificationsActive = matchedLocation == AppRoute.notifications;
     final profileActive = matchedLocation == AppRoute.privacyControls;
-    final homeOwnsTopHeader = matchedLocation == AppRoute.home;
     final notificationsReturnTo =
         _normalizedPrimaryWorkspaceRoute(
           currentUri.queryParameters[AppRoute.returnToQuery],
@@ -158,68 +159,44 @@ class DesktopPrimaryShell extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (!homeOwnsTopHeader)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(8, 4, 0, 16),
-                          child: Row(
-                            children: [
-                              const Spacer(),
-                              _HeaderActionButton(
-                                tooltip: 'Notifications',
-                                active: notificationsActive,
-                                onPressed: hasInstitution
-                                    ? () {
-                                        if (notificationsActive) {
-                                          context.go(notificationsReturnTo);
-                                          return;
-                                        }
-                                        context.go(
-                                          AppRoute.notificationsRoute(
-                                            returnTo: overlayAnchorRoute,
-                                          ),
-                                        );
-                                      }
-                                    : () => _showNotificationsUnavailable(
-                                        context,
-                                      ),
-                                child: _HeaderBellIcon(
-                                  unreadCount: unreadCount,
-                                  active: notificationsActive,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              _HeaderActionButton(
-                                tooltip: 'Profile',
-                                active: profileActive,
-                                onPressed: profile == null
-                                    ? null
-                                    : () {
-                                        if (matchedLocation == AppRoute.home) {
-                                          ref
-                                              .read(
-                                                desktopProfileOpenRequestProvider
-                                                    .notifier,
-                                              )
-                                              .state = DateTime.now()
-                                              .microsecondsSinceEpoch;
-                                          return;
-                                        }
-                                        _openProfileFromHeader(context);
-                                      },
-                                child: Icon(
-                                  Icons.person_outline_rounded,
-                                  color: profileActive
-                                      ? const Color(0xFF0B2442)
-                                      : (isDark
-                                            ? const Color(0xFFD6E3F5)
-                                            : const Color(0xFF16324F)),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              const WindowsDesktopWindowControls(),
-                            ],
-                          ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 4, 0, 16),
+                        child: _PrimaryWorkspaceHeader(
+                          firstName: firstName,
+                          unreadCount: unreadCount,
+                          notificationsActive: notificationsActive,
+                          profileActive: profileActive,
+                          onNotifications: hasInstitution
+                              ? () {
+                                  if (notificationsActive) {
+                                    context.go(notificationsReturnTo);
+                                    return;
+                                  }
+                                  context.go(
+                                    AppRoute.notificationsRoute(
+                                      returnTo: overlayAnchorRoute,
+                                    ),
+                                  );
+                                }
+                              : () => _showNotificationsUnavailable(context),
+                          onProfile: profile == null
+                              ? null
+                              : () {
+                                  if (matchedLocation == AppRoute.home) {
+                                    ref
+                                            .read(
+                                              desktopProfileOpenRequestProvider
+                                                  .notifier,
+                                            )
+                                            .state =
+                                        DateTime.now().microsecondsSinceEpoch;
+                                    return;
+                                  }
+                                  _openProfileFromHeader(context);
+                                },
+                          isDark: isDark,
                         ),
+                      ),
                       Expanded(child: child),
                     ],
                   ),
@@ -229,6 +206,113 @@ class DesktopPrimaryShell extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+String _firstNameForProfile(UserProfile? profile) {
+  final rawName = profile?.name.trim() ?? '';
+  if (rawName.isNotEmpty) {
+    return rawName.split(RegExp(r'\s+')).first;
+  }
+  final email = profile?.email.trim() ?? '';
+  if (email.contains('@')) {
+    return email.split('@').first;
+  }
+  return 'there';
+}
+
+class _PrimaryWorkspaceHeader extends StatelessWidget {
+  const _PrimaryWorkspaceHeader({
+    required this.firstName,
+    required this.unreadCount,
+    required this.notificationsActive,
+    required this.profileActive,
+    required this.onNotifications,
+    required this.onProfile,
+    required this.isDark,
+  });
+
+  final String firstName;
+  final int unreadCount;
+  final bool notificationsActive;
+  final bool profileActive;
+  final VoidCallback onNotifications;
+  final VoidCallback? onProfile;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Good morning, $firstName',
+                    style: const TextStyle(
+                      color: Color(0xFF1E2432),
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.8,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Color(0xFFF59E0B),
+                    size: 22,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                "Here's your wellness overview for today.",
+                style: TextStyle(
+                  color: Color(0xFF6B7280),
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 16),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _HeaderActionButton(
+              tooltip: 'Notifications',
+              active: notificationsActive,
+              onPressed: onNotifications,
+              child: _HeaderBellIcon(
+                unreadCount: unreadCount,
+                active: notificationsActive,
+              ),
+            ),
+            const SizedBox(width: 8),
+            _HeaderActionButton(
+              tooltip: 'Profile',
+              active: profileActive,
+              onPressed: onProfile,
+              child: Icon(
+                Icons.person_outline_rounded,
+                color: profileActive
+                    ? const Color(0xFF0B2442)
+                    : (isDark
+                          ? const Color(0xFFD6E3F5)
+                          : const Color(0xFF16324F)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const WindowsDesktopWindowControls(),
+          ],
+        ),
+      ],
     );
   }
 }

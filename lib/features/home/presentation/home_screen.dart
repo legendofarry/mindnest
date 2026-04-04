@@ -1424,6 +1424,9 @@ class HomeScreen extends ConsumerWidget {
           }
 
           final firstName = profile.name.split(' ')[0];
+          final institutionLabel = hasInstitution
+              ? _formatInstitutionBadge(profile.institutionName)
+              : 'INDIVIDUAL';
           final showJoinInstitutionNudge =
               profile.role == UserRole.individual && !hasInstitution;
 
@@ -1443,21 +1446,6 @@ class HomeScreen extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _DesktopWorkspaceTopStrip(
-                              firstName: firstName,
-                              unreadCount: unreadCount,
-                              canOpenNotifications: canOpenNotifications,
-                              onNotifications: canOpenNotifications
-                                  ? () => context.go(
-                                      AppRoute.notificationsRoute(
-                                        returnTo: AppRoute.home,
-                                      ),
-                                    )
-                                  : null,
-                              onProfile: () =>
-                                  _openProfilePanel(context, ref, profile),
-                            ),
-                            const SizedBox(height: 18),
                             _DesktopOverviewMetricsRow(
                               profile: profile,
                               hasInstitution: hasInstitution,
@@ -1488,18 +1476,18 @@ class HomeScreen extends ConsumerWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Expanded(
-                                    child: _HeroCardFrame(
-                                      isDark: isDark,
-                                      title: 'Open Slots',
-                                      subtitle: 'Next counselor availability',
-                                      icon: Icons.event_available_rounded,
-                                      child: _OpenSlotsPreviewCard(
+                                    child: SizedBox(
+                                      height: 260,
+                                      child: _HeroCarousel(
                                         profile: profile,
-                                        onTapCounselor: (counselorId) {
-                                          context.go(
-                                            '${AppRoute.counselorProfile}?counselorId=$counselorId',
-                                          );
-                                        },
+                                        firstName: firstName,
+                                        roleLabel: profile.role.label,
+                                        institutionName: institutionLabel,
+                                        hasInstitution: hasInstitution,
+                                        canAccessLive: canAccessLive,
+                                        showLive: !_isWindowsApp,
+                                        isDark: isDark,
+                                        showWelcomeCard: false,
                                       ),
                                     ),
                                   ),
@@ -1514,18 +1502,18 @@ class HomeScreen extends ConsumerWidget {
                                 ],
                               )
                             else ...[
-                              _HeroCardFrame(
-                                isDark: isDark,
-                                title: 'Open Slots',
-                                subtitle: 'Next counselor availability',
-                                icon: Icons.event_available_rounded,
-                                child: _OpenSlotsPreviewCard(
+                              SizedBox(
+                                height: 260,
+                                child: _HeroCarousel(
                                   profile: profile,
-                                  onTapCounselor: (counselorId) {
-                                    context.go(
-                                      '${AppRoute.counselorProfile}?counselorId=$counselorId',
-                                    );
-                                  },
+                                  firstName: firstName,
+                                  roleLabel: profile.role.label,
+                                  institutionName: institutionLabel,
+                                  hasInstitution: hasInstitution,
+                                  canAccessLive: canAccessLive,
+                                  showLive: !_isWindowsApp,
+                                  isDark: isDark,
+                                  showWelcomeCard: false,
                                 ),
                               ),
                               const SizedBox(height: 14),
@@ -2120,6 +2108,7 @@ class _HeroCarousel extends ConsumerStatefulWidget {
     required this.canAccessLive,
     required this.showLive,
     required this.isDark,
+    this.showWelcomeCard = true,
   });
 
   final UserProfile profile;
@@ -2130,6 +2119,7 @@ class _HeroCarousel extends ConsumerStatefulWidget {
   final bool canAccessLive;
   final bool showLive;
   final bool isDark;
+  final bool showWelcomeCard;
 
   @override
   ConsumerState<_HeroCarousel> createState() => _HeroCarouselState();
@@ -2137,8 +2127,11 @@ class _HeroCarousel extends ConsumerStatefulWidget {
 
 class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
   static const Duration _autoSlideDelay = Duration(seconds: 4);
+  int get _cardCount => widget.showWelcomeCard
+      ? (widget.showLive ? 4 : 3)
+      : (widget.showLive ? 3 : 2);
   late final PageController _pageController = PageController(
-    initialPage: 1000 * (widget.showLive ? 4 : 3),
+    initialPage: 1000 * _cardCount,
   );
   Timer? _autoSlideTimer;
   Timer? _resumeTimer;
@@ -2187,7 +2180,7 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    final cardCount = widget.showLive ? 4 : 3;
+    final cardCount = _cardCount;
     return SizedBox(
       height: 230,
       child: GestureDetector(
@@ -2198,6 +2191,53 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
           controller: _pageController,
           itemBuilder: (context, index) {
             final cardIndex = index % cardCount;
+            if (!widget.showWelcomeCard) {
+              switch (cardIndex) {
+                case 0:
+                  return _HeroCardFrame(
+                    isDark: widget.isDark,
+                    title: 'Sessions',
+                    subtitle: 'Tap any session to open details',
+                    icon: Icons.calendar_month_rounded,
+                    child: _SessionsPreviewCard(
+                      profile: widget.profile,
+                      onUserInteractionStart: _pauseTemporarily,
+                      onUserInteractionEnd: _resumeLater,
+                    ),
+                  );
+                case 1:
+                  return _HeroCardFrame(
+                    isDark: widget.isDark,
+                    title: 'Open Slots',
+                    subtitle: 'Next counselor availability',
+                    icon: Icons.event_available_rounded,
+                    child: _OpenSlotsPreviewCard(
+                      profile: widget.profile,
+                      onTapCounselor: (counselorId) {
+                        _pauseTemporarily();
+                        context.go(
+                          '${AppRoute.counselorProfile}?counselorId=$counselorId',
+                        );
+                      },
+                    ),
+                  );
+                default:
+                  return _HeroCardFrame(
+                    isDark: widget.isDark,
+                    title: 'Live Now',
+                    subtitle: 'Tap a live room to join directly',
+                    icon: Icons.podcasts_rounded,
+                    child: _LiveNowPreviewCard(
+                      profile: widget.profile,
+                      canAccessLive: widget.canAccessLive,
+                      onTapLive: (sessionId) {
+                        _pauseTemporarily();
+                        context.go('${AppRoute.liveRoom}?sessionId=$sessionId');
+                      },
+                    ),
+                  );
+              }
+            }
             switch (cardIndex) {
               case 0:
                 return _WelcomeHero(
@@ -2254,84 +2294,6 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
           },
         ),
       ),
-    );
-  }
-}
-
-class _DesktopWorkspaceTopStrip extends StatelessWidget {
-  const _DesktopWorkspaceTopStrip({
-    required this.firstName,
-    required this.unreadCount,
-    required this.canOpenNotifications,
-    required this.onNotifications,
-    required this.onProfile,
-  });
-
-  final String firstName;
-  final int unreadCount;
-  final bool canOpenNotifications;
-  final VoidCallback? onNotifications;
-  final VoidCallback onProfile;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    'Good morning, $firstName',
-                    style: const TextStyle(
-                      color: Color(0xFF1E2432),
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.8,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Icon(
-                    Icons.auto_awesome_rounded,
-                    color: Color(0xFFF59E0B),
-                    size: 22,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                "Here's your wellness overview for today.",
-                style: TextStyle(
-                  color: Color(0xFF6B7280),
-                  fontSize: 15.5,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 16),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _AppBarIconBtn(
-              icon: Icons.notifications_none_rounded,
-              enabled: canOpenNotifications,
-              badgeCount: unreadCount,
-              onTap: onNotifications,
-            ),
-            const SizedBox(width: 10),
-            _AppBarIconBtn(
-              icon: Icons.person_outline_rounded,
-              enabled: true,
-              onTap: onProfile,
-            ),
-          ],
-        ),
-      ],
     );
   }
 }

@@ -237,10 +237,7 @@ class AppRoute {
     ).toString();
   }
 
-  static String notificationsRoute({
-    String? returnTo,
-    String? notificationId,
-  }) {
+  static String notificationsRoute({String? returnTo, String? notificationId}) {
     final query = <String, String>{};
     final normalizedReturnTo = (returnTo ?? '').trim();
     if (normalizedReturnTo.isNotEmpty) {
@@ -1060,6 +1057,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               );
             },
           ),
+          GoRoute(
+            path: AppRoute.notifications,
+            builder: (context, state) => NotificationCenterScreen(
+              initialSelectedNotificationId:
+                  state.uri.queryParameters[AppRoute.notificationIdQuery],
+              embeddedInDesktopShell: true,
+            ),
+          ),
+          GoRoute(
+            path: AppRoute.privacyControls,
+            builder: (context, state) =>
+                const PrivacyControlsScreen(embeddedInDesktopShell: true),
+          ),
         ],
       ),
       GoRoute(
@@ -1076,13 +1086,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               state.uri.queryParameters['appointmentId'] ?? '';
           return SessionDetailsScreen(appointmentId: appointmentId);
         },
-      ),
-      GoRoute(
-        path: AppRoute.notifications,
-        builder: (context, state) => NotificationCenterScreen(
-          initialSelectedNotificationId:
-              state.uri.queryParameters[AppRoute.notificationIdQuery],
-        ),
       ),
       GoRoute(
         path: AppRoute.notificationDetails,
@@ -1106,10 +1109,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final sessionId = state.uri.queryParameters['sessionId'] ?? '';
           return LiveRoomScreen(sessionId: sessionId);
         },
-      ),
-      GoRoute(
-        path: AppRoute.privacyControls,
-        builder: (context, state) => const PrivacyControlsScreen(),
       ),
       GoRoute(
         path: AppRoute.joinInstitution,
