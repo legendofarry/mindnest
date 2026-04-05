@@ -29,6 +29,8 @@ class CounselorAvailabilityScreen extends ConsumerStatefulWidget {
 
 class _CounselorAvailabilityScreenState
     extends ConsumerState<CounselorAvailabilityScreen> {
+  final ScrollController _slotTimelineScrollController = ScrollController();
+  final ScrollController _slotTableScrollController = ScrollController();
   DateTime? _date;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
@@ -80,6 +82,13 @@ class _CounselorAvailabilityScreenState
   void initState() {
     super.initState();
     _weekStart = _startOfWeek(DateTime.now());
+  }
+
+  @override
+  void dispose() {
+    _slotTimelineScrollController.dispose();
+    _slotTableScrollController.dispose();
+    super.dispose();
   }
 
   DateTime _startOfWeek(DateTime date) {
@@ -747,8 +756,10 @@ class _CounselorAvailabilityScreenState
           SizedBox(
             height: _feedMaxHeight,
             child: Scrollbar(
+              controller: _slotTimelineScrollController,
               thumbVisibility: true,
               child: ListView.separated(
+                controller: _slotTimelineScrollController,
                 primary: false,
                 padding: EdgeInsets.zero,
                 physics: const ClampingScrollPhysics(),
@@ -1010,8 +1021,10 @@ class _CounselorAvailabilityScreenState
             ConstrainedBox(
               constraints: BoxConstraints(maxHeight: _feedMaxHeight),
               child: Scrollbar(
+                controller: _slotTableScrollController,
                 thumbVisibility: true,
                 child: ListView.separated(
+                  controller: _slotTableScrollController,
                   primary: false,
                   itemCount: rows.length,
                   separatorBuilder: (_, _) =>

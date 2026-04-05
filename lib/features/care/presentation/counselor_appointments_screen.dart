@@ -31,12 +31,7 @@ enum _CounselorSessionSort { smart, soonest, latest, studentAz, studentZa }
 
 enum _CounselorSessionViewMode { compact, timeline, table }
 
-enum _CompactAppointmentAction {
-  confirm,
-  cancel,
-  markNoShow,
-  markCompleted,
-}
+enum _CompactAppointmentAction { confirm, cancel, markNoShow, markCompleted }
 
 DateTime _localDayStart(DateTime value) =>
     DateTime(value.year, value.month, value.day);
@@ -199,6 +194,29 @@ String _sessionDateHeader(DateTime value) {
   return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
 }
 
+String _monthShortLabel(int month) {
+  const months = <String>[
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return months[(month.clamp(1, 12)) - 1];
+}
+
+String _sessionDateSubheader(DateTime value) {
+  final local = value.toLocal();
+  return '${_monthShortLabel(local.month)} ${local.day}, ${local.year}';
+}
+
 String _sessionTimeRangeLabel(DateTime startAt, DateTime endAt) {
   String format(DateTime value) {
     final local = value.toLocal();
@@ -206,6 +224,19 @@ String _sessionTimeRangeLabel(DateTime startAt, DateTime endAt) {
   }
 
   return '${format(startAt)} - ${format(endAt)}';
+}
+
+String _sessionDurationLabel(DateTime startAt, DateTime endAt) {
+  final duration = endAt.difference(startAt);
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  if (hours <= 0) {
+    return '${duration.inMinutes} min block';
+  }
+  if (minutes == 0) {
+    return '${hours}h block';
+  }
+  return '${hours}h ${minutes}m block';
 }
 
 class CounselorAppointmentsScreen extends ConsumerWidget {
@@ -1307,9 +1338,7 @@ class _WorkbenchMenuButton<T> extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: active
-              ? const Color(0xFFF0F9FF)
-              : const Color(0xFFFFFFFF),
+          color: active ? const Color(0xFFF0F9FF) : const Color(0xFFFFFFFF),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: active ? const Color(0xFF7DD3FC) : const Color(0xFFD7E5F1),
@@ -1339,7 +1368,9 @@ class _WorkbenchMenuButton<T> extends StatelessWidget {
               child: Icon(
                 icon,
                 size: 18,
-                color: active ? const Color(0xFF0369A1) : const Color(0xFF64748B),
+                color: active
+                    ? const Color(0xFF0369A1)
+                    : const Color(0xFF64748B),
               ),
             ),
             const SizedBox(width: 10),
@@ -1392,15 +1423,18 @@ class _RowsVisibilityButton extends StatelessWidget {
             color: expanded ? const Color(0xFFEFF6FF) : Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color:
-                  expanded ? const Color(0xFFBFDBFE) : const Color(0xFFD7E5F1),
+              color: expanded
+                  ? const Color(0xFFBFDBFE)
+                  : const Color(0xFFD7E5F1),
             ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                expanded ? Icons.unfold_less_rounded : Icons.unfold_more_rounded,
+                expanded
+                    ? Icons.unfold_less_rounded
+                    : Icons.unfold_more_rounded,
                 size: 18,
                 color: const Color(0xFF475569),
               ),
@@ -1672,10 +1706,7 @@ class _AppointmentOverflowMenu extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0xFFD7E5F1)),
         ),
-        child: const Icon(
-          Icons.more_horiz_rounded,
-          color: Color(0xFF475569),
-        ),
+        child: const Icon(Icons.more_horiz_rounded, color: Color(0xFF475569)),
       ),
     );
   }
@@ -1747,11 +1778,7 @@ class _CompactAppointmentsViewport extends StatelessWidget {
                   : null,
             ),
             if (index != appointments.length - 1)
-              const Divider(
-                height: 1,
-                thickness: 1,
-                color: Color(0xFFE2E8F0),
-              ),
+              const Divider(height: 1, thickness: 1, color: Color(0xFFE2E8F0)),
           ],
         ],
       ),
@@ -1777,112 +1804,155 @@ class _TimelineAppointmentsViewport extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final orderedAppointments = appointments.toList(growable: false)
+      ..sort((left, right) => left.startAt.compareTo(right.startAt));
     final grouped = <String, List<AppointmentRecord>>{};
     final dates = <String, DateTime>{};
-    for (final appointment in appointments) {
+    for (final appointment in orderedAppointments) {
       final key = _sessionDateKey(appointment.startAt);
       grouped.putIfAbsent(key, () => <AppointmentRecord>[]).add(appointment);
       dates[key] = appointment.startAt.toLocal();
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: grouped.entries.map((entry) {
-        final date = dates[entry.key]!;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FBFD),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xFFD7E5F1)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE0F2FE),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(
-                          Icons.calendar_today_rounded,
-                          size: 18,
-                          color: Color(0xFF0369A1),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          _sessionDateHeader(date),
-                          style: const TextStyle(
-                            color: Color(0xFF0F172A),
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wideLayout = constraints.maxWidth >= 1080;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: grouped.entries
+              .map((entry) {
+                final date = dates[entry.key]!;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FBFD),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: const Color(0xFFD7E5F1)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE0F2FE),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: const Icon(
+                                  Icons.timeline_rounded,
+                                  size: 20,
+                                  color: Color(0xFF0369A1),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _sessionDateHeader(date),
+                                      style: const TextStyle(
+                                        color: Color(0xFF0F172A),
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      _sessionDateSubheader(date),
+                                      style: const TextStyle(
+                                        color: Color(0xFF64748B),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              _TimelineCountPill(count: entry.value.length),
+                            ],
                           ),
                         ),
-                      ),
-                      _TimelineCountPill(count: entry.value.length),
-                    ],
+                        if (wideLayout) ...[
+                          const Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: Color(0xFFD7E5F1),
+                          ),
+                          const _TimelineAppointmentsHeaderRow(),
+                          const Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: Color(0xFFD7E5F1),
+                          ),
+                        ],
+                        ...entry.value.asMap().entries.map((timelineEntry) {
+                          final appointment = timelineEntry.value;
+                          return Column(
+                            children: [
+                              _TimelineAppointmentTile(
+                                appointment: appointment,
+                                formatDate: formatDate,
+                                statusColor: statusColorFor(appointment.status),
+                                onOpenDetails: () => onOpenDetails(appointment),
+                                onConfirm:
+                                    appointment.status ==
+                                        AppointmentStatus.pending
+                                    ? () => onUpdateStatus(
+                                        appointment,
+                                        AppointmentStatus.confirmed,
+                                      )
+                                    : null,
+                                onCancel:
+                                    appointment.status ==
+                                            AppointmentStatus.pending ||
+                                        appointment.status ==
+                                            AppointmentStatus.confirmed
+                                    ? () => onUpdateStatus(
+                                        appointment,
+                                        AppointmentStatus.cancelled,
+                                      )
+                                    : null,
+                                onNoShow:
+                                    appointment.status ==
+                                        AppointmentStatus.confirmed
+                                    ? () => onUpdateStatus(
+                                        appointment,
+                                        AppointmentStatus.noShow,
+                                      )
+                                    : null,
+                                onComplete:
+                                    appointment.status ==
+                                        AppointmentStatus.confirmed
+                                    ? () => onUpdateStatus(
+                                        appointment,
+                                        AppointmentStatus.completed,
+                                      )
+                                    : null,
+                              ),
+                              if (timelineEntry.key != entry.value.length - 1)
+                                const Divider(
+                                  height: 1,
+                                  thickness: 1,
+                                  color: Color(0xFFE2E8F0),
+                                ),
+                            ],
+                          );
+                        }),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  ...entry.value.asMap().entries.map((timelineEntry) {
-                    final appointment = timelineEntry.value;
-                    return Padding(
-                      padding: EdgeInsets.only(
-                        bottom:
-                            timelineEntry.key == entry.value.length - 1 ? 0 : 12,
-                      ),
-                      child: _TimelineAppointmentTile(
-                        appointment: appointment,
-                        formatDate: formatDate,
-                        statusColor: statusColorFor(appointment.status),
-                        onOpenDetails: () => onOpenDetails(appointment),
-                        onConfirm:
-                            appointment.status == AppointmentStatus.pending
-                            ? () => onUpdateStatus(
-                                appointment,
-                                AppointmentStatus.confirmed,
-                              )
-                            : null,
-                        onCancel:
-                            appointment.status == AppointmentStatus.pending ||
-                                appointment.status ==
-                                    AppointmentStatus.confirmed
-                            ? () => onUpdateStatus(
-                                appointment,
-                                AppointmentStatus.cancelled,
-                              )
-                            : null,
-                        onNoShow:
-                            appointment.status == AppointmentStatus.confirmed
-                            ? () => onUpdateStatus(
-                                appointment,
-                                AppointmentStatus.noShow,
-                              )
-                            : null,
-                        onComplete:
-                            appointment.status == AppointmentStatus.confirmed
-                            ? () => onUpdateStatus(
-                                appointment,
-                                AppointmentStatus.completed,
-                              )
-                            : null,
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
+                );
+              })
+              .toList(growable: false),
         );
-      }).toList(growable: false),
+      },
     );
   }
 }
@@ -1905,73 +1975,88 @@ class _TableAppointmentsViewport extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFD),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFD7E5F1)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 940),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _TableAppointmentsHeaderRow(),
-              const Divider(height: 1, thickness: 1, color: Color(0xFFD7E5F1)),
-              ...appointments.asMap().entries.map((entry) {
-                final appointment = entry.value;
-                return Column(
-                  children: [
-                    _TableAppointmentRow(
-                      appointment: appointment,
-                      formatDate: formatDate,
-                      statusColor: statusColorFor(appointment.status),
-                      onOpenDetails: () => onOpenDetails(appointment),
-                      onConfirm:
-                          appointment.status == AppointmentStatus.pending
-                          ? () => onUpdateStatus(
-                              appointment,
-                              AppointmentStatus.confirmed,
-                            )
-                          : null,
-                      onCancel:
-                          appointment.status == AppointmentStatus.pending ||
-                              appointment.status == AppointmentStatus.confirmed
-                          ? () => onUpdateStatus(
-                              appointment,
-                              AppointmentStatus.cancelled,
-                            )
-                          : null,
-                      onNoShow:
-                          appointment.status == AppointmentStatus.confirmed
-                          ? () => onUpdateStatus(
-                              appointment,
-                              AppointmentStatus.noShow,
-                            )
-                          : null,
-                      onComplete:
-                          appointment.status == AppointmentStatus.confirmed
-                          ? () => onUpdateStatus(
-                              appointment,
-                              AppointmentStatus.completed,
-                            )
-                          : null,
-                    ),
-                    if (entry.key != appointments.length - 1)
-                      const Divider(
-                        height: 1,
-                        thickness: 1,
-                        color: Color(0xFFE2E8F0),
-                      ),
-                  ],
-                );
-              }),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth > 940
+                  ? constraints.maxWidth
+                  : 940.0
+            : 940.0;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FBFD),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFD7E5F1)),
           ),
-        ),
-      ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: tableWidth,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _TableAppointmentsHeaderRow(),
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Color(0xFFD7E5F1),
+                  ),
+                  ...appointments.asMap().entries.map((entry) {
+                    final appointment = entry.value;
+                    return Column(
+                      children: [
+                        _TableAppointmentRow(
+                          appointment: appointment,
+                          formatDate: formatDate,
+                          statusColor: statusColorFor(appointment.status),
+                          onOpenDetails: () => onOpenDetails(appointment),
+                          onConfirm:
+                              appointment.status == AppointmentStatus.pending
+                              ? () => onUpdateStatus(
+                                  appointment,
+                                  AppointmentStatus.confirmed,
+                                )
+                              : null,
+                          onCancel:
+                              appointment.status == AppointmentStatus.pending ||
+                                  appointment.status ==
+                                      AppointmentStatus.confirmed
+                              ? () => onUpdateStatus(
+                                  appointment,
+                                  AppointmentStatus.cancelled,
+                                )
+                              : null,
+                          onNoShow:
+                              appointment.status == AppointmentStatus.confirmed
+                              ? () => onUpdateStatus(
+                                  appointment,
+                                  AppointmentStatus.noShow,
+                                )
+                              : null,
+                          onComplete:
+                              appointment.status == AppointmentStatus.confirmed
+                              ? () => onUpdateStatus(
+                                  appointment,
+                                  AppointmentStatus.completed,
+                                )
+                              : null,
+                        ),
+                        if (entry.key != appointments.length - 1)
+                          const Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: Color(0xFFE2E8F0),
+                          ),
+                      ],
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -2593,7 +2678,10 @@ class _TimelineAppointmentTile extends StatelessWidget {
                   : CrossAxisAlignment.center,
               children: [
                 Text(
-                  _sessionTimeRangeLabel(appointment.startAt, appointment.endAt),
+                  _sessionTimeRangeLabel(
+                    appointment.startAt,
+                    appointment.endAt,
+                  ),
                   style: const TextStyle(
                     color: Color(0xFF0F172A),
                     fontWeight: FontWeight.w800,
@@ -2673,7 +2761,11 @@ class _TableAppointmentsHeaderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget header(String label, int flex, {Alignment alignment = Alignment.centerLeft}) {
+    Widget header(
+      String label,
+      int flex, {
+      Alignment alignment = Alignment.centerLeft,
+    }) {
       return Expanded(
         flex: flex,
         child: Align(
@@ -2736,7 +2828,11 @@ class _TableAppointmentRow extends StatelessWidget {
         onNoShow != null ||
         onComplete != null;
 
-    Widget buildCell(int flex, Widget child, {Alignment alignment = Alignment.centerLeft}) {
+    Widget buildCell(
+      int flex,
+      Widget child, {
+      Alignment alignment = Alignment.centerLeft,
+    }) {
       return Expanded(
         flex: flex,
         child: Align(alignment: alignment, child: child),
@@ -2762,7 +2858,10 @@ class _TableAppointmentRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  appointment.studentId,
+                  _sessionTimeRangeLabel(
+                    appointment.startAt,
+                    appointment.endAt,
+                  ),
                   style: const TextStyle(
                     color: Color(0xFF64748B),
                     fontSize: 12.5,
@@ -2786,7 +2885,10 @@ class _TableAppointmentRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _sessionTimeRangeLabel(appointment.startAt, appointment.endAt),
+                  _sessionTimeRangeLabel(
+                    appointment.startAt,
+                    appointment.endAt,
+                  ),
                   style: const TextStyle(
                     color: Color(0xFF64748B),
                     fontSize: 12.5,
@@ -2807,7 +2909,10 @@ class _TableAppointmentRow extends StatelessWidget {
               ),
               child: Text(
                 _appointmentStatusLabel(appointment.status),
-                style: TextStyle(color: statusColor, fontWeight: FontWeight.w800),
+                style: TextStyle(
+                  color: statusColor,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ),

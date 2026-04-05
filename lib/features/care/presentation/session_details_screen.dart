@@ -135,6 +135,21 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
     return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 
+  IconData _statusIcon(AppointmentStatus status) {
+    switch (status) {
+      case AppointmentStatus.pending:
+        return Icons.hourglass_top_rounded;
+      case AppointmentStatus.confirmed:
+        return Icons.verified_rounded;
+      case AppointmentStatus.completed:
+        return Icons.task_alt_rounded;
+      case AppointmentStatus.cancelled:
+        return Icons.cancel_rounded;
+      case AppointmentStatus.noShow:
+        return Icons.person_off_rounded;
+    }
+  }
+
   String _statusLabel(AppointmentStatus status) {
     switch (status) {
       case AppointmentStatus.pending:
@@ -229,86 +244,6 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
         const SizedBox(height: 16),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0F172A), Color(0xFF2563EB), Color(0xFF0EA5A4)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(34),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1F2563EB),
-                blurRadius: 28,
-                offset: Offset(0, 18),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  const _SessionHeroPill(
-                    label: 'SESSION DETAIL',
-                    background: Color(0x26FFFFFF),
-                  ),
-                  _SessionHeroPill(
-                    label: _statusLabel(appointment.status).toUpperCase(),
-                    background: statusColor.withValues(alpha: 0.22),
-                  ),
-                  _SessionHeroPill(
-                    label: _formatDateLabel(appointment.startAt).toUpperCase(),
-                    background: const Color(0x20FFFFFF),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Counseling session context',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 38,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1.4,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Review the session state, student context, and counselor notes without leaving the counselor workspace.',
-                style: TextStyle(
-                  color: Color(0xFFE3F2FF),
-                  fontSize: 18,
-                  height: 1.42,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Wrap(
-                spacing: 14,
-                runSpacing: 14,
-                children: [
-                  _SessionHeroMetricCard(
-                    label: 'Time',
-                    value:
-                        '${_formatClock(appointment.startAt)} - ${_formatClock(appointment.endAt)}',
-                  ),
-                  _SessionHeroMetricCard(
-                    label: 'Counselor',
-                    value: counselorName,
-                  ),
-                  _SessionHeroMetricCard(label: 'Student', value: studentName),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
-        Container(
-          width: double.infinity,
           padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -325,6 +260,12 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _sessionStatusTag(
+                label: _statusLabel(appointment.status),
+                icon: _statusIcon(appointment.status),
+                color: statusColor,
+              ),
+              const SizedBox(height: 18),
               Wrap(
                 spacing: 18,
                 runSpacing: 18,
@@ -564,23 +505,6 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                 spacing: 12,
                 runSpacing: 12,
                 children: [
-                  ElevatedButton.icon(
-                    onPressed: () => context.go(AppRoute.counselorAppointments),
-                    icon: const Icon(Icons.calendar_month_outlined),
-                    label: const Text('All Sessions'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0E9B90),
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(200, 56),
-                      textStyle: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                    ),
-                  ),
                   if (fromNotifications)
                     OutlinedButton.icon(
                       onPressed: () => context.go(AppRoute.notifications),
@@ -658,6 +582,64 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sessionStatusTag({
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withValues(alpha: 0.12), const Color(0xFFF8FBFE)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, size: 20, color: color),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'CURRENT STATUS',
+                style: TextStyle(
+                  color: Color(0xFF7B8CA4),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1248,31 +1230,6 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () =>
-                                      context.go(AppRoute.studentAppointments),
-                                  icon: const Icon(
-                                    Icons.calendar_month_outlined,
-                                  ),
-                                  label: const Text('All Sessions'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFF334155),
-                                    minimumSize: const Size.fromHeight(58),
-                                    side: const BorderSide(
-                                      color: Color(0xFFD4DCE8),
-                                    ),
-                                    textStyle: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 15,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                  ),
-                                ),
-                              ),
                             ],
                           ),
                         ],
@@ -1426,77 +1383,6 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
           ],
         ),
       ],
-    );
-  }
-}
-
-class _SessionHeroPill extends StatelessWidget {
-  const _SessionHeroPill({required this.label, required this.background});
-
-  final String label;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0x30FFFFFF)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _SessionHeroMetricCard extends StatelessWidget {
-  const _SessionHeroMetricCard({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: 180),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: const Color(0x1FFFFFFF),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0x33FFFFFF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: const TextStyle(
-              color: Color(0xFFDDEBFF),
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.1,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
