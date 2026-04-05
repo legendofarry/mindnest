@@ -734,6 +734,13 @@ class _InstitutionAdminScreenState
     return status;
   }
 
+  bool _isCurrentMemberData(Map<String, dynamic> data) {
+    final status = ((data['status'] as String?) ?? 'active')
+        .trim()
+        .toLowerCase();
+    return status != 'removed';
+  }
+
   Future<void> _revokeInvite(_WorkspaceEntry entry) async {
     final inviteId = entry.recordId;
     if (inviteId.isEmpty) {
@@ -815,6 +822,9 @@ class _InstitutionAdminScreenState
     List<_WorkspaceEntry> memberEntries({String? role}) {
       return members
           .where((doc) {
+            if (!_isCurrentMemberData(doc.data())) {
+              return false;
+            }
             if (role == null) {
               return true;
             }
@@ -1186,19 +1196,22 @@ class _InstitutionAdminScreenState
                     ),
                     builder: (context, invitesSnapshot) {
                       final invites = invitesSnapshot.data?.docs ?? const [];
+                      final currentMembers = members
+                          .where((doc) => _isCurrentMemberData(doc.data()))
+                          .toList(growable: false);
 
-                      final studentCount = members
+                      final studentCount = currentMembers
                           .where(
                             (doc) =>
                                 (doc.data()['role'] as String?) == 'student',
                           )
                           .length;
-                      final staffCount = members
+                      final staffCount = currentMembers
                           .where(
                             (doc) => (doc.data()['role'] as String?) == 'staff',
                           )
                           .length;
-                      final counselorCount = members
+                      final counselorCount = currentMembers
                           .where(
                             (doc) =>
                                 (doc.data()['role'] as String?) == 'counselor',
@@ -1249,7 +1262,7 @@ class _InstitutionAdminScreenState
                       final stats = [
                         _DashboardStat(
                           label: AdminWorkspaceView.members.navLabel,
-                          value: '${members.length}',
+                          value: '${currentMembers.length}',
                           icon: Icons.groups_rounded,
                           view: AdminWorkspaceView.members,
                         ),

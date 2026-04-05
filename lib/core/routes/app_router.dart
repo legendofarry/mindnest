@@ -694,7 +694,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             .isNotEmpty;
         final canRemainInCounselorRecoveryRoutes =
             isCounselorInviteWaitingRoute ||
-            location == AppRoute.inviteAccept ||
             location == AppRoute.notifications ||
             location == AppRoute.notificationDetails;
         // 3. Verified but counselor-registration users stay on the waiting
@@ -715,6 +714,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         // 4. Verified but invite pending -> invite accept screen.
         //    Skip this block if the user already belongs to an institution.
         if (pendingInvite != null && !alreadyInInstitution) {
+          final shouldStayInCounselorRecoveryFlow =
+              pendingInviteRole == UserRole.counselor &&
+              role == UserRole.counselor &&
+              counselorAccessRemoved;
+          if (shouldStayInCounselorRecoveryFlow) {
+            if (!canRemainInCounselorRecoveryRoutes) {
+              return AppRoute.counselorInviteWaiting;
+            }
+            return null;
+          }
           if (pendingInviteRole == UserRole.student) {
             if (location != AppRoute.home) {
               return AppRoute.homeWithJoinCodeIntent();

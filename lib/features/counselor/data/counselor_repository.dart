@@ -50,8 +50,18 @@ class CounselorRepository {
       return CounselorInstitutionAccessStatus.inactive;
     }
 
+    final approvalStatus =
+        ((userData['counselorApprovalStatus'] as String?) ?? '')
+            .trim()
+            .toLowerCase();
     final institutionId = ((userData['institutionId'] as String?) ?? '').trim();
     if (institutionId.isEmpty) {
+      if (approvalStatus == 'removed') {
+        return CounselorInstitutionAccessStatus.removed;
+      }
+      if (approvalStatus == 'suspended') {
+        return CounselorInstitutionAccessStatus.suspended;
+      }
       return CounselorInstitutionAccessStatus.inactive;
     }
 

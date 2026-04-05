@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/features/auth/data/app_auth_client.dart';
@@ -75,10 +76,7 @@ final counselorRepositoryProvider = Provider<CounselorRepository>((ref) {
 final currentCounselorInstitutionAccessStatusProvider =
     StreamProvider<CounselorInstitutionAccessStatus>((ref) {
       final authUser = ref.watch(authStateChangesProvider).valueOrNull;
-      final profile = ref.watch(currentUserProfileProvider).valueOrNull;
-      if (authUser == null ||
-          profile == null ||
-          profile.role != UserRole.counselor) {
+      if (authUser == null) {
         return Stream.value(CounselorInstitutionAccessStatus.inactive);
       }
 
@@ -92,15 +90,68 @@ final currentCounselorInstitutionAccessStatusProvider =
         );
       }
 
-      final institutionId = (profile.institutionId ?? '').trim();
-      if (institutionId.isEmpty) {
-        return Stream.value(CounselorInstitutionAccessStatus.inactive);
+      final firestore = ref.watch(firestoreProvider);
+      late final StreamController<CounselorInstitutionAccessStatus> controller;
+      StreamSubscription<CounselorInstitutionAccessStatus>?
+      membershipSubscription;
+      late final StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>
+      userSubscription;
+
+      void emitImmediateStatus(String approvalStatus) {
+        if (approvalStatus == 'removed') {
+          controller.add(CounselorInstitutionAccessStatus.removed);
+          return;
+        }
+        if (approvalStatus == 'suspended') {
+          controller.add(CounselorInstitutionAccessStatus.suspended);
+          return;
+        }
+        controller.add(CounselorInstitutionAccessStatus.inactive);
       }
 
-      final firestore = ref.watch(firestoreProvider);
-      return firestore
-          .collection('institution_members')
-          .doc('${institutionId}_${authUser.uid}')
-          .snapshots()
-          .asyncMap((_) => repository.getCurrentInstitutionAccessStatus());
+      controller = StreamController<CounselorInstitutionAccessStatus>(
+        onListen: () {
+          userSubscription = firestore
+              .collection('users')
+              .doc(authUser.uid)
+              .snapshots()
+              .listen((userSnapshot) async {
+                await membershipSubscription?.cancel();
+                membershipSubscription = null;
+
+                final userData = userSnapshot.data();
+                if (userData == null ||
+                    (userData['role'] as String?) != UserRole.counselor.name) {
+                  controller.add(CounselorInstitutionAccessStatus.inactive);
+                  return;
+                }
+
+                final institutionId =
+                    ((userData['institutionId'] as String?) ?? '').trim();
+                final approvalStatus =
+                    ((userData['counselorApprovalStatus'] as String?) ?? '')
+                        .trim()
+                        .toLowerCase();
+                if (institutionId.isEmpty) {
+                  emitImmediateStatus(approvalStatus);
+                  return;
+                }
+
+                membershipSubscription = firestore
+                    .collection('institution_members')
+                    .doc('${institutionId}_${authUser.uid}')
+                    .snapshots()
+                    .asyncMap(
+                      (_) => repository.getCurrentInstitutionAccessStatus(),
+                    )
+                    .listen(controller.add, onError: controller.addError);
+              }, onError: controller.addError);
+        },
+        onCancel: () async {
+          await membershipSubscription?.cancel();
+          await userSubscription.cancel();
+        },
+      );
+
+      return controller.stream;
     });

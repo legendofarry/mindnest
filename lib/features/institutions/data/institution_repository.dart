@@ -891,7 +891,6 @@ class InstitutionRepository {
     await _assertInviteeNotAlreadyMember(
       targetInstitutionId: institutionId,
       inviteeUid: inviteeUserId,
-      inviteeInstitutionId: (inviteeData['institutionId'] as String?) ?? '',
     );
 
     await _assertNoActivePendingInvite(
@@ -1058,7 +1057,6 @@ class InstitutionRepository {
   Future<void> _assertInviteeNotAlreadyMember({
     required String targetInstitutionId,
     required String inviteeUid,
-    required String inviteeInstitutionId,
   }) async {
     String? blockingInstitutionId;
     String? blockingRole;
@@ -1078,8 +1076,6 @@ class InstitutionRepository {
         final data = existingMembership.first.data;
         blockingInstitutionId = (data['institutionId'] as String?) ?? '';
         blockingRole = (data['role'] as String?) ?? '';
-      } else if (inviteeInstitutionId.isNotEmpty) {
-        blockingInstitutionId = inviteeInstitutionId;
       }
     } else {
       final existingMembership = await _firestore
@@ -1092,8 +1088,6 @@ class InstitutionRepository {
         final data = existingMembership.docs.first.data();
         blockingInstitutionId = (data['institutionId'] as String?) ?? '';
         blockingRole = (data['role'] as String?) ?? '';
-      } else if (inviteeInstitutionId.isNotEmpty) {
-        blockingInstitutionId = inviteeInstitutionId;
       }
     }
     if (blockingInstitutionId == null || blockingInstitutionId.isEmpty) {
@@ -1798,25 +1792,33 @@ class InstitutionRepository {
 
     if (kUseWindowsRestAuth) {
       final now = DateTime.now().toUtc();
-      await _windowsRest.setDocument('institution_members/$membershipId', {
-        ...membership,
-        'status': normalizedStatus,
-        'lifecycleReason': normalizedReason,
-        'lifecycleUpdatedBy': currentUser.uid,
-        'lifecycleUpdatedAt': now,
-        'updatedAt': now,
-      });
+      if (normalizedStatus == 'removed') {
+        await _windowsRest.deleteDocument('institution_members/$membershipId');
+      } else {
+        await _windowsRest.setDocument('institution_members/$membershipId', {
+          ...membership,
+          'status': normalizedStatus,
+          'lifecycleReason': normalizedReason,
+          'lifecycleUpdatedBy': currentUser.uid,
+          'lifecycleUpdatedAt': now,
+          'updatedAt': now,
+        });
+      }
     } else {
-      await _firestore
+      final membershipRef = _firestore
           .collection('institution_members')
-          .doc(membershipId)
-          .update({
-            'status': normalizedStatus,
-            'lifecycleReason': normalizedReason,
-            'lifecycleUpdatedBy': currentUser.uid,
-            'lifecycleUpdatedAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+          .doc(membershipId);
+      if (normalizedStatus == 'removed') {
+        await membershipRef.delete();
+      } else {
+        await membershipRef.update({
+          'status': normalizedStatus,
+          'lifecycleReason': normalizedReason,
+          'lifecycleUpdatedBy': currentUser.uid,
+          'lifecycleUpdatedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
     }
 
     var cancelledAppointments = 0;
@@ -1849,6 +1851,11 @@ class InstitutionRepository {
           cancelledAppointments: cancelledAppointments,
           reason: normalizedReason,
         ),
+      );
+    } else if (normalizedStatus == 'removed') {
+      await _syncRemovedMemberAccountState(
+        memberUserId: memberUserId,
+        memberRole: memberRole,
       );
     }
 
@@ -3524,6 +3531,7 @@ class InstitutionRepository {
     required String status,
   }) async {
     final isActive = status == 'active';
+    final isRemoved = status == 'removed';
     if (kUseWindowsRestAuth) {
       final now = DateTime.now().toUtc();
       final userDocument = await _windowsRest.getDocument('users/$counselorId');
@@ -3539,6 +3547,8 @@ class InstitutionRepository {
         setupData['isActive'] = isActive;
         await _windowsRest.setDocument('users/$counselorId', {
           ...userData,
+          'institutionId': isRemoved ? null : institutionId,
+          'institutionName': isRemoved ? null : userData['institutionName'],
           'counselorApprovalStatus': status,
           'counselorSetupData': setupData,
           'updatedAt': now,
@@ -3551,7 +3561,7 @@ class InstitutionRepository {
       if (profileDocument != null) {
         await _windowsRest.setDocument('counselor_profiles/$counselorId', {
           ...profileDocument.data,
-          'institutionId': institutionId,
+          'institutionId': isRemoved ? null : institutionId,
           'isActive': isActive,
           'updatedAt': now,
         });
@@ -3569,6 +3579,10 @@ class InstitutionRepository {
     var hasWrites = false;
     if (userSnapshot.exists) {
       batch.update(userRef, {
+        'institutionId': isRemoved ? null : institutionId,
+        'institutionName': isRemoved
+            ? null
+            : userSnapshot.data()?['institutionName'],
         'counselorApprovalStatus': status,
         'counselorSetupData.isActive': isActive,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -3577,7 +3591,7 @@ class InstitutionRepository {
     }
     if (profileSnapshot.exists) {
       batch.set(profileRef, {
-        'institutionId': institutionId,
+        'institutionId': isRemoved ? null : institutionId,
         'isActive': isActive,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -3586,6 +3600,47 @@ class InstitutionRepository {
     if (hasWrites) {
       await batch.commit();
     }
+  }
+
+  Future<void> _syncRemovedMemberAccountState({
+    required String memberUserId,
+    required String memberRole,
+  }) async {
+    if (memberRole == UserRole.counselor.name) {
+      return;
+    }
+
+    if (kUseWindowsRestAuth) {
+      final now = DateTime.now().toUtc();
+      final userDocument = await _windowsRest.getDocument(
+        'users/$memberUserId',
+      );
+      if (userDocument == null) {
+        return;
+      }
+      await _windowsRest.setDocument('users/$memberUserId', {
+        ...userDocument.data,
+        'institutionId': null,
+        'institutionName': null,
+        'role': UserRole.individual.name,
+        'registrationIntent': null,
+        'updatedAt': now,
+      });
+      return;
+    }
+
+    final userRef = _firestore.collection('users').doc(memberUserId);
+    final userSnapshot = await userRef.get();
+    if (!userSnapshot.exists) {
+      return;
+    }
+    await userRef.update({
+      'institutionId': null,
+      'institutionName': null,
+      'role': UserRole.individual.name,
+      'registrationIntent': null,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<int> _cancelFutureCounselorAppointmentsForLifecycleChange({
