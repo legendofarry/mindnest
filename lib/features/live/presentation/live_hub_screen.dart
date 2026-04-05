@@ -1,6 +1,8 @@
 // features/live/presentation/live_hub_screen.dart
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -105,6 +107,301 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
       _creating = false;
     });
 
+    Widget modalCard(
+      BuildContext modalContext,
+      void Function(void Function()) setModalState, {
+      required bool floating,
+    }) {
+      Future<void> submit() async {
+        final title = _titleController.text.trim();
+        if (title.length < 4) {
+          showModernBannerFromSnackBar(
+            modalContext,
+            const SnackBar(
+              content: Text('Title must be at least 4 characters.'),
+            ),
+          );
+          return;
+        }
+        final allowedRoles = <UserRole>[
+          if (_allowStudents) UserRole.student,
+          if (_allowStaff) UserRole.staff,
+          if (_allowCounselors) UserRole.counselor,
+        ];
+        if (allowedRoles.isEmpty) {
+          showModernBannerFromSnackBar(
+            modalContext,
+            const SnackBar(content: Text('Select at least one allowed role.')),
+          );
+          return;
+        }
+        setModalState(() => _creating = true);
+        try {
+          final live = await ref
+              .read(liveRepositoryProvider)
+              .createLiveSession(
+                title: title,
+                description: _descriptionController.text,
+                allowedRoles: allowedRoles,
+              );
+          if (!modalContext.mounted) {
+            return;
+          }
+          Navigator.of(modalContext).pop();
+          if (!mounted) {
+            return;
+          }
+          context.push('${AppRoute.liveRoom}?sessionId=${live.id}');
+        } catch (error) {
+          if (!modalContext.mounted) {
+            return;
+          }
+          showModernBannerFromSnackBar(
+            modalContext,
+            SnackBar(
+              content: Text(error.toString().replaceFirst('Exception: ', '')),
+            ),
+          );
+        } finally {
+          if (modalContext.mounted) {
+            setModalState(() => _creating = false);
+          }
+        }
+      }
+
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: floating
+              ? BorderRadius.circular(30)
+              : const BorderRadius.vertical(top: Radius.circular(28)),
+          border: floating ? Border.all(color: const Color(0xFFE2E8F0)) : null,
+          boxShadow: floating
+              ? const [
+                  BoxShadow(
+                    color: Color(0x240F172A),
+                    blurRadius: 40,
+                    offset: Offset(0, 24),
+                  ),
+                ]
+              : null,
+        ),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          floating ? 20 : 14,
+          20,
+          20 + MediaQuery.of(modalContext).viewInsets.bottom,
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!floating)
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              if (floating)
+                Row(
+                  children: [
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF2563EB), Color(0xFF14B8A6)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: const Icon(
+                        Icons.graphic_eq_rounded,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Start Live Audio',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 21,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Create a floating room for students, staff, and counselors without leaving the workspace.',
+                            style: TextStyle(
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w500,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(modalContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                )
+              else ...[
+                const SizedBox(height: 14),
+                const Text(
+                  'Start Live Audio',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 20,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 8),
+              TextField(
+                controller: _titleController,
+                maxLength: 70,
+                decoration: const InputDecoration(
+                  labelText: 'Title',
+                  prefixIcon: Icon(Icons.mic_rounded),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _descriptionController,
+                minLines: 2,
+                maxLines: 4,
+                maxLength: 220,
+                decoration: const InputDecoration(
+                  labelText: 'Description (optional)',
+                  prefixIcon: Icon(Icons.notes_rounded),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Role Access',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF334155),
+                ),
+              ),
+              CheckboxListTile(
+                value: _allowStudents,
+                onChanged: (value) =>
+                    setModalState(() => _allowStudents = value ?? false),
+                title: const Text('Allow Students'),
+                contentPadding: EdgeInsets.zero,
+              ),
+              CheckboxListTile(
+                value: _allowStaff,
+                onChanged: (value) =>
+                    setModalState(() => _allowStaff = value ?? false),
+                title: const Text('Allow Staff'),
+                contentPadding: EdgeInsets.zero,
+              ),
+              CheckboxListTile(
+                value: _allowCounselors,
+                onChanged: (value) =>
+                    setModalState(() => _allowCounselors = value ?? false),
+                title: const Text('Allow Counselors'),
+                contentPadding: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 6),
+              ElevatedButton.icon(
+                onPressed: _creating ? null : submit,
+                icon: const Icon(Icons.play_circle_fill_rounded),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0D9488),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                label: Text(_creating ? 'Creating...' : 'Start Live Session'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final useFloatingDialog = kIsWeb || MediaQuery.sizeOf(context).width >= 900;
+    if (useFloatingDialog) {
+      await showGeneralDialog<void>(
+        context: context,
+        barrierLabel: 'Start Live Audio',
+        barrierDismissible: true,
+        barrierColor: Colors.transparent,
+        transitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (dialogContext, animation, secondaryAnimation) {
+          return StatefulBuilder(
+            builder: (context, setModalState) {
+              return Material(
+                type: MaterialType.transparency,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(dialogContext).pop(),
+                        child: BackdropFilter(
+                          filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                          child: Container(color: const Color(0x66151E2D)),
+                        ),
+                      ),
+                    ),
+                    SafeArea(
+                      child: Center(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 24,
+                          ),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 620),
+                            child: modalCard(
+                              dialogContext,
+                              setModalState,
+                              floating: true,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+        transitionBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      );
+      return;
+    }
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -112,170 +409,7 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            Future<void> submit() async {
-              final title = _titleController.text.trim();
-              if (title.length < 4) {
-                showModernBannerFromSnackBar(
-                  sheetContext,
-                  const SnackBar(
-                    content: Text('Title must be at least 4 characters.'),
-                  ),
-                );
-                return;
-              }
-              final allowedRoles = <UserRole>[
-                if (_allowStudents) UserRole.student,
-                if (_allowStaff) UserRole.staff,
-                if (_allowCounselors) UserRole.counselor,
-              ];
-              if (allowedRoles.isEmpty) {
-                showModernBannerFromSnackBar(
-                  sheetContext,
-                  const SnackBar(
-                    content: Text('Select at least one allowed role.'),
-                  ),
-                );
-                return;
-              }
-              setModalState(() => _creating = true);
-              try {
-                final live = await ref
-                    .read(liveRepositoryProvider)
-                    .createLiveSession(
-                      title: title,
-                      description: _descriptionController.text,
-                      allowedRoles: allowedRoles,
-                    );
-                if (!sheetContext.mounted) {
-                  return;
-                }
-                Navigator.of(sheetContext).pop();
-                if (!mounted) {
-                  return;
-                }
-                this.context.push('${AppRoute.liveRoom}?sessionId=${live.id}');
-              } catch (error) {
-                if (!sheetContext.mounted) {
-                  return;
-                }
-                showModernBannerFromSnackBar(
-                  sheetContext,
-                  SnackBar(
-                    content: Text(
-                      error.toString().replaceFirst('Exception: ', ''),
-                    ),
-                  ),
-                );
-              } finally {
-                if (sheetContext.mounted) {
-                  setModalState(() => _creating = false);
-                }
-              }
-            }
-
-            return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              padding: EdgeInsets.fromLTRB(
-                20,
-                14,
-                20,
-                20 + MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 42,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE2E8F0),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'Start Live Audio',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 20,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _titleController,
-                      maxLength: 70,
-                      decoration: const InputDecoration(
-                        labelText: 'Title',
-                        prefixIcon: Icon(Icons.mic_rounded),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _descriptionController,
-                      minLines: 2,
-                      maxLines: 4,
-                      maxLength: 220,
-                      decoration: const InputDecoration(
-                        labelText: 'Description (optional)',
-                        prefixIcon: Icon(Icons.notes_rounded),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Role Access',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF334155),
-                      ),
-                    ),
-                    CheckboxListTile(
-                      value: _allowStudents,
-                      onChanged: (value) =>
-                          setModalState(() => _allowStudents = value ?? false),
-                      title: const Text('Allow Students'),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    CheckboxListTile(
-                      value: _allowStaff,
-                      onChanged: (value) =>
-                          setModalState(() => _allowStaff = value ?? false),
-                      title: const Text('Allow Staff'),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    CheckboxListTile(
-                      value: _allowCounselors,
-                      onChanged: (value) => setModalState(
-                        () => _allowCounselors = value ?? false,
-                      ),
-                      title: const Text('Allow Counselors'),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    const SizedBox(height: 6),
-                    ElevatedButton.icon(
-                      onPressed: _creating ? null : submit,
-                      icon: const Icon(Icons.play_circle_fill_rounded),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0D9488),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      label: Text(
-                        _creating ? 'Creating...' : 'Start Live Session',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+            return modalCard(sheetContext, setModalState, floating: false);
           },
         );
       },

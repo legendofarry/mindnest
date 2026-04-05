@@ -96,6 +96,10 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
         role == UserRole.individual;
     final usesFloatingDesktopHeader =
         isDesktop && !isPrimaryUser && !widget.embeddedInDesktopShell;
+    final maxContentWidth = role == UserRole.counselor ? 1220.0 : 900.0;
+    final contentAlignment = role == UserRole.counselor
+        ? Alignment.topLeft
+        : Alignment.topCenter;
     final privacySettingsStream = userId.isEmpty || !showsVisibilityControls
         ? null
         : _useWindowsRestFirestore
@@ -114,33 +118,49 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
               .map((doc) => doc.data() ?? const <String, dynamic>{});
 
     final content = SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              usesFloatingDesktopHeader ? 92 : 10,
-              16,
-              18,
-            ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          usesFloatingDesktopHeader ? 92 : 10,
+          16,
+          18,
+        ),
+        child: Align(
+          alignment: contentAlignment,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxContentWidth),
             child: userId.isEmpty
                 ? const _PrivacyStateCard(
                     message: 'Sign in to manage privacy settings.',
                   )
                 : !showsVisibilityControls
-                ? _RoleScopedPrivacyContent(
-                    role: role,
-                    onExport: () {
-                      return showAccountExportSheet(
-                        context: context,
-                        ref: ref,
-                        title: 'Download your account data',
-                        subtitle:
-                            'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your account export.',
-                      );
-                    },
-                  )
+                ? role == UserRole.counselor
+                      ? _CounselorPrivacyContent(
+                          onOpenProfile: () =>
+                              context.go(AppRoute.counselorSettings),
+                          onExport: () {
+                            return showAccountExportSheet(
+                              context: context,
+                              ref: ref,
+                              title: 'Download your account data',
+                              subtitle:
+                                  'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your account export.',
+                            );
+                          },
+                        )
+                      : _RoleScopedPrivacyContent(
+                          role: role,
+                          onOpenProfile: null,
+                          onExport: () {
+                            return showAccountExportSheet(
+                              context: context,
+                              ref: ref,
+                              title: 'Download your account data',
+                              subtitle:
+                                  'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your account export.',
+                            );
+                          },
+                        )
                 : StreamBuilder<Map<String, dynamic>>(
                     key: ValueKey<String>('privacy:$userId:${role.name}'),
                     stream: privacySettingsStream,
@@ -405,10 +425,15 @@ class _PrivacyHeroCard extends StatelessWidget {
 }
 
 class _RoleScopedPrivacyContent extends StatelessWidget {
-  const _RoleScopedPrivacyContent({required this.role, required this.onExport});
+  const _RoleScopedPrivacyContent({
+    required this.role,
+    required this.onExport,
+    this.onOpenProfile,
+  });
 
   final UserRole role;
   final Future<void> Function() onExport;
+  final VoidCallback? onOpenProfile;
 
   String get _roleLabel {
     switch (role) {
@@ -450,6 +475,13 @@ class _RoleScopedPrivacyContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (role == UserRole.counselor) ...[
+            _PrivacyBreadcrumb(
+              items: const ['Profile', 'Privacy & Data Controls'],
+              onTapLeading: onOpenProfile,
+            ),
+            const SizedBox(height: 12),
+          ],
           _PrivacyHeroCard(
             title: 'Privacy & Data Controls',
             description: _heroDescription,
@@ -483,6 +515,173 @@ class _RoleScopedPrivacyContent extends StatelessWidget {
           const SizedBox(height: 16),
         ],
       ),
+    );
+  }
+}
+
+class _CounselorPrivacyContent extends StatelessWidget {
+  const _CounselorPrivacyContent({
+    required this.onExport,
+    required this.onOpenProfile,
+  });
+
+  final Future<void> Function() onExport;
+  final VoidCallback onOpenProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useTwoColumns = constraints.maxWidth >= 1000;
+
+          final leadColumn = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _PrivacyHeroCard(
+                title: 'Counselor Privacy & Data Controls',
+                description:
+                    'Keep this page focused on your counselor account data. Student wellbeing-sharing controls live on member accounts, not here.',
+              ),
+              const SizedBox(height: 16),
+              const _PrivacyModuleCard(
+                title: 'Counselor account scope',
+                child: Text(
+                  'This area is intentionally narrower in responsibility than the member privacy screen. Your useful actions here are account-level controls and clean personal data export, not student sharing toggles.',
+                  style: TextStyle(
+                    color: Color(0xFF5A6E87),
+                    fontWeight: FontWeight.w500,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          );
+
+          final sideColumn = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _PrivacyStateCard(
+                message:
+                    'Use this page for your own counselor account data only. It is not a recycled student privacy screen.',
+              ),
+              const SizedBox(height: 16),
+              _PrivacyModuleCard(
+                title: 'Data self-service',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Download your current account data package as a polished PDF summary, CSV tables, or advanced raw JSON whenever you need it.',
+                      style: TextStyle(
+                        color: Color(0xFF5A6E87),
+                        fontWeight: FontWeight.w500,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        unawaited(onExport());
+                      },
+                      icon: const Icon(Icons.download_rounded),
+                      label: const Text('Download My Data'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _PrivacyBreadcrumb(
+                items: const ['Profile', 'Privacy & Data Controls'],
+                onTapLeading: onOpenProfile,
+              ),
+              const SizedBox(height: 14),
+              if (useTwoColumns)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 7, child: leadColumn),
+                    const SizedBox(width: 18),
+                    Expanded(flex: 5, child: sideColumn),
+                  ],
+                )
+              else ...[
+                leadColumn,
+                const SizedBox(height: 16),
+                sideColumn,
+              ],
+              const SizedBox(height: 18),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PrivacyBreadcrumb extends StatelessWidget {
+  const _PrivacyBreadcrumb({required this.items, this.onTapLeading});
+
+  final List<String> items;
+  final VoidCallback? onTapLeading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (var index = 0; index < items.length; index++) ...[
+          Container(
+            decoration: BoxDecoration(
+              color: index == items.length - 1
+                  ? const Color(0xFFE0F2FE)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: index == items.length - 1
+                    ? const Color(0xFFBAE6FD)
+                    : const Color(0xFFD9E3EE),
+              ),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: index == 0 ? onTapLeading : null,
+                borderRadius: BorderRadius.circular(999),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Text(
+                    items[index],
+                    style: TextStyle(
+                      color: index == items.length - 1
+                          ? const Color(0xFF0C4A6E)
+                          : const Color(0xFF475569),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (index != items.length - 1)
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: Color(0xFF94A3B8),
+            ),
+        ],
+      ],
     );
   }
 }

@@ -256,56 +256,22 @@ class _AccountExportSheetState extends State<_AccountExportSheet> {
                               ),
                             ),
                             const SizedBox(height: 18),
-                            Container(
-                              padding: const EdgeInsets.fromLTRB(
-                                18,
-                                18,
-                                18,
-                                18,
+                            Text(
+                              widget.title,
+                              style: const TextStyle(
+                                color: Color(0xFF10243F),
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.5,
                               ),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF0A1C35),
-                                    Color(0xFF0E9B90),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Data export centre',
-                                    style: TextStyle(
-                                      color: Color(0xFFD7FAF6),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 1.1,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    widget.title,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: -0.5,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    widget.subtitle,
-                                    style: const TextStyle(
-                                      color: Color(0xFFE7FBF8),
-                                      fontWeight: FontWeight.w500,
-                                      height: 1.45,
-                                    ),
-                                  ),
-                                ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              widget.subtitle,
+                              style: const TextStyle(
+                                color: Color(0xFF5A6E87),
+                                fontWeight: FontWeight.w500,
+                                height: 1.45,
                               ),
                             ),
                             const SizedBox(height: 18),

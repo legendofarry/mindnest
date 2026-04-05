@@ -911,21 +911,30 @@ class _AdminMessageReplyCardState
                   final documents = await windowsRest.queryCollection(
                     collectionId: 'admin_counselor_messages',
                     filters: <WindowsFirestoreFieldFilter>[
-                      WindowsFirestoreFieldFilter.equal('adminId', adminId),
-                      WindowsFirestoreFieldFilter.equal(
-                        'counselorId',
-                        counselorId,
-                      ),
-                    ],
-                    orderBy: const <WindowsFirestoreOrderBy>[
-                      WindowsFirestoreOrderBy('createdAt', descending: true),
+                      WindowsFirestoreFieldFilter.equal('threadKey', threadKey),
                     ],
                   );
-                  return documents
+                  final items = documents
                       .map(
                         (doc) => <String, dynamic>{'id': doc.id, ...doc.data},
                       )
                       .toList(growable: false);
+                  items.sort((left, right) {
+                    DateTime parse(dynamic raw) {
+                      if (raw is Timestamp) {
+                        return raw.toDate();
+                      }
+                      if (raw is DateTime) {
+                        return raw;
+                      }
+                      return DateTime.fromMillisecondsSinceEpoch(0);
+                    }
+
+                    return parse(
+                      right['createdAt'],
+                    ).compareTo(parse(left['createdAt']));
+                  });
+                  return items;
                 },
                 signature: (items) => items
                     .map(
@@ -936,20 +945,34 @@ class _AdminMessageReplyCardState
               )
             : firestore!
                   .collection('admin_counselor_messages')
-                  .where('adminId', isEqualTo: adminId)
-                  .where('counselorId', isEqualTo: counselorId)
-                  .orderBy('createdAt', descending: true)
+                  .where('threadKey', isEqualTo: threadKey)
                   .snapshots()
-                  .map(
-                    (snapshot) => snapshot.docs
+                  .map((snapshot) {
+                    final items = snapshot.docs
                         .map(
                           (doc) => <String, dynamic>{
                             'id': doc.id,
                             ...doc.data(),
                           },
                         )
-                        .toList(growable: false),
-                  );
+                        .toList(growable: false);
+                    items.sort((left, right) {
+                      DateTime parse(dynamic raw) {
+                        if (raw is Timestamp) {
+                          return raw.toDate();
+                        }
+                        if (raw is DateTime) {
+                          return raw;
+                        }
+                        return DateTime.fromMillisecondsSinceEpoch(0);
+                      }
+
+                      return parse(
+                        right['createdAt'],
+                      ).compareTo(parse(left['createdAt']));
+                    });
+                    return items;
+                  });
 
         Future<void> send() async {
           final text = _controller.text.trim();

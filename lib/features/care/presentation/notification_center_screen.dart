@@ -217,26 +217,6 @@ class _NotificationCenterScreenState
         .toList(growable: false);
   }
 
-  _NotificationScreenCopy _screenCopy(UserProfile? profile) {
-    switch (profile?.role) {
-      case UserRole.institutionAdmin:
-        return const _NotificationScreenCopy(
-          headerTitle: 'Notifications',
-          subtitle: 'Track institution updates and action-required alerts.',
-        );
-      case UserRole.counselor:
-        return const _NotificationScreenCopy(
-          headerTitle: 'Notifications',
-          subtitle: 'Track booking updates, reminders, and access changes.',
-        );
-      default:
-        return const _NotificationScreenCopy(
-          headerTitle: 'Notifications',
-          subtitle: 'Stay updated with your sessions',
-        );
-    }
-  }
-
   String _formatDate(DateTime value) {
     final local = value.toLocal();
     return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
@@ -615,113 +595,6 @@ class _NotificationCenterScreenState
     }
   }
 
-  Widget _header({
-    required BuildContext context,
-    required String userId,
-    required List<AppNotification> notifications,
-    required _NotificationScreenCopy copy,
-    required bool showRefresh,
-    required bool refreshing,
-    required VoidCallback? onRefresh,
-  }) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final unreadCount = notifications
-        .where((entry) => !entry.isRead && !entry.isArchived)
-        .length;
-    final canClearAll =
-        !_clearingAll && userId.isNotEmpty && notifications.isNotEmpty;
-
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                copy.headerTitle,
-                style: textTheme.headlineMedium?.copyWith(
-                  color: scheme.onSurface,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                unreadCount > 0 ? '$unreadCount unread updates' : copy.subtitle,
-                style: textTheme.titleMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Wrap(
-          spacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            if (showRefresh)
-              Tooltip(
-                message: 'Refresh notifications',
-                child: IconButton(
-                  onPressed: onRefresh,
-                  style: IconButton.styleFrom(
-                    foregroundColor: scheme.primary,
-                    backgroundColor: scheme.surface,
-                    side: BorderSide(
-                      color: scheme.outlineVariant.withValues(alpha: 0.55),
-                    ),
-                  ),
-                  icon: refreshing
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: scheme.primary,
-                          ),
-                        )
-                      : const Icon(Icons.refresh_rounded, size: 20),
-                ),
-              ),
-            Tooltip(
-              message: 'Permanently delete all notifications',
-              child: TextButton.icon(
-                onPressed: canClearAll
-                    ? () => _confirmAndClearAllNotifications(
-                        userId: userId,
-                        totalCount: notifications.length,
-                        pinnedCount: notifications
-                            .where((entry) => entry.isPinned)
-                            .length,
-                      )
-                    : null,
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFFDC2626),
-                  textStyle: textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                icon: _clearingAll
-                    ? SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      )
-                    : const Icon(Icons.delete_sweep_rounded, size: 18),
-                label: Text(_clearingAll ? 'Clearing...' : 'Clear'),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
   Future<void> _markAllNotificationsRead(String userId) async {
     if (userId.trim().isEmpty) {
       return;
@@ -795,6 +668,9 @@ class _NotificationCenterScreenState
     required BuildContext context,
     required List<AppNotification> notifications,
     required String userId,
+    required bool showRefresh,
+    required bool refreshing,
+    required VoidCallback? onRefresh,
   }) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
@@ -808,6 +684,121 @@ class _NotificationCenterScreenState
     final canMarkAllRead =
         userId.isNotEmpty &&
         notifications.any((entry) => !entry.isRead && !entry.isArchived);
+    final canClearAll =
+        !_clearingAll && userId.isNotEmpty && notifications.isNotEmpty;
+
+    final chips = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        _segmentChip(
+          context: context,
+          label: 'All',
+          active: _activeFilter == _NotificationFilter.all,
+          activeBg: activeBg,
+          activeText: activeText,
+          inactiveText: inactiveText,
+          onTap: () => setState(() => _activeFilter = _NotificationFilter.all),
+        ),
+        _segmentChip(
+          context: context,
+          label: 'Unread',
+          active: _activeFilter == _NotificationFilter.unread,
+          activeBg: activeBg,
+          activeText: activeText,
+          inactiveText: inactiveText,
+          onTap: () =>
+              setState(() => _activeFilter = _NotificationFilter.unread),
+        ),
+        _segmentChip(
+          context: context,
+          label: 'Archived',
+          active: _activeFilter == _NotificationFilter.archived,
+          activeBg: activeBg,
+          activeText: activeText,
+          inactiveText: inactiveText,
+          onTap: () =>
+              setState(() => _activeFilter = _NotificationFilter.archived),
+        ),
+      ],
+    );
+
+    final actions = Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        TextButton(
+          onPressed:
+              (_activeFilter == _NotificationFilter.archived || !canMarkAllRead)
+              ? null
+              : () => _markAllNotificationsRead(userId),
+          style: TextButton.styleFrom(
+            foregroundColor: scheme.primary,
+            textStyle: textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          child: const Text('Mark all read'),
+        ),
+        Tooltip(
+          message: 'Permanently delete all notifications',
+          child: TextButton.icon(
+            onPressed: canClearAll
+                ? () => _confirmAndClearAllNotifications(
+                    userId: userId,
+                    totalCount: notifications.length,
+                    pinnedCount: notifications
+                        .where((entry) => entry.isPinned)
+                        .length,
+                  )
+                : null,
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFDC2626),
+              textStyle: textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            icon: _clearingAll
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  )
+                : const Icon(Icons.delete_sweep_rounded, size: 18),
+            label: Text(_clearingAll ? 'Clearing...' : 'Clear'),
+          ),
+        ),
+        if (showRefresh)
+          Tooltip(
+            message: 'Refresh notifications',
+            child: IconButton(
+              onPressed: onRefresh,
+              style: IconButton.styleFrom(
+                foregroundColor: scheme.primary,
+                backgroundColor: scheme.surface,
+                side: BorderSide(
+                  color: scheme.outlineVariant.withValues(alpha: 0.55),
+                ),
+              ),
+              icon: refreshing
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: scheme.primary,
+                      ),
+                    )
+                  : const Icon(Icons.refresh_rounded, size: 20),
+            ),
+          ),
+      ],
+    );
 
     return Container(
       padding: const EdgeInsets.all(6),
@@ -815,56 +806,24 @@ class _NotificationCenterScreenState
         color: containerColor,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          _segmentChip(
-            context: context,
-            label: 'All',
-            active: _activeFilter == _NotificationFilter.all,
-            activeBg: activeBg,
-            activeText: activeText,
-            inactiveText: inactiveText,
-            onTap: () =>
-                setState(() => _activeFilter = _NotificationFilter.all),
-          ),
-          _segmentChip(
-            context: context,
-            label: 'Unread',
-            active: _activeFilter == _NotificationFilter.unread,
-            activeBg: activeBg,
-            activeText: activeText,
-            inactiveText: inactiveText,
-            onTap: () =>
-                setState(() => _activeFilter = _NotificationFilter.unread),
-          ),
-          _segmentChip(
-            context: context,
-            label: 'Archived',
-            active: _activeFilter == _NotificationFilter.archived,
-            activeBg: activeBg,
-            activeText: activeText,
-            inactiveText: inactiveText,
-            onTap: () =>
-                setState(() => _activeFilter = _NotificationFilter.archived),
-          ),
-          TextButton(
-            onPressed:
-                (_activeFilter == _NotificationFilter.archived ||
-                    !canMarkAllRead)
-                ? null
-                : () => _markAllNotificationsRead(userId),
-            style: TextButton.styleFrom(
-              foregroundColor: scheme.primary,
-              textStyle: textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            child: const Text('Mark all read'),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useSplitRow = constraints.maxWidth >= 760;
+          if (!useSplitRow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [chips, const SizedBox(height: 8), actions],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: chips),
+              const SizedBox(width: 12),
+              actions,
+            ],
+          );
+        },
       ),
     );
   }
@@ -1122,7 +1081,6 @@ class _NotificationCenterScreenState
   Widget _buildNotificationResults({
     required BuildContext context,
     required String userId,
-    required _NotificationScreenCopy copy,
     required List<AppNotification> notifications,
     required bool showInlineDetails,
     required bool showRefresh,
@@ -1139,20 +1097,13 @@ class _NotificationCenterScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _header(
-          context: context,
-          userId: userId,
-          notifications: notifications,
-          copy: copy,
-          showRefresh: showRefresh,
-          refreshing: refreshing,
-          onRefresh: onRefresh,
-        ),
-        const SizedBox(height: 16),
         _segmentedControl(
           context: context,
           notifications: notifications,
           userId: userId,
+          showRefresh: showRefresh,
+          refreshing: refreshing,
+          onRefresh: onRefresh,
         ),
         const SizedBox(height: 16),
         Expanded(
@@ -1320,12 +1271,10 @@ class _NotificationCenterScreenState
         (profile.role == UserRole.student ||
             profile.role == UserRole.staff ||
             profile.role == UserRole.individual);
-    final copy = _screenCopy(profile);
     final content = _buildNotificationWorkspace(
       context,
       userId: userId,
       profile: profile,
-      copy: copy,
       embeddedInCounselorShell: widget.embeddedInCounselorShell,
       embeddedInDesktopShell: widget.embeddedInDesktopShell,
     );
@@ -1352,7 +1301,6 @@ class _NotificationCenterScreenState
     BuildContext context, {
     required String userId,
     required UserProfile? profile,
-    required _NotificationScreenCopy copy,
     required bool embeddedInCounselorShell,
     required bool embeddedInDesktopShell,
   }) {
@@ -1410,7 +1358,6 @@ class _NotificationCenterScreenState
                           return _buildNotificationResults(
                             context: context,
                             userId: userId,
-                            copy: copy,
                             notifications: _cachedNotifications,
                             showInlineDetails: showInlineDetails,
                             showRefresh: true,
@@ -1445,7 +1392,6 @@ class _NotificationCenterScreenState
                           return _buildNotificationResults(
                             context: context,
                             userId: userId,
-                            copy: copy,
                             notifications: notifications,
                             showInlineDetails: showInlineDetails,
                             showRefresh: false,
@@ -1603,16 +1549,6 @@ class _NotificationsHeaderActionButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _NotificationScreenCopy {
-  const _NotificationScreenCopy({
-    required this.headerTitle,
-    required this.subtitle,
-  });
-
-  final String headerTitle;
-  final String subtitle;
 }
 
 enum _NotificationContextAction {

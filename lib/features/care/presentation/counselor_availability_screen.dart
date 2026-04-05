@@ -29,8 +29,6 @@ class CounselorAvailabilityScreen extends ConsumerStatefulWidget {
 
 class _CounselorAvailabilityScreenState
     extends ConsumerState<CounselorAvailabilityScreen> {
-  final ScrollController _slotTimelineScrollController = ScrollController();
-  final ScrollController _slotTableScrollController = ScrollController();
   DateTime? _date;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
@@ -40,11 +38,9 @@ class _CounselorAvailabilityScreenState
   bool _slotTimelineView = true;
   AvailabilitySlotStatus? _slotTimelineFilter;
   AvailabilitySlotStatus? _slotTableFilter;
-  int _slotTableRowsPerPage = 6;
   int _slotTablePage = 0;
   String? _expandedSlotDateKey;
-
-  static const double _feedMaxHeight = 360;
+  static const int _slotTableRowsPerPage = 4;
 
   static const List<int> _gridHours = <int>[
     7,
@@ -82,13 +78,6 @@ class _CounselorAvailabilityScreenState
   void initState() {
     super.initState();
     _weekStart = _startOfWeek(DateTime.now());
-  }
-
-  @override
-  void dispose() {
-    _slotTimelineScrollController.dispose();
-    _slotTableScrollController.dispose();
-    super.dispose();
   }
 
   DateTime _startOfWeek(DateTime date) {
@@ -336,6 +325,20 @@ class _CounselorAvailabilityScreenState
     return sorted;
   }
 
+  List<AvailabilitySlot> _activeSlots(List<AvailabilitySlot> source) {
+    final now = DateTime.now().toLocal();
+    return _sortedSlots(
+      source
+          .where((slot) => slot.endAt.toLocal().isAfter(now))
+          .toList(growable: false),
+    );
+  }
+
+  bool _isPastEmptyCell(DateTime day, int hour) {
+    final cellStart = DateTime(day.year, day.month, day.day, hour);
+    return !cellStart.isAfter(DateTime.now());
+  }
+
   Color _slotStatusColor(AvailabilitySlotStatus status) {
     switch (status) {
       case AvailabilitySlotStatus.available:
@@ -431,7 +434,10 @@ class _CounselorAvailabilityScreenState
     );
   }
 
-  Color _cellColor(List<AvailabilitySlot> slots) {
+  Color _cellColor(List<AvailabilitySlot> slots, {required bool isPastEmpty}) {
+    if (isPastEmpty) {
+      return const Color(0xFFF3F6FA);
+    }
     if (slots.isEmpty) {
       return Colors.white;
     }
@@ -572,12 +578,19 @@ class _CounselorAvailabilityScreenState
                               day: day,
                               hour: hour,
                             );
+                            final isPastEmpty =
+                                cellSlots.isEmpty &&
+                                _isPastEmptyCell(day, hour);
                             return _CalendarCell(
                               width: 132,
-                              color: _cellColor(cellSlots),
+                              color: _cellColor(
+                                cellSlots,
+                                isPastEmpty: isPastEmpty,
+                              ),
                               slotCount: cellSlots.length,
                               isBusy: cellSlots.isNotEmpty,
-                              onTap: _isSaving
+                              isDisabled: isPastEmpty,
+                              onTap: _isSaving || isPastEmpty
                                   ? null
                                   : () => _onCellTap(
                                       profile: profile,
@@ -753,144 +766,140 @@ class _CounselorAvailabilityScreenState
             onExpand: () => setState(() => _isFeedCollapsed = false),
           )
         else
-          SizedBox(
-            height: _feedMaxHeight,
-            child: Scrollbar(
-              controller: _slotTimelineScrollController,
-              thumbVisibility: true,
-              child: ListView.separated(
-                controller: _slotTimelineScrollController,
-                primary: false,
-                padding: EdgeInsets.zero,
-                physics: const ClampingScrollPhysics(),
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemCount: orderedKeys.length,
-                itemBuilder: (context, index) {
-                  final key = orderedKeys[index];
-                  final day = dateByKey[key]!;
-                  final events = grouped[key]!;
-                  final expandedKey =
-                      _expandedSlotDateKey ?? defaultExpandedKey;
-                  final expanded = key == expandedKey;
-                  return GlassCard(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          InkWell(
-                            borderRadius: BorderRadius.circular(10),
-                            onTap: () {
-                              setState(() {
-                                if (_expandedSlotDateKey == key) {
-                                  _expandedSlotDateKey = null;
-                                } else {
-                                  _expandedSlotDateKey = key;
-                                }
-                              });
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 6,
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    expanded
-                                        ? Icons.keyboard_arrow_down_rounded
-                                        : Icons.chevron_right_rounded,
-                                    color: const Color(0xFF334155),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  dateHeader(day, events.length),
-                                  const Spacer(),
-                                  Text(
-                                    'Next at ${_formatTime(events.first.startAt)}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF64748B),
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          if (expanded) ...[
-                            const SizedBox(height: 6),
-                            ...events.map((slot) {
-                              final tone = _slotStatusColor(slot.status);
-                              return Padding(
+          Column(
+            children: [
+              for (var index = 0; index < orderedKeys.length; index++) ...[
+                if (index > 0) const SizedBox(height: 10),
+                Builder(
+                  builder: (context) {
+                    final key = orderedKeys[index];
+                    final day = dateByKey[key]!;
+                    final events = grouped[key]!;
+                    final expandedKey =
+                        _expandedSlotDateKey ?? defaultExpandedKey;
+                    final expanded = key == expandedKey;
+                    return GlassCard(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () {
+                                setState(() {
+                                  if (_expandedSlotDateKey == key) {
+                                    _expandedSlotDateKey = null;
+                                  } else {
+                                    _expandedSlotDateKey = key;
+                                  }
+                                });
+                              },
+                              child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
+                                  horizontal: 4,
                                   vertical: 6,
                                 ),
                                 child: Row(
                                   children: [
-                                    Container(
-                                      width: 10,
-                                      height: 10,
-                                      decoration: BoxDecoration(
-                                        color: tone,
-                                        shape: BoxShape.circle,
-                                      ),
+                                    Icon(
+                                      expanded
+                                          ? Icons.keyboard_arrow_down_rounded
+                                          : Icons.chevron_right_rounded,
+                                      color: const Color(0xFF334155),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '${_formatTime(slot.startAt)} - ${_formatTime(slot.endAt)}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    _StatusPill(
-                                      label: _slotStatusLabel(slot.status),
-                                      color: tone,
-                                    ),
+                                    const SizedBox(width: 4),
+                                    dateHeader(day, events.length),
                                     const Spacer(),
-                                    if (slot.status ==
-                                        AvailabilitySlotStatus.available)
-                                      TextButton.icon(
-                                        onPressed: () async {
-                                          try {
-                                            await ref
-                                                .read(careRepositoryProvider)
-                                                .deleteAvailabilitySlot(slot);
-                                          } catch (error) {
-                                            if (!context.mounted) return;
-                                            showModernBannerFromSnackBar(
-                                              context,
-                                              SnackBar(
-                                                content: Text(
-                                                  error.toString().replaceFirst(
-                                                    'Exception: ',
-                                                    '',
-                                                  ),
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        },
-                                        icon: const Icon(
-                                          Icons.delete_outline_rounded,
-                                          size: 16,
-                                        ),
-                                        label: const Text('Delete'),
+                                    Text(
+                                      'Next at ${_formatTime(events.first.startAt)}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF64748B),
+                                        fontWeight: FontWeight.w700,
                                       ),
+                                    ),
                                   ],
                                 ),
-                              );
-                            }),
+                              ),
+                            ),
+                            if (expanded) ...[
+                              const SizedBox(height: 6),
+                              ...events.map((slot) {
+                                final tone = _slotStatusColor(slot.status);
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 6,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 10,
+                                        height: 10,
+                                        decoration: BoxDecoration(
+                                          color: tone,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '${_formatTime(slot.startAt)} - ${_formatTime(slot.endAt)}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      _StatusPill(
+                                        label: _slotStatusLabel(slot.status),
+                                        color: tone,
+                                      ),
+                                      const Spacer(),
+                                      if (slot.status ==
+                                          AvailabilitySlotStatus.available)
+                                        TextButton.icon(
+                                          onPressed: () async {
+                                            try {
+                                              await ref
+                                                  .read(careRepositoryProvider)
+                                                  .deleteAvailabilitySlot(slot);
+                                            } catch (error) {
+                                              if (!context.mounted) return;
+                                              showModernBannerFromSnackBar(
+                                                context,
+                                                SnackBar(
+                                                  content: Text(
+                                                    error
+                                                        .toString()
+                                                        .replaceFirst(
+                                                          'Exception: ',
+                                                          '',
+                                                        ),
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                          icon: const Icon(
+                                            Icons.delete_outline_rounded,
+                                            size: 16,
+                                          ),
+                                          label: const Text('Delete'),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
-            ),
+                    );
+                  },
+                ),
+              ],
+            ],
           ),
       ],
     );
@@ -961,30 +970,20 @@ class _CounselorAvailabilityScreenState
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0x66FFFFFF),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFD0DFEE)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
                   ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<int>(
-                      value: _slotTableRowsPerPage,
-                      isDense: true,
-                      borderRadius: BorderRadius.circular(10),
-                      items: const [
-                        DropdownMenuItem(value: 4, child: Text('4 / page')),
-                        DropdownMenuItem(value: 6, child: Text('6 / page')),
-                        DropdownMenuItem(value: 8, child: Text('8 / page')),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            _slotTableRowsPerPage = value;
-                            _slotTablePage = 0;
-                          });
-                        }
-                      },
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: const Text(
+                    '4 rows / page',
+                    style: TextStyle(
+                      color: Color(0xFF2563EB),
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
@@ -1018,87 +1017,98 @@ class _CounselorAvailabilityScreenState
               ],
             ),
             const SizedBox(height: 10),
-            ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: _feedMaxHeight),
-              child: Scrollbar(
-                controller: _slotTableScrollController,
-                thumbVisibility: true,
-                child: ListView.separated(
-                  controller: _slotTableScrollController,
-                  primary: false,
-                  itemCount: rows.length,
-                  separatorBuilder: (_, _) =>
-                      const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                  itemBuilder: (context, index) {
-                    final slot = rows[index];
-                    final tone = _slotStatusColor(slot.status);
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 10,
-                        horizontal: 4,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              _formatDateTime(slot.startAt),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              _formatDateTime(slot.endAt),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: _StatusPill(
-                              label: _slotStatusLabel(slot.status),
-                              color: tone,
-                            ),
-                          ),
-                          if (slot.status == AvailabilitySlotStatus.available)
-                            TextButton.icon(
-                              onPressed: () async {
-                                try {
-                                  await ref
-                                      .read(careRepositoryProvider)
-                                      .deleteAvailabilitySlot(slot);
-                                } catch (error) {
-                                  if (!context.mounted) return;
-                                  showModernBannerFromSnackBar(
-                                    context,
-                                    SnackBar(
-                                      content: Text(
-                                        error.toString().replaceFirst(
-                                          'Exception: ',
-                                          '',
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                              icon: const Icon(Icons.delete_outline_rounded),
-                              label: const Text('Delete'),
-                            )
-                          else
-                            const SizedBox(width: 64),
-                        ],
-                      ),
-                    );
-                  },
+            if (rows.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'No active published slots match the selected filter.',
+                  style: TextStyle(
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
+              )
+            else
+              Column(
+                children: [
+                  for (var index = 0; index < rows.length; index++) ...[
+                    if (index > 0)
+                      const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                    Builder(
+                      builder: (context) {
+                        final slot = rows[index];
+                        final tone = _slotStatusColor(slot.status);
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                            horizontal: 4,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  _formatDateTime(slot.startAt),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  _formatDateTime(slot.endAt),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: _StatusPill(
+                                  label: _slotStatusLabel(slot.status),
+                                  color: tone,
+                                ),
+                              ),
+                              if (slot.status ==
+                                  AvailabilitySlotStatus.available)
+                                TextButton.icon(
+                                  onPressed: () async {
+                                    try {
+                                      await ref
+                                          .read(careRepositoryProvider)
+                                          .deleteAvailabilitySlot(slot);
+                                    } catch (error) {
+                                      if (!context.mounted) return;
+                                      showModernBannerFromSnackBar(
+                                        context,
+                                        SnackBar(
+                                          content: Text(
+                                            error.toString().replaceFirst(
+                                              'Exception: ',
+                                              '',
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                  ),
+                                  label: const Text('Delete'),
+                                )
+                              else
+                                const SizedBox(width: 64),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ],
               ),
-            ),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -1136,6 +1146,7 @@ class _CounselorAvailabilityScreenState
     required List<AvailabilitySlot> slots,
     required bool loading,
   }) {
+    final activeSlots = _activeSlots(slots);
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1232,7 +1243,7 @@ class _CounselorAvailabilityScreenState
           ),
         ),
         const SizedBox(height: 20),
-        _buildWeeklyGrid(profile, slots),
+        _buildWeeklyGrid(profile, activeSlots),
         const SizedBox(height: 20),
         Container(
           decoration: BoxDecoration(
@@ -1323,8 +1334,8 @@ class _CounselorAvailabilityScreenState
                         const SizedBox(height: 6),
                         Text(
                           isCompact
-                              ? 'Edit live slots below.'
-                              : 'Review the booking windows that are already live and edit or remove them from the feed below.',
+                              ? 'Only active and upcoming booking windows stay visible here.'
+                              : 'Past slots retire automatically after their end time, so this feed stays focused on active booking inventory.',
                           style: const TextStyle(
                             color: Color(0xFF6A7C93),
                             height: 1.45,
@@ -1361,10 +1372,15 @@ class _CounselorAvailabilityScreenState
                     message:
                         'No availability slots are visible yet. Publish your first slot to start taking bookings.',
                   )
+                else if (activeSlots.isEmpty)
+                  const _AvailabilityEmptyCard(
+                    message:
+                        'All previously published slots have already expired. Future booking windows will appear here once you publish them.',
+                  )
                 else ...[
                   _slotTimelineView
-                      ? _buildSlotTimeline(context, slots, loading)
-                      : _buildSlotTable(context, slots),
+                      ? _buildSlotTimeline(context, activeSlots, loading)
+                      : _buildSlotTable(context, activeSlots),
                 ],
               ],
             ),
@@ -1644,6 +1660,7 @@ class _CalendarCell extends StatelessWidget {
     required this.color,
     required this.slotCount,
     required this.isBusy,
+    required this.isDisabled,
     required this.onTap,
   });
 
@@ -1651,6 +1668,7 @@ class _CalendarCell extends StatelessWidget {
   final Color color;
   final int slotCount;
   final bool isBusy;
+  final bool isDisabled;
   final VoidCallback? onTap;
 
   @override
@@ -1675,9 +1693,11 @@ class _CalendarCell extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   )
-                : const Icon(
-                    Icons.add_rounded,
-                    color: Color(0xFF94A3B8),
+                : Icon(
+                    isDisabled ? Icons.remove_rounded : Icons.add_rounded,
+                    color: isDisabled
+                        ? const Color(0xFFCBD5E1)
+                        : const Color(0xFF94A3B8),
                     size: 16,
                   ),
           ),

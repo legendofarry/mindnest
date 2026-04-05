@@ -209,7 +209,8 @@ String _monthShortLabel(int month) {
     'Nov',
     'Dec',
   ];
-  return months[(month.clamp(1, 12)) - 1];
+  final safeMonth = month.clamp(1, 12);
+  return months[safeMonth - 1];
 }
 
 String _sessionDateSubheader(DateTime value) {
@@ -1049,7 +1050,6 @@ class _CounselorSessionsWorkbenchState
                         _TimelineAppointmentsViewport(
                           key: const ValueKey('timeline'),
                           appointments: pageRows,
-                          formatDate: widget.formatDate,
                           statusColorFor: widget.statusColorFor,
                           onOpenDetails: widget.onOpenDetails,
                           onUpdateStatus: widget.onUpdateStatus,
@@ -1290,108 +1290,139 @@ class _WorkbenchMenuButton<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<T>(
-      tooltip: label,
-      initialValue: currentValue,
-      onSelected: onSelected,
-      offset: const Offset(0, 56),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      color: Colors.white,
-      elevation: 10,
-      itemBuilder: (context) => options
-          .map(
-            (option) => PopupMenuItem<T>(
-              value: option.value,
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 18,
-                    child: Icon(
-                      option.value == currentValue
-                          ? Icons.check_rounded
-                          : (option.icon ?? Icons.circle_outlined),
-                      size: option.value == currentValue ? 18 : 16,
-                      color: option.value == currentValue
-                          ? const Color(0xFF0EA5E9)
-                          : const Color(0xFF94A3B8),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      option.label,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: const Color(0xFF0F172A),
-                        fontWeight: option.value == currentValue
-                            ? FontWeight.w700
-                            : FontWeight.w600,
+    final buttonKey = GlobalKey();
+
+    Future<void> openMenu() async {
+      final buttonContext = buttonKey.currentContext;
+      if (buttonContext == null) {
+        return;
+      }
+      final renderBox = buttonContext.findRenderObject() as RenderBox?;
+      final overlay =
+          Navigator.of(context).overlay?.context.findRenderObject()
+              as RenderBox?;
+      if (renderBox == null || overlay == null) {
+        return;
+      }
+      final topLeft = renderBox.localToGlobal(Offset.zero, ancestor: overlay);
+      final selected = await showMenu<T>(
+        context: context,
+        elevation: 10,
+        color: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        position: RelativeRect.fromLTRB(
+          topLeft.dx,
+          topLeft.dy + renderBox.size.height + 8,
+          overlay.size.width - topLeft.dx - renderBox.size.width,
+          0,
+        ),
+        items: options
+            .map(
+              (option) => PopupMenuItem<T>(
+                value: option.value,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      child: Icon(
+                        option.value == currentValue
+                            ? Icons.check_rounded
+                            : (option.icon ?? Icons.circle_outlined),
+                        size: option.value == currentValue ? 18 : 16,
+                        color: option.value == currentValue
+                            ? const Color(0xFF0EA5E9)
+                            : const Color(0xFF94A3B8),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          )
-          .toList(growable: false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: active ? const Color(0xFFF0F9FF) : const Color(0xFFFFFFFF),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: active ? const Color(0xFF7DD3FC) : const Color(0xFFD7E5F1),
-          ),
-          boxShadow: active
-              ? const [
-                  BoxShadow(
-                    color: Color(0x120EA5E9),
-                    blurRadius: 16,
-                    offset: Offset(0, 8),
-                  ),
-                ]
-              : const [],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: active
-                    ? const Color(0xFFDFF3FF)
-                    : const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                size: 18,
-                color: active
-                    ? const Color(0xFF0369A1)
-                    : const Color(0xFF64748B),
-              ),
-            ),
-            const SizedBox(width: 10),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 168),
-              child: Text(
-                '$label: $valueLabel',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF0F172A),
-                  fontWeight: FontWeight.w700,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        option.label,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: const Color(0xFF0F172A),
+                          fontWeight: option.value == currentValue
+                              ? FontWeight.w700
+                              : FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            )
+            .toList(growable: false),
+      );
+      if (selected != null) {
+        onSelected(selected);
+      }
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: buttonKey,
+        onTap: openMenu,
+        borderRadius: BorderRadius.circular(18),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFFF0F9FF) : const Color(0xFFFFFFFF),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: active ? const Color(0xFF7DD3FC) : const Color(0xFFD7E5F1),
             ),
-            const SizedBox(width: 10),
-            const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: Color(0xFF64748B),
-            ),
-          ],
+            boxShadow: active
+                ? const [
+                    BoxShadow(
+                      color: Color(0x120EA5E9),
+                      blurRadius: 16,
+                      offset: Offset(0, 8),
+                    ),
+                  ]
+                : const [],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: active
+                      ? const Color(0xFFDFF3FF)
+                      : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: active
+                      ? const Color(0xFF0369A1)
+                      : const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(width: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 168),
+                child: Text(
+                  '$label: $valueLabel',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: Color(0xFF64748B),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1733,7 +1764,6 @@ class _CompactAppointmentsViewport extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: BoxConstraints(minHeight: minVisibleRows * 118),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FBFD),
         borderRadius: BorderRadius.circular(22),
@@ -1786,25 +1816,32 @@ class _CompactAppointmentsViewport extends StatelessWidget {
   }
 }
 
-class _TimelineAppointmentsViewport extends StatelessWidget {
+class _TimelineAppointmentsViewport extends StatefulWidget {
   const _TimelineAppointmentsViewport({
     super.key,
     required this.appointments,
-    required this.formatDate,
     required this.statusColorFor,
     required this.onOpenDetails,
     required this.onUpdateStatus,
   });
 
   final List<AppointmentRecord> appointments;
-  final _AppointmentDateFormatter formatDate;
   final _AppointmentStatusColorResolver statusColorFor;
   final _AppointmentRouteOpener onOpenDetails;
   final _AppointmentStatusUpdater onUpdateStatus;
 
   @override
+  State<_TimelineAppointmentsViewport> createState() =>
+      _TimelineAppointmentsViewportState();
+}
+
+class _TimelineAppointmentsViewportState
+    extends State<_TimelineAppointmentsViewport> {
+  final Set<String> _expandedKeys = <String>{};
+
+  @override
   Widget build(BuildContext context) {
-    final orderedAppointments = appointments.toList(growable: false)
+    final orderedAppointments = widget.appointments.toList(growable: false)
       ..sort((left, right) => left.startAt.compareTo(right.startAt));
     final grouped = <String, List<AppointmentRecord>>{};
     final dates = <String, DateTime>{};
@@ -1835,51 +1872,83 @@ class _TimelineAppointmentsViewport extends StatelessWidget {
                       children: [
                         Padding(
                           padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE0F2FE),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: const Icon(
-                                  Icons.timeline_rounded,
-                                  size: 20,
-                                  color: Color(0xFF0369A1),
-                                ),
+                          child: InkWell(
+                            onTap: () => setState(() {
+                              if (_expandedKeys.contains(entry.key)) {
+                                _expandedKeys.remove(entry.key);
+                              } else {
+                                _expandedKeys.add(entry.key);
+                              }
+                            }),
+                            borderRadius: BorderRadius.circular(18),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 2,
+                                vertical: 2,
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _sessionDateHeader(date),
-                                      style: const TextStyle(
-                                        color: Color(0xFF0F172A),
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE0F2FE),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Icon(
+                                      _expandedKeys.contains(entry.key)
+                                          ? Icons.expand_more_rounded
+                                          : Icons.chevron_right_rounded,
+                                      size: 22,
+                                      color: const Color(0xFF0369A1),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _sessionDateHeader(date),
+                                          style: const TextStyle(
+                                            color: Color(0xFF0F172A),
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          _sessionDateSubheader(date),
+                                          style: const TextStyle(
+                                            color: Color(0xFF64748B),
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (entry.value.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 10),
+                                      child: Text(
+                                        'First at ${_sessionTimeRangeLabel(entry.value.first.startAt, entry.value.first.endAt).split(' - ').first}',
+                                        style: const TextStyle(
+                                          color: Color(0xFF64748B),
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      _sessionDateSubheader(date),
-                                      style: const TextStyle(
-                                        color: Color(0xFF64748B),
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                  _TimelineCountPill(count: entry.value.length),
+                                ],
                               ),
-                              _TimelineCountPill(count: entry.value.length),
-                            ],
+                            ),
                           ),
                         ),
-                        if (wideLayout) ...[
+                        if (_expandedKeys.contains(entry.key) &&
+                            wideLayout) ...[
                           const Divider(
                             height: 1,
                             thickness: 1,
@@ -1892,59 +1961,62 @@ class _TimelineAppointmentsViewport extends StatelessWidget {
                             color: Color(0xFFD7E5F1),
                           ),
                         ],
-                        ...entry.value.asMap().entries.map((timelineEntry) {
-                          final appointment = timelineEntry.value;
-                          return Column(
-                            children: [
-                              _TimelineAppointmentTile(
-                                appointment: appointment,
-                                formatDate: formatDate,
-                                statusColor: statusColorFor(appointment.status),
-                                onOpenDetails: () => onOpenDetails(appointment),
-                                onConfirm:
-                                    appointment.status ==
-                                        AppointmentStatus.pending
-                                    ? () => onUpdateStatus(
-                                        appointment,
-                                        AppointmentStatus.confirmed,
-                                      )
-                                    : null,
-                                onCancel:
-                                    appointment.status ==
-                                            AppointmentStatus.pending ||
-                                        appointment.status ==
-                                            AppointmentStatus.confirmed
-                                    ? () => onUpdateStatus(
-                                        appointment,
-                                        AppointmentStatus.cancelled,
-                                      )
-                                    : null,
-                                onNoShow:
-                                    appointment.status ==
-                                        AppointmentStatus.confirmed
-                                    ? () => onUpdateStatus(
-                                        appointment,
-                                        AppointmentStatus.noShow,
-                                      )
-                                    : null,
-                                onComplete:
-                                    appointment.status ==
-                                        AppointmentStatus.confirmed
-                                    ? () => onUpdateStatus(
-                                        appointment,
-                                        AppointmentStatus.completed,
-                                      )
-                                    : null,
-                              ),
-                              if (timelineEntry.key != entry.value.length - 1)
-                                const Divider(
-                                  height: 1,
-                                  thickness: 1,
-                                  color: Color(0xFFE2E8F0),
+                        if (_expandedKeys.contains(entry.key))
+                          ...entry.value.asMap().entries.map((timelineEntry) {
+                            final appointment = timelineEntry.value;
+                            return Column(
+                              children: [
+                                _TimelineAppointmentTile(
+                                  appointment: appointment,
+                                  statusColor: widget.statusColorFor(
+                                    appointment.status,
+                                  ),
+                                  onOpenDetails: () =>
+                                      widget.onOpenDetails(appointment),
+                                  onConfirm:
+                                      appointment.status ==
+                                          AppointmentStatus.pending
+                                      ? () => widget.onUpdateStatus(
+                                          appointment,
+                                          AppointmentStatus.confirmed,
+                                        )
+                                      : null,
+                                  onCancel:
+                                      appointment.status ==
+                                              AppointmentStatus.pending ||
+                                          appointment.status ==
+                                              AppointmentStatus.confirmed
+                                      ? () => widget.onUpdateStatus(
+                                          appointment,
+                                          AppointmentStatus.cancelled,
+                                        )
+                                      : null,
+                                  onNoShow:
+                                      appointment.status ==
+                                          AppointmentStatus.confirmed
+                                      ? () => widget.onUpdateStatus(
+                                          appointment,
+                                          AppointmentStatus.noShow,
+                                        )
+                                      : null,
+                                  onComplete:
+                                      appointment.status ==
+                                          AppointmentStatus.confirmed
+                                      ? () => widget.onUpdateStatus(
+                                          appointment,
+                                          AppointmentStatus.completed,
+                                        )
+                                      : null,
                                 ),
-                            ],
-                          );
-                        }),
+                                if (timelineEntry.key != entry.value.length - 1)
+                                  const Divider(
+                                    height: 1,
+                                    thickness: 1,
+                                    color: Color(0xFFE2E8F0),
+                                  ),
+                              ],
+                            );
+                          }),
                       ],
                     ),
                   ),
@@ -2592,10 +2664,61 @@ class _TimelineCountPill extends StatelessWidget {
   }
 }
 
+class _TimelineAppointmentsHeaderRow extends StatelessWidget {
+  const _TimelineAppointmentsHeaderRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(18, 12, 18, 12),
+      child: Row(
+        children: [
+          Expanded(flex: 18, child: _TimelineHeaderLabel(label: 'TIME')),
+          Expanded(flex: 22, child: _TimelineHeaderLabel(label: 'STUDENT')),
+          Expanded(flex: 16, child: _TimelineHeaderLabel(label: 'STATUS')),
+          Expanded(flex: 30, child: _TimelineHeaderLabel(label: 'SUMMARY')),
+          Expanded(
+            flex: 18,
+            child: _TimelineHeaderLabel(
+              label: 'ACTIONS',
+              alignment: Alignment.centerRight,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimelineHeaderLabel extends StatelessWidget {
+  const _TimelineHeaderLabel({
+    required this.label,
+    this.alignment = Alignment.centerLeft,
+  });
+
+  final String label;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: alignment,
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF64748B),
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.7,
+        ),
+      ),
+    );
+  }
+}
+
 class _TimelineAppointmentTile extends StatelessWidget {
   const _TimelineAppointmentTile({
     required this.appointment,
-    required this.formatDate,
     required this.statusColor,
     required this.onOpenDetails,
     this.onConfirm,
@@ -2605,7 +2728,6 @@ class _TimelineAppointmentTile extends StatelessWidget {
   });
 
   final AppointmentRecord appointment;
-  final _AppointmentDateFormatter formatDate;
   final Color statusColor;
   final VoidCallback onOpenDetails;
   final Future<void> Function()? onConfirm;
@@ -2634,16 +2756,11 @@ class _TimelineAppointmentTile extends StatelessWidget {
       ),
     );
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final narrow = constraints.maxWidth < 930;
+          final compactLayout = constraints.maxWidth < 1080;
           final actions = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -2664,90 +2781,135 @@ class _TimelineAppointmentTile extends StatelessWidget {
             ],
           );
 
-          final timelineMarker = Container(
-            width: narrow ? double.infinity : 108,
+          final timeBlock = Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xFFDCE6F0)),
             ),
-            child: Column(
-              crossAxisAlignment: narrow
-                  ? CrossAxisAlignment.start
-                  : CrossAxisAlignment.center,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _sessionTimeRangeLabel(
-                    appointment.startAt,
-                    appointment.endAt,
-                  ),
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w800,
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  formatDate(appointment.startAt).split(' ').first,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _sessionTimeRangeLabel(
+                        appointment.startAt,
+                        appointment.endAt,
+                      ),
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _sessionDurationLabel(
+                        appointment.startAt,
+                        appointment.endAt,
+                      ),
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           );
 
-          final details = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _studentDisplayName(appointment),
-                style: const TextStyle(
-                  color: Color(0xFF0F172A),
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                summary,
-                style: const TextStyle(
-                  color: Color(0xFF64748B),
-                  height: 1.4,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          );
-
-          if (narrow) {
+          if (compactLayout) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                timelineMarker,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: timeBlock),
+                    const SizedBox(width: 12),
+                    statusPill,
+                  ],
+                ),
                 const SizedBox(height: 12),
-                statusPill,
-                const SizedBox(height: 12),
-                details,
+                Text(
+                  _studentDisplayName(appointment),
+                  style: const TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  summary,
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    height: 1.4,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 actions,
               ],
             );
           }
 
+          Widget buildCell(
+            int flex,
+            Widget child, {
+            Alignment alignment = Alignment.centerLeft,
+          }) {
+            return Expanded(
+              flex: flex,
+              child: Align(alignment: alignment, child: child),
+            );
+          }
+
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              timelineMarker,
+              buildCell(18, timeBlock),
               const SizedBox(width: 14),
-              Expanded(child: details),
+              buildCell(
+                22,
+                Text(
+                  _studentDisplayName(appointment),
+                  style: const TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
               const SizedBox(width: 14),
-              statusPill,
+              buildCell(16, statusPill),
               const SizedBox(width: 14),
-              actions,
+              buildCell(
+                30,
+                Text(
+                  summary,
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    height: 1.4,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              buildCell(18, actions, alignment: Alignment.centerRight),
             ],
           );
         },
