@@ -9,6 +9,7 @@ import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
+import 'package:mindnest/features/counselor/models/counselor_language_catalog.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/core/ui/modern_banner.dart';
@@ -78,16 +79,6 @@ class _CounselorProfileSettingsScreenState
     'Asia/Dubai',
   ];
   static const _durations = <int>[30, 45, 50, 60, 75, 90];
-  static const _languageOptions = <String>[
-    'English',
-    'Kiswahili',
-    'Kikuyu',
-    'Luo',
-    'Kalenjin',
-    'Luhya',
-    'Kamba',
-    'Somali',
-  ];
 
   Set<String>? _languages;
 
@@ -115,12 +106,16 @@ class _CounselorProfileSettingsScreenState
                   (setup['yearsExperience'] as num?)?.toInt() ??
                   0))
               .toString();
-      final langs =
-          cp?.languages ??
-          ((setup['languages'] as List?) ?? const <dynamic>[])
-              .map((e) => e.toString())
-              .toList(growable: false);
-      _languages = langs.isNotEmpty ? langs.toSet() : {_languageOptions.first};
+      final langs = cp?.languages.isNotEmpty == true
+          ? normalizeCounselorLanguages(cp!.languages)
+          : normalizeCounselorLanguages(switch (setup['languages']) {
+              final List<dynamic> values => values,
+              final String value => value.split(','),
+              _ => const <dynamic>[],
+            });
+      _languages = langs.isNotEmpty
+          ? langs.toSet()
+          : {counselorLanguageOptions.first};
       _bio.text = cp?.bio ?? (setup['bio'] as String? ?? '');
 
       final specializationRaw =
@@ -160,11 +155,11 @@ class _CounselorProfileSettingsScreenState
 
   Future<void> _save(UserProfile profile) async {
     if (!_formKey.currentState!.validate()) return;
-    _languages ??= {_languageOptions.first};
+    _languages ??= {counselorLanguageOptions.first};
     setState(() => _savingProfile = true);
     try {
       final years = int.tryParse(_years.text.trim()) ?? 0;
-      final languages = _languages!.toList(growable: false);
+      final languages = normalizeCounselorLanguages(_languages!);
       await ref
           .read(counselorRepositoryProvider)
           .updateProfileAndSettings(
@@ -534,14 +529,14 @@ class _CounselorProfileSettingsScreenState
                                       ),
                                       const SizedBox(height: 12),
                                       _LanguageSelector(
-                                        options: _languageOptions,
+                                        options: counselorLanguageOptions,
                                         selected:
                                             _languages ??
-                                            {_languageOptions.first},
+                                            {counselorLanguageOptions.first},
                                         onToggle: (lang) {
                                           setState(() {
                                             _languages ??= {
-                                              _languageOptions.first,
+                                              counselorLanguageOptions.first,
                                             };
                                             if (_languages!.contains(lang)) {
                                               _languages!.remove(lang);

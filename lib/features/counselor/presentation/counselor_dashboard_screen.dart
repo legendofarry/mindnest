@@ -14,6 +14,7 @@ import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/session_reassignment_request.dart';
+import 'package:mindnest/features/counselor/models/counselor_language_catalog.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 
@@ -924,22 +925,11 @@ class _WorkspaceSummary {
           ..sort((a, b) => a.startAt.compareTo(b.startAt));
 
     final languagesRaw = setupData['languages'];
-    final languages = <String>[];
-    if (languagesRaw is List) {
-      for (final item in languagesRaw) {
-        final text = item?.toString().trim() ?? '';
-        if (text.isNotEmpty) {
-          languages.add(text);
-        }
-      }
-    } else if (languagesRaw is String && languagesRaw.trim().isNotEmpty) {
-      languages.addAll(
-        languagesRaw
-            .split(',')
-            .map((item) => item.trim())
-            .where((item) => item.isNotEmpty),
-      );
-    }
+    final languages = switch (languagesRaw) {
+      final List<dynamic> values => normalizeCounselorLanguages(values),
+      final String value => normalizeCounselorLanguages(value.split(',')),
+      _ => const <String>[],
+    };
 
     final specializationRaw = (setupData['specialization'] as String? ?? '')
         .trim();

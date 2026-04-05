@@ -13,8 +13,10 @@ import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/app_notification.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
+import 'package:mindnest/features/care/models/session_reassignment_request.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/features/institutions/models/user_invite.dart';
 
 const Duration _windowsPollInterval = Duration(seconds: 15);
 bool get _useWindowsRestFirestore =>
@@ -74,12 +76,10 @@ class NotificationDetailsScreen extends ConsumerWidget {
     super.key,
     required this.notificationId,
     this.embedded = false,
-    this.showBackToNotifications = true,
   });
 
   final String notificationId;
   final bool embedded;
-  final bool showBackToNotifications;
 
   String _formatDate(DateTime value) {
     final local = value.toLocal();
@@ -113,6 +113,15 @@ class NotificationDetailsScreen extends ConsumerWidget {
 
   IconData _typeIcon(String type) {
     final normalized = type.toLowerCase();
+    if (normalized == 'institution_invite') {
+      return Icons.mark_email_unread_rounded;
+    }
+    if (normalized == 'admin_message' || normalized == 'counselor_message') {
+      return Icons.chat_bubble_outline_rounded;
+    }
+    if (normalized.contains('reassignment')) {
+      return Icons.swap_horiz_rounded;
+    }
     if (normalized.contains('confirm')) {
       return Icons.check_circle_outline_rounded;
     }
@@ -136,6 +145,15 @@ class NotificationDetailsScreen extends ConsumerWidget {
 
   Color _typeAccent(ColorScheme scheme, String type) {
     final normalized = type.toLowerCase();
+    if (normalized == 'institution_invite') {
+      return const Color(0xFF0E9B90);
+    }
+    if (normalized == 'admin_message' || normalized == 'counselor_message') {
+      return const Color(0xFF2563EB);
+    }
+    if (normalized.contains('reassignment')) {
+      return const Color(0xFF4F46E5);
+    }
     if (normalized.contains('confirm') || normalized.contains('completed')) {
       return const Color(0xFF059669);
     }
@@ -149,12 +167,6 @@ class NotificationDetailsScreen extends ConsumerWidget {
       return const Color(0xFFD97706);
     }
     return scheme.primary;
-  }
-
-  bool _canOpenCounselorProfile(UserRole role) {
-    return role == UserRole.student ||
-        role == UserRole.staff ||
-        role == UserRole.individual;
   }
 
   String _statusHeadline(AppNotification notification) {
@@ -205,105 +217,6 @@ class NotificationDetailsScreen extends ConsumerWidget {
       case AppointmentStatus.noShow:
         return const Color(0xFFDC2626);
     }
-  }
-
-  String _appointmentsRouteForRole(UserRole role) {
-    switch (role) {
-      case UserRole.counselor:
-        return AppRoute.counselorAppointments;
-      case UserRole.institutionAdmin:
-        return AppRoute.institutionAdmin;
-      case UserRole.student:
-      case UserRole.staff:
-      case UserRole.individual:
-      case UserRole.other:
-        return AppRoute.studentAppointments;
-    }
-  }
-
-  String _appointmentsLabelForRole(UserRole role) {
-    if (role == UserRole.institutionAdmin) {
-      return 'Dashboard';
-    }
-    return 'All Sessions';
-  }
-
-  String _inviteAcceptRoute(String inviteId) {
-    return Uri(
-      path: AppRoute.inviteAccept,
-      queryParameters: <String, String>{'inviteId': inviteId},
-    ).toString();
-  }
-
-  List<_NotificationAction> _buildActions({
-    required AppNotification notification,
-    required UserRole role,
-    required AppointmentRecord? appointment,
-  }) {
-    switch (role) {
-      case UserRole.student:
-      case UserRole.staff:
-      case UserRole.individual:
-      case UserRole.other:
-        return const <_NotificationAction>[];
-      case UserRole.counselor:
-      case UserRole.institutionAdmin:
-        break;
-    }
-
-    final actions = <_NotificationAction>[];
-    final normalizedType = notification.type.toLowerCase();
-    final rawRoute = (notification.route ?? '').trim();
-    final relatedId = (notification.relatedId ?? '').trim();
-
-    if (normalizedType == 'institution_invite' && relatedId.isNotEmpty) {
-      actions.add(
-        _NotificationAction(
-          label: 'Review invite',
-          route: _inviteAcceptRoute(relatedId),
-          icon: Icons.mark_email_unread_rounded,
-          primary: true,
-        ),
-      );
-    } else if (rawRoute.isNotEmpty &&
-        rawRoute != AppRoute.notifications &&
-        rawRoute != AppRoute.notificationDetails) {
-      actions.add(
-        _NotificationAction(
-          label: 'Open related item',
-          route: rawRoute,
-          icon: Icons.open_in_new_rounded,
-          primary: true,
-        ),
-      );
-    }
-
-    if (appointment != null &&
-        appointment.counselorId.trim().isNotEmpty &&
-        _canOpenCounselorProfile(role)) {
-      final encodedCounselorId = Uri.encodeQueryComponent(
-        appointment.counselorId,
-      );
-      actions.add(
-        _NotificationAction(
-          label: 'View Counselor',
-          route:
-              '${AppRoute.counselorProfile}?counselorId=$encodedCounselorId&from=notifications',
-          icon: Icons.person_outline_rounded,
-          primary: true,
-        ),
-      );
-    }
-
-    actions.add(
-      _NotificationAction(
-        label: _appointmentsLabelForRole(role),
-        route: _appointmentsRouteForRole(role),
-        icon: Icons.calendar_month_rounded,
-        primary: appointment == null,
-      ),
-    );
-    return actions;
   }
 
   void _navigateSection(
@@ -464,18 +377,12 @@ class NotificationDetailsScreen extends ConsumerWidget {
     required BuildContext context,
     required AppNotification notification,
     required AppointmentRecord? appointment,
-    required UserRole role,
   }) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final textTheme = theme.textTheme;
     final accent = _typeAccent(scheme, notification.type);
     final icon = _typeIcon(notification.type);
-    final actions = _buildActions(
-      notification: notification,
-      role: role,
-      appointment: appointment,
-    );
 
     return Container(
       width: double.infinity,
@@ -595,52 +502,6 @@ class NotificationDetailsScreen extends ConsumerWidget {
             const SizedBox(height: 16),
             _appointmentSummary(context: context, appointment: appointment),
           ],
-          if (actions.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: actions
-                  .map((action) {
-                    final style = action.primary
-                        ? ElevatedButton.styleFrom(
-                            backgroundColor: scheme.primary,
-                            foregroundColor: scheme.onPrimary,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                          )
-                        : OutlinedButton.styleFrom(
-                            foregroundColor: scheme.onSurface,
-                            side: BorderSide(
-                              color: scheme.outlineVariant.withValues(
-                                alpha: 0.75,
-                              ),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                          );
-                    final button = action.primary
-                        ? ElevatedButton.icon(
-                            onPressed: () => context.go(action.route),
-                            icon: Icon(action.icon, size: 18),
-                            label: Text(action.label),
-                            style: style,
-                          )
-                        : OutlinedButton.icon(
-                            onPressed: () => context.go(action.route),
-                            icon: Icon(action.icon, size: 18),
-                            label: Text(action.label),
-                            style: style,
-                          );
-                    return button;
-                  })
-                  .toList(growable: false),
-            ),
-          ],
         ],
       ),
     );
@@ -671,109 +532,11 @@ class NotificationDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCounselorHero({
-    required BuildContext context,
-    required AppNotification notification,
-    required AppointmentRecord? appointment,
-  }) {
-    final theme = Theme.of(context);
-    final accent = _typeAccent(theme.colorScheme, notification.type);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6D28D9), Color(0xFF2563EB), Color(0xFF0EA5A4)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(34),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F1D4ED8),
-            blurRadius: 28,
-            offset: Offset(0, 18),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _HeroPill(
-                label: _statusHeadline(notification).toUpperCase(),
-                background: const Color(0x26FFFFFF),
-              ),
-              _HeroPill(
-                label: notification.isRead ? 'READ' : 'UNREAD',
-                background: notification.isRead
-                    ? const Color(0x22FFFFFF)
-                    : accent.withValues(alpha: 0.22),
-              ),
-              if (appointment != null)
-                _HeroPill(
-                  label: _statusLabel(appointment.status).toUpperCase(),
-                  background: _statusColor(
-                    theme.colorScheme,
-                    appointment.status,
-                  ).withValues(alpha: 0.22),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            notification.title,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1.2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Review the alert, verify the latest session context, and take the next action without leaving the counselor workspace.',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: const Color(0xFFE3F2FF),
-              height: 1.42,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            children: [
-              _HeroMetricCard(
-                label: 'Received',
-                value:
-                    '${_formatDate(notification.createdAt)} ${_formatTime(notification.createdAt)}',
-              ),
-              _HeroMetricCard(
-                label: 'Type',
-                value: _formatDisplayType(notification.type),
-              ),
-              if (appointment != null)
-                _HeroMetricCard(
-                  label: 'Session date',
-                  value: _formatDate(appointment.startAt),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildCounselorNotificationView({
     required BuildContext context,
     required AppNotification notification,
     required AppointmentRecord? appointment,
-    required UserRole role,
     required UserProfile profile,
-    required bool showBackAction,
   }) {
     final isAdminMessage =
         notification.type.toLowerCase().trim() == 'admin_message';
@@ -784,48 +547,53 @@ class NotificationDetailsScreen extends ConsumerWidget {
       );
     }
 
+    final actionPanel = _buildCounselorNotificationActionPanel(
+      notification: notification,
+      profile: profile,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (showBackAction) ...[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: () => context.go(AppRoute.notifications),
-              icon: const Icon(Icons.arrow_back_rounded, size: 18),
-              label: const Text('Back to notifications'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF0C2233),
-                side: const BorderSide(color: Color(0xFFD7E0EA)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-        _buildCounselorHero(
-          context: context,
-          notification: notification,
-          appointment: appointment,
-        ),
-        const SizedBox(height: 18),
         _buildDetails(
           context: context,
           notification: notification,
           appointment: appointment,
-          role: role,
         ),
+        if (actionPanel != null) ...[const SizedBox(height: 16), actionPanel],
       ],
     );
+  }
+
+  Widget? _buildCounselorNotificationActionPanel({
+    required AppNotification notification,
+    required UserProfile profile,
+  }) {
+    final type = notification.type.toLowerCase().trim();
+    if (type == 'institution_invite') {
+      return _CounselorInviteNotificationActionCard(
+        notification: notification,
+        profile: profile,
+      );
+    }
+    if (type == 'reassignment_request_available') {
+      return _CounselorReassignmentInterestActionCard(
+        notification: notification,
+        profile: profile,
+      );
+    }
+    if (type == 'reassignment_patient_selected') {
+      return _CounselorReassignmentSelectionActionCard(
+        notification: notification,
+        profile: profile,
+      );
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
-    final role = profile?.role ?? UserRole.other;
     final firestore = _useWindowsRestFirestore
         ? null
         : ref.watch(firestoreProvider);
@@ -955,16 +723,13 @@ class NotificationDetailsScreen extends ConsumerWidget {
               context: context,
               notification: notification,
               appointment: appointment,
-              role: role,
               profile: profile,
-              showBackAction: showBackToNotifications,
             );
           }
           return _buildDetails(
             context: context,
             notification: notification,
             appointment: appointment,
-            role: role,
           );
         }
 
@@ -1050,20 +815,6 @@ class NotificationDetailsScreen extends ConsumerWidget {
       ),
     );
   }
-}
-
-class _NotificationAction {
-  const _NotificationAction({
-    required this.label,
-    required this.route,
-    required this.icon,
-    this.primary = false,
-  });
-
-  final String label;
-  final String route;
-  final IconData icon;
-  final bool primary;
 }
 
 class _AdminMessageReplyCard extends ConsumerStatefulWidget {
@@ -1452,77 +1203,6 @@ class _AdminMessageReplyCardState
   }
 }
 
-class _HeroPill extends StatelessWidget {
-  const _HeroPill({required this.label, required this.background});
-
-  final String label;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0x30FFFFFF)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroMetricCard extends StatelessWidget {
-  const _HeroMetricCard({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: 180),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: const Color(0x1FFFFFFF),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0x33FFFFFF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: const TextStyle(
-              color: Color(0xFFDDEBFF),
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.1,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _CounselorDetailStateCard extends StatelessWidget {
   const _CounselorDetailStateCard({required this.message});
 
@@ -1546,6 +1226,649 @@ class _CounselorDetailStateCard extends StatelessWidget {
           height: 1.5,
         ),
       ),
+    );
+  }
+}
+
+class _CounselorActionPanelCard extends StatelessWidget {
+  const _CounselorActionPanelCard({
+    required this.title,
+    required this.body,
+    required this.icon,
+    required this.accent,
+    required this.child,
+  });
+
+  final String title;
+  final String body;
+  final IconData icon;
+  final Color accent;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120B1A33),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      body,
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        height: 1.45,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _CounselorInlineFeedback extends StatelessWidget {
+  const _CounselorInlineFeedback({
+    required this.message,
+    required this.isError,
+  });
+
+  final String message;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = isError ? const Color(0xFFDC2626) : const Color(0xFF0E9B90);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isError ? const Color(0xFFFFF1F2) : const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isError ? const Color(0xFFFECACA) : const Color(0xFFA7F3D0),
+        ),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          color: accent,
+          fontWeight: FontWeight.w700,
+          height: 1.45,
+        ),
+      ),
+    );
+  }
+}
+
+class _CounselorInviteNotificationActionCard extends ConsumerStatefulWidget {
+  const _CounselorInviteNotificationActionCard({
+    required this.notification,
+    required this.profile,
+  });
+
+  final AppNotification notification;
+  final UserProfile profile;
+
+  @override
+  ConsumerState<_CounselorInviteNotificationActionCard> createState() =>
+      _CounselorInviteNotificationActionCardState();
+}
+
+class _CounselorInviteNotificationActionCardState
+    extends ConsumerState<_CounselorInviteNotificationActionCard> {
+  final TextEditingController _codeController = TextEditingController();
+  bool _isSubmitting = false;
+  String? _feedback;
+  bool _feedbackIsError = false;
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  void _setFeedback(String message, {required bool isError}) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _feedback = message;
+      _feedbackIsError = isError;
+    });
+  }
+
+  Future<void> _accept(UserInvite invite) async {
+    final code = _codeController.text.trim().toUpperCase();
+    if (code.isEmpty) {
+      _setFeedback(
+        'Enter the institution code to accept this invite.',
+        isError: true,
+      );
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .acceptInvite(invite: invite, institutionCode: code);
+      await syncAuthSessionState(ref);
+      if (!mounted) {
+        return;
+      }
+      final refreshedProfile = ref.read(currentUserProfileProvider).valueOrNull;
+      if (refreshedProfile?.role == UserRole.counselor &&
+          refreshedProfile?.counselorSetupCompleted == true) {
+        context.go(AppRoute.counselorDashboard);
+        return;
+      }
+      context.go(AppRoute.counselorSetup);
+    } catch (error) {
+      _setFeedback(
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _decline(UserInvite invite) async {
+    setState(() => _isSubmitting = true);
+    try {
+      await ref.read(institutionRepositoryProvider).declineInvite(invite);
+      _codeController.clear();
+      _setFeedback(
+        'Invite declined. The alert will remain here as history, but no further action is needed.',
+        isError: false,
+      );
+    } catch (error) {
+      _setFeedback(
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inviteId = widget.notification.relatedId?.trim() ?? '';
+    if (inviteId.isEmpty) {
+      return const _CounselorDetailStateCard(
+        message: 'This invite alert is missing its invite reference.',
+      );
+    }
+
+    final inviteAsync = ref.watch(inviteByIdProvider(inviteId));
+
+    return inviteAsync.when(
+      loading: () => const _CounselorLoadingCard(),
+      error: (error, _) => _CounselorDetailStateCard(
+        message: error.toString().replaceFirst('Exception: ', ''),
+      ),
+      data: (invite) {
+        if (invite == null) {
+          return const _CounselorDetailStateCard(
+            message: 'This invite is no longer available.',
+          );
+        }
+        if (invite.inviteeUid.trim().isNotEmpty &&
+            invite.inviteeUid != widget.profile.id) {
+          return const _CounselorDetailStateCard(
+            message: 'This invite belongs to another account.',
+          );
+        }
+
+        final institutionDocAsync = ref.watch(
+          institutionDocumentProvider(invite.institutionId),
+        );
+        final joinCode =
+            (institutionDocAsync.valueOrNull?['joinCode'] as String? ?? '')
+                .trim()
+                .toUpperCase();
+        if (joinCode.isNotEmpty &&
+            widget.profile.role == UserRole.counselor &&
+            _codeController.text.trim() != joinCode) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _codeController.text.trim() != joinCode) {
+              _codeController.text = joinCode;
+            }
+          });
+        }
+
+        if (!invite.isPending) {
+          final statusLabel = switch (invite.status) {
+            UserInviteStatus.accepted => 'accepted',
+            UserInviteStatus.declined => 'declined',
+            UserInviteStatus.revoked => 'revoked',
+            UserInviteStatus.pending =>
+              invite.isExpired ? 'expired' : 'pending',
+            UserInviteStatus.unknown => 'closed',
+          };
+          final resolvedChild = _feedback != null
+              ? _CounselorInlineFeedback(
+                  message: _feedback!,
+                  isError: _feedbackIsError,
+                )
+              : const Text(
+                  'No further action is needed here.',
+                  style: TextStyle(
+                    color: Color(0xFF475569),
+                    fontWeight: FontWeight.w700,
+                  ),
+                );
+          return _CounselorActionPanelCard(
+            title: 'Invite action already resolved',
+            body:
+                'This invite is now $statusLabel, so the notification stays informational only.',
+            icon: Icons.mark_email_read_rounded,
+            accent: const Color(0xFF0E9B90),
+            child: resolvedChild,
+          );
+        }
+
+        return _CounselorActionPanelCard(
+          title: 'Invite decision needed',
+          body:
+              'This is a real pending institution invite, so this is one of the few counselor notifications that should keep actions.',
+          icon: Icons.mark_email_unread_rounded,
+          accent: const Color(0xFF0E9B90),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: _codeController,
+                textCapitalization: TextCapitalization.characters,
+                autocorrect: false,
+                decoration: InputDecoration(
+                  labelText: 'Institution code',
+                  hintText: 'Enter or confirm the institution code',
+                  prefixIcon: const Icon(Icons.key_rounded),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+              ),
+              if (_feedback != null) ...[
+                const SizedBox(height: 12),
+                _CounselorInlineFeedback(
+                  message: _feedback!,
+                  isError: _feedbackIsError,
+                ),
+              ],
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  FilledButton.icon(
+                    onPressed: _isSubmitting ? null : () => _accept(invite),
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check_circle_outline_rounded),
+                    label: Text(
+                      _isSubmitting ? 'Accepting...' : 'Accept invite',
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _isSubmitting ? null : () => _decline(invite),
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('Decline invite'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CounselorReassignmentInterestActionCard extends ConsumerStatefulWidget {
+  const _CounselorReassignmentInterestActionCard({
+    required this.notification,
+    required this.profile,
+  });
+
+  final AppNotification notification;
+  final UserProfile profile;
+
+  @override
+  ConsumerState<_CounselorReassignmentInterestActionCard> createState() =>
+      _CounselorReassignmentInterestActionCardState();
+}
+
+class _CounselorReassignmentInterestActionCardState
+    extends ConsumerState<_CounselorReassignmentInterestActionCard> {
+  bool _submitting = false;
+  String? _feedback;
+  bool _feedbackIsError = false;
+
+  void _setFeedback(String message, {required bool isError}) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _feedback = message;
+      _feedbackIsError = isError;
+    });
+  }
+
+  Future<void> _expressInterest(SessionReassignmentRequest request) async {
+    setState(() => _submitting = true);
+    try {
+      await ref
+          .read(careRepositoryProvider)
+          .expressInterestInReassignment(request.id);
+      _setFeedback(
+        'Interest recorded. The original counselor and student were updated immediately.',
+        isError: false,
+      );
+    } catch (error) {
+      _setFeedback(
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appointmentId =
+        widget.notification.relatedAppointmentId?.trim() ?? '';
+    if (appointmentId.isEmpty) {
+      return const _CounselorDetailStateCard(
+        message: 'This transfer alert is missing its session reference.',
+      );
+    }
+
+    final requestAsync = ref.watch(
+      appointmentReassignmentRequestProvider(appointmentId),
+    );
+
+    return requestAsync.when(
+      loading: () => const _CounselorLoadingCard(),
+      error: (error, _) => _CounselorDetailStateCard(
+        message: error.toString().replaceFirst('Exception: ', ''),
+      ),
+      data: (request) {
+        if (request == null) {
+          return const _CounselorDetailStateCard(
+            message: 'This reassignment request is no longer active.',
+          );
+        }
+        final alreadyInterested = request.interestedCounselors.any(
+          (entry) => entry.counselorId == widget.profile.id,
+        );
+        final canRespond =
+            request.originalCounselorId != widget.profile.id &&
+            request.status == SessionReassignmentStatus.openForResponses &&
+            DateTime.now().toUtc().isBefore(request.responseDeadlineAt) &&
+            !alreadyInterested;
+
+        return _CounselorActionPanelCard(
+          title: 'Coverage decision available',
+          body:
+              'This alert is still actionable, so it keeps one inline decision instead of dumping you into a redirect.',
+          icon: Icons.volunteer_activism_outlined,
+          accent: const Color(0xFF4F46E5),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (alreadyInterested)
+                const _CounselorInlineFeedback(
+                  message:
+                      'You already raised your hand for this reassignment request.',
+                  isError: false,
+                )
+              else if (!canRespond)
+                const _CounselorInlineFeedback(
+                  message:
+                      'This request is no longer accepting counselor responses.',
+                  isError: true,
+                )
+              else
+                FilledButton.icon(
+                  onPressed: _submitting
+                      ? null
+                      : () => _expressInterest(request),
+                  icon: _submitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.volunteer_activism_outlined),
+                  label: Text(
+                    _submitting ? 'Submitting...' : 'I can take this session',
+                  ),
+                ),
+              if (_feedback != null) ...[
+                const SizedBox(height: 12),
+                _CounselorInlineFeedback(
+                  message: _feedback!,
+                  isError: _feedbackIsError,
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CounselorReassignmentSelectionActionCard extends ConsumerStatefulWidget {
+  const _CounselorReassignmentSelectionActionCard({
+    required this.notification,
+    required this.profile,
+  });
+
+  final AppNotification notification;
+  final UserProfile profile;
+
+  @override
+  ConsumerState<_CounselorReassignmentSelectionActionCard> createState() =>
+      _CounselorReassignmentSelectionActionCardState();
+}
+
+class _CounselorReassignmentSelectionActionCardState
+    extends ConsumerState<_CounselorReassignmentSelectionActionCard> {
+  bool _submitting = false;
+  String? _feedback;
+  bool _feedbackIsError = false;
+
+  void _setFeedback(String message, {required bool isError}) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _feedback = message;
+      _feedbackIsError = isError;
+    });
+  }
+
+  Future<void> _confirmTransfer(SessionReassignmentRequest request) async {
+    setState(() => _submitting = true);
+    try {
+      await ref
+          .read(careRepositoryProvider)
+          .confirmReassignmentTransfer(request.id);
+      _setFeedback(
+        'Transfer confirmed. The replacement counselor now owns the session.',
+        isError: false,
+      );
+    } catch (error) {
+      _setFeedback(
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appointmentId =
+        widget.notification.relatedAppointmentId?.trim() ?? '';
+    if (appointmentId.isEmpty) {
+      return const _CounselorDetailStateCard(
+        message:
+            'This transfer-selection alert is missing its session reference.',
+      );
+    }
+
+    final requestAsync = ref.watch(
+      appointmentReassignmentRequestProvider(appointmentId),
+    );
+
+    return requestAsync.when(
+      loading: () => const _CounselorLoadingCard(),
+      error: (error, _) => _CounselorDetailStateCard(
+        message: error.toString().replaceFirst('Exception: ', ''),
+      ),
+      data: (request) {
+        if (request == null) {
+          return const _CounselorDetailStateCard(
+            message: 'This reassignment request is no longer active.',
+          );
+        }
+
+        final isOriginalCounselor =
+            request.originalCounselorId == widget.profile.id;
+        final isSelectedCounselor =
+            request.selectedCounselorId == widget.profile.id;
+        final canConfirm =
+            isOriginalCounselor &&
+            request.status == SessionReassignmentStatus.patientSelected &&
+            (request.selectedCounselorId ?? '').trim().isNotEmpty;
+
+        final title = isOriginalCounselor
+            ? 'Patient choice is ready'
+            : 'Patient selected you';
+        final body = isOriginalCounselor
+            ? 'This is still a live decision for the original counselor, so confirming the transfer here makes sense.'
+            : 'You were selected as the replacement counselor. This stays informational because the original counselor still has the final handoff step.';
+
+        return _CounselorActionPanelCard(
+          title: title,
+          body: body,
+          icon: Icons.swap_horiz_rounded,
+          accent: const Color(0xFF4F46E5),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (canConfirm)
+                FilledButton.icon(
+                  onPressed: _submitting
+                      ? null
+                      : () => _confirmTransfer(request),
+                  icon: _submitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.check_circle_outline_rounded),
+                  label: Text(
+                    _submitting ? 'Confirming...' : 'Confirm transfer',
+                  ),
+                )
+              else if (isSelectedCounselor)
+                const _CounselorInlineFeedback(
+                  message:
+                      'You have been selected as the replacement counselor. Wait for the original counselor to finalize the handoff.',
+                  isError: false,
+                )
+              else
+                const _CounselorInlineFeedback(
+                  message:
+                      'This transfer selection is already resolved or no longer actionable here.',
+                  isError: true,
+                ),
+              if (_feedback != null) ...[
+                const SizedBox(height: 12),
+                _CounselorInlineFeedback(
+                  message: _feedback!,
+                  isError: _feedbackIsError,
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }

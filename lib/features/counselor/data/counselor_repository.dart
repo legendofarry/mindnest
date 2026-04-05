@@ -3,6 +3,7 @@ import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/counselor/models/counselor_institution_access_status.dart';
+import 'package:mindnest/features/counselor/models/counselor_language_catalog.dart';
 
 class CounselorRepository {
   CounselorRepository({
@@ -154,10 +155,7 @@ class CounselorRepository {
     final trimmedMode = sessionMode.trim();
     final trimmedTimezone = timezone.trim();
     final trimmedBio = bio.trim();
-    final cleanedLanguages = languages
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toList(growable: false);
+    final cleanedLanguages = normalizeCounselorLanguages(languages);
 
     if (trimmedTitle.length < 2) {
       throw Exception('Professional title is required.');
@@ -300,10 +298,7 @@ class CounselorRepository {
     final trimmedMode = sessionMode.trim();
     final trimmedTimezone = timezone.trim();
     final trimmedBio = bio.trim();
-    final cleanedLanguages = languages
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toList(growable: false);
+    final cleanedLanguages = normalizeCounselorLanguages(languages);
 
     if (trimmedName.length < 2) {
       throw Exception('Display name is required.');

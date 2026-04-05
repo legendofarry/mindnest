@@ -12,6 +12,7 @@ import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
 import 'package:mindnest/features/counselor/models/counselor_institution_access_status.dart';
+import 'package:mindnest/features/counselor/models/counselor_language_catalog.dart';
 import 'package:mindnest/core/ui/modern_banner.dart';
 
 class CounselorSetupScreen extends ConsumerStatefulWidget {
@@ -32,6 +33,12 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   final _titleController = TextEditingController();
   final _yearsController = TextEditingController();
   final _aiPromptController = TextEditingController();
+  final _titleFocusNode = FocusNode();
+  final _yearsFocusNode = FocusNode();
+  final _titleFieldKey = GlobalKey();
+  final _specializationsFieldKey = GlobalKey();
+  final _genderFieldKey = GlobalKey();
+  final _yearsFieldKey = GlobalKey();
 
   final Set<String> _selectedSpecializations = <String>{};
   final Set<String> _selectedLanguages = <String>{};
@@ -95,17 +102,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     'Non-binary',
   ];
 
-  static const List<String> _languageOptions = <String>[
-    'English',
-    'Swahili',
-    'Kikuyu',
-    'Luo',
-    'Kalenjin',
-    'Luhya',
-    'Kamba',
-    'Somali',
-  ];
-
   static const List<_StepItem> _steps = <_StepItem>[
     _StepItem(
       number: '01',
@@ -133,6 +129,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     _titleController.dispose();
     _yearsController.dispose();
     _aiPromptController.dispose();
+    _titleFocusNode.dispose();
+    _yearsFocusNode.dispose();
     super.dispose();
   }
 
@@ -149,6 +147,27 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       setState(() {
         _formErrorIndex = (_formErrorIndex + 1) % _formErrors.length;
       });
+    });
+  }
+
+  void _scrollToField(GlobalKey key, {FocusNode? focusNode}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final targetContext = key.currentContext;
+      if (targetContext == null) {
+        return;
+      }
+      unawaited(
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 380),
+          curve: Curves.easeOutCubic,
+          alignment: 0.12,
+        ).whenComplete(() {
+          if (mounted && focusNode != null) {
+            focusNode.requestFocus();
+          }
+        }),
+      );
     });
   }
 
@@ -393,17 +412,25 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
 
     if (!titleValid || !yearsValid || !hasSpecializations || !hasGender) {
       final errors = <String>[];
+      GlobalKey? firstInvalidFieldKey;
+      FocusNode? firstInvalidFocusNode;
       if (!titleValid) {
         errors.add('Please provide a professional title.');
-      }
-      if (!yearsValid) {
-        errors.add('Enter a valid number (0-60).');
+        firstInvalidFieldKey ??= _titleFieldKey;
+        firstInvalidFocusNode ??= _titleFocusNode;
       }
       if (!hasSpecializations) {
         errors.add('Select at least one specialization.');
+        firstInvalidFieldKey ??= _specializationsFieldKey;
       }
       if (!hasGender) {
         errors.add('Select counselor gender.');
+        firstInvalidFieldKey ??= _genderFieldKey;
+      }
+      if (!yearsValid) {
+        errors.add('Enter a valid number (0-60).');
+        firstInvalidFieldKey ??= _yearsFieldKey;
+        firstInvalidFocusNode ??= _yearsFocusNode;
       }
       setState(() {
         _titleError = !titleValid;
@@ -420,6 +447,9 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         }
         _startErrorTicker();
       });
+      if (firstInvalidFieldKey != null) {
+        _scrollToField(firstInvalidFieldKey, focusNode: firstInvalidFocusNode);
+      }
       return;
     }
 
@@ -625,115 +655,133 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                           ),
                         ),
                 ),
-                const _FieldLabel(text: 'PROFESSIONAL TITLE'),
-                const SizedBox(height: 8),
-                _RoundedInput(
-                  hasError: _titleError,
-                  child: TextFormField(
-                    controller: _titleController,
-                    onChanged: (_) {
-                      setState(() {
-                        _titleError = false;
-                        _formErrors.clear();
-                        _formErrorIndex = 0;
-                        _stopErrorTicker();
-                      });
-                    },
-                    decoration: InputDecoration(
-                      border: InputBorder.none,
-                      hintText: 'Licensed Professional Counselor',
-                      hintStyle: _setupHintStyle,
-                      prefixIcon: const Icon(Icons.badge_outlined),
-                      suffixIcon: _InlineAiIconButton(
-                        busy:
-                            _isAiWorking &&
-                            _activeAiTarget == _AiAssistTarget.title,
-                        enabled: !_isAiWorking,
-                        tooltip: 'Generate title',
-                        onTap: () =>
-                            _runAiAssist(target: _AiAssistTarget.title),
+                Container(
+                  key: _titleFieldKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _FieldLabel(text: 'PROFESSIONAL TITLE'),
+                      const SizedBox(height: 8),
+                      _RoundedInput(
+                        hasError: _titleError,
+                        child: TextFormField(
+                          controller: _titleController,
+                          focusNode: _titleFocusNode,
+                          onChanged: (_) {
+                            setState(() {
+                              _titleError = false;
+                              _formErrors.clear();
+                              _formErrorIndex = 0;
+                              _stopErrorTicker();
+                            });
+                          },
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            hintText: 'Licensed Professional Counselor',
+                            hintStyle: _setupHintStyle,
+                            prefixIcon: const Icon(Icons.badge_outlined),
+                            suffixIcon: _InlineAiIconButton(
+                              busy:
+                                  _isAiWorking &&
+                                  _activeAiTarget == _AiAssistTarget.title,
+                              enabled: !_isAiWorking,
+                              tooltip: 'Generate title',
+                              onTap: () =>
+                                  _runAiAssist(target: _AiAssistTarget.title),
+                            ),
+                          ),
+                          validator: (_) => null,
+                        ),
                       ),
-                    ),
-                    validator: (_) => null,
+                    ],
                   ),
                 ),
                 const SizedBox(height: 18),
-                const _FieldLabel(text: 'SPECIALIZATIONS'),
-                const SizedBox(height: 6),
-                if (isWide)
-                  const Text(
-                    'Choose every focus area you actively support.',
-                    style: TextStyle(
-                      color: Color(0xFF7A8CA4),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                if (!isWide)
-                  InkWell(
-                    onTap: () => setState(
-                      () =>
-                          _specializationsExpanded = !_specializationsExpanded,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        children: [
-                          Text(
-                            _specializationsExpanded
-                                ? 'Hide specializations'
-                                : 'Show specializations',
-                            style: const TextStyle(
-                              color: Color(0xFF0E9B90),
-                              fontWeight: FontWeight.w700,
+                Container(
+                  key: _specializationsFieldKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _FieldLabel(text: 'SPECIALIZATIONS'),
+                      const SizedBox(height: 6),
+                      if (isWide)
+                        const Text(
+                          'Choose every focus area you actively support.',
+                          style: TextStyle(
+                            color: Color(0xFF7A8CA4),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      if (!isWide)
+                        InkWell(
+                          onTap: () => setState(
+                            () => _specializationsExpanded =
+                                !_specializationsExpanded,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Row(
+                              children: [
+                                Text(
+                                  _specializationsExpanded
+                                      ? 'Hide specializations'
+                                      : 'Show specializations',
+                                  style: const TextStyle(
+                                    color: Color(0xFF0E9B90),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Icon(
+                                  _specializationsExpanded
+                                      ? Icons.keyboard_arrow_up_rounded
+                                      : Icons.keyboard_arrow_down_rounded,
+                                  color: const Color(0xFF0E9B90),
+                                ),
+                              ],
                             ),
                           ),
-                          const Spacer(),
-                          Icon(
-                            _specializationsExpanded
-                                ? Icons.keyboard_arrow_up_rounded
-                                : Icons.keyboard_arrow_down_rounded,
-                            color: const Color(0xFF0E9B90),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                if (isWide || _specializationsExpanded) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: _specializationsError
-                          ? const Color(0xFFFFF7F7)
-                          : const Color(0xFFF7FBFF),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: _specializationsError
-                            ? const Color(0xFFFCA5A5)
-                            : const Color(0xFFD7E4F1),
-                      ),
-                    ),
-                    child: Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: _specializations
-                          .asMap()
-                          .entries
-                          .map(
-                            (entry) => _SpecializationPill(
-                              label: entry.value,
-                              selected: _selectedSpecializations.contains(
-                                entry.value,
-                              ),
-                              index: entry.key,
-                              onTap: () => _toggleSpecialization(entry.value),
+                        ),
+                      if (isWide || _specializationsExpanded) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: _specializationsError
+                                ? const Color(0xFFFFF7F7)
+                                : const Color(0xFFF7FBFF),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: _specializationsError
+                                  ? const Color(0xFFFCA5A5)
+                                  : const Color(0xFFD7E4F1),
                             ),
-                          )
-                          .toList(growable: false),
-                    ),
+                          ),
+                          child: Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: _specializations
+                                .asMap()
+                                .entries
+                                .map(
+                                  (entry) => _SpecializationPill(
+                                    label: entry.value,
+                                    selected: _selectedSpecializations.contains(
+                                      entry.value,
+                                    ),
+                                    index: entry.key,
+                                    onTap: () =>
+                                        _toggleSpecialization(entry.value),
+                                  ),
+                                )
+                                .toList(growable: false),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
+                ),
                 const SizedBox(height: 18),
                 _buildGenderField(),
                 const SizedBox(height: 18),
@@ -814,123 +862,130 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   }
 
   Widget _buildYearsField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _FieldLabel(text: 'EXPERIENCE'),
-        const SizedBox(height: 8),
-        _RoundedInput(
-          hasError: _yearsError,
-          child: TextFormField(
-            controller: _yearsController,
-            keyboardType: TextInputType.number,
-            inputFormatters: <TextInputFormatter>[
-              FilteringTextInputFormatter.digitsOnly,
-            ],
-            onChanged: (_) {
-              setState(() {
-                _yearsError = false;
-                _formErrors.clear();
-                _formErrorIndex = 0;
-                _stopErrorTicker();
-              });
-            },
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              hintText: '3',
-              hintStyle: _setupHintStyle,
-              prefixIcon: Icon(Icons.timeline_rounded),
+    return Container(
+      key: _yearsFieldKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _FieldLabel(text: 'EXPERIENCE'),
+          const SizedBox(height: 8),
+          _RoundedInput(
+            hasError: _yearsError,
+            child: TextFormField(
+              controller: _yearsController,
+              focusNode: _yearsFocusNode,
+              keyboardType: TextInputType.number,
+              inputFormatters: <TextInputFormatter>[
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              onChanged: (_) {
+                setState(() {
+                  _yearsError = false;
+                  _formErrors.clear();
+                  _formErrorIndex = 0;
+                  _stopErrorTicker();
+                });
+              },
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: '3',
+                hintStyle: _setupHintStyle,
+                prefixIcon: Icon(Icons.timeline_rounded),
+              ),
+              validator: (_) => null,
             ),
-            validator: (_) => null,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildGenderField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _FieldLabel(text: 'COUNSELOR GENDER'),
-        const SizedBox(height: 6),
-        if (MediaQuery.sizeOf(context).width >= 720)
-          const Text(
-            'Including this can support respectful preference-based matching when a student is specifically seeking care from a counselor of a particular gender.',
-            style: TextStyle(
-              color: Color(0xFF7A8CA4),
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              height: 1.45,
-            ),
-          ),
-        if (MediaQuery.sizeOf(context).width < 720)
-          InkWell(
-            onTap: () => setState(() => _genderExpanded = !_genderExpanded),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Text(
-                    _genderExpanded ? 'Hide gender' : 'Show gender',
-                    style: const TextStyle(
-                      color: Color(0xFF0E9B90),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    _genderExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: const Color(0xFF0E9B90),
-                  ),
-                ],
+    return Container(
+      key: _genderFieldKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _FieldLabel(text: 'COUNSELOR GENDER'),
+          const SizedBox(height: 6),
+          if (MediaQuery.sizeOf(context).width >= 720)
+            const Text(
+              'Including this can support respectful preference-based matching when a student is specifically seeking care from a counselor of a particular gender.',
+              style: TextStyle(
+                color: Color(0xFF7A8CA4),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                height: 1.45,
               ),
             ),
-          ),
-        if (MediaQuery.sizeOf(context).width >= 720 || _genderExpanded)
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: _genderError
-                  ? const Color(0xFFFFF7F7)
-                  : const Color(0xFFF7FBFF),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
+          if (MediaQuery.sizeOf(context).width < 720)
+            InkWell(
+              onTap: () => setState(() => _genderExpanded = !_genderExpanded),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Text(
+                      _genderExpanded ? 'Hide gender' : 'Show gender',
+                      style: const TextStyle(
+                        color: Color(0xFF0E9B90),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      _genderExpanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: const Color(0xFF0E9B90),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (MediaQuery.sizeOf(context).width >= 720 || _genderExpanded)
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
                 color: _genderError
-                    ? const Color(0xFFFCA5A5)
-                    : const Color(0xFFD7E4F1),
+                    ? const Color(0xFFFFF7F7)
+                    : const Color(0xFFF7FBFF),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: _genderError
+                      ? const Color(0xFFFCA5A5)
+                      : const Color(0xFFD7E4F1),
+                ),
+              ),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: _genderOptions
+                    .asMap()
+                    .entries
+                    .map(
+                      (entry) => _OptionPill(
+                        label: entry.value,
+                        selected: _selectedGender == entry.value,
+                        index: entry.key,
+                        onTap: () {
+                          setState(() {
+                            _selectedGender = _selectedGender == entry.value
+                                ? null
+                                : entry.value;
+                            _formErrors.clear();
+                            _formErrorIndex = 0;
+                            _stopErrorTicker();
+                            _genderError = false;
+                          });
+                        },
+                      ),
+                    )
+                    .toList(growable: false),
               ),
             ),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: _genderOptions
-                  .asMap()
-                  .entries
-                  .map(
-                    (entry) => _OptionPill(
-                      label: entry.value,
-                      selected: _selectedGender == entry.value,
-                      index: entry.key,
-                      onTap: () {
-                        setState(() {
-                          _selectedGender = _selectedGender == entry.value
-                              ? null
-                              : entry.value;
-                          _formErrors.clear();
-                          _formErrorIndex = 0;
-                          _stopErrorTicker();
-                          _genderError = false;
-                        });
-                      },
-                    ),
-                  )
-                  .toList(growable: false),
-            ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1056,12 +1111,12 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
             child: Wrap(
               spacing: 10,
               runSpacing: 10,
-              children: _languageOptions
+              children: counselorLanguageOptions
                   .map(
                     (lang) => _SpecializationPill(
                       label: lang,
                       selected: _selectedLanguages.contains(lang),
-                      index: _languageOptions.indexOf(lang),
+                      index: counselorLanguageOptions.indexOf(lang),
                       onTap: () {
                         setState(() {
                           if (_selectedLanguages.contains(lang)) {

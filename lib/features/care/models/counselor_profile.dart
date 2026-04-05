@@ -1,3 +1,5 @@
+import 'package:mindnest/features/counselor/models/counselor_language_catalog.dart';
+
 class CounselorProfile {
   const CounselorProfile({
     required this.id,
@@ -33,14 +35,11 @@ class CounselorProfile {
 
   factory CounselorProfile.fromMap(String id, Map<String, dynamic> data) {
     final languagesRaw = data['languages'];
-    final languages = <String>[];
-    if (languagesRaw is List) {
-      for (final item in languagesRaw) {
-        if (item is String && item.trim().isNotEmpty) {
-          languages.add(item.trim());
-        }
-      }
-    }
+    final languages = switch (languagesRaw) {
+      final List<dynamic> values => normalizeCounselorLanguages(values),
+      final String value => normalizeCounselorLanguages(value.split(',')),
+      _ => const <String>[],
+    };
 
     final ratingRaw = data['ratingAverage'];
     final ratingAverage = ratingRaw is num ? ratingRaw.toDouble() : 0.0;

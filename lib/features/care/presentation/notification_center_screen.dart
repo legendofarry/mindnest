@@ -223,22 +223,16 @@ class _NotificationCenterScreenState
         return const _NotificationScreenCopy(
           headerTitle: 'Notifications',
           subtitle: 'Track institution updates and action-required alerts.',
-          heroText:
-              'Track institution invites, counselor updates, and action-required changes without losing context.',
         );
       case UserRole.counselor:
         return const _NotificationScreenCopy(
           headerTitle: 'Notifications',
           subtitle: 'Track booking updates, reminders, and access changes.',
-          heroText:
-              'Track session changes, reminders, and action-required alerts without losing context.',
         );
       default:
         return const _NotificationScreenCopy(
           headerTitle: 'Notifications',
           subtitle: 'Stay updated with your sessions',
-          heroText:
-              'Track session updates, invites, reminders, and action-required changes without losing context.',
         );
     }
   }
@@ -313,25 +307,6 @@ class _NotificationCenterScreenState
   }
 
   String _notificationTargetRoute(AppNotification notification) {
-    final normalizedType = notification.type.toLowerCase();
-    if (normalizedType == 'admin_message' ||
-        normalizedType == 'counselor_message') {
-      return _notificationDetailsRoute(notification.id);
-    }
-
-    final rawRoute = (notification.route ?? '').trim();
-    if (rawRoute.isNotEmpty) {
-      return rawRoute;
-    }
-    if (normalizedType == 'institution_invite' &&
-        (notification.relatedId ?? '').trim().isNotEmpty) {
-      return Uri(
-        path: AppRoute.inviteAccept,
-        queryParameters: <String, String>{
-          'inviteId': (notification.relatedId ?? '').trim(),
-        },
-      ).toString();
-    }
     return _notificationDetailsRoute(notification.id);
   }
 
@@ -1239,7 +1214,6 @@ class _NotificationCenterScreenState
                                 child: NotificationDetailsScreen(
                                   notificationId: selectedNotificationId,
                                   embedded: true,
-                                  showBackToNotifications: false,
                                 ),
                               ),
                       ),
@@ -1406,8 +1380,6 @@ class _NotificationCenterScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _NotificationHeroCard(copy: copy),
-              const SizedBox(height: 16),
               Expanded(
                 child: userId.isEmpty
                     ? _emptyCard(context, forUnread: false)
@@ -1517,75 +1489,6 @@ class _NotificationCenterScreenState
           ),
         ),
       ],
-    );
-  }
-}
-
-class _NotificationHeroCard extends StatelessWidget {
-  const _NotificationHeroCard({required this.copy});
-
-  final _NotificationScreenCopy copy;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0A1C35), Color(0xFF15486E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x180F172A),
-            blurRadius: 24,
-            offset: Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.notifications_active_rounded,
-                  size: 16,
-                  color: Color(0xFFBEEBF2),
-                ),
-                SizedBox(width: 8),
-                Text(
-                  'Notification center',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            copy.heroText,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              height: 1.28,
-              letterSpacing: -0.5,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1706,12 +1609,10 @@ class _NotificationScreenCopy {
   const _NotificationScreenCopy({
     required this.headerTitle,
     required this.subtitle,
-    required this.heroText,
   });
 
   final String headerTitle;
   final String subtitle;
-  final String heroText;
 }
 
 enum _NotificationContextAction {
