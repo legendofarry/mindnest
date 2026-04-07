@@ -149,6 +149,8 @@ class AuthRepository {
       if (existing == null) {
         await _windowsRest.setDocument('users/${user.uid}', {
           'email': user.email,
+          'emailLower': user.email.trim().toLowerCase(),
+          'emailVerified': user.emailVerified,
           'name': user.displayName ?? '',
           'role': UserRole.individual.name,
           'onboardingCompletedRoles': <String, int>{},
@@ -165,6 +167,9 @@ class AuthRepository {
       }
 
       await _windowsRest.updateDocument('users/${user.uid}', {
+        'email': user.email,
+        'emailLower': user.email.trim().toLowerCase(),
+        'emailVerified': user.emailVerified,
         'role': UserRole.individual.name,
         'institutionId': null,
         'institutionName': null,
@@ -179,6 +184,8 @@ class AuthRepository {
     if (!snapshot.exists) {
       await userDoc.set({
         'email': user.email,
+        'emailLower': user.email.trim().toLowerCase(),
+        'emailVerified': user.emailVerified,
         'name': user.displayName ?? '',
         'role': UserRole.individual.name,
         'onboardingCompletedRoles': <String, int>{},
@@ -195,6 +202,9 @@ class AuthRepository {
     }
 
     await userDoc.update({
+      'email': user.email,
+      'emailLower': user.email.trim().toLowerCase(),
+      'emailVerified': user.emailVerified,
       'role': UserRole.individual.name,
       'institutionId': null,
       'institutionName': null,
@@ -276,6 +286,8 @@ class AuthRepository {
 
         await _windowsRest.setDocument('users/${user.uid}', {
           ...profile.toMap(),
+          'emailLower': normalizedEmail,
+          'emailVerified': user.emailVerified,
           'onboardingCompletedRoles': <String, int>{},
           'createdAt': now,
           'updatedAt': now,
@@ -316,6 +328,8 @@ class AuthRepository {
 
         transaction.set(_firestore.collection('users').doc(user.uid), {
           ...profile.toMap(),
+          'emailLower': normalizedEmail,
+          'emailVerified': user.emailVerified,
           'onboardingCompletedRoles': <String, int>{},
           'createdAt': FieldValue.serverTimestamp(),
         });
@@ -756,6 +770,29 @@ class AuthRepository {
     await _auth.updatePassword(newPassword);
   }
 
+  Future<void> requestEmailChange(String newEmail) async {
+    final normalized = newEmail.trim().toLowerCase();
+    if (normalized.isEmpty || !normalized.contains('@')) {
+      throw Exception('Enter a valid email address.');
+    }
+    await _auth.requestEmailChange(normalized);
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      return;
+    }
+    if (kUseWindowsRestAuth) {
+      await _windowsRest.updateDocument('users/${currentUser.uid}', {
+        'pendingEmailChange': normalized,
+        'updatedAt': DateTime.now().toUtc(),
+      });
+      return;
+    }
+    await _firestore.collection('users').doc(currentUser.uid).set({
+      'pendingEmailChange': normalized,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   Future<Map<String, dynamic>> exportCurrentUserData() async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -868,10 +905,18 @@ class AuthRepository {
     if (kUseWindowsRestAuth) {
       final existing = await _windowsRest.getDocument('users/${user.uid}');
       if (existing != null) {
+        await _windowsRest.updateDocument('users/${user.uid}', {
+          'email': user.email,
+          'emailLower': user.email.trim().toLowerCase(),
+          'emailVerified': user.emailVerified,
+          'updatedAt': DateTime.now().toUtc(),
+        });
         return;
       }
       await _windowsRest.setDocument('users/${user.uid}', {
         'email': user.email,
+        'emailLower': user.email.trim().toLowerCase(),
+        'emailVerified': user.emailVerified,
         'name': user.displayName ?? '',
         'role': UserRole.individual.name,
         'onboardingCompletedRoles': <String, int>{},
@@ -890,11 +935,19 @@ class AuthRepository {
     final userDoc = _firestore.collection('users').doc(user.uid);
     final snapshot = await userDoc.get();
     if (snapshot.exists) {
+      await userDoc.set({
+        'email': user.email,
+        'emailLower': user.email.trim().toLowerCase(),
+        'emailVerified': user.emailVerified,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
       return;
     }
 
     await userDoc.set({
       'email': user.email,
+      'emailLower': user.email.trim().toLowerCase(),
+      'emailVerified': user.emailVerified,
       'name': user.displayName ?? '',
       'role': UserRole.individual.name,
       'onboardingCompletedRoles': <String, int>{},

@@ -818,7 +818,7 @@ class InstitutionRepository {
   }
 
   Future<InAppInviteDraft> createRoleInvite({
-    required String inviteePhoneNumber,
+    required String inviteeEmail,
     required UserRole role,
   }) async {
     if (role != UserRole.student &&
@@ -843,24 +843,26 @@ class InstitutionRepository {
 
     final institutionId = (profile['institutionId'] as String?) ?? '';
     final institutionName = (profile['institutionName'] as String?) ?? '';
-    final inviterName =
-        (profile['name'] as String?)?.trim() ??
-        (currentUser.displayName?.trim().isNotEmpty == true
-            ? currentUser.displayName!.trim()
-            : 'Institution Admin');
     if (institutionId.isEmpty || institutionName.isEmpty) {
       throw Exception('Admin profile is not linked to an institution.');
     }
 
-    final normalizedPhone = _normalizePhoneE164(inviteePhoneNumber);
+    final normalizedEmail = inviteeEmail.trim().toLowerCase();
+    if (normalizedEmail.isEmpty || !normalizedEmail.contains('@')) {
+      throw Exception('Enter a valid verified email address.');
+    }
     late final String inviteeUserId;
     late final Map<String, dynamic> inviteeData;
     if (kUseWindowsRestAuth) {
-      final inviteeUser = await _resolveInviteeByPhoneWindows(normalizedPhone);
+      final inviteeUser = await _resolveInviteeByVerifiedEmailWindows(
+        normalizedEmail,
+      );
       inviteeUserId = inviteeUser.id;
       inviteeData = inviteeUser.data;
     } else {
-      final inviteeSnapshot = await _resolveInviteeByPhone(normalizedPhone);
+      final inviteeSnapshot = await _resolveInviteeByVerifiedEmail(
+        normalizedEmail,
+      );
       inviteeUserId = inviteeSnapshot.id;
       inviteeData = inviteeSnapshot.data();
     }
@@ -884,7 +886,7 @@ class InstitutionRepository {
         ((inviteeData['name'] as String?) ?? '').trim().isNotEmpty
         ? ((inviteeData['name'] as String?) ?? '').trim()
         : 'MindNest user';
-    final invitedEmail = ((inviteeData['email'] as String?) ?? '')
+    final invitedEmail = ((inviteeData['email'] as String?) ?? normalizedEmail)
         .trim()
         .toLowerCase();
 
@@ -923,7 +925,7 @@ class InstitutionRepository {
         'institutionId': institutionId,
         'institutionName': institutionName,
         'inviteeUid': inviteeUserId,
-        'inviteePhoneE164': normalizedPhone,
+        'inviteePhoneE164': '',
         'invitedName': invitedName,
         'invitedEmail': invitedEmail,
         'intendedRole': role.name,
@@ -940,7 +942,7 @@ class InstitutionRepository {
         'institutionId': institutionId,
         'institutionName': institutionName,
         'inviteeUid': inviteeUserId,
-        'inviteePhoneE164': normalizedPhone,
+        'inviteePhoneE164': '',
         'invitedName': invitedName,
         'invitedEmail': invitedEmail,
         'intendedRole': role.name,
@@ -966,14 +968,6 @@ class InstitutionRepository {
               'joinCode': activeJoinCode,
             },
           ).toString();
-    final waMessage = _buildWhatsAppInviteText(
-      institutionName: institutionName,
-      inviterName: inviterName,
-      role: role,
-      joinCode: activeJoinCode,
-      expiresAtUtc: expiresAtUtc,
-    );
-
     await _createNotifications([
       _notificationPayload(
         userId: inviteeUserId,
@@ -998,7 +992,7 @@ class InstitutionRepository {
       details: <String, dynamic>{
         'inviteId': inviteId,
         'intendedRole': role.name,
-        'inviteePhoneE164': normalizedPhone,
+        'invitedEmail': invitedEmail,
         'expiresAt': kUseWindowsRestAuth
             ? expiresAtUtc
             : Timestamp.fromDate(expiresAtUtc),
@@ -1008,7 +1002,7 @@ class InstitutionRepository {
     return InAppInviteDraft(
       inviteId: inviteId,
       inviteeUid: inviteeUserId,
-      inviteePhoneE164: normalizedPhone,
+      inviteePhoneE164: '',
       invitedEmail: invitedEmail,
       invitedName: invitedName,
       institutionId: institutionId,
@@ -1016,12 +1010,38 @@ class InstitutionRepository {
       role: role,
       expiresAtUtc: expiresAtUtc,
       joinCode: activeJoinCode,
-      whatsAppMessage: waMessage,
-      whatsAppDeepLink: _buildWhatsAppDeepLink(
-        phoneE164: normalizedPhone,
-        message: waMessage,
-      ),
+      whatsAppMessage: '',
+      whatsAppDeepLink: '',
     );
+  }
+
+  Future<String?> counselorIntentNameByEmail(String inviteeEmail) async {
+    final normalized = inviteeEmail.trim().toLowerCase();
+    if (normalized.isEmpty || !normalized.contains('@')) {
+      return null;
+    }
+    final Map<String, dynamic>? resolved;
+    if (kUseWindowsRestAuth) {
+      resolved = (await _findUserByVerifiedEmailWindows(
+        normalized,
+        requireVerified: false,
+      ))?.data;
+    } else {
+      final snapshot = await _findUserByVerifiedEmail(
+        normalized,
+        requireVerified: false,
+      );
+      resolved = snapshot?.data();
+    }
+    if (resolved == null) {
+      return null;
+    }
+    final intent = (resolved['registrationIntent'] as String?)?.trim();
+    if (intent != UserProfile.counselorRegistrationIntent) {
+      return null;
+    }
+    final name = (resolved['name'] as String?)?.trim();
+    return name?.isNotEmpty == true ? name! : 'This user';
   }
 
   Future<String?> counselorIntentNameByPhone(String inviteePhoneNumber) async {
@@ -1052,6 +1072,61 @@ class InstitutionRepository {
     }
     final name = (resolved['name'] as String?)?.trim();
     return name?.isNotEmpty == true ? name! : 'This user';
+  }
+
+  Future<WindowsFirestoreDocument?> _findUserByVerifiedEmailWindows(
+    String normalizedEmail, {
+    required bool requireVerified,
+  }) async {
+    final documents = await _windowsRest.queryCollection(
+      collectionId: 'users',
+      filters: <WindowsFirestoreFieldFilter>[
+        WindowsFirestoreFieldFilter.equal('emailLower', normalizedEmail),
+      ],
+      limit: 1,
+    );
+    final document = documents.isNotEmpty ? documents.first : null;
+    if (document == null) {
+      final legacy = await _windowsRest.queryCollection(
+        collectionId: 'users',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal('email', normalizedEmail),
+        ],
+        limit: 1,
+      );
+      if (legacy.isEmpty) {
+        return null;
+      }
+      final legacyDocument = legacy.first;
+      if (requireVerified &&
+          (legacyDocument.data['emailVerified'] as bool?) != true) {
+        throw Exception(
+          'This user must verify their email before you can invite them.',
+        );
+      }
+      return legacyDocument;
+    }
+    if (requireVerified && (document.data['emailVerified'] as bool?) != true) {
+      throw Exception(
+        'This user must verify their email before you can invite them.',
+      );
+    }
+    return document;
+  }
+
+  Future<WindowsFirestoreDocument> _resolveInviteeByVerifiedEmailWindows(
+    String normalizedEmail,
+  ) async {
+    final user = await _findUserByVerifiedEmailWindows(
+      normalizedEmail,
+      requireVerified: true,
+    );
+    if (user == null) {
+      throw Exception(
+        'No verified user account was found for this email. Ask the user to sign up and verify email first.',
+      );
+    }
+    return user;
   }
 
   Future<void> _assertInviteeNotAlreadyMember({
@@ -1387,7 +1462,9 @@ class InstitutionRepository {
                 '',
             'email': (userData['email'] as String?) ?? '',
             'phoneNumber':
-                (latestInviteData['inviteePhoneE164'] as String?) ?? '',
+                (userData['phoneNumber'] as String?) ??
+                (latestInviteData['inviteePhoneE164'] as String?) ??
+                '',
             'joinedAt': nowUtc,
             'status': memberStatus,
             'joinedVia': 'invite',
@@ -1590,7 +1667,10 @@ class InstitutionRepository {
             (latestInviteData['invitedName'] as String?) ??
             '',
         'email': (userSnapshot.data()!['email'] as String?) ?? '',
-        'phoneNumber': (latestInviteData['inviteePhoneE164'] as String?) ?? '',
+        'phoneNumber':
+            (userSnapshot.data()!['phoneNumber'] as String?) ??
+            (latestInviteData['inviteePhoneE164'] as String?) ??
+            '',
         'joinedAt': FieldValue.serverTimestamp(),
         'status': memberStatus,
         'joinedVia': 'invite',
@@ -3174,6 +3254,11 @@ class InstitutionRepository {
   }
 
   Future<void> clearAllDataForDevelopment() async {
+    _ensureOwnerAccount();
+    if (!kIsWeb) {
+      throw Exception('Clear DB is enabled for development on web only.');
+    }
+
     final liveSessionsSnapshot = await _firestore
         .collection('live_sessions')
         .get();
@@ -3190,6 +3275,7 @@ class InstitutionRepository {
     }
 
     for (final collectionPath in const <String>[
+      'admin_counselor_messages',
       'appointments',
       'care_goals',
       'counselor_availability',
@@ -3202,10 +3288,13 @@ class InstitutionRepository {
       'institution_name_registry',
       'institutions',
       'live_sessions',
+      'mood_entries',
+      'mood_events',
       'notifications',
       'onboarding_responses',
       'phone_number_registry',
       'school_requests',
+      'session_reassignment_requests',
       'user_invites',
       'user_notification_settings',
       'user_privacy_settings',
@@ -3377,33 +3466,6 @@ class InstitutionRepository {
     }
   }
 
-  String _buildWhatsAppInviteText({
-    required String institutionName,
-    required String inviterName,
-    required UserRole role,
-    required String joinCode,
-    required DateTime expiresAtUtc,
-  }) {
-    return 'MindNest invite\n'
-        '$inviterName invited you to join $institutionName as ${role.label}.\n'
-        'Institution code: $joinCode\n'
-        'Open the MindNest app, go to Notifications, and accept the invite.\n'
-        'Invite expires: ${expiresAtUtc.toIso8601String()}';
-  }
-
-  String _buildWhatsAppDeepLink({
-    required String phoneE164,
-    required String message,
-  }) {
-    final destination = phoneE164.replaceAll(RegExp(r'[^0-9]'), '');
-    return Uri(
-      scheme: 'https',
-      host: 'wa.me',
-      path: destination,
-      queryParameters: <String, String>{'text': message},
-    ).toString();
-  }
-
   String _normalizePhoneE164(String rawPhone) {
     var normalized = rawPhone.trim().replaceAll(RegExp(r'[\s\-\(\)]'), '');
     if (normalized.startsWith('00')) {
@@ -3502,19 +3564,6 @@ class InstitutionRepository {
     }
 
     return null;
-  }
-
-  Future<WindowsFirestoreDocument> _resolveInviteeByPhoneWindows(
-    String phoneE164,
-  ) async {
-    final candidates = _buildPhoneCandidates(primaryPhone: phoneE164);
-    final user = await _findUserByPhoneCandidates(candidates);
-    if (user == null) {
-      throw Exception(
-        'No user account found for this phone number. Ask the user to register first.',
-      );
-    }
-    return user;
   }
 
   String _normalizedLifecycleReason(String? reason) {
@@ -4021,49 +4070,52 @@ class InstitutionRepository {
     ];
   }
 
-  Future<QueryDocumentSnapshot<Map<String, dynamic>>> _resolveInviteeByPhone(
-    String phoneE164,
-  ) async {
-    final candidates = <String>{phoneE164};
-    if (phoneE164.startsWith('+') && phoneE164.length > 1) {
-      candidates.add(phoneE164.substring(1));
-    }
-
+  Future<QueryDocumentSnapshot<Map<String, dynamic>>?> _findUserByVerifiedEmail(
+    String normalizedEmail, {
+    required bool requireVerified,
+  }) async {
     QueryDocumentSnapshot<Map<String, dynamic>>? found;
-    for (final candidate in candidates) {
-      final indexedSnapshot = await _firestore
-          .collection('users')
-          .where('phoneNumbers', arrayContains: candidate)
-          .limit(1)
-          .get();
-      if (indexedSnapshot.docs.isNotEmpty) {
-        found = indexedSnapshot.docs.first;
-        break;
-      }
 
-      final snapshot = await _firestore
+    final indexedSnapshot = await _firestore
+        .collection('users')
+        .where('emailLower', isEqualTo: normalizedEmail)
+        .limit(1)
+        .get();
+    if (indexedSnapshot.docs.isNotEmpty) {
+      found = indexedSnapshot.docs.first;
+    } else {
+      final legacySnapshot = await _firestore
           .collection('users')
-          .where('phoneNumber', isEqualTo: candidate)
+          .where('email', isEqualTo: normalizedEmail)
           .limit(1)
           .get();
-      if (snapshot.docs.isNotEmpty) {
-        found = snapshot.docs.first;
-        break;
-      }
-
-      final secondarySnapshot = await _firestore
-          .collection('users')
-          .where('additionalPhoneNumber', isEqualTo: candidate)
-          .limit(1)
-          .get();
-      if (secondarySnapshot.docs.isNotEmpty) {
-        found = secondarySnapshot.docs.first;
-        break;
+      if (legacySnapshot.docs.isNotEmpty) {
+        found = legacySnapshot.docs.first;
       }
     }
+
+    if (found == null) {
+      return null;
+    }
+
+    if (requireVerified && (found.data()['emailVerified'] as bool?) != true) {
+      throw Exception(
+        'This user must verify their email before you can invite them.',
+      );
+    }
+
+    return found;
+  }
+
+  Future<QueryDocumentSnapshot<Map<String, dynamic>>>
+  _resolveInviteeByVerifiedEmail(String normalizedEmail) async {
+    final found = await _findUserByVerifiedEmail(
+      normalizedEmail,
+      requireVerified: true,
+    );
     if (found == null) {
       throw Exception(
-        'No user account found for this phone number. Ask the user to register first.',
+        'No verified user account was found for this email. Ask the user to sign up and verify email first.',
       );
     }
     return found;

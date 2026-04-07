@@ -54,6 +54,8 @@ abstract class AppAuthClient {
 
   Future<void> updateDisplayName(String displayName);
 
+  Future<void> requestEmailChange(String newEmail);
+
   Future<AppAuthUser?> reloadCurrentUser();
 
   Future<String?> getIdToken({bool forceRefresh = false});
@@ -154,6 +156,20 @@ class FirebaseAppAuthClient implements AppAuthClient {
   Future<void> updateDisplayName(String displayName) async {
     await _auth.currentUser?.updateDisplayName(displayName);
     await _auth.currentUser?.reload();
+  }
+
+  @override
+  Future<void> requestEmailChange(String newEmail) async {
+    final normalized = newEmail.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      throw Exception('Enter a valid email address.');
+    }
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('You must be logged in.');
+    }
+    await user.verifyBeforeUpdateEmail(normalized);
+    await user.reload();
   }
 
   @override
@@ -404,6 +420,13 @@ class WindowsRestAppAuthClient implements AppAuthClient {
         });
     final nextSession = await _sessionFromAuthPayload(response);
     await _setSession(nextSession);
+  }
+
+  @override
+  Future<void> requestEmailChange(String newEmail) async {
+    throw UnsupportedError(
+      'Email change requests are currently only supported on the web build.',
+    );
   }
 
   @override

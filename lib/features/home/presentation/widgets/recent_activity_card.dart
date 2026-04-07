@@ -9,6 +9,7 @@ import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/app_notification.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/live/models/live_participant.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final _recentNotificationsProvider = StreamProvider.autoDispose
     .family<List<AppNotification>, String>((ref, userId) {
@@ -105,7 +106,7 @@ final _recentLiveJoinsProvider = StreamProvider.autoDispose
           });
     });
 
-class RecentActivityCard extends ConsumerWidget {
+class RecentActivityCard extends ConsumerStatefulWidget {
   const RecentActivityCard({
     super.key,
     required this.profile,
@@ -116,22 +117,71 @@ class RecentActivityCard extends ConsumerWidget {
   final bool sideBySide;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RecentActivityCard> createState() => _RecentActivityCardState();
+}
+
+class _RecentActivityCardState extends ConsumerState<RecentActivityCard> {
+  static const Duration _activityRetention = Duration(days: 7);
+  Set<String> _dismissedActivityIds = const <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDismissedActivities();
+  }
+
+  Future<void> _loadDismissedActivities() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored =
+        prefs.getStringList(_dismissedStorageKey()) ?? const <String>[];
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _dismissedActivityIds = stored.toSet();
+    });
+  }
+
+  String _dismissedStorageKey() =>
+      'recent_activity_dismissed_${widget.profile.id.trim()}';
+
+  Future<void> _dismissActivity(_RecentActivityItem item) async {
+    final next = <String>{..._dismissedActivityIds, item.id};
+    setState(() {
+      _dismissedActivityIds = next;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _dismissedStorageKey(),
+      next.toList(growable: false),
+    );
+  }
+
+  bool _isExpired(_RecentActivityItem item) {
+    return DateTime.now().difference(item.timestamp.toLocal()) >
+        _activityRetention;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final notificationsAsync = ref.watch(
-      _recentNotificationsProvider(profile.id),
+      _recentNotificationsProvider(widget.profile.id),
     );
-    final appointmentsAsync = (profile.institutionId ?? '').trim().isEmpty
+    final appointmentsAsync =
+        (widget.profile.institutionId ?? '').trim().isEmpty
         ? const AsyncData<List<AppointmentRecord>>(<AppointmentRecord>[])
         : ref.watch(
             _recentAppointmentsProvider(
               _ActivityScope(
-                institutionId: (profile.institutionId ?? '').trim(),
-                userId: profile.id.trim(),
+                institutionId: (widget.profile.institutionId ?? '').trim(),
+                userId: widget.profile.id.trim(),
               ),
             ),
           );
-    final liveJoinsAsync = ref.watch(_recentLiveJoinsProvider(profile.id));
+    final liveJoinsAsync = ref.watch(
+      _recentLiveJoinsProvider(widget.profile.id),
+    );
 
     final notifications =
         notificationsAsync.valueOrNull ?? const <AppNotification>[];
@@ -139,12 +189,16 @@ class RecentActivityCard extends ConsumerWidget {
         appointmentsAsync.valueOrNull ?? const <AppointmentRecord>[];
     final liveJoins = liveJoinsAsync.valueOrNull ?? const <_LiveJoinActivity>[];
 
-    final activities = _buildActivityItems(
-      context: context,
-      notifications: notifications,
-      appointments: appointments,
-      liveJoins: liveJoins,
-    );
+    final activities =
+        _buildActivityItems(
+              context: context,
+              notifications: notifications,
+              appointments: appointments,
+              liveJoins: liveJoins,
+            )
+            .where((item) => !_dismissedActivityIds.contains(item.id))
+            .where((item) => !_isExpired(item))
+            .toList(growable: false);
     final recentCounselors = _recentCounselors(appointments);
     final hasError =
         notificationsAsync.hasError ||
@@ -154,9 +208,7 @@ class RecentActivityCard extends ConsumerWidget {
         notificationsAsync.isLoading ||
         appointmentsAsync.isLoading ||
         liveJoinsAsync.isLoading;
-    final visibleActivities = activities
-        .take(sideBySide ? 5 : 6)
-        .toList(growable: false);
+    final visibleActivities = activities.take(3).toList(growable: false);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(22),
@@ -336,9 +388,9 @@ class RecentActivityCard extends ConsumerWidget {
                       border: Border.all(color: const Color(0xFFD7E3F3)),
                     ),
                     child: Text(
-                      (profile.institutionId ?? '').trim().isEmpty
+                      (widget.profile.institutionId ?? '').trim().isEmpty
                           ? 'Activity will build here once you start receiving alerts or joining an institution workspace.'
-                          : 'No recent activity yet. Your bookings, alerts, and live joins will start appearing here.',
+                          : 'No recent activity yet. Your latest bookings, alerts, and live joins will start appearing here.',
                       style: TextStyle(
                         color: scheme.onSurfaceVariant,
                         fontSize: 13.5,
@@ -354,7 +406,17 @@ class RecentActivityCard extends ConsumerWidget {
                         index < visibleActivities.length;
                         index++
                       ) ...[
-                        _RecentActivityTile(item: visibleActivities[index]),
+                        _RecentActivityTile(
+                          item: visibleActivities[index],
+                          onTap: visibleActivities[index].onTap == null
+                              ? null
+                              : () async {
+                                  await _dismissActivity(
+                                    visibleActivities[index],
+                                  );
+                                  visibleActivities[index].onTap?.call();
+                                },
+                        ),
                         if (index != visibleActivities.length - 1)
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 4),
@@ -453,6 +515,7 @@ class RecentActivityCard extends ConsumerWidget {
   ) {
     final route = (notification.route ?? '').trim();
     return _RecentActivityItem(
+      id: 'notification:${notification.id}',
       icon: Icons.notifications_active_outlined,
       accent: notification.isRead
           ? const Color(0xFFCBD5E1)
@@ -484,6 +547,7 @@ class RecentActivityCard extends ConsumerWidget {
       AppointmentStatus.noShow => 'Missed session',
     };
     return _RecentActivityItem(
+      id: 'appointment:${appointment.id}',
       icon: Icons.event_note_rounded,
       accent: _appointmentAccent(appointment.status),
       title: '$statusLabel with $counselorName',
@@ -505,6 +569,7 @@ class RecentActivityCard extends ConsumerWidget {
         ? ''
         : ' | Host: ${liveJoin.hostName.trim()}';
     return _RecentActivityItem(
+      id: 'live:${liveJoin.sessionId}:${liveJoin.joinedAt.millisecondsSinceEpoch}',
       icon: Icons.podcasts_rounded,
       accent: const Color(0xFF0F766E),
       title: '$joinedLabel ${liveJoin.title}',
@@ -625,6 +690,7 @@ class _RecentCounselor {
 
 class _RecentActivityItem {
   const _RecentActivityItem({
+    required this.id,
     required this.icon,
     required this.accent,
     required this.title,
@@ -634,6 +700,7 @@ class _RecentActivityItem {
     this.onTap,
   });
 
+  final String id;
   final IconData icon;
   final Color accent;
   final String title;
@@ -725,9 +792,10 @@ class _CounselorChip extends StatelessWidget {
 }
 
 class _RecentActivityTile extends StatelessWidget {
-  const _RecentActivityTile({required this.item});
+  const _RecentActivityTile({required this.item, this.onTap});
 
   final _RecentActivityItem item;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -795,12 +863,12 @@ class _RecentActivityTile extends StatelessWidget {
       ),
     );
 
-    if (item.onTap == null) {
+    if (onTap == null) {
       return content;
     }
 
     return InkWell(
-      onTap: item.onTap,
+      onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: content,
     );

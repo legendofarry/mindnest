@@ -54,7 +54,10 @@ class DesktopPrimaryShell extends ConsumerWidget {
     switch (uri.path) {
       case AppRoute.home:
       case AppRoute.counselorDirectory:
+      case AppRoute.counselorProfile:
       case AppRoute.studentAppointments:
+      case AppRoute.sessionDetails:
+      case AppRoute.carePlan:
       case AppRoute.liveHub:
       case AppRoute.notifications:
       case AppRoute.privacyControls:

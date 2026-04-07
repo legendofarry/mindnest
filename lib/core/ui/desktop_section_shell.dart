@@ -298,45 +298,6 @@ class DesktopSectionNav extends ConsumerWidget {
                       ),
                     );
                   }),
-                  const SizedBox(height: 18),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF2A3140), Color(0xFF242B38)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.05),
-                      ),
-                    ),
-                    child: const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'PRO TIP',
-                          style: TextStyle(
-                            color: Color(0xFF60E2CC),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.6,
-                          ),
-                        ),
-                        SizedBox(height: 12),
-                        Text(
-                          'Regular check-ins help counselors better understand your journey.',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            height: 1.55,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -414,6 +375,15 @@ String _resolvePrimaryNavLocation({
   required String matchedLocation,
   required Uri currentUri,
 }) {
+  switch (matchedLocation) {
+    case AppRoute.counselorProfile:
+      return AppRoute.counselorDirectory;
+    case AppRoute.sessionDetails:
+      return AppRoute.studentAppointments;
+    case AppRoute.carePlan:
+      return AppRoute.home;
+  }
+
   if (matchedLocation != AppRoute.notifications) {
     return matchedLocation;
   }
@@ -425,7 +395,14 @@ String _resolvePrimaryNavLocation({
     case AppRoute.counselorDirectory:
     case AppRoute.studentAppointments:
     case AppRoute.liveHub:
-      return returnToUri!.path;
+    case AppRoute.carePlan:
+      return returnToUri!.path == AppRoute.carePlan
+          ? AppRoute.home
+          : returnToUri.path;
+    case AppRoute.sessionDetails:
+      return AppRoute.studentAppointments;
+    case AppRoute.counselorProfile:
+      return AppRoute.counselorDirectory;
     default:
       return AppRoute.home;
   }

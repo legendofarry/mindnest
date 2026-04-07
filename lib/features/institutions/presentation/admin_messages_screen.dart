@@ -91,6 +91,23 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
   bool _windowsCounselorSidebarLoaded = false;
   String? _windowsCounselorSidebarError;
   List<_CounselorOption> _windowsCounselors = const [];
+  String? _appliedInitialCounselorId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final uri = GoRouterState.of(context).uri;
+    final counselorId = (uri.queryParameters['counselorId'] ?? '').trim();
+    if (counselorId.isEmpty || counselorId == _appliedInitialCounselorId) {
+      return;
+    }
+    _appliedInitialCounselorId = counselorId;
+    _selectedCounselorId = counselorId;
+    final counselorName = (uri.queryParameters['counselorName'] ?? '').trim();
+    if (counselorName.isNotEmpty) {
+      _selectedCounselorName = counselorName;
+    }
+  }
 
   @override
   void dispose() {
@@ -107,6 +124,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     required String adminId,
     required String counselorId,
   }) {
+    final threadKey = _threadKey(adminId, counselorId);
     if (_useWindowsPollingWorkaround) {
       return _buildWindowsPollingStream<List<_ChatMessage>>(
         load: () async {
@@ -115,16 +133,18 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
               .queryCollection(
                 collectionId: 'admin_counselor_messages',
                 filters: <WindowsFirestoreFieldFilter>[
-                  WindowsFirestoreFieldFilter.equal('adminId', adminId),
-                  WindowsFirestoreFieldFilter.equal('counselorId', counselorId),
-                ],
-                orderBy: const <WindowsFirestoreOrderBy>[
-                  WindowsFirestoreOrderBy('createdAt', descending: true),
+                  WindowsFirestoreFieldFilter.equal('threadKey', threadKey),
                 ],
               );
-          return documents
+          final messages = documents
               .map((doc) => _ChatMessage.fromMap(doc.id, doc.data))
               .toList(growable: false);
+          messages.sort((a, b) {
+            final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
+            final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
+            return bTime.compareTo(aTime);
+          });
+          return messages;
         },
         signature: (messages) => messages
             .map(
@@ -138,15 +158,19 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     final firestore = ref.read(firestoreProvider);
     final query = firestore
         .collection('admin_counselor_messages')
-        .where('adminId', isEqualTo: adminId)
-        .where('counselorId', isEqualTo: counselorId)
-        .orderBy('createdAt', descending: true);
+        .where('threadKey', isEqualTo: threadKey);
 
-    return query.snapshots().map(
-      (snap) => snap.docs
+    return query.snapshots().map((snap) {
+      final messages = snap.docs
           .map((doc) => _ChatMessage.fromMap(doc.id, doc.data()))
-          .toList(growable: false),
-    );
+          .toList(growable: false);
+      messages.sort((a, b) {
+        final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
+        final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
+        return bTime.compareTo(aTime);
+      });
+      return messages;
+    });
   }
 
   void _listenUnread(String adminId) {
@@ -162,17 +186,16 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
                     collectionId: 'admin_counselor_messages',
                     filters: <WindowsFirestoreFieldFilter>[
                       WindowsFirestoreFieldFilter.equal('adminId', adminId),
-                      WindowsFirestoreFieldFilter.equal(
-                        'senderRole',
-                        'counselor',
-                      ),
-                      WindowsFirestoreFieldFilter.equal('isRead', false),
                     ],
                     limit: 200,
                   );
               final counts = <String, int>{};
               for (final doc in documents) {
                 final data = doc.data;
+                if ((data['senderRole'] as String?) != 'counselor' ||
+                    (data['isRead'] as bool?) != false) {
+                  continue;
+                }
                 final cid = (data['counselorId'] as String?) ?? '';
                 if (cid.isEmpty) continue;
                 counts[cid] = (counts[cid] ?? 0) + 1;
@@ -187,13 +210,15 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
             final firestore = ref.read(firestoreProvider);
             final query = firestore
                 .collection('admin_counselor_messages')
-                .where('adminId', isEqualTo: adminId)
-                .where('senderRole', isEqualTo: 'counselor')
-                .where('isRead', isEqualTo: false);
+                .where('adminId', isEqualTo: adminId);
             return query.snapshots().map((snap) {
               final counts = <String, int>{};
               for (final doc in snap.docs) {
                 final data = doc.data();
+                if ((data['senderRole'] as String?) != 'counselor' ||
+                    (data['isRead'] as bool?) != false) {
+                  continue;
+                }
                 final cid = (data['counselorId'] as String?) ?? '';
                 if (cid.isEmpty) continue;
                 counts[cid] = (counts[cid] ?? 0) + 1;
@@ -233,14 +258,16 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
           collectionId: 'admin_counselor_messages',
           filters: <WindowsFirestoreFieldFilter>[
             WindowsFirestoreFieldFilter.equal('adminId', adminId),
-            WindowsFirestoreFieldFilter.equal('senderRole', 'counselor'),
-            WindowsFirestoreFieldFilter.equal('isRead', false),
           ],
           limit: 200,
         );
     final counts = <String, int>{};
     for (final doc in documents) {
       final data = doc.data;
+      if ((data['senderRole'] as String?) != 'counselor' ||
+          (data['isRead'] as bool?) != false) {
+        continue;
+      }
       final counselorId = (data['counselorId'] as String?) ?? '';
       if (counselorId.isEmpty) {
         continue;
@@ -319,14 +346,15 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
         final documents = await windowsRest.queryCollection(
           collectionId: 'admin_counselor_messages',
           filters: <WindowsFirestoreFieldFilter>[
-            WindowsFirestoreFieldFilter.equal('adminId', adminId),
-            WindowsFirestoreFieldFilter.equal('counselorId', counselorId),
-            WindowsFirestoreFieldFilter.equal('senderRole', 'counselor'),
-            WindowsFirestoreFieldFilter.equal('isRead', false),
+            WindowsFirestoreFieldFilter.equal('threadKey', threadKey),
           ],
           limit: 50,
         );
         for (final document in documents) {
+          if ((document.data['senderRole'] as String?) != 'counselor' ||
+              (document.data['isRead'] as bool?) != false) {
+            continue;
+          }
           await windowsRest.setDocument(
             'admin_counselor_messages/${document.id}',
             <String, dynamic>{...document.data, 'isRead': true},
@@ -344,15 +372,17 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
       final firestore = ref.read(firestoreProvider);
       final unreadSnap = await firestore
           .collection('admin_counselor_messages')
-          .where('adminId', isEqualTo: adminId)
-          .where('counselorId', isEqualTo: counselorId)
-          .where('senderRole', isEqualTo: 'counselor')
-          .where('isRead', isEqualTo: false)
+          .where('threadKey', isEqualTo: threadKey)
           .limit(50)
           .get();
       if (unreadSnap.docs.isEmpty) return;
       final batch = firestore.batch();
       for (final doc in unreadSnap.docs) {
+        final data = doc.data();
+        if ((data['senderRole'] as String?) != 'counselor' ||
+            (data['isRead'] as bool?) != false) {
+          continue;
+        }
         batch.update(doc.reference, {'isRead': true});
       }
       await batch.commit();
@@ -372,8 +402,10 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
       final documents = await windowsRest.queryCollection(
         collectionId: 'admin_counselor_messages',
         filters: <WindowsFirestoreFieldFilter>[
-          WindowsFirestoreFieldFilter.equal('adminId', adminId),
-          WindowsFirestoreFieldFilter.equal('counselorId', counselorId),
+          WindowsFirestoreFieldFilter.equal(
+            'threadKey',
+            _threadKey(adminId, counselorId),
+          ),
         ],
         limit: 100,
       );
@@ -387,8 +419,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
     final firestore = ref.read(firestoreProvider);
     Query<Map<String, dynamic>> query = firestore
         .collection('admin_counselor_messages')
-        .where('adminId', isEqualTo: adminId)
-        .where('counselorId', isEqualTo: counselorId)
+        .where('threadKey', isEqualTo: _threadKey(adminId, counselorId))
         .limit(100);
     final snap = await query.get();
     if (snap.docs.isEmpty) return;
@@ -891,7 +922,7 @@ class _AdminMessagesScreenState extends ConsumerState<AdminMessagesScreen> {
               child: Align(
                 alignment: Alignment.topCenter,
                 child: _AdminMessagesFloatingHeader(
-                  onBack: () => context.go(AppRoute.institutionAdminProfile),
+                  onBack: () => context.go(AppRoute.institutionAdmin),
                 ),
               ),
             ),

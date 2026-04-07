@@ -767,8 +767,8 @@ class HomeScreen extends ConsumerWidget {
                                   ),
                                   subtitle: Text(
                                     isDark
-                                        ? 'Dark mode enabled'
-                                        : 'Light mode enabled',
+                                        ? 'Dark mode enabled. Theme is in beta; if anything looks off, turn it off.'
+                                        : 'Light mode enabled. Theme is in beta; if anything looks off, turn it off.',
                                     style: TextStyle(color: textSecondary),
                                   ),
                                   secondary: Icon(

@@ -44,7 +44,6 @@ import 'package:mindnest/features/institutions/presentation/institution_pending_
 import 'package:mindnest/features/institutions/presentation/invite_accept_screen.dart';
 import 'package:mindnest/features/institutions/presentation/owner_dashboard_screen.dart';
 import 'package:mindnest/features/institutions/presentation/admin_messages_screen.dart';
-import 'package:mindnest/features/institutions/presentation/institution_admin_profile_screen.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/models/user_invite.dart';
 import 'package:mindnest/features/live/presentation/live_hub_screen.dart';
@@ -106,6 +105,7 @@ class AppRoute {
   static const setupReasonQuery = 'reason';
   static const notificationIdQuery = 'notificationId';
   static const returnToQuery = 'returnTo';
+  static const adminPanelQuery = 'panel';
 
   static String homeWithJoinCodeIntent() {
     return Uri(
@@ -478,6 +478,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
         if (isOwnerEmail(authState.email)) {
           return isOwnerRoute ? null : AppRoute.ownerDashboard;
+        }
+
+        if (location == AppRoute.privacyControls &&
+            profileAsync.valueOrNull?.role == UserRole.institutionAdmin) {
+          return Uri(
+            path: AppRoute.institutionAdmin,
+            queryParameters: const <String, String>{
+              AppRoute.adminPanelQuery: 'privacy',
+            },
+          ).toString();
+        }
+        if (location == AppRoute.institutionAdminProfile) {
+          return Uri(
+            path: AppRoute.institutionAdmin,
+            queryParameters: const <String, String>{
+              AppRoute.adminPanelQuery: 'profile',
+            },
+          ).toString();
         }
 
         if (isWindowsLoginOnlyMode) {
@@ -1162,26 +1180,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
+            path: AppRoute.counselorProfile,
+            builder: (context, state) {
+              final counselorId =
+                  state.uri.queryParameters['counselorId'] ?? '';
+              return CounselorProfileScreen(
+                counselorId: counselorId,
+                embeddedInDesktopShell: true,
+              );
+            },
+          ),
+          GoRoute(
+            path: AppRoute.sessionDetails,
+            builder: (context, state) {
+              final appointmentId =
+                  state.uri.queryParameters['appointmentId'] ?? '';
+              return SessionDetailsScreen(
+                appointmentId: appointmentId,
+                embeddedInDesktopShell: true,
+              );
+            },
+          ),
+          GoRoute(
+            path: AppRoute.carePlan,
+            builder: (context, state) =>
+                const StudentCarePlanScreen(embeddedInDesktopShell: true),
+          ),
+          GoRoute(
             path: AppRoute.privacyControls,
             builder: (context, state) =>
                 const PrivacyControlsScreen(embeddedInDesktopShell: true),
           ),
         ],
-      ),
-      GoRoute(
-        path: AppRoute.counselorProfile,
-        builder: (context, state) {
-          final counselorId = state.uri.queryParameters['counselorId'] ?? '';
-          return CounselorProfileScreen(counselorId: counselorId);
-        },
-      ),
-      GoRoute(
-        path: AppRoute.sessionDetails,
-        builder: (context, state) {
-          final appointmentId =
-              state.uri.queryParameters['appointmentId'] ?? '';
-          return SessionDetailsScreen(appointmentId: appointmentId);
-        },
       ),
       GoRoute(
         path: AppRoute.notificationDetails,
@@ -1190,10 +1220,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               state.uri.queryParameters['notificationId'] ?? '';
           return NotificationDetailsScreen(notificationId: notificationId);
         },
-      ),
-      GoRoute(
-        path: AppRoute.carePlan,
-        builder: (context, state) => const StudentCarePlanScreen(),
       ),
       GoRoute(
         path: AppRoute.crisisCounselorSupport,
@@ -1217,7 +1243,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoute.institutionAdminProfile,
-        builder: (context, state) => const InstitutionAdminProfileScreen(),
+        builder: (context, state) => const InstitutionAdminScreen(),
       ),
       GoRoute(
         path: AppRoute.institutionAdminMessages,

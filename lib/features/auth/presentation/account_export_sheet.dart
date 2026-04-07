@@ -1,5 +1,7 @@
 import 'dart:math' as math;
+import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
@@ -11,16 +13,50 @@ Future<void> showAccountExportSheet({
   String subtitle =
       'Download a polished PDF summary, spreadsheet-ready CSV tables, or the advanced raw JSON package.',
 }) {
-  return showModalBottomSheet<void>(
+  return showGeneralDialog<void>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (sheetContext) {
-      return _AccountExportSheet(
-        parentContext: context,
-        ref: ref,
-        title: title,
-        subtitle: subtitle,
+    barrierDismissible: true,
+    barrierLabel: 'Close export',
+    barrierColor: Colors.transparent,
+    transitionDuration: const Duration(milliseconds: 220),
+    pageBuilder: (dialogContext, animation, secondaryAnimation) {
+      return Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  color: const Color(0xB30B1220).withValues(alpha: 0.28),
+                ),
+              ),
+            ),
+            _AccountExportSheet(
+              parentContext: context,
+              ref: ref,
+              title: title,
+              subtitle: subtitle,
+            ),
+          ],
+        ),
+      );
+    },
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(
+            begin: 0.96,
+            end: 1,
+          ).animate(curved),
+          child: child,
+        ),
       );
     },
   );
@@ -209,12 +245,21 @@ class _AccountExportSheetState extends State<_AccountExportSheet> {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.sizeOf(context);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final maxSheetHeight = math.min(screenSize.height * 0.88, 760.0);
+    final floatingLayout = kIsWeb || screenSize.width >= 720;
+    final maxSheetHeight = math.min(
+      screenSize.height * (floatingLayout ? 0.82 : 0.88),
+      floatingLayout ? 720.0 : 760.0,
+    );
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 24, 16, 16 + bottomInset),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          floatingLayout ? 16 : 24,
+          16,
+          16 + bottomInset,
+        ),
         child: Align(
-          alignment: Alignment.bottomCenter,
+          alignment: floatingLayout ? Alignment.center : Alignment.bottomCenter,
           child: ConstrainedBox(
             constraints: BoxConstraints(
               maxWidth: 760,

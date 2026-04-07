@@ -85,9 +85,14 @@ enum _WeeklySlotStatus {
 }
 
 class CounselorProfileScreen extends ConsumerStatefulWidget {
-  const CounselorProfileScreen({super.key, required this.counselorId});
+  const CounselorProfileScreen({
+    super.key,
+    required this.counselorId,
+    this.embeddedInDesktopShell = false,
+  });
 
   final String counselorId;
+  final bool embeddedInDesktopShell;
 
   @override
   ConsumerState<CounselorProfileScreen> createState() =>
@@ -1059,13 +1064,11 @@ class _CounselorProfileScreenState
         color: background,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 14, color: foreground),
-            const SizedBox(width: 6),
-          ],
+          if (icon != null) Icon(icon, size: 14, color: foreground),
           Text(
             label,
             style: TextStyle(
@@ -1199,12 +1202,6 @@ class _CounselorProfileScreenState
                     icon: Icons.star_rounded,
                     tone: const Color(0xFFB5690F),
                   ),
-                  _ProfileMetricTile(
-                    label: 'Timezone',
-                    value: counselor.timezone,
-                    icon: Icons.public_rounded,
-                    tone: const Color(0xFF6D4CC3),
-                  ),
                 ],
               );
 
@@ -1269,133 +1266,6 @@ class _CounselorProfileScreenState
             ),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _buildProfessionalSnapshotCard(CounselorProfile counselor) {
-    return _ProfileSectionCard(
-      eyebrow: 'Professional snapshot',
-      title: 'How this counselor practices',
-      description:
-          'A structured view of the counselor profile students and peers use when reviewing fit, availability, and communication style.',
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final useTwoColumns = constraints.maxWidth >= 860;
-          final columnWidth = useTwoColumns
-              ? (constraints.maxWidth - 14) / 2
-              : constraints.maxWidth;
-          return Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            children: [
-              SizedBox(
-                width: columnWidth,
-                child: _ProfileInfoBlock(
-                  title: 'Focus area',
-                  icon: Icons.psychology_alt_rounded,
-                  accent: const Color(0xFF2457A6),
-                  body: counselor.specialization,
-                ),
-              ),
-              SizedBox(
-                width: columnWidth,
-                child: _ProfileInfoBlock(
-                  title: 'Session delivery',
-                  icon: Icons.desktop_windows_rounded,
-                  accent: const Color(0xFF0E8F61),
-                  body:
-                      '${counselor.sessionMode} sessions coordinated in ${counselor.timezone}.',
-                ),
-              ),
-              SizedBox(
-                width: columnWidth,
-                child: _ProfileInfoBlock(
-                  title: 'Profile summary',
-                  icon: Icons.notes_rounded,
-                  accent: const Color(0xFF6D4CC3),
-                  body: counselor.bio.trim().isNotEmpty
-                      ? counselor.bio.trim()
-                      : 'Professional biography has not been added yet.',
-                ),
-              ),
-              SizedBox(
-                width: columnWidth,
-                child: _ProfileInfoBlock(
-                  title: 'Student-facing signals',
-                  icon: Icons.visibility_rounded,
-                  accent: const Color(0xFFB5690F),
-                  body: [
-                    '${counselor.yearsExperience} years of experience',
-                    if (counselor.languages.isNotEmpty)
-                      '${counselor.languages.length} listed language${counselor.languages.length == 1 ? '' : 's'}',
-                    if ((counselor.gender ?? '').trim().isNotEmpty)
-                      'Gender shared on profile',
-                    '${counselor.ratingCount} public rating${counselor.ratingCount == 1 ? '' : 's'}',
-                  ].join(' • '),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildBookingPolicyCard() {
-    return _ProfileSectionCard(
-      eyebrow: 'Booking guidance',
-      title: 'What happens after a booking request',
-      description:
-          'Use this section to understand response timing, cancellation expectations, and how the counselor booking workflow is handled.',
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 760;
-          if (compact) {
-            return const Column(
-              children: [
-                _ProfileInfoBlock(
-                  title: 'Confirmation pace',
-                  icon: Icons.schedule_send_rounded,
-                  accent: Color(0xFF2457A6),
-                  body:
-                      'Counselors aim to confirm session requests within 2 hours.',
-                ),
-                SizedBox(height: 12),
-                _ProfileInfoBlock(
-                  title: 'Changes and cancellations',
-                  icon: Icons.update_rounded,
-                  accent: Color(0xFFB5690F),
-                  body:
-                      'Please cancel or reschedule at least 24 hours before the planned session time.',
-                ),
-              ],
-            );
-          }
-          return const Row(
-            children: [
-              Expanded(
-                child: _ProfileInfoBlock(
-                  title: 'Confirmation pace',
-                  icon: Icons.schedule_send_rounded,
-                  accent: Color(0xFF2457A6),
-                  body:
-                      'Counselors aim to confirm session requests within 2 hours.',
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _ProfileInfoBlock(
-                  title: 'Changes and cancellations',
-                  icon: Icons.update_rounded,
-                  accent: Color(0xFFB5690F),
-                  body:
-                      'Please cancel or reschedule at least 24 hours before the planned session time.',
-                ),
-              ),
-            ],
-          );
-        },
       ),
     );
   }
@@ -1645,6 +1515,13 @@ class _CounselorProfileScreenState
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (widget.embeddedInDesktopShell && !isCounselorWorkspace) ...[
+              _ProfileBreadcrumbTrail(
+                items: const ['Counselors', 'Public Counselor Profile'],
+                onTapLeading: () => context.go(AppRoute.counselorDirectory),
+              ),
+              const SizedBox(height: 12),
+            ],
             if (counselorSnapshot.connectionState == ConnectionState.waiting &&
                 counselor == null &&
                 !profileReadDenied)
@@ -1661,11 +1538,7 @@ class _CounselorProfileScreenState
                       counselorId: widget.counselorId,
                     )
                   : _buildCounselorHeroCard(counselor),
-            const SizedBox(height: 14),
-            _buildProfessionalSnapshotCard(effectiveCounselor),
             if (!isViewingPeerCounselor) ...[
-              const SizedBox(height: 14),
-              _buildBookingPolicyCard(),
               const SizedBox(height: 14),
               if (institutionId.isEmpty)
                 const _ProfileStateCard(
@@ -1785,7 +1658,78 @@ class _CounselorProfileScreenState
       );
     }
 
+    if (widget.embeddedInDesktopShell) {
+      return SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: content,
+      );
+    }
+
     return MindNestShell(maxWidth: 1080, appBar: null, child: content);
+  }
+}
+
+class _ProfileBreadcrumbTrail extends StatelessWidget {
+  const _ProfileBreadcrumbTrail({
+    required this.items,
+    this.onTapLeading,
+  });
+
+  final List<String> items;
+  final VoidCallback? onTapLeading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (var index = 0; index < items.length; index++) ...[
+          Container(
+            decoration: BoxDecoration(
+              color: index == items.length - 1
+                  ? const Color(0xFFE0F2FE)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: index == items.length - 1
+                    ? const Color(0xFFBAE6FD)
+                    : const Color(0xFFD9E3EE),
+              ),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: index == 0 ? onTapLeading : null,
+                borderRadius: BorderRadius.circular(999),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Text(
+                    items[index],
+                    style: TextStyle(
+                      color: index == items.length - 1
+                          ? const Color(0xFF0C4A6E)
+                          : const Color(0xFF475569),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (index != items.length - 1)
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: Color(0xFF94A3B8),
+            ),
+        ],
+      ],
+    );
   }
 }
 
@@ -1984,71 +1928,6 @@ class _ProfileMetricTile extends StatelessWidget {
               ),
             ),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileInfoBlock extends StatelessWidget {
-  const _ProfileInfoBlock({
-    required this.title,
-    required this.icon,
-    required this.accent,
-    required this.body,
-  });
-
-  final String title;
-  final IconData icon;
-  final Color accent;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFD),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFDCE6F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: accent, size: 18),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: Color(0xFF10233E),
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            body,
-            style: const TextStyle(
-              color: Color(0xFF5F738C),
-              fontSize: 14,
-              height: 1.55,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
         ],
       ),
     );

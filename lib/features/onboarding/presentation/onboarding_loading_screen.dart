@@ -74,28 +74,18 @@ class _OnboardingLoadingScreenState
   @override
   Widget build(BuildContext context) {
     return AuthBackgroundScaffold(
-      maxWidth: 420,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-        decoration: BoxDecoration(
-          color: const Color(0xFCFFFFFF),
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x140F172A),
-              blurRadius: 24,
-              offset: Offset(0, 12),
-            ),
-          ],
-        ),
+      maxWidth: 980,
+      scrollable: false,
+      child: SizedBox(
+        width: double.infinity,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const BrandMark(compact: true),
+            const BrandMark(compact: true, withBlob: true),
             const SizedBox(height: 18),
             SizedBox(
-              height: 160,
-              width: 160,
+              height: 240,
+              width: 240,
               child: Lottie.asset(
                 'assets/loading/loading.json',
                 repeat: true,
@@ -103,35 +93,40 @@ class _OnboardingLoadingScreenState
                 errorBuilder: (context, error, stackTrace) {
                   return const Icon(
                     Icons.hourglass_top_rounded,
-                    size: 72,
+                    size: 110,
                     color: Color(0xFF0E9B90),
                   );
                 },
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 18),
             Text(
               'Finalizing your setup...',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
                 color: const Color(0xFF071937),
                 fontWeight: FontWeight.w800,
+                letterSpacing: -0.7,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
-            Text(
-              'We are preparing your dashboard and reminders.',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF5E728D),
-                fontWeight: FontWeight.w500,
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Text(
+                'We are preparing your dashboard, reminders, and workspace context so the next screen lands cleanly.',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: const Color(0xFF5E728D),
+                  fontWeight: FontWeight.w500,
+                  height: 1.45,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 18),
             const SizedBox(
-              width: 26,
-              height: 26,
-              child: CircularProgressIndicator(strokeWidth: 2.6),
+              width: 30,
+              height: 30,
+              child: CircularProgressIndicator(strokeWidth: 2.8),
             ),
           ],
         ),

@@ -1,4 +1,5 @@
 // features/care/presentation/student_appointments_screen.dart
+import 'dart:ui';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -382,144 +383,116 @@ class _StudentAppointmentsScreenState
     return filtered;
   }
 
-  Future<void> _openTableFilterSheet() async {
-    var tempSort = _tableSort;
-    AppointmentStatus? tempStatus = _tableStatusFilter;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFD3DFEC),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.tune_rounded,
-                          color: Color(0xFF0E9B90),
-                          size: 20,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'Filters',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    DropdownButtonFormField<_AppointmentSort>(
-                      initialValue: tempSort,
-                      decoration: const InputDecoration(
-                        labelText: 'Sort',
-                        prefixIcon: Icon(Icons.swap_vert_rounded),
-                      ),
-                      items: _AppointmentSort.values
-                          .map(
-                            (sort) => DropdownMenuItem(
-                              value: sort,
-                              child: Text(_sortLabel(sort)),
-                            ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setSheetState(() => tempSort = value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<AppointmentStatus?>(
-                      initialValue: tempStatus,
-                      decoration: const InputDecoration(
-                        labelText: 'Status',
-                        prefixIcon: Icon(Icons.flag_rounded),
-                      ),
-                      items: [
-                        const DropdownMenuItem<AppointmentStatus?>(
-                          value: null,
-                          child: Text('All'),
-                        ),
-                        ...AppointmentStatus.values.map(
-                          (status) => DropdownMenuItem<AppointmentStatus?>(
-                            value: status,
-                            child: Text(_statusLabel(status)),
-                          ),
-                        ),
-                      ],
-                      onChanged: (value) =>
-                          setSheetState(() => tempStatus = value),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              setSheetState(() {
-                                tempSort = _AppointmentSort.newest;
-                                tempStatus = null;
-                              });
-                            },
-                            icon: const Icon(
-                              Icons.restart_alt_rounded,
-                              size: 16,
-                            ),
-                            label: const Text('Reset'),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              setState(() {
-                                _tableSort = tempSort;
-                                _tableStatusFilter = tempStatus;
-                                _tableCurrentPage = 0;
-                              });
-                              Navigator.of(sheetContext).pop();
-                            },
-                            icon: const Icon(Icons.check_rounded, size: 16),
-                            label: const Text('Apply'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+  Future<void> _openTableFilterMenu(BuildContext anchorContext) async {
+    final overlay =
+        Overlay.of(anchorContext).context.findRenderObject() as RenderBox;
+    final button = anchorContext.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(
+          button.size.bottomRight(Offset.zero),
+          ancestor: overlay,
+        ),
+      ),
+      Offset.zero & overlay.size,
     );
+
+    final selection = await showMenu<String>(
+      context: anchorContext,
+      position: position,
+      color: Colors.white,
+      elevation: 10,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      items: [
+        const PopupMenuItem<String>(
+          enabled: false,
+          height: 34,
+          child: Text(
+            'Sort',
+            style: TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+        ..._AppointmentSort.values.map(
+          (sort) => CheckedPopupMenuItem<String>(
+            value: 'sort:${sort.name}',
+            checked: _tableSort == sort,
+            child: Text(_sortLabel(sort)),
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          enabled: false,
+          height: 34,
+          child: Text(
+            'Status',
+            style: TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+        CheckedPopupMenuItem<String>(
+          value: 'status:all',
+          checked: _tableStatusFilter == null,
+          child: const Text('All statuses'),
+        ),
+        ...AppointmentStatus.values.map(
+          (status) => CheckedPopupMenuItem<String>(
+            value: 'status:${status.name}',
+            checked: _tableStatusFilter == status,
+            child: Text(_statusLabel(status)),
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'reset',
+          child: Row(
+            children: [
+              Icon(
+                Icons.restart_alt_rounded,
+                size: 17,
+                color: Color(0xFF0E7490),
+              ),
+              SizedBox(width: 8),
+              Text('Reset filters'),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (selection == null || !mounted) {
+      return;
+    }
+    setState(() {
+      if (selection == 'reset') {
+        _tableSort = _AppointmentSort.newest;
+        _tableStatusFilter = null;
+      } else if (selection.startsWith('sort:')) {
+        final raw = selection.substring(5);
+        _tableSort = _AppointmentSort.values.firstWhere(
+          (value) => value.name == raw,
+          orElse: () => _AppointmentSort.newest,
+        );
+      } else if (selection == 'status:all') {
+        _tableStatusFilter = null;
+      } else if (selection.startsWith('status:')) {
+        final raw = selection.substring(7);
+        _tableStatusFilter = AppointmentStatus.values.firstWhere(
+          (value) => value.name == raw,
+          orElse: () => _tableStatusFilter ?? AppointmentStatus.pending,
+        );
+      }
+      _tableCurrentPage = 0;
+    });
   }
 
   Color _statusColor(AppointmentStatus status) {
@@ -581,120 +554,174 @@ class _StudentAppointmentsScreenState
       return;
     }
 
-    await showModalBottomSheet<void>(
+    await showGeneralDialog<void>(
       context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
-            child: StreamBuilder<List<AvailabilitySlot>>(
-              stream: ref
-                  .read(careRepositoryProvider)
-                  .watchCounselorPublicAvailability(
-                    institutionId: institutionId,
-                    counselorId: appointment.counselorId,
-                  ),
-              builder: (context, snapshot) {
-                final slots = (snapshot.data ?? const [])
-                    .where((slot) => slot.id != appointment.slotId)
-                    .toList(growable: false);
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    slots.isEmpty) {
-                  return const SizedBox(
-                    height: 180,
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text(
-                      'Reschedule Session',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Pick a new available slot from this counselor.',
-                      style: TextStyle(color: Color(0xFF64748B)),
-                    ),
-                    const SizedBox(height: 12),
-                    if (slots.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Text('No alternate slots available right now.'),
-                      )
-                    else
-                      Flexible(
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: slots.length.clamp(0, 18),
-                          separatorBuilder: (_, _) => const SizedBox(height: 8),
-                          itemBuilder: (context, index) {
-                            final slot = slots[index];
-                            return ListTile(
-                              tileColor: const Color(0xFFF8FAFC),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              title: Text(_formatDate(slot.startAt)),
-                              subtitle: Text(
-                                'Ends: ${_formatDate(slot.endAt)}',
-                              ),
-                              trailing: ElevatedButton(
-                                onPressed: () async {
-                                  try {
-                                    await ref
-                                        .read(careRepositoryProvider)
-                                        .rescheduleAppointmentAsStudent(
-                                          appointment: appointment,
-                                          newSlot: slot,
-                                          currentProfile: profile,
-                                        );
-                                    if (!mounted) {
-                                      return;
-                                    }
-                                    Navigator.of(this.context).pop();
-                                    showModernBannerFromSnackBar(
-                                      this.context,
-                                      const SnackBar(
-                                        content: Text(
-                                          'Appointment rescheduled.',
-                                        ),
-                                      ),
-                                    );
-                                  } catch (error) {
-                                    if (!mounted) {
-                                      return;
-                                    }
-                                    showModernBannerFromSnackBar(
-                                      this.context,
-                                      SnackBar(
-                                        content: Text(
-                                          error.toString().replaceFirst(
-                                            'Exception: ',
-                                            '',
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                                child: const Text('Choose'),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                  ],
-                );
-              },
+      barrierLabel: 'Reschedule session',
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.20),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: const SizedBox.expand(),
+              ),
             ),
-          ),
+            SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 780),
+                  child: Container(
+                    margin: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(color: const Color(0xFFD6E2EF)),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x160F172A),
+                          blurRadius: 26,
+                          offset: Offset(0, 14),
+                        ),
+                      ],
+                    ),
+                    child: StreamBuilder<List<AvailabilitySlot>>(
+                      stream: ref
+                          .read(careRepositoryProvider)
+                          .watchCounselorPublicAvailability(
+                            institutionId: institutionId,
+                            counselorId: appointment.counselorId,
+                          ),
+                      builder: (context, snapshot) {
+                        final slots = (snapshot.data ?? const [])
+                            .where((slot) => slot.id != appointment.slotId)
+                            .toList(growable: false);
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
+                            slots.isEmpty) {
+                          return const SizedBox(
+                            height: 180,
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Reschedule Session',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'Pick a new available slot from this counselor.',
+                                        style: TextStyle(
+                                          color: Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(),
+                                  icon: const Icon(Icons.close_rounded),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (slots.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 20),
+                                child: Text(
+                                  'No alternate slots available right now.',
+                                ),
+                              )
+                            else
+                              Flexible(
+                                child: ListView.separated(
+                                  shrinkWrap: true,
+                                  itemCount: slots.length.clamp(0, 18),
+                                  separatorBuilder: (context, index) =>
+                                      const SizedBox(height: 8),
+                                  itemBuilder: (context, index) {
+                                    final slot = slots[index];
+                                    return ListTile(
+                                      tileColor: const Color(0xFFF8FAFC),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      title: Text(_formatDate(slot.startAt)),
+                                      subtitle: Text(
+                                        'Ends: ${_formatDate(slot.endAt)}',
+                                      ),
+                                      trailing: ElevatedButton(
+                                        onPressed: () async {
+                                          try {
+                                            await ref
+                                                .read(careRepositoryProvider)
+                                                .rescheduleAppointmentAsStudent(
+                                                  appointment: appointment,
+                                                  newSlot: slot,
+                                                  currentProfile: profile,
+                                                );
+                                            if (!mounted ||
+                                                !dialogContext.mounted) {
+                                              return;
+                                            }
+                                            Navigator.of(dialogContext).pop();
+                                            showModernBannerFromSnackBar(
+                                              this.context,
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Appointment rescheduled.',
+                                                ),
+                                              ),
+                                            );
+                                          } catch (error) {
+                                            if (!mounted) {
+                                              return;
+                                            }
+                                            showModernBannerFromSnackBar(
+                                              this.context,
+                                              SnackBar(
+                                                content: Text(
+                                                  error.toString().replaceFirst(
+                                                    'Exception: ',
+                                                    '',
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        child: const Text('Choose'),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -1137,16 +1164,20 @@ class _StudentAppointmentsScreenState
                       ),
                     ),
                     const Spacer(),
-                    OutlinedButton.icon(
-                      onPressed: _openTableFilterSheet,
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                          width: 1.5,
-                          color: Color(0xFF0E7490),
-                        ),
-                      ),
-                      icon: const Icon(Icons.tune_rounded, size: 12),
-                      label: const Text('Filters'),
+                    Builder(
+                      builder: (buttonContext) {
+                        return OutlinedButton.icon(
+                          onPressed: () => _openTableFilterMenu(buttonContext),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                              width: 1.5,
+                              color: Color(0xFF0E7490),
+                            ),
+                          ),
+                          icon: const Icon(Icons.tune_rounded, size: 12),
+                          label: const Text('Filters'),
+                        );
+                      },
                     ),
                     if (_activeTableFilterCount() > 0) ...[
                       const SizedBox(width: 8),

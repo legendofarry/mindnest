@@ -69,9 +69,14 @@ Stream<T> _buildWindowsPollingStream<T>({
 }
 
 class SessionDetailsScreen extends ConsumerStatefulWidget {
-  const SessionDetailsScreen({super.key, required this.appointmentId});
+  const SessionDetailsScreen({
+    super.key,
+    required this.appointmentId,
+    this.embeddedInDesktopShell = false,
+  });
 
   final String appointmentId;
+  final bool embeddedInDesktopShell;
 
   @override
   ConsumerState<SessionDetailsScreen> createState() =>
@@ -866,10 +871,20 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
 
           return SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 20),
-            child: Center(
+            padding: EdgeInsets.fromLTRB(
+              widget.embeddedInDesktopShell ? 0 : 14,
+              8,
+              widget.embeddedInDesktopShell ? 0 : 14,
+              20,
+            ),
+            child: Align(
+              alignment: widget.embeddedInDesktopShell
+                  ? Alignment.topLeft
+                  : Alignment.topCenter,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
+                constraints: BoxConstraints(
+                  maxWidth: widget.embeddedInDesktopShell ? 1040 : 760,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -878,7 +893,7 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                       fromNotifications: fromNotifications,
                       profile: profile,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -896,79 +911,167 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.calendar_month_rounded,
-                                size: 16,
-                                color: Color(0xFF4F46E5),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'SESSION DETAILS',
-                                style: TextStyle(
-                                  color: Color(0xFF4F46E5),
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 2,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(
-                                    color: statusColor.withValues(alpha: 0.22),
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final stackHeader = constraints.maxWidth < 760;
+                              final titleBlock = const Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.calendar_month_rounded,
+                                        size: 16,
+                                        color: Color(0xFF4F46E5),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'SESSION DETAILS',
+                                        style: TextStyle(
+                                          color: Color(0xFF4F46E5),
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 2,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                child: Text(
-                                  _statusLabel(appointment.status),
-                                  style: TextStyle(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 16,
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'Session Overview',
+                                    style: TextStyle(
+                                      color: Color(0xFF0F172A),
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 28,
+                                      letterSpacing: -0.7,
+                                    ),
                                   ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          const Text(
-                            'Counseling Session',
-                            style: TextStyle(
-                              color: Color(0xFF0F172A),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 23,
-                              letterSpacing: -0.3,
-                            ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Review the session timing, counselor context, and notes from the same workspace used across the app.',
+                                    style: TextStyle(
+                                      color: Color(0xFF5E728D),
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.45,
+                                    ),
+                                  ),
+                                ],
+                              );
+
+                              final statusTag = _sessionStatusTag(
+                                label: _statusLabel(appointment.status),
+                                icon: _statusIcon(appointment.status),
+                                color: statusColor,
+                              );
+
+                              if (stackHeader) {
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    titleBlock,
+                                    const SizedBox(height: 16),
+                                    statusTag,
+                                  ],
+                                );
+                              }
+
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(child: titleBlock),
+                                  const SizedBox(width: 18),
+                                  statusTag,
+                                ],
+                              );
+                            },
                           ),
                           const SizedBox(height: 24),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _partyCard(
-                                  label: 'COUNSELOR',
-                                  name: counselorName,
-                                  icon: Icons.person_outline_rounded,
-                                  iconTint: const Color(0xFF4F46E5),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _partyCard(
-                                  label: 'STUDENT',
-                                  name: studentName,
-                                  icon: Icons.person_outline_rounded,
-                                  iconTint: const Color(0xFF334155),
-                                ),
-                              ),
-                            ],
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final tilesPerRow = constraints.maxWidth >= 980
+                                  ? 4
+                                  : constraints.maxWidth >= 680
+                                  ? 2
+                                  : 1;
+                              final gap = 14.0;
+                              final tileWidth =
+                                  (constraints.maxWidth -
+                                          gap * (tilesPerRow - 1)) /
+                                      tilesPerRow;
+
+                              Widget tile(Widget child) =>
+                                  SizedBox(width: tileWidth, child: child);
+
+                              return Wrap(
+                                spacing: gap,
+                                runSpacing: gap,
+                                children: [
+                                  tile(
+                                    _detailBlock(
+                                      label: 'Counselor',
+                                      value: counselorName,
+                                      icon: Icons.person_outline_rounded,
+                                      accent: const Color(0xFF4F46E5),
+                                    ),
+                                  ),
+                                  tile(
+                                    _detailBlock(
+                                      label: 'Student',
+                                      value: studentName,
+                                      icon: Icons.person_rounded,
+                                      accent: const Color(0xFF0E9B90),
+                                    ),
+                                  ),
+                                  tile(
+                                    _detailBlock(
+                                      label: 'Date',
+                                      value: _formatDateLabel(
+                                        appointment.startAt,
+                                      ),
+                                      icon: Icons.event_rounded,
+                                      accent: const Color(0xFF7C3AED),
+                                    ),
+                                  ),
+                                  tile(
+                                    _detailBlock(
+                                      label: 'Time',
+                                      value:
+                                          '${_formatClock(appointment.startAt)} - ${_formatClock(appointment.endAt)}',
+                                      icon: Icons.schedule_rounded,
+                                      accent: const Color(0xFFD97706),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
+                          if (appointment.counselorId.trim().isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: OutlinedButton.icon(
+                                onPressed: () => context.go(
+                                  Uri(
+                                    path: AppRoute.counselorProfile,
+                                    queryParameters: <String, String>{
+                                      'counselorId': appointment.counselorId,
+                                    },
+                                  ).toString(),
+                                ),
+                                icon: const Icon(Icons.person_search_rounded),
+                                label: const Text('View counselor profile'),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 18,
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 16),
                           Container(
                             padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
@@ -982,90 +1085,6 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      width: 48,
-                                      height: 48,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(14),
-                                        border: Border.all(
-                                          color: const Color(0xFFDDE4ED),
-                                        ),
-                                        boxShadow: const [
-                                          BoxShadow(
-                                            color: Color(0x120F172A),
-                                            blurRadius: 10,
-                                            offset: Offset(0, 4),
-                                          ),
-                                        ],
-                                      ),
-                                      child: const Icon(
-                                        Icons.schedule_rounded,
-                                        color: Color(0xFF64748B),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'TIME & DURATION',
-                                            style: TextStyle(
-                                              color: Color(0xFF94A3B8),
-                                              fontWeight: FontWeight.w800,
-                                              letterSpacing: 1,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            '${_formatClock(appointment.startAt)}  ->  ${_formatClock(appointment.endAt)}',
-                                            style: const TextStyle(
-                                              color: Color(0xFF1E293B),
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        const Text(
-                                          'DATE',
-                                          style: TextStyle(
-                                            color: Color(0xFF94A3B8),
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: 1,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          _formatDateLabel(appointment.startAt),
-                                          style: const TextStyle(
-                                            color: Color(0xFF1E293B),
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 18,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                const Divider(
-                                  color: Color(0xFFDDE4ED),
-                                  height: 1,
-                                ),
-                                const SizedBox(height: 12),
                                 InkWell(
                                   borderRadius: BorderRadius.circular(10),
                                   onTap: () {
@@ -1081,7 +1100,7 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                                       children: [
                                         const Expanded(
                                           child: Text(
-                                            '... COUNSELOR NOTES',
+                                            'COUNSELOR NOTES',
                                             style: TextStyle(
                                               color: Color(0xFF8EA0BD),
                                               fontWeight: FontWeight.w800,
@@ -1108,14 +1127,13 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                                       : CrossFadeState.showFirst,
                                   firstChild: const SizedBox.shrink(),
                                   secondChild: Padding(
-                                    padding: const EdgeInsets.only(top: 8),
+                                    padding: const EdgeInsets.only(top: 12),
                                     child: Text(
-                                      '"$notes"',
+                                      notes,
                                       style: const TextStyle(
                                         color: Color(0xFF334155),
-                                        fontSize: 17,
-                                        height: 1.45,
-                                        fontStyle: FontStyle.italic,
+                                        fontSize: 16,
+                                        height: 1.55,
                                       ),
                                     ),
                                   ),
@@ -1204,34 +1222,6 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                                     },
                             ),
                           ],
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => context.go(
-                                    '${AppRoute.counselorProfile}?counselorId=${appointment.counselorId}',
-                                  ),
-                                  icon: const Icon(
-                                    Icons.person_outline_rounded,
-                                  ),
-                                  label: const Text('View Counselor'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF4F46E5),
-                                    foregroundColor: Colors.white,
-                                    minimumSize: const Size.fromHeight(58),
-                                    textStyle: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 15,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
                         ],
                       ),
                     ),
@@ -1261,6 +1251,9 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
   }
 
   Widget _baseScaffold({required Widget child}) {
+    if (widget.embeddedInDesktopShell) {
+      return child;
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF2F4F8),
       body: SafeArea(

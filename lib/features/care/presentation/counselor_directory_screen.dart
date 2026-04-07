@@ -18,7 +18,6 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
-import 'package:mindnest/features/care/models/counselor_public_rating.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
@@ -112,6 +111,7 @@ class _CounselorDirectoryScreenState
   String _specializationFilter = 'all';
   String _modeFilter = 'all';
   double? _minimumRatingFilter;
+  bool _isFilterPanelOpen = false;
   int _refreshTick = 0;
   int _rowsPerPage = 6;
   int _currentPage = 0;
@@ -119,9 +119,6 @@ class _CounselorDirectoryScreenState
   Stream<List<CounselorProfile>>? _counselorsStream;
   String? _counselorsStreamInstitutionId;
   int? _counselorsStreamRefreshTick;
-  Stream<List<CounselorPublicRating>>? _publicRatingsStream;
-  String? _publicRatingsStreamInstitutionId;
-  int? _publicRatingsStreamRefreshTick;
   Stream<List<AvailabilitySlot>>? _availabilityStream;
   String? _availabilityStreamInstitutionId;
   int? _availabilityStreamRefreshTick;
@@ -199,27 +196,6 @@ class _CounselorDirectoryScreenState
           .watchCounselors(institutionId: normalized);
     }
     return _counselorsStream!;
-  }
-
-  Stream<List<CounselorPublicRating>> _publicRatingsStreamFor(
-    String institutionId,
-  ) {
-    final normalized = institutionId.trim();
-    if (normalized.isEmpty) {
-      return Stream<List<CounselorPublicRating>>.value(
-        const <CounselorPublicRating>[],
-      );
-    }
-    if (_publicRatingsStream == null ||
-        _publicRatingsStreamInstitutionId != normalized ||
-        _publicRatingsStreamRefreshTick != _refreshTick) {
-      _publicRatingsStreamInstitutionId = normalized;
-      _publicRatingsStreamRefreshTick = _refreshTick;
-      _publicRatingsStream = ref
-          .read(careRepositoryProvider)
-          .watchInstitutionCounselorPublicRatings(institutionId: normalized);
-    }
-    return _publicRatingsStream!;
   }
 
   Stream<List<AvailabilitySlot>> _availabilityStreamFor(String institutionId) {
@@ -460,61 +436,52 @@ class _CounselorDirectoryScreenState
                       ],
                     ),
                     const SizedBox(height: 14),
-                    _ModalDropdownField<_CounselorSort>(
+                    _FilterSelectField<_CounselorSort>(
                       icon: Icons.schedule_rounded,
                       label: 'Sort',
                       value: tempSort,
-                      items: _CounselorSort.values
+                      options: _CounselorSort.values
                           .map(
-                            (sortValue) => DropdownMenuItem(
+                            (sortValue) => _FilterSelectOption(
                               value: sortValue,
-                              child: Text(_sortLabel(sortValue)),
+                              label: _sortLabel(sortValue),
                             ),
                           )
                           .toList(growable: false),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setSheetState(() => tempSort = value);
-                        }
-                      },
+                      onSelected: (value) =>
+                          setSheetState(() => tempSort = value),
                     ),
                     const SizedBox(height: 10),
-                    _ModalDropdownField<String>(
+                    _FilterSelectField<String>(
                       icon: Icons.psychology_alt_rounded,
                       label: 'Specialization',
                       value: tempSpecialization,
-                      items: specializationOptions
+                      options: specializationOptions
                           .map(
-                            (option) => DropdownMenuItem(
+                            (option) => _FilterSelectOption(
                               value: option,
-                              child: Text(option == 'all' ? 'All' : option),
+                              label: option == 'all' ? 'All' : option,
                             ),
                           )
                           .toList(growable: false),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setSheetState(() => tempSpecialization = value);
-                        }
-                      },
+                      onSelected: (value) =>
+                          setSheetState(() => tempSpecialization = value),
                     ),
                     const SizedBox(height: 10),
-                    _ModalDropdownField<String>(
+                    _FilterSelectField<String>(
                       icon: Icons.videocam_rounded,
                       label: 'Mode',
                       value: tempMode,
-                      items: modeOptions
+                      options: modeOptions
                           .map(
-                            (option) => DropdownMenuItem(
+                            (option) => _FilterSelectOption(
                               value: option,
-                              child: Text(option == 'all' ? 'All' : option),
+                              label: option == 'all' ? 'All modes' : option,
                             ),
                           )
                           .toList(growable: false),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setSheetState(() => tempMode = value);
-                        }
-                      },
+                      onSelected: (value) =>
+                          setSheetState(() => tempMode = value),
                     ),
                     const SizedBox(height: 12),
                     const Text(
@@ -825,254 +792,250 @@ class _CounselorDirectoryScreenState
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  return StreamBuilder<List<CounselorPublicRating>>(
-                    stream: _publicRatingsStreamFor(institutionId),
-                    builder: (context, publicRatingsSnapshot) {
-                      final publicRatings =
-                          publicRatingsSnapshot.data ?? const [];
-                      final ratingSumByCounselor = <String, int>{};
-                      final ratingCountByCounselor = <String, int>{};
-                      for (final rating in publicRatings) {
-                        final counselorId = rating.counselorId;
-                        ratingSumByCounselor[counselorId] =
-                            (ratingSumByCounselor[counselorId] ?? 0) +
-                            rating.rating;
-                        ratingCountByCounselor[counselorId] =
-                            (ratingCountByCounselor[counselorId] ?? 0) + 1;
+                  return StreamBuilder<List<AvailabilitySlot>>(
+                    stream: _availabilityStreamFor(institutionId),
+                    builder: (context, availabilitySnapshot) {
+                      final availability =
+                          availabilitySnapshot.data ?? const [];
+                      final earliestSlotByCounselor = <String, DateTime>{};
+                      for (final slot in availability) {
+                        final existing =
+                            earliestSlotByCounselor[slot.counselorId];
+                        if (existing == null ||
+                            slot.startAt.isBefore(existing)) {
+                          earliestSlotByCounselor[slot.counselorId] =
+                              slot.startAt;
+                        }
                       }
 
-                      return StreamBuilder<List<AvailabilitySlot>>(
-                        stream: _availabilityStreamFor(institutionId),
-                        builder: (context, availabilitySnapshot) {
-                          final availability =
-                              availabilitySnapshot.data ?? const [];
-                          final earliestSlotByCounselor = <String, DateTime>{};
-                          for (final slot in availability) {
-                            final existing =
-                                earliestSlotByCounselor[slot.counselorId];
-                            if (existing == null ||
-                                slot.startAt.isBefore(existing)) {
-                              earliestSlotByCounselor[slot.counselorId] =
-                                  slot.startAt;
+                      final specializations = <String>{'all'};
+                      final modes = <String>{'all'};
+                      for (final counselor in counselors) {
+                        specializations.add(counselor.specialization);
+                        modes.add(counselor.sessionMode);
+                      }
+
+                      final hasSpecialization = specializations.any(
+                        (item) =>
+                            item.toLowerCase() ==
+                            _specializationFilter.toLowerCase(),
+                      );
+                      if (!hasSpecialization) {
+                        _specializationFilter = 'all';
+                      }
+                      final hasMode = modes.any(
+                        (item) =>
+                            item.toLowerCase() == _modeFilter.toLowerCase(),
+                      );
+                      if (!hasMode) {
+                        _modeFilter = 'all';
+                      }
+
+                      final query = _searchController.text.trim().toLowerCase();
+                      final filtered = counselors
+                          .where((entry) {
+                            final matchesSearch =
+                                query.isEmpty ||
+                                ('${entry.displayName} ${entry.specialization} ${entry.languages.join(' ')}'
+                                        .toLowerCase())
+                                    .contains(query);
+                            final matchesSpecialization =
+                                _specializationFilter == 'all' ||
+                                entry.specialization.toLowerCase() ==
+                                    _specializationFilter.toLowerCase();
+                            final matchesMode =
+                                _modeFilter == 'all' ||
+                                entry.sessionMode.toLowerCase() ==
+                                    _modeFilter.toLowerCase();
+                            final matchesRating =
+                                _minimumRatingFilter == null ||
+                                entry.ratingAverage >= _minimumRatingFilter!;
+                            return matchesSearch &&
+                                matchesSpecialization &&
+                                matchesMode &&
+                                matchesRating;
+                          })
+                          .toList(growable: false);
+
+                      filtered.sort((a, b) {
+                        switch (_sort) {
+                          case _CounselorSort.earliestAvailable:
+                            final aSlot = earliestSlotByCounselor[a.id];
+                            final bSlot = earliestSlotByCounselor[b.id];
+                            if (aSlot == null && bSlot == null) {
+                              return a.displayName.compareTo(b.displayName);
                             }
-                          }
-
-                          double ratingAverageFor(CounselorProfile counselor) {
-                            final count = ratingCountByCounselor[counselor.id];
-                            if (count == null || count == 0) {
-                              return counselor.ratingAverage;
+                            if (aSlot == null) {
+                              return 1;
                             }
-                            final total =
-                                ratingSumByCounselor[counselor.id] ?? 0;
-                            return total / count;
-                          }
-
-                          int ratingCountFor(CounselorProfile counselor) {
-                            return ratingCountByCounselor[counselor.id] ??
-                                counselor.ratingCount;
-                          }
-
-                          final specializations = <String>{'all'};
-                          final modes = <String>{'all'};
-                          for (final counselor in counselors) {
-                            specializations.add(counselor.specialization);
-                            modes.add(counselor.sessionMode);
-                          }
-
-                          final hasSpecialization = specializations.any(
-                            (item) =>
-                                item.toLowerCase() ==
-                                _specializationFilter.toLowerCase(),
-                          );
-                          if (!hasSpecialization) {
-                            _specializationFilter = 'all';
-                          }
-                          final hasMode = modes.any(
-                            (item) =>
-                                item.toLowerCase() == _modeFilter.toLowerCase(),
-                          );
-                          if (!hasMode) {
-                            _modeFilter = 'all';
-                          }
-
-                          final query = _searchController.text
-                              .trim()
-                              .toLowerCase();
-                          final filtered = counselors
-                              .where((entry) {
-                                final matchesSearch =
-                                    query.isEmpty ||
-                                    ('${entry.displayName} ${entry.specialization} ${entry.languages.join(' ')}'
-                                            .toLowerCase())
-                                        .contains(query);
-                                final matchesSpecialization =
-                                    _specializationFilter == 'all' ||
-                                    entry.specialization.toLowerCase() ==
-                                        _specializationFilter.toLowerCase();
-                                final matchesMode =
-                                    _modeFilter == 'all' ||
-                                    entry.sessionMode.toLowerCase() ==
-                                        _modeFilter.toLowerCase();
-                                final matchesRating =
-                                    _minimumRatingFilter == null ||
-                                    ratingAverageFor(entry) >=
-                                        _minimumRatingFilter!;
-                                return matchesSearch &&
-                                    matchesSpecialization &&
-                                    matchesMode &&
-                                    matchesRating;
-                              })
-                              .toList(growable: false);
-
-                          filtered.sort((a, b) {
-                            switch (_sort) {
-                              case _CounselorSort.earliestAvailable:
-                                final aSlot = earliestSlotByCounselor[a.id];
-                                final bSlot = earliestSlotByCounselor[b.id];
-                                if (aSlot == null && bSlot == null) {
-                                  return a.displayName.compareTo(b.displayName);
-                                }
-                                if (aSlot == null) {
-                                  return 1;
-                                }
-                                if (bSlot == null) {
-                                  return -1;
-                                }
-                                return aSlot.compareTo(bSlot);
-                              case _CounselorSort.ratingHigh:
-                                return ratingAverageFor(
-                                  b,
-                                ).compareTo(ratingAverageFor(a));
-                              case _CounselorSort.experienceHigh:
-                                return b.yearsExperience.compareTo(
-                                  a.yearsExperience,
-                                );
+                            if (bSlot == null) {
+                              return -1;
                             }
-                          });
+                            return aSlot.compareTo(bSlot);
+                          case _CounselorSort.ratingHigh:
+                            return b.ratingAverage.compareTo(a.ratingAverage);
+                          case _CounselorSort.experienceHigh:
+                            return b.yearsExperience.compareTo(
+                              a.yearsExperience,
+                            );
+                        }
+                      });
 
-                          final hasActiveFilters =
-                              query.isNotEmpty ||
-                              _specializationFilter != 'all' ||
-                              _modeFilter != 'all' ||
-                              _minimumRatingFilter != null;
-                          final specializationOptions = specializations.toList()
-                            ..sort();
-                          final modeOptions = modes.toList()..sort();
-                          final totalRows = filtered.length;
-                          final totalPages = totalRows == 0
-                              ? 1
-                              : ((totalRows + _rowsPerPage - 1) ~/
-                                    _rowsPerPage);
-                          final pageIndex = _currentPage >= totalPages
-                              ? totalPages - 1
-                              : _currentPage;
-                          final pagedRows = filtered
-                              .skip(pageIndex * _rowsPerPage)
-                              .take(_rowsPerPage)
-                              .toList(growable: false);
+                      final hasActiveFilters =
+                          query.isNotEmpty ||
+                          _specializationFilter != 'all' ||
+                          _modeFilter != 'all' ||
+                          _minimumRatingFilter != null;
+                      final specializationOptions = specializations.toList()
+                        ..sort();
+                      final modeOptions = modes.toList()..sort();
+                      final totalRows = filtered.length;
+                      final totalPages = totalRows == 0
+                          ? 1
+                          : ((totalRows + _rowsPerPage - 1) ~/ _rowsPerPage);
+                      final pageIndex = _currentPage >= totalPages
+                          ? totalPages - 1
+                          : _currentPage;
+                      final pagedRows = filtered
+                          .skip(pageIndex * _rowsPerPage)
+                          .take(_rowsPerPage)
+                          .toList(growable: false);
 
-                          final filteredCounselorIds = filtered
-                              .map((entry) => entry.id)
-                              .toSet();
-                          final activeNowCount = filtered
-                              .where(
-                                (entry) =>
-                                    earliestSlotByCounselor[entry.id] != null,
-                              )
-                              .length;
-                          DateTime? nextOpenSlot;
-                          for (final slot in availability) {
-                            if (!filteredCounselorIds.contains(
-                              slot.counselorId,
-                            )) {
-                              continue;
-                            }
-                            if (nextOpenSlot == null ||
-                                slot.startAt.isBefore(nextOpenSlot)) {
-                              nextOpenSlot = slot.startAt;
-                            }
-                          }
+                      final filteredCounselorIds = filtered
+                          .map((entry) => entry.id)
+                          .toSet();
+                      final activeNowCount = filtered
+                          .where(
+                            (entry) =>
+                                earliestSlotByCounselor[entry.id] != null,
+                          )
+                          .length;
+                      DateTime? nextOpenSlot;
+                      for (final slot in availability) {
+                        if (!filteredCounselorIds.contains(slot.counselorId)) {
+                          continue;
+                        }
+                        if (nextOpenSlot == null ||
+                            slot.startAt.isBefore(nextOpenSlot)) {
+                          nextOpenSlot = slot.startAt;
+                        }
+                      }
 
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _CounselorOverviewStrip(
-                                activeNowCount: activeNowCount,
-                                nextOpenSlotLabel: _formatNextOpenSlotSummary(
-                                  nextOpenSlot,
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _CounselorOverviewStrip(
+                            activeNowCount: activeNowCount,
+                            nextOpenSlotLabel: _formatNextOpenSlotSummary(
+                              nextOpenSlot,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _CounselorDirectoryTable(
+                            rows: pagedRows
+                                .map(
+                                  (counselor) => _CounselorTableRowData(
+                                    counselorId: counselor.id,
+                                    displayName: counselor.displayName,
+                                    title: counselor.title,
+                                    specialization: counselor.specialization,
+                                    sessionMode: counselor.sessionMode,
+                                    languages: counselor.languages,
+                                    yearsExperience: counselor.yearsExperience,
+                                    ratingAverage: counselor.ratingAverage,
+                                    ratingCount: counselor.ratingCount,
+                                    earliestAvailable:
+                                        earliestSlotByCounselor[counselor.id],
+                                  ),
+                                )
+                                .toList(growable: false),
+                            formatSlot: _formatSlot,
+                            onOpenProfile: (counselorId) {
+                              context.push(
+                                _counselorProfileRouteFromCounselors(
+                                  counselorId,
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                              _CounselorDirectoryTable(
-                                rows: pagedRows
-                                    .map(
-                                      (counselor) => _CounselorTableRowData(
-                                        counselorId: counselor.id,
-                                        displayName: counselor.displayName,
-                                        title: counselor.title,
-                                        specialization:
-                                            counselor.specialization,
-                                        sessionMode: counselor.sessionMode,
-                                        languages: counselor.languages,
-                                        yearsExperience:
-                                            counselor.yearsExperience,
-                                        ratingAverage: ratingAverageFor(
-                                          counselor,
-                                        ),
-                                        ratingCount: ratingCountFor(counselor),
-                                        earliestAvailable:
-                                            earliestSlotByCounselor[counselor
-                                                .id],
-                                      ),
-                                    )
-                                    .toList(growable: false),
-                                formatSlot: _formatSlot,
-                                onOpenProfile: (counselorId) {
-                                  context.push(
-                                    _counselorProfileRouteFromCounselors(
-                                      counselorId,
-                                    ),
-                                  );
-                                },
-                                searchController: _searchController,
-                                onSearchChanged: (_) => setState(() {
-                                  _currentPage = 0;
-                                }),
-                                onOpenFilters: () => _openFilterSheet(
-                                  specializationOptions: specializationOptions,
-                                  modeOptions: modeOptions,
-                                ),
-                                activeFilterCount: _activeFilterCount(),
-                                rowsPerPage: _rowsPerPage,
-                                onRowsPerPageChanged: (value) => setState(() {
-                                  _rowsPerPage = value;
-                                  _currentPage = 0;
-                                }),
-                                currentPage: pageIndex,
-                                totalPages: totalPages,
-                                totalRows: totalRows,
-                                onPreviousPage: () => setState(() {
-                                  if (pageIndex > 0) {
-                                    _currentPage = pageIndex - 1;
-                                  }
-                                }),
-                                onNextPage: () => setState(() {
-                                  if (pageIndex < totalPages - 1) {
-                                    _currentPage = pageIndex + 1;
-                                  }
-                                }),
-                                hasActiveFilters: hasActiveFilters,
-                                noDataWidget: hasActiveFilters
-                                    ? const Text(
-                                        'No counselors match your filters. Try broadening your search.',
-                                      )
-                                    : _PendingCounselorFallback(
-                                        institutionId: institutionId,
-                                      ),
-                              ),
-                            ],
-                          );
-                        },
+                              );
+                            },
+                            searchController: _searchController,
+                            onSearchChanged: (_) => setState(() {
+                              _currentPage = 0;
+                            }),
+                            onOpenFilters: () {
+                              if (kIsWeb) {
+                                setState(() {
+                                  _isFilterPanelOpen = !_isFilterPanelOpen;
+                                });
+                                return;
+                              }
+                              _openFilterSheet(
+                                specializationOptions: specializationOptions,
+                                modeOptions: modeOptions,
+                              );
+                            },
+                            showFilterPanel: kIsWeb && _isFilterPanelOpen,
+                            filterPanel: kIsWeb
+                                ? _CounselorDiscoveryFilterPanel(
+                                    initialSort: _sort,
+                                    initialSpecialization:
+                                        _specializationFilter,
+                                    initialMode: _modeFilter,
+                                    initialMinimumRating: _minimumRatingFilter,
+                                    specializationOptions:
+                                        specializationOptions,
+                                    modeOptions: modeOptions,
+                                    onClose: () => setState(() {
+                                      _isFilterPanelOpen = false;
+                                    }),
+                                    onApply:
+                                        ({
+                                          required _CounselorSort sort,
+                                          required String specialization,
+                                          required String mode,
+                                          required double? minimumRating,
+                                        }) {
+                                          setState(() {
+                                            _sort = sort;
+                                            _specializationFilter =
+                                                specialization;
+                                            _modeFilter = mode;
+                                            _minimumRatingFilter =
+                                                minimumRating;
+                                            _currentPage = 0;
+                                            _isFilterPanelOpen = false;
+                                          });
+                                        },
+                                  )
+                                : null,
+                            activeFilterCount: _activeFilterCount(),
+                            rowsPerPage: _rowsPerPage,
+                            onRowsPerPageChanged: (value) => setState(() {
+                              _rowsPerPage = value;
+                              _currentPage = 0;
+                            }),
+                            currentPage: pageIndex,
+                            totalPages: totalPages,
+                            totalRows: totalRows,
+                            onPreviousPage: () => setState(() {
+                              if (pageIndex > 0) {
+                                _currentPage = pageIndex - 1;
+                              }
+                            }),
+                            onNextPage: () => setState(() {
+                              if (pageIndex < totalPages - 1) {
+                                _currentPage = pageIndex + 1;
+                              }
+                            }),
+                            hasActiveFilters: hasActiveFilters,
+                            noDataWidget: hasActiveFilters
+                                ? const Text(
+                                    'No counselors match your filters. Try broadening your search.',
+                                  )
+                                : _PendingCounselorFallback(
+                                    institutionId: institutionId,
+                                  ),
+                          ),
+                        ],
                       );
                     },
                   );
@@ -1226,50 +1189,383 @@ class _CounselorTableRowData {
   final DateTime? earliestAvailable;
 }
 
-class _ModalDropdownField<T> extends StatelessWidget {
-  const _ModalDropdownField({
+class _FilterSelectOption<T> {
+  const _FilterSelectOption({required this.value, required this.label});
+
+  final T value;
+  final String label;
+}
+
+class _FilterSelectField<T> extends StatelessWidget {
+  const _FilterSelectField({
     required this.icon,
     required this.label,
     required this.value,
-    required this.items,
-    required this.onChanged,
+    required this.options,
+    required this.onSelected,
   });
 
   final IconData icon;
   final String label;
   final T value;
-  final List<DropdownMenuItem<T>> items;
-  final ValueChanged<T?> onChanged;
+  final List<_FilterSelectOption<T>> options;
+  final ValueChanged<T> onSelected;
+
+  String _selectedLabel() {
+    for (final option in options) {
+      if (option.value == value) {
+        return option.label;
+      }
+    }
+    return value.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFD6E4F2)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: const Color(0xFF5E728D)),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF475569),
+    return Builder(
+      builder: (fieldContext) {
+        return InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            final overlay =
+                Overlay.of(fieldContext).context.findRenderObject()
+                    as RenderBox;
+            final button = fieldContext.findRenderObject() as RenderBox;
+            final position = RelativeRect.fromRect(
+              Rect.fromPoints(
+                button.localToGlobal(Offset.zero, ancestor: overlay),
+                button.localToGlobal(
+                  button.size.bottomRight(Offset.zero),
+                  ancestor: overlay,
+                ),
+              ),
+              Offset.zero & overlay.size,
+            );
+
+            final selected = await showMenu<T>(
+              context: fieldContext,
+              position: position,
+              color: Colors.white,
+              elevation: 12,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              items: options
+                  .map(
+                    (option) => PopupMenuItem<T>(
+                      value: option.value,
+                      child: Row(
+                        children: [
+                          Icon(
+                            option.value == value
+                                ? Icons.check_circle_rounded
+                                : Icons.circle_outlined,
+                            size: 18,
+                            color: option.value == value
+                                ? const Color(0xFF0E9B90)
+                                : const Color(0xFF94A3B8),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              option.label,
+                              style: TextStyle(
+                                fontWeight: option.value == value
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+            );
+
+            if (selected != null) {
+              onSelected(selected);
+            }
+          },
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FBFF),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFD6E4F2)),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: const Color(0xFF5E728D)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF475569),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    _selectedLabel(),
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Icon(
+                  Icons.expand_more_rounded,
+                  size: 18,
+                  color: Color(0xFF64748B),
+                ),
+              ],
             ),
           ),
-          const Spacer(),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<T>(
-              value: value,
-              items: items,
-              menuMaxHeight: 320,
-              borderRadius: BorderRadius.circular(12),
-              onChanged: onChanged,
+        );
+      },
+    );
+  }
+}
+
+class _CounselorDiscoveryFilterPanel extends StatefulWidget {
+  const _CounselorDiscoveryFilterPanel({
+    required this.initialSort,
+    required this.initialSpecialization,
+    required this.initialMode,
+    required this.initialMinimumRating,
+    required this.specializationOptions,
+    required this.modeOptions,
+    required this.onClose,
+    required this.onApply,
+  });
+
+  final _CounselorSort initialSort;
+  final String initialSpecialization;
+  final String initialMode;
+  final double? initialMinimumRating;
+  final List<String> specializationOptions;
+  final List<String> modeOptions;
+  final VoidCallback onClose;
+  final void Function({
+    required _CounselorSort sort,
+    required String specialization,
+    required String mode,
+    required double? minimumRating,
+  })
+  onApply;
+
+  @override
+  State<_CounselorDiscoveryFilterPanel> createState() =>
+      _CounselorDiscoveryFilterPanelState();
+}
+
+class _CounselorDiscoveryFilterPanelState
+    extends State<_CounselorDiscoveryFilterPanel> {
+  late _CounselorSort _tempSort;
+  late String _tempSpecialization;
+  late String _tempMode;
+  double? _tempRating;
+
+  @override
+  void initState() {
+    super.initState();
+    _tempSort = widget.initialSort;
+    _tempSpecialization = widget.initialSpecialization;
+    _tempMode = widget.initialMode;
+    _tempRating = widget.initialMinimumRating;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sortOptions = _CounselorSort.values
+        .map(
+          (sortValue) => _FilterSelectOption<_CounselorSort>(
+            value: sortValue,
+            label: switch (sortValue) {
+              _CounselorSort.earliestAvailable => 'Earliest available',
+              _CounselorSort.ratingHigh => 'Highest rated',
+              _CounselorSort.experienceHigh => 'Most experience',
+            },
+          ),
+        )
+        .toList(growable: false);
+    final specializationOptions = widget.specializationOptions
+        .map(
+          (option) => _FilterSelectOption<String>(
+            value: option,
+            label: option == 'all' ? 'All' : option,
+          ),
+        )
+        .toList(growable: false);
+    final modeOptions = widget.modeOptions
+        .map(
+          (option) => _FilterSelectOption<String>(
+            value: option,
+            label: option == 'all' ? 'All modes' : option,
+          ),
+        )
+        .toList(growable: false);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD6E4F2)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.tune_rounded,
+                size: 18,
+                color: Color(0xFF0E9B90),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Discovery filters',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Close filters',
+                onPressed: widget.onClose,
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              SizedBox(
+                width: 250,
+                child: _FilterSelectField<_CounselorSort>(
+                  icon: Icons.schedule_rounded,
+                  label: 'Sort',
+                  value: _tempSort,
+                  options: sortOptions,
+                  onSelected: (value) => setState(() => _tempSort = value),
+                ),
+              ),
+              SizedBox(
+                width: 280,
+                child: _FilterSelectField<String>(
+                  icon: Icons.psychology_alt_rounded,
+                  label: 'Specialization',
+                  value: _tempSpecialization,
+                  options: specializationOptions,
+                  onSelected: (value) =>
+                      setState(() => _tempSpecialization = value),
+                ),
+              ),
+              SizedBox(
+                width: 220,
+                child: _FilterSelectField<String>(
+                  icon: Icons.videocam_rounded,
+                  label: 'Mode',
+                  value: _tempMode,
+                  options: modeOptions,
+                  onSelected: (value) => setState(() => _tempMode = value),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Minimum Rating',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF445A75),
             ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _RatingChip(
+                label: 'All',
+                selected: _tempRating == null,
+                onTap: () => setState(() => _tempRating = null),
+              ),
+              _RatingChip(
+                label: '4.5+',
+                selected: _tempRating == 4.5,
+                onTap: () => setState(() => _tempRating = 4.5),
+              ),
+              _RatingChip(
+                label: '4.0+',
+                selected: _tempRating == 4.0,
+                onTap: () => setState(() => _tempRating = 4.0),
+              ),
+              _RatingChip(
+                label: '3.5+',
+                selected: _tempRating == 3.5,
+                onTap: () => setState(() => _tempRating = 3.5),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _tempSort = _CounselorSort.earliestAvailable;
+                      _tempSpecialization = 'all';
+                      _tempMode = 'all';
+                      _tempRating = null;
+                    });
+                  },
+                  icon: const Icon(Icons.restart_alt_rounded),
+                  label: const Text('Reset'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () {
+                    widget.onApply(
+                      sort: _tempSort,
+                      specialization: _tempSpecialization,
+                      mode: _tempMode,
+                      minimumRating: _tempRating,
+                    );
+                  },
+                  icon: const Icon(Icons.check_rounded),
+                  label: const Text('Apply'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1751,6 +2047,8 @@ class _CounselorDirectoryTable extends StatelessWidget {
     required this.searchController,
     required this.onSearchChanged,
     required this.onOpenFilters,
+    required this.showFilterPanel,
+    required this.filterPanel,
     required this.activeFilterCount,
     required this.rowsPerPage,
     required this.onRowsPerPageChanged,
@@ -1769,6 +2067,8 @@ class _CounselorDirectoryTable extends StatelessWidget {
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onOpenFilters;
+  final bool showFilterPanel;
+  final Widget? filterPanel;
   final int activeFilterCount;
   final int rowsPerPage;
   final ValueChanged<int> onRowsPerPageChanged;
@@ -1898,6 +2198,15 @@ class _CounselorDirectoryTable extends StatelessWidget {
                     ],
                   ],
                 ),
+                if (showFilterPanel && filterPanel != null) ...[
+                  const SizedBox(height: 12),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    child: filterPanel,
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Row(
                   children: [

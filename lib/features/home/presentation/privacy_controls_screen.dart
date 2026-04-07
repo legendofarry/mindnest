@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
@@ -11,63 +9,15 @@ import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/account_export_sheet.dart';
 
-const Duration _windowsPollInterval = Duration(seconds: 15);
-bool get _useWindowsRestFirestore =>
-    !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
-
-Stream<T> _buildWindowsPollingStream<T>({
-  required Future<T> Function() load,
-  required String Function(T value) signature,
-}) {
-  late final StreamController<T> controller;
-  Timer? timer;
-  String? lastEmissionSignature;
-
-  Future<void> emitIfChanged() async {
-    if (controller.isClosed) {
-      return;
-    }
-    try {
-      final value = await load();
-      final nextSignature = 'value:${signature(value)}';
-      if (nextSignature == lastEmissionSignature) {
-        return;
-      }
-      lastEmissionSignature = nextSignature;
-      if (!controller.isClosed) {
-        controller.add(value);
-      }
-    } catch (error, stackTrace) {
-      final nextSignature = 'error:$error';
-      if (nextSignature == lastEmissionSignature) {
-        return;
-      }
-      lastEmissionSignature = nextSignature;
-      if (!controller.isClosed) {
-        controller.addError(error, stackTrace);
-      }
-    }
-  }
-
-  controller = StreamController<T>.broadcast(
-    onListen: () {
-      unawaited(emitIfChanged());
-      timer = Timer.periodic(_windowsPollInterval, (_) {
-        unawaited(emitIfChanged());
-      });
-    },
-    onCancel: () {
-      timer?.cancel();
-    },
-  );
-
-  return controller.stream;
-}
-
 class PrivacyControlsScreen extends ConsumerStatefulWidget {
-  const PrivacyControlsScreen({super.key, this.embeddedInDesktopShell = false});
+  const PrivacyControlsScreen({
+    super.key,
+    this.embeddedInDesktopShell = false,
+    this.embeddedInAdminShell = false,
+  });
 
   final bool embeddedInDesktopShell;
+  final bool embeddedInAdminShell;
 
   @override
   ConsumerState<PrivacyControlsScreen> createState() =>
@@ -79,10 +29,6 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final userId = profile?.id ?? '';
-    final firestore = _useWindowsRestFirestore
-        ? null
-        : ref.watch(firestoreProvider);
-    final windowsRest = ref.watch(windowsFirestoreRestClientProvider);
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
     final isPrimaryUser =
         profile != null &&
@@ -90,40 +36,51 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
             profile.role == UserRole.staff ||
             profile.role == UserRole.individual);
     final role = profile?.role ?? UserRole.other;
-    final showsVisibilityControls =
-        role == UserRole.student ||
-        role == UserRole.staff ||
-        role == UserRole.individual;
     final usesFloatingDesktopHeader =
-        isDesktop && !isPrimaryUser && !widget.embeddedInDesktopShell;
-    final maxContentWidth = role == UserRole.counselor ? 1220.0 : 900.0;
-    final contentAlignment = role == UserRole.counselor
+        isDesktop &&
+        !isPrimaryUser &&
+        !widget.embeddedInDesktopShell &&
+        !widget.embeddedInAdminShell;
+    final adminEmbedded =
+        widget.embeddedInAdminShell && role == UserRole.institutionAdmin;
+    final maxContentWidth = adminEmbedded
+        ? double.infinity
+        : role == UserRole.counselor
+        ? 1220.0
+        : 900.0;
+    final contentAlignment = adminEmbedded || role == UserRole.counselor
         ? Alignment.topLeft
         : Alignment.topCenter;
-    final privacySettingsStream = userId.isEmpty || !showsVisibilityControls
-        ? null
-        : _useWindowsRestFirestore
-        ? _buildWindowsPollingStream<Map<String, dynamic>>(
-            load: () async =>
-                (await windowsRest.getDocument(
-                  'user_privacy_settings/$userId',
-                ))?.data ??
-                const <String, dynamic>{},
-            signature: (data) => data.toString(),
+    final onExport = () => showAccountExportSheet(
+      context: context,
+      ref: ref,
+      title: 'Download your account data',
+      subtitle:
+          'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your account export.',
+    );
+    final onOpenAdminProfile =
+        widget.embeddedInAdminShell && role == UserRole.institutionAdmin
+        ? () => context.go(
+            Uri(
+              path: AppRoute.institutionAdmin,
+              queryParameters: const <String, String>{
+                AppRoute.adminPanelQuery: 'profile',
+              },
+            ).toString(),
           )
-        : firestore!
-              .collection('user_privacy_settings')
-              .doc(userId)
-              .snapshots()
-              .map((doc) => doc.data() ?? const <String, dynamic>{});
+        : null;
 
     final content = SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
-          16,
-          usesFloatingDesktopHeader ? 92 : 10,
-          16,
-          18,
+          adminEmbedded ? 0 : 16,
+          usesFloatingDesktopHeader
+              ? 92
+              : adminEmbedded
+              ? 0
+              : 10,
+          adminEmbedded ? 0 : 16,
+          adminEmbedded ? 0 : 18,
         ),
         child: Align(
           alignment: contentAlignment,
@@ -133,187 +90,23 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
                 ? const _PrivacyStateCard(
                     message: 'Sign in to manage privacy settings.',
                   )
-                : !showsVisibilityControls
-                ? role == UserRole.counselor
-                      ? _CounselorPrivacyContent(
-                          onOpenProfile: () =>
-                              context.go(AppRoute.counselorSettings),
-                          onExport: () {
-                            return showAccountExportSheet(
-                              context: context,
-                              ref: ref,
-                              title: 'Download your account data',
-                              subtitle:
-                                  'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your account export.',
-                            );
-                          },
-                        )
-                      : _RoleScopedPrivacyContent(
-                          role: role,
-                          onOpenProfile: null,
-                          onExport: () {
-                            return showAccountExportSheet(
-                              context: context,
-                              ref: ref,
-                              title: 'Download your account data',
-                              subtitle:
-                                  'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your account export.',
-                            );
-                          },
-                        )
-                : StreamBuilder<Map<String, dynamic>>(
-                    key: ValueKey<String>('privacy:$userId:${role.name}'),
-                    stream: privacySettingsStream,
-                    builder: (context, snapshot) {
-                      final data = snapshot.data ?? const <String, dynamic>{};
-                      final shareMood =
-                          (data['shareMoodWithInstitution'] as bool?) ?? true;
-                      final shareAssessments =
-                          (data['shareAssessmentsWithInstitution'] as bool?) ??
-                          true;
-                      final shareCarePlan =
-                          (data['shareCarePlanWithCounselors'] as bool?) ??
-                          true;
-                      final anonymousForum =
-                          (data['anonymousForumMode'] as bool?) ?? true;
-
-                      Future<void> updateSetting(String key, bool value) async {
-                        if (_useWindowsRestFirestore) {
-                          final existing =
-                              (await windowsRest.getDocument(
-                                'user_privacy_settings/$userId',
-                              ))?.data ??
-                              const <String, dynamic>{};
-                          await windowsRest.setDocument(
-                            'user_privacy_settings/$userId',
-                            <String, dynamic>{
-                              ...existing,
-                              'userId': userId,
-                              key: value,
-                              'updatedAt': DateTime.now().toUtc(),
-                            },
-                          );
-                          return;
-                        }
-                        await firestore!
-                            .collection('user_privacy_settings')
-                            .doc(userId)
-                            .set({
-                              'userId': userId,
-                              key: value,
-                              'updatedAt': FieldValue.serverTimestamp(),
-                            }, SetOptions(merge: true));
-                      }
-
-                      return SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const _PrivacyHeroCard(),
-                            const SizedBox(height: 16),
-                            const _PrivacyStateCard(
-                              message:
-                                  'Control what your institution can view and manage your personal data export preferences from one place.',
-                            ),
-                            const SizedBox(height: 12),
-                            _PrivacyModuleCard(
-                              title: 'Visibility & sharing',
-                              child: Column(
-                                children: [
-                                  SwitchListTile(
-                                    value: shareMood,
-                                    onChanged: (value) => updateSetting(
-                                      'shareMoodWithInstitution',
-                                      value,
-                                    ),
-                                    title: const Text('Share mood insights'),
-                                    subtitle: const Text(
-                                      'Allow institution wellness team to view mood trends.',
-                                    ),
-                                  ),
-                                  SwitchListTile(
-                                    value: shareAssessments,
-                                    onChanged: (value) => updateSetting(
-                                      'shareAssessmentsWithInstitution',
-                                      value,
-                                    ),
-                                    title: const Text(
-                                      'Share assessment outcomes',
-                                    ),
-                                    subtitle: const Text(
-                                      'Allow staff to view high-level assessment summaries.',
-                                    ),
-                                  ),
-                                  SwitchListTile(
-                                    value: shareCarePlan,
-                                    onChanged: (value) => updateSetting(
-                                      'shareCarePlanWithCounselors',
-                                      value,
-                                    ),
-                                    title: const Text(
-                                      'Share care plan progress',
-                                    ),
-                                    subtitle: const Text(
-                                      'Allow counselors to monitor your goal completion.',
-                                    ),
-                                  ),
-                                  SwitchListTile(
-                                    value: anonymousForum,
-                                    onChanged: (value) => updateSetting(
-                                      'anonymousForumMode',
-                                      value,
-                                    ),
-                                    title: const Text('Anonymous forum mode'),
-                                    subtitle: const Text(
-                                      'Hide identifiable profile details in community forum.',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _PrivacyModuleCard(
-                              title: 'Data self-service',
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  const Text(
-                                    'Download your current data package as a polished PDF summary, CSV tables, or advanced raw JSON.',
-                                    style: TextStyle(
-                                      color: Color(0xFF5A6E87),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  OutlinedButton.icon(
-                                    onPressed: () {
-                                      showAccountExportSheet(
-                                        context: context,
-                                        ref: ref,
-                                        title: 'Download your account data',
-                                        subtitle:
-                                            'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your account export.',
-                                      );
-                                    },
-                                    icon: const Icon(Icons.download_rounded),
-                                    label: const Text('Download My Data'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                        ),
-                      );
-                    },
+                : role == UserRole.counselor
+                ? _CounselorPrivacyContent(
+                    onOpenProfile: () => context.go(AppRoute.counselorSettings),
+                    onExport: onExport,
+                  )
+                : _RoleScopedPrivacyContent(
+                    role: role,
+                    onOpenProfile: onOpenAdminProfile,
+                    onExport: onExport,
+                    compactEmbedded: adminEmbedded,
                   ),
           ),
         ),
       ),
     );
 
-    if (widget.embeddedInDesktopShell) {
+    if (widget.embeddedInDesktopShell || widget.embeddedInAdminShell) {
       return content;
     }
 
@@ -429,11 +222,13 @@ class _RoleScopedPrivacyContent extends StatelessWidget {
     required this.role,
     required this.onExport,
     this.onOpenProfile,
+    this.compactEmbedded = false,
   });
 
   final UserRole role;
   final Future<void> Function() onExport;
   final VoidCallback? onOpenProfile;
+  final bool compactEmbedded;
 
   String get _roleLabel {
     switch (role) {
@@ -441,6 +236,12 @@ class _RoleScopedPrivacyContent extends StatelessWidget {
         return 'Institution admin';
       case UserRole.counselor:
         return 'Counselor';
+      case UserRole.student:
+        return 'Student';
+      case UserRole.staff:
+        return 'Staff';
+      case UserRole.individual:
+        return 'Individual';
       default:
         return role.label;
     }
@@ -452,6 +253,10 @@ class _RoleScopedPrivacyContent extends StatelessWidget {
         return 'Keep this page focused on your own admin account data. Student wellness-sharing controls live with each member profile, not here.';
       case UserRole.counselor:
         return 'Keep this page focused on your counselor account data. Student wellbeing-sharing controls are handled on the member side, not in counselor settings.';
+      case UserRole.student:
+      case UserRole.staff:
+      case UserRole.individual:
+        return 'Use this page for your own account privacy basics and polished data export without leaving the workspace.';
       default:
         return 'Manage the privacy actions relevant to your account from one place.';
     }
@@ -463,6 +268,10 @@ class _RoleScopedPrivacyContent extends StatelessWidget {
         return 'Institution admins do not use student mood, assessment, or care-plan sharing toggles. Your useful action here is personal data export.';
       case UserRole.counselor:
         return 'Counselors do not use the student-facing wellness sharing toggles on this page. Your useful action here is personal data export.';
+      case UserRole.student:
+      case UserRole.staff:
+      case UserRole.individual:
+        return 'The visibility and sharing toggles were removed here so this screen stays focused on clean personal data control and export.';
       default:
         return 'This role only needs account-level privacy actions on this screen.';
     }
@@ -475,18 +284,22 @@ class _RoleScopedPrivacyContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (role == UserRole.counselor) ...[
+          if (role == UserRole.counselor || role == UserRole.institutionAdmin) ...[
             _PrivacyBreadcrumb(
-              items: const ['Profile', 'Privacy & Data Controls'],
+              items: role == UserRole.institutionAdmin
+                  ? const ['Admin Profile', 'Privacy & Data Controls']
+                  : const ['Profile', 'Privacy & Data Controls'],
               onTapLeading: onOpenProfile,
             ),
             const SizedBox(height: 12),
           ],
-          _PrivacyHeroCard(
-            title: 'Privacy & Data Controls',
-            description: _heroDescription,
-          ),
-          const SizedBox(height: 16),
+          if (!compactEmbedded) ...[
+            _PrivacyHeroCard(
+              title: 'Privacy & Data Controls',
+              description: _heroDescription,
+            ),
+            const SizedBox(height: 16),
+          ],
           _PrivacyStateCard(message: '$_roleLabel scope. $_scopeMessage'),
           const SizedBox(height: 12),
           _PrivacyModuleCard(

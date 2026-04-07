@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/core/config/owner_config.dart';
@@ -18,10 +19,13 @@ class OwnerDashboardScreen extends ConsumerStatefulWidget {
 
 class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   final _declineReasonController = TextEditingController();
+  final _clearDbConfirmationController = TextEditingController();
+  bool _isClearingDatabase = false;
 
   @override
   void dispose() {
     _declineReasonController.dispose();
+    _clearDbConfirmationController.dispose();
     super.dispose();
   }
 
@@ -160,6 +164,117 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     return '--';
   }
 
+  Future<void> _confirmAndClearDatabase() async {
+    if (!kIsWeb || _isClearingDatabase) {
+      return;
+    }
+
+    _clearDbConfirmationController.clear();
+    final shouldProceed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626)),
+              SizedBox(width: 10),
+              Expanded(child: Text('Clear Firestore DB')),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'This web-only development action deletes MindNest app data from Firestore, including users, invites, sessions, notifications, live session content, and institution records.',
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Firebase Authentication accounts are not deleted here. Type CLEAR DB to continue.',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF991B1B),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _clearDbConfirmationController,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Confirmation phrase',
+                    hintText: 'CLEAR DB',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _clearDbConfirmationController,
+              builder: (context, value, _) {
+                final canConfirm =
+                    value.text.trim().toUpperCase() == 'CLEAR DB';
+                return FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFDC2626),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: canConfirm
+                      ? () => Navigator.of(context).pop(true)
+                      : null,
+                  icon: const Icon(Icons.delete_forever_rounded),
+                  label: const Text('Clear DB'),
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldProceed != true) {
+      return;
+    }
+
+    setState(() => _isClearingDatabase = true);
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .clearAllDataForDevelopment();
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(
+          content: Text(
+            'Firestore development data cleared. Firebase Auth accounts were left intact.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isClearingDatabase = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authUser = ref.watch(authStateChangesProvider).valueOrNull;
@@ -210,6 +325,114 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
+                if (kIsWeb) ...[
+                  GlassCard(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFFFFF1F2),
+                            const Color(0xFFFFFBEB),
+                          ],
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFECDD3),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Icon(
+                                Icons.delete_forever_rounded,
+                                color: Color(0xFFDC2626),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Danger Zone',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 17,
+                                      color: Color(0xFF7F1D1D),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  const Text(
+                                    'Development-only Firestore wipe for the owner dashboard on web. This clears app collections and nested live-session content, but leaves Firebase Authentication accounts untouched.',
+                                    style: TextStyle(
+                                      color: Color(0xFF7C2D12),
+                                      height: 1.45,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      FilledButton.icon(
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: const Color(
+                                            0xFFDC2626,
+                                          ),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 18,
+                                            vertical: 14,
+                                          ),
+                                        ),
+                                        onPressed: _isClearingDatabase
+                                            ? null
+                                            : _confirmAndClearDatabase,
+                                        icon: _isClearingDatabase
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2.2,
+                                                      color: Colors.white,
+                                                    ),
+                                              )
+                                            : const Icon(
+                                                Icons.cleaning_services_rounded,
+                                              ),
+                                        label: Text(
+                                          _isClearingDatabase
+                                              ? 'Clearing DB...'
+                                              : 'Clear DB',
+                                        ),
+                                      ),
+                                      const Text(
+                                        'Type CLEAR DB in the confirmation dialog to run it.',
+                                        style: TextStyle(
+                                          color: Color(0xFF991B1B),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 GlassCard(
                   child: Padding(
                     padding: const EdgeInsets.all(18),

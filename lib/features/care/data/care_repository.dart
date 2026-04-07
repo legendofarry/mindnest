@@ -2666,6 +2666,7 @@ class CareRepository {
         'privateRatingId': appointment.id,
         'updatedAt': nowUtc,
       });
+      await _syncCounselorRatingAggregate(appointment.counselorId);
       return;
     }
 
@@ -2712,6 +2713,72 @@ class CareRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     });
+
+    await _syncCounselorRatingAggregate(appointment.counselorId);
+  }
+
+  Future<void> _syncCounselorRatingAggregate(String counselorId) async {
+    final normalizedCounselorId = counselorId.trim();
+    if (normalizedCounselorId.isEmpty) {
+      return;
+    }
+
+    if (kUseWindowsRestAuth) {
+      final ratingDocuments = await _windowsRest.queryCollection(
+        collectionId: 'counselor_ratings',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal(
+            'counselorId',
+            normalizedCounselorId,
+          ),
+        ],
+      );
+      var total = 0;
+      var count = 0;
+      for (final document in ratingDocuments) {
+        final value = document.data['rating'];
+        if (value is num) {
+          total += value.toInt();
+          count += 1;
+        }
+      }
+      final profileDocument = await _windowsRest.getDocument(
+        'counselor_profiles/$normalizedCounselorId',
+      );
+      if (profileDocument == null) {
+        return;
+      }
+      await _windowsRest
+          .setDocument('counselor_profiles/$normalizedCounselorId', {
+            ...profileDocument.data,
+            'ratingAverage': count == 0 ? 0.0 : total / count,
+            'ratingCount': count,
+            'updatedAt': DateTime.now().toUtc(),
+          });
+      return;
+    }
+
+    final ratingSnapshot = await _firestore
+        .collection('counselor_ratings')
+        .where('counselorId', isEqualTo: normalizedCounselorId)
+        .get();
+    var total = 0;
+    var count = 0;
+    for (final document in ratingSnapshot.docs) {
+      final value = document.data()['rating'];
+      if (value is num) {
+        total += value.toInt();
+        count += 1;
+      }
+    }
+    await _firestore
+        .collection('counselor_profiles')
+        .doc(normalizedCounselorId)
+        .set({
+          'ratingAverage': count == 0 ? 0.0 : total / count,
+          'ratingCount': count,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
   }
 
   Stream<List<CounselorPublicRating>> watchCounselorPublicRatings({

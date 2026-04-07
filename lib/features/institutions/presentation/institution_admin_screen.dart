@@ -13,10 +13,11 @@ import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
+import 'package:mindnest/features/home/presentation/privacy_controls_screen.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/data/institution_repository.dart';
 import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:mindnest/features/institutions/presentation/institution_admin_profile_screen.dart';
 import 'package:mindnest/core/ui/modern_banner.dart';
 
 enum AdminWorkspaceView {
@@ -252,20 +253,6 @@ Stream<_AdminQuerySnapshot> _querySnapshotStream({
   );
 }
 
-Stream<int> _queryCountStream({
-  required WidgetRef ref,
-  Query<Map<String, dynamic>>? query,
-  required Future<int> Function() windowsLoad,
-}) {
-  if (!_useWindowsFirebasePollingWorkaround) {
-    return query!.snapshots().map((snapshot) => snapshot.size);
-  }
-  return _buildWindowsPollingStream<int>(
-    load: windowsLoad,
-    signature: (count) => '$count',
-  );
-}
-
 class InstitutionAdminScreen extends ConsumerStatefulWidget {
   const InstitutionAdminScreen({super.key});
 
@@ -276,11 +263,10 @@ class InstitutionAdminScreen extends ConsumerStatefulWidget {
 
 class _InstitutionAdminScreenState
     extends ConsumerState<InstitutionAdminScreen> {
-  static const _kenyaPrefix = '+254';
-  final _phoneController = TextEditingController();
+  final _inviteIdentityController = TextEditingController();
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
-  final _tableKey = GlobalKey();
+  final _searchFieldKey = GlobalKey();
 
   UserRole _inviteRole = UserRole.counselor;
   AdminWorkspaceView _activeView = AdminWorkspaceView.overview;
@@ -288,7 +274,7 @@ class _InstitutionAdminScreenState
   bool _isSubmitting = false;
   bool _isRegeneratingJoinCode = false;
   String? _inlineError;
-  int _rowsPerPage = PaginatedDataTable.defaultRowsPerPage;
+  int _rowsPerPage = 5;
   int? _sortColumnIndex;
   bool _sortAscending = true;
   String? _highlightRecordId;
@@ -298,55 +284,50 @@ class _InstitutionAdminScreenState
   @override
   void initState() {
     super.initState();
-    _phoneController.text = _kenyaPrefix;
-    _phoneController.addListener(_enforceInvitePhonePrefix);
   }
 
   @override
   void dispose() {
-    _phoneController.removeListener(_enforceInvitePhonePrefix);
-    _phoneController.dispose();
+    _inviteIdentityController.dispose();
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _enforceInvitePhonePrefix() {
-    final normalized = _normalizeKenyaPhoneInput(_phoneController.text);
-    if (_phoneController.text == normalized) {
-      return;
-    }
-    _phoneController.value = TextEditingValue(
-      text: normalized,
-      selection: TextSelection.collapsed(offset: normalized.length),
-    );
-  }
-
-  String _normalizeKenyaPhoneInput(String input) {
-    var digits = input.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.startsWith('254')) {
-      digits = digits.substring(3);
-    }
-    if (digits.startsWith('0')) {
-      digits = digits.substring(1);
-    }
-    return '$_kenyaPrefix$digits';
-  }
-
-  bool _isValidKenyaPhone(String value) {
-    return RegExp(r'^\+254\d{9}$').hasMatch(value);
+  bool _isValidInviteEmail(String value) {
+    final trimmed = value.trim();
+    return RegExp(
+      r"^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$",
+      caseSensitive: false,
+    ).hasMatch(trimmed);
   }
 
   void _showInlineError(String message) {
     setState(() => _inlineError = message);
   }
 
+  String _panelRoute(String panel) {
+    return Uri(
+      path: AppRoute.institutionAdmin,
+      queryParameters: <String, String>{AppRoute.adminPanelQuery: panel},
+    ).toString();
+  }
+
+  void _toggleAdminPanel(String panel) {
+    final currentPanel = GoRouterState.of(
+      context,
+    ).uri.queryParameters[AppRoute.adminPanelQuery];
+    if (currentPanel == panel) {
+      context.go(AppRoute.institutionAdmin);
+      return;
+    }
+    context.go(_panelRoute(panel));
+  }
+
   Future<void> _createInvite() async {
-    final phone = _phoneController.text.trim();
-    if (!_isValidKenyaPhone(phone)) {
-      _showInlineError(
-        'Enter a valid phone number after +254 (example: +254712345678).',
-      );
+    final email = _inviteIdentityController.text.trim().toLowerCase();
+    if (!_isValidInviteEmail(email)) {
+      _showInlineError('Enter a valid verified email address.');
       return;
     }
 
@@ -355,8 +336,11 @@ class _InstitutionAdminScreenState
     try {
       final counselorIntentName = await ref
           .read(institutionRepositoryProvider)
-          .counselorIntentNameByPhone(phone);
+          .counselorIntentNameByEmail(email);
       if (counselorIntentName != null && _inviteRole != UserRole.counselor) {
+        if (!mounted) {
+          return;
+        }
         final proceed = await showDialog<bool>(
           context: context,
           builder: (context) {
@@ -447,11 +431,11 @@ class _InstitutionAdminScreenState
 
       final inviteDraft = await ref
           .read(institutionRepositoryProvider)
-          .createRoleInvite(inviteePhoneNumber: phone, role: _inviteRole);
+          .createRoleInvite(inviteeEmail: email, role: _inviteRole);
       if (!mounted) {
         return;
       }
-      _phoneController.text = _kenyaPrefix;
+      _inviteIdentityController.clear();
       _inlineError = null;
       await _showInviteDeliveryDialog(inviteDraft);
     } catch (error) {
@@ -477,32 +461,6 @@ class _InstitutionAdminScreenState
     showModernBannerFromSnackBar(
       context,
       SnackBar(content: Text(successMessage)),
-    );
-  }
-
-  Future<void> _openWhatsAppDraft(String deepLink) async {
-    final uri = Uri.tryParse(deepLink);
-    if (uri == null) {
-      showModernBannerFromSnackBar(
-        context,
-        const SnackBar(content: Text('Invalid WhatsApp link.')),
-      );
-      return;
-    }
-    final launched = await launchUrl(uri);
-    if (!mounted) {
-      return;
-    }
-    if (launched) {
-      return;
-    }
-    showModernBannerFromSnackBar(
-      context,
-      const SnackBar(
-        content: Text(
-          'Could not open WhatsApp. Copy message and send manually.',
-        ),
-      ),
     );
   }
 
@@ -550,10 +508,7 @@ class _InstitutionAdminScreenState
                     '${inviteDraft.invitedName} • ${inviteDraft.role.label.toUpperCase()}',
               ),
               const SizedBox(height: 8),
-              _InviteMetaRow(
-                label: 'Phone',
-                value: inviteDraft.inviteePhoneE164,
-              ),
+              _InviteMetaRow(label: 'Email', value: inviteDraft.invitedEmail),
               const SizedBox(height: 8),
               _InviteMetaRow(
                 label: 'Institution code',
@@ -577,17 +532,12 @@ class _InstitutionAdminScreenState
               ),
             ),
             _InviteActionButton(
-              label: 'Copy WhatsApp',
-              icon: Icons.chat_rounded,
+              label: 'Copy Email',
+              icon: Icons.mail_outline_rounded,
               onPressed: () => _copyTextWithFeedback(
-                text: inviteDraft.whatsAppMessage,
-                successMessage: 'WhatsApp message copied.',
+                text: inviteDraft.invitedEmail,
+                successMessage: 'Invite email copied.',
               ),
-            ),
-            _InviteActionButton(
-              label: 'Open WhatsApp',
-              icon: Icons.send_rounded,
-              onPressed: () => _openWhatsAppDraft(inviteDraft.whatsAppDeepLink),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -640,16 +590,27 @@ class _InstitutionAdminScreenState
       _sortColumnIndex = null;
       _sortAscending = true;
     });
+    final currentPanel = GoRouterState.of(
+      context,
+    ).uri.queryParameters[AppRoute.adminPanelQuery];
+    if (currentPanel != null && currentPanel.isNotEmpty) {
+      context.go(AppRoute.institutionAdmin);
+    }
+    _scrollWorkspaceToSearchField();
+  }
+
+  void _scrollWorkspaceToSearchField() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final context = _tableKey.currentContext;
-      if (context != null) {
-        Scrollable.ensureVisible(
-          context,
-          alignment: 0.05,
-          duration: const Duration(milliseconds: 280),
-          curve: Curves.easeOut,
-        );
+      final context = _searchFieldKey.currentContext;
+      if (context == null) {
+        return;
       }
+      Scrollable.ensureVisible(
+        context,
+        alignment: 0,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOut,
+      );
     });
   }
 
@@ -910,10 +871,11 @@ class _InstitutionAdminScreenState
 
   void _openEntryDetails(_WorkspaceEntry entry) {
     final currentUid = ref.read(appAuthClientProvider).currentUser?.uid;
+    final memberUserId = ((entry.raw['userId'] as String?) ?? '').trim();
     final isOwnAdminMember =
         entry.source == 'member' &&
         entry.type == UserRole.institutionAdmin.name &&
-        ((entry.raw['userId'] as String?) ?? '') == (currentUid ?? '');
+        memberUserId == (currentUid ?? '');
     final canRevokeInvite =
         entry.source == 'invite' && entry.status == 'pending';
     final canActivateMember =
@@ -932,11 +894,16 @@ class _InstitutionAdminScreenState
         entry.type != UserRole.institutionAdmin.name &&
         entry.status != 'removed' &&
         !isOwnAdminMember;
+    final canMessageCounselor =
+        entry.source == 'member' &&
+        entry.type == UserRole.counselor.name &&
+        memberUserId.isNotEmpty &&
+        entry.status != 'removed';
 
     showDialog<String>(
       context: context,
       builder: (context) {
-        String _initials(String value) {
+        String initialsFor(String value) {
           final parts = value
               .trim()
               .split(RegExp(r'\\s+'))
@@ -944,18 +911,18 @@ class _InstitutionAdminScreenState
           return parts.take(2).map((e) => e[0].toUpperCase()).join();
         }
 
-        String? _rawString(String key) {
+        String? rawString(String key) {
           final value = entry.raw[key];
           if (value == null) return null;
           final text = value.toString().trim();
           return text.isEmpty ? null : text;
         }
 
-        final institutionName = _rawString('institutionName');
-        final intendedRole = _rawString('intendedRole');
-        final inviteePhone = _rawString('inviteePhoneE164');
-        final invitedEmail = _rawString('invitedEmail');
-        final deliveryChannel = _rawString('deliveryChannel');
+        final institutionName = rawString('institutionName');
+        final intendedRole = rawString('intendedRole');
+        final inviteePhone = rawString('inviteePhoneE164');
+        final invitedEmail = rawString('invitedEmail');
+        final deliveryChannel = rawString('deliveryChannel');
         final created = entry.createdAt == null
             ? '--'
             : entry.createdAt!.toLocal().toString();
@@ -969,6 +936,11 @@ class _InstitutionAdminScreenState
           titlePadding: const EdgeInsets.fromLTRB(22, 18, 22, 10),
           contentPadding: const EdgeInsets.fromLTRB(22, 0, 22, 18),
           actions: [
+            if (canMessageCounselor)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop('message_counselor'),
+                child: const Text('Message'),
+              ),
             if (canRevokeInvite)
               TextButton(
                 onPressed: () => Navigator.of(context).pop('revoke_invite'),
@@ -1000,7 +972,7 @@ class _InstitutionAdminScreenState
                 radius: 22,
                 backgroundColor: const Color(0xFFEFFFF8),
                 child: Text(
-                  _initials(entry.primary),
+                  initialsFor(entry.primary),
                   style: const TextStyle(
                     color: Color(0xFF0E9B90),
                     fontWeight: FontWeight.w800,
@@ -1082,6 +1054,17 @@ class _InstitutionAdminScreenState
         return;
       }
       switch (action) {
+        case 'message_counselor':
+          context.go(
+            Uri(
+              path: AppRoute.institutionAdminMessages,
+              queryParameters: <String, String>{
+                'counselorId': memberUserId,
+                'counselorName': entry.primary,
+              },
+            ).toString(),
+          );
+          break;
         case 'revoke_invite':
           _revokeInvite(entry);
           break;
@@ -1109,6 +1092,7 @@ class _InstitutionAdminScreenState
       if (!mounted) return;
       setState(() => _highlightRecordId = null);
     });
+    _scrollWorkspaceToSearchField();
   }
 
   @override
@@ -1327,14 +1311,29 @@ class _InstitutionAdminScreenState
                       for (final entry in allEntries) {
                         filterOptions.add(entry.type);
                         filterOptions.add(entry.status);
-                        filterOptions.add(entry.source);
+                        if (entry.source != 'member') {
+                          filterOptions.add(entry.source);
+                        }
                       }
 
                       return LayoutBuilder(
                         builder: (context, constraints) {
                           final isWide = constraints.maxWidth >= 980;
-                          final title = _activeView.workspaceTitle;
-                          final subtitle = _activeView.workspaceSubtitle;
+                          final activePanel = GoRouterState.of(
+                            context,
+                          ).uri.queryParameters[AppRoute.adminPanelQuery];
+                          final showingProfilePanel = activePanel == 'profile';
+                          final showingPrivacyPanel = activePanel == 'privacy';
+                          final title = showingProfilePanel
+                              ? 'Admin Profile'
+                              : showingPrivacyPanel
+                              ? 'Privacy & Data Controls'
+                              : _activeView.workspaceTitle;
+                          final subtitle = showingProfilePanel
+                              ? 'Update your admin identity and security controls without leaving the institution workspace.'
+                              : showingPrivacyPanel
+                              ? 'Keep admin privacy actions inside the institution workspace instead of dropping into the student shell.'
+                              : _activeView.workspaceSubtitle;
                           final institutionName =
                               profile.institutionName ?? 'Institution';
                           final adminName = profile.name.isNotEmpty
@@ -1342,21 +1341,14 @@ class _InstitutionAdminScreenState
                               : profile.email;
                           void onLogout() =>
                               confirmAndLogout(context: context, ref: ref);
-                          void onProfile() =>
-                              context.push(AppRoute.institutionAdminProfile);
-                          final unreadMessagesQuery =
+                          void onProfile() => _toggleAdminPanel('profile');
+                          void onMessages() =>
+                              context.go(AppRoute.institutionAdminMessages);
+                          final unreadMessagesStream =
                               _useWindowsFirebasePollingWorkaround
-                              ? null
-                              : firestore!
-                                    .collection('admin_counselor_messages')
-                                    .where('adminId', isEqualTo: profile.id)
-                                    .where('senderRole', isEqualTo: 'counselor')
-                                    .where('isRead', isEqualTo: false);
-                          final unreadMessagesStream = _queryCountStream(
-                            ref: ref,
-                            query: unreadMessagesQuery,
-                            windowsLoad: () async =>
-                                (await ref
+                              ? _buildWindowsPollingStream<int>(
+                                  load: () async {
+                                    final documents = await ref
                                         .read(
                                           windowsFirestoreRestClientProvider,
                                         )
@@ -1368,22 +1360,31 @@ class _InstitutionAdminScreenState
                                               'adminId',
                                               profile.id,
                                             ),
-                                            WindowsFirestoreFieldFilter.equal(
-                                              'senderRole',
-                                              'counselor',
-                                            ),
-                                            WindowsFirestoreFieldFilter.equal(
-                                              'isRead',
-                                              false,
-                                            ),
                                           ],
-                                        ))
-                                    .length,
-                          );
-                          void onMessages() =>
-                              context.push(AppRoute.institutionAdminMessages);
-
-                          final content = Column(
+                                        );
+                                    return documents.where((document) {
+                                      final data = document.data;
+                                      return (data['senderRole'] as String?) ==
+                                              'counselor' &&
+                                          (data['isRead'] as bool?) == false;
+                                    }).length;
+                                  },
+                                  signature: (unreadCount) => '$unreadCount',
+                                )
+                              : firestore!
+                                    .collection('admin_counselor_messages')
+                                    .where('adminId', isEqualTo: profile.id)
+                                    .snapshots()
+                                    .map(
+                                      (snapshot) => snapshot.docs.where((doc) {
+                                        final data = doc.data();
+                                        return (data['senderRole']
+                                                    as String?) ==
+                                                'counselor' &&
+                                            (data['isRead'] as bool?) == false;
+                                      }).length,
+                                    );
+                          final dashboardContent = Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               _HeroCard(
@@ -1402,7 +1403,7 @@ class _InstitutionAdminScreenState
                               ),
                               const SizedBox(height: 14),
                               _WorkspacePanel(
-                                key: _tableKey,
+                                searchFieldKey: _searchFieldKey,
                                 activeView: _activeView,
                                 searchController: _searchController,
                                 onSearchChanged: (_) => setState(() {}),
@@ -1437,7 +1438,8 @@ class _InstitutionAdminScreenState
                                       () => _inviteExpanded = !_inviteExpanded,
                                     ),
                                     child: _InviteComposer(
-                                      phoneController: _phoneController,
+                                      emailController:
+                                          _inviteIdentityController,
                                       selectedRole: _inviteRole,
                                       isSubmitting: _isSubmitting,
                                       errorMessage: _inlineError,
@@ -1492,6 +1494,20 @@ class _InstitutionAdminScreenState
                               ),
                             ],
                           );
+                          final content = showingProfilePanel
+                              ? const InstitutionAdminProfileScreen(
+                                  embeddedInAdminShell: true,
+                                )
+                              : showingPrivacyPanel
+                              ? const PrivacyControlsScreen(
+                                  embeddedInDesktopShell: true,
+                                  embeddedInAdminShell: true,
+                                )
+                              : dashboardContent;
+                          final showEmbeddedPanel =
+                              showingProfilePanel || showingPrivacyPanel;
+                          final profileActive =
+                              showingProfilePanel || showingPrivacyPanel;
 
                           if (!isWide) {
                             return Padding(
@@ -1514,7 +1530,9 @@ class _InstitutionAdminScreenState
                                         adminName: adminName,
                                         desktop: false,
                                         onLogout: onLogout,
+                                        onMessagesTap: onMessages,
                                         onProfileTap: onProfile,
+                                        profileActive: profileActive,
                                         unreadMessages: unread,
                                       );
                                     },
@@ -1543,10 +1561,12 @@ class _InstitutionAdminScreenState
                                   ),
                                   const SizedBox(height: 14),
                                   Expanded(
-                                    child: SingleChildScrollView(
-                                      controller: _scrollController,
-                                      child: content,
-                                    ),
+                                    child: showEmbeddedPanel
+                                        ? content
+                                        : SingleChildScrollView(
+                                            controller: _scrollController,
+                                            child: content,
+                                          ),
                                   ),
                                 ],
                               ),
@@ -1600,22 +1620,36 @@ class _InstitutionAdminScreenState
                                               adminName: adminName,
                                               desktop: true,
                                               onProfileTap: onProfile,
+                                              onMessagesTap: onMessages,
                                               onLogout: onLogout,
+                                              profileActive: profileActive,
                                               unreadMessages: unread,
                                             );
                                           },
                                         ),
                                         Expanded(
-                                          child: SingleChildScrollView(
-                                            controller: _scrollController,
-                                            padding: const EdgeInsets.fromLTRB(
-                                              28,
-                                              10,
-                                              28,
-                                              28,
-                                            ),
-                                            child: content,
-                                          ),
+                                          child: showEmbeddedPanel
+                                              ? Padding(
+                                                  padding:
+                                                      const EdgeInsets.fromLTRB(
+                                                        28,
+                                                        10,
+                                                        28,
+                                                        28,
+                                                      ),
+                                                  child: content,
+                                                )
+                                              : SingleChildScrollView(
+                                                  controller: _scrollController,
+                                                  padding:
+                                                      const EdgeInsets.fromLTRB(
+                                                        28,
+                                                        10,
+                                                        28,
+                                                        28,
+                                                      ),
+                                                  child: content,
+                                                ),
                                         ),
                                       ],
                                     ),
@@ -1719,7 +1753,9 @@ class _AdminWorkspaceHeader extends StatelessWidget {
     required this.adminName,
     required this.desktop,
     required this.onLogout,
+    required this.onMessagesTap,
     required this.onProfileTap,
+    required this.profileActive,
     required this.unreadMessages,
   });
 
@@ -1729,7 +1765,9 @@ class _AdminWorkspaceHeader extends StatelessWidget {
   final String adminName;
   final bool desktop;
   final VoidCallback onLogout;
+  final VoidCallback onMessagesTap;
   final VoidCallback onProfileTap;
+  final bool profileActive;
   final int unreadMessages;
 
   @override
@@ -1794,20 +1832,10 @@ class _AdminWorkspaceHeader extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  InkWell(
-                    onTap: onProfileTap,
-                    borderRadius: BorderRadius.circular(desktop ? 20 : 18),
-                    child: CircleAvatar(
-                      radius: desktop ? 20 : 18,
-                      backgroundColor: const Color(0xFF0E9B90),
-                      child: Text(
-                        _adminInitials(adminName),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
+                  _AdminHeaderActionButton(
+                    tooltip: 'Message counselors',
+                    icon: Icons.chat_bubble_outline_rounded,
+                    onTap: onMessagesTap,
                   ),
                   if (unreadMessages > 0)
                     Positioned(
@@ -1816,6 +1844,25 @@ class _AdminWorkspaceHeader extends StatelessWidget {
                       child: _Badge(count: unreadMessages),
                     ),
                 ],
+              ),
+              const SizedBox(width: 10),
+              _AdminHeaderActionButton(
+                tooltip: profileActive
+                    ? 'Close admin profile'
+                    : 'Open admin profile',
+                active: profileActive,
+                onTap: onProfileTap,
+                child: CircleAvatar(
+                  radius: desktop ? 18 : 17,
+                  backgroundColor: const Color(0xFF0E9B90),
+                  child: Text(
+                    _adminInitials(adminName),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(width: 10),
               IconButton(
@@ -1877,6 +1924,71 @@ class _AdminWorkspaceHeader extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AdminHeaderActionButton extends StatelessWidget {
+  const _AdminHeaderActionButton({
+    this.tooltip,
+    this.icon,
+    this.active = false,
+    this.child,
+    required this.onTap,
+  }) : assert(icon != null || child != null);
+
+  final String? tooltip;
+  final IconData? icon;
+  final bool active;
+  final Widget? child;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip ?? '',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: active
+                  ? const Color(0xFFDEF8F4)
+                  : Colors.white.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: active
+                    ? const Color(0xFF81E6D9)
+                    : const Color(0xFFDCE5EF),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: active
+                      ? const Color(0x220E9B90)
+                      : const Color(0x140F172A),
+                  blurRadius: active ? 18 : 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Center(
+              child:
+                  child ??
+                  Icon(
+                    icon,
+                    color: active
+                        ? const Color(0xFF0E7490)
+                        : const Color(0xFF16324F),
+                  ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -2679,6 +2791,7 @@ class _WorkspacePanel extends StatelessWidget {
   const _WorkspacePanel({
     super.key,
     required this.activeView,
+    required this.searchFieldKey,
     required this.searchController,
     required this.onSearchChanged,
     required this.activeFilter,
@@ -2697,6 +2810,7 @@ class _WorkspacePanel extends StatelessWidget {
   });
 
   final AdminWorkspaceView activeView;
+  final GlobalKey searchFieldKey;
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final String activeFilter;
@@ -2751,13 +2865,16 @@ class _WorkspacePanel extends StatelessWidget {
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final isCompact = constraints.maxWidth < 620;
-                        final searchField = TextField(
-                          controller: searchController,
-                          decoration: const InputDecoration(
-                            prefixIcon: Icon(Icons.search_rounded),
-                            hintText: 'Search',
+                        final searchField = KeyedSubtree(
+                          key: searchFieldKey,
+                          child: TextField(
+                            controller: searchController,
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.search_rounded),
+                              hintText: 'Search',
+                            ),
+                            onChanged: onSearchChanged,
                           ),
-                          onChanged: onSearchChanged,
                         );
                         final filterField = DropdownButtonFormField<String>(
                           initialValue: activeFilter,
@@ -2919,8 +3036,7 @@ class _OverviewEmptyStateState extends State<_OverviewEmptyState> {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.sizeOf(context).width < 640;
-    final showContent = !isMobile || _expanded;
+    final showContent = _expanded;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -2943,16 +3059,15 @@ class _OverviewEmptyStateState extends State<_OverviewEmptyState> {
                 ),
               ),
               const Spacer(),
-              if (isMobile)
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => setState(() => _expanded = !_expanded),
-                  icon: Icon(
-                    showContent
-                        ? Icons.expand_less_rounded
-                        : Icons.expand_more_rounded,
-                  ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                onPressed: () => setState(() => _expanded = !_expanded),
+                icon: Icon(
+                  showContent
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
                 ),
+              ),
             ],
           ),
           const SizedBox(height: 6),
@@ -2971,6 +3086,7 @@ class _OverviewEmptyStateState extends State<_OverviewEmptyState> {
           AnimatedCrossFade(
             firstChild: const SizedBox.shrink(),
             secondChild: const Wrap(
+              alignment: WrapAlignment.center,
               spacing: 12,
               runSpacing: 12,
               children: [
@@ -3102,143 +3218,67 @@ class _PaginatedWorkspaceTable extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFD9E4F0)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!isMobile)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              decoration: const BoxDecoration(
-                color: Color(0xFFF8FBFF),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF2563EB), Color(0xFF38BDF8)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(
-                      Icons.dataset_linked_rounded,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Live Records',
-                          style: TextStyle(
-                            color: Color(0xFF081A30),
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Sortable rows, tap-to-open details, and export-ready admin data.',
-                          style: TextStyle(
-                            color: Color(0xFF5E728D),
-                            fontSize: 12.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0xFFD9E4F0)),
-                    ),
-                    child: Text(
-                      '${entries.length} visible',
-                      style: const TextStyle(
-                        color: Color(0xFF415A77),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          Theme(
-            data: Theme.of(context).copyWith(
-              cardTheme: const CardThemeData(
-                color: Colors.transparent,
-                elevation: 0,
-              ),
-              dividerColor: const Color(0xFFE2EAF3),
-              textTheme: Theme.of(context).textTheme.apply(
-                bodyColor: const Color(0xFF16324F),
-                displayColor: const Color(0xFF16324F),
-              ),
-            ),
-            child: PaginatedDataTable(
-              header: const Text(
-                'Records',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-              headingRowColor: WidgetStateProperty.all(const Color(0xFFF5FAFF)),
-              rowsPerPage: rowsPerPage,
-              availableRowsPerPage: const [5, 10, 20, 50],
-              onRowsPerPageChanged: onRowsPerPageChanged,
-              sortColumnIndex: sortColumnIndex,
-              sortAscending: sortAscending,
-              columnSpacing: 24,
-              horizontalMargin: 20,
-              columns: [
-                DataColumn(
-                  label: const Text('Name'),
-                  onSort: (columnIndex, ascending) =>
-                      onSort(columnIndex, ascending),
-                ),
-                DataColumn(
-                  label: const Text('Contact / ID'),
-                  onSort: (columnIndex, ascending) =>
-                      onSort(columnIndex, ascending),
-                ),
-                DataColumn(
-                  label: const Text('Type'),
-                  onSort: (columnIndex, ascending) =>
-                      onSort(columnIndex, ascending),
-                ),
-                DataColumn(
-                  label: const Text('Status'),
-                  onSort: (columnIndex, ascending) =>
-                      onSort(columnIndex, ascending),
-                ),
-                DataColumn(
-                  label: const Text('Source'),
-                  onSort: (columnIndex, ascending) =>
-                      onSort(columnIndex, ascending),
-                ),
-                DataColumn(
-                  label: const Text('Created'),
-                  onSort: (columnIndex, ascending) =>
-                      onSort(columnIndex, ascending),
-                ),
-              ],
-              source: source,
-              showFirstLastButtons: true,
-            ),
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          cardTheme: const CardThemeData(
+            color: Colors.transparent,
+            elevation: 0,
           ),
-        ],
+          dividerColor: const Color(0xFFE2EAF3),
+          textTheme: Theme.of(context).textTheme.apply(
+            bodyColor: const Color(0xFF16324F),
+            displayColor: const Color(0xFF16324F),
+          ),
+        ),
+        child: PaginatedDataTable(
+          header: const Text(
+            'Records',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          headingRowColor: WidgetStateProperty.all(const Color(0xFFF5FAFF)),
+          rowsPerPage: rowsPerPage,
+          availableRowsPerPage: const [1, 2, 3, 4, 5],
+          onRowsPerPageChanged: onRowsPerPageChanged,
+          sortColumnIndex: sortColumnIndex,
+          sortAscending: sortAscending,
+          columnSpacing: isMobile ? 18 : 24,
+          horizontalMargin: isMobile ? 14 : 20,
+          showEmptyRows: false,
+          columns: [
+            DataColumn(
+              label: const Text('Name'),
+              onSort: (columnIndex, ascending) =>
+                  onSort(columnIndex, ascending),
+            ),
+            DataColumn(
+              label: const Text('Contact / ID'),
+              onSort: (columnIndex, ascending) =>
+                  onSort(columnIndex, ascending),
+            ),
+            DataColumn(
+              label: const Text('Type'),
+              onSort: (columnIndex, ascending) =>
+                  onSort(columnIndex, ascending),
+            ),
+            DataColumn(
+              label: const Text('Status'),
+              onSort: (columnIndex, ascending) =>
+                  onSort(columnIndex, ascending),
+            ),
+            DataColumn(
+              label: const Text('Source'),
+              onSort: (columnIndex, ascending) =>
+                  onSort(columnIndex, ascending),
+            ),
+            DataColumn(
+              label: const Text('Created'),
+              onSort: (columnIndex, ascending) =>
+                  onSort(columnIndex, ascending),
+            ),
+          ],
+          source: source,
+          showFirstLastButtons: true,
+        ),
       ),
     );
   }
@@ -3295,7 +3335,7 @@ class _WorkspaceDataSource extends DataTableSource {
     return DataRow.byIndex(
       index: index,
       color: entry.recordId == highlightedRecordId
-          ? MaterialStateProperty.all(const Color(0x332563EB))
+          ? WidgetStateProperty.all(const Color(0x332563EB))
           : null,
       cells: [
         DataCell(
@@ -3362,7 +3402,7 @@ class _WorkspaceDataSource extends DataTableSource {
 
 class _InviteComposer extends StatelessWidget {
   const _InviteComposer({
-    required this.phoneController,
+    required this.emailController,
     required this.selectedRole,
     required this.isSubmitting,
     required this.errorMessage,
@@ -3370,7 +3410,7 @@ class _InviteComposer extends StatelessWidget {
     required this.onCreateInvite,
   });
 
-  final TextEditingController phoneController;
+  final TextEditingController emailController;
   final UserRole selectedRole;
   final bool isSubmitting;
   final String? errorMessage;
@@ -3457,7 +3497,7 @@ class _InviteComposer extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Choose a target role, enter the phone number, and send a highlighted in-app institution invite from the same control surface.',
+                    'Choose a target role, enter a verified email, and send a highlighted in-app institution invite from the same control surface.',
                     style: TextStyle(
                       color: Color(0xFFD7E5F0),
                       height: 1.45,
@@ -3584,11 +3624,11 @@ class _InviteComposer extends StatelessWidget {
                       ),
                     ),
                   TextFormField(
-                    controller: phoneController,
-                    keyboardType: TextInputType.phone,
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
-                      hintText: '+254712345678',
-                      prefixIcon: Icon(Icons.phone_rounded),
+                      hintText: 'colleague@school.edu',
+                      prefixIcon: Icon(Icons.alternate_email_rounded),
                     ),
                   ),
                 ],
@@ -3982,100 +4022,6 @@ class _ModuleEyebrow extends StatelessWidget {
           fontSize: 12,
           fontWeight: FontWeight.w800,
           letterSpacing: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _TableHintPill extends StatelessWidget {
-  const _TableHintPill({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFD8E6F2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: const Color(0xFF0284C7)),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF415A77),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InviteMetaPill extends StatelessWidget {
-  const _InviteMetaPill({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0x24FFFFFF),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0x40FFFFFF)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: const Color(0xFFFDE68A)),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              label,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailLine extends StatelessWidget {
-  const _DetailLine({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: '$label: ',
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            TextSpan(text: value),
-          ],
         ),
       ),
     );
