@@ -72,7 +72,7 @@ class AuthRepository {
     required String name,
     required String email,
     required String password,
-    required String phoneNumber,
+    String? phoneNumber,
     String? additionalPhoneNumber,
     bool counselorRegistrationIntent = false,
   }) async {
@@ -225,19 +225,27 @@ class AuthRepository {
     String? registrationIntent,
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
-    final normalizedPhoneNumber = _normalizeRequiredKenyaPhone(phoneNumber);
-    final normalizedAdditionalPhoneNumber = _normalizeOptionalKenyaPhone(
+    var normalizedPhoneNumber = _normalizeOptionalKenyaPhone(phoneNumber);
+    var normalizedAdditionalPhoneNumber = _normalizeOptionalKenyaPhone(
       additionalPhoneNumber,
     );
-    if (normalizedAdditionalPhoneNumber == normalizedPhoneNumber) {
+    if (normalizedPhoneNumber == null &&
+        normalizedAdditionalPhoneNumber != null) {
+      normalizedPhoneNumber = normalizedAdditionalPhoneNumber;
+      normalizedAdditionalPhoneNumber = null;
+    }
+    if (normalizedPhoneNumber != null &&
+        normalizedAdditionalPhoneNumber == normalizedPhoneNumber) {
       throw Exception(
         'Additional mobile number must be different from primary mobile number.',
       );
     }
-    final phoneCandidates = _buildPhoneCandidates(
-      primaryPhone: normalizedPhoneNumber,
-      additionalPhone: normalizedAdditionalPhoneNumber,
-    );
+    final phoneCandidates = normalizedPhoneNumber == null
+        ? const <String>[]
+        : _buildPhoneCandidates(
+            primaryPhone: normalizedPhoneNumber,
+            additionalPhone: normalizedAdditionalPhoneNumber,
+          );
 
     final credential = await _auth.createUserWithEmailAndPassword(
       email: normalizedEmail,
@@ -262,10 +270,12 @@ class AuthRepository {
     try {
       if (kUseWindowsRestAuth) {
         final now = DateTime.now().toUtc();
-        final phoneRegistryRefs = _phoneRegistryRefsForRegistration(
-          primaryPhoneNumber: normalizedPhoneNumber,
-          additionalPhoneNumber: normalizedAdditionalPhoneNumber,
-        );
+        final phoneRegistryRefs = normalizedPhoneNumber == null
+            ? const <DocumentReference<Map<String, dynamic>>>[]
+            : _phoneRegistryRefsForRegistration(
+                primaryPhoneNumber: normalizedPhoneNumber,
+                additionalPhoneNumber: normalizedAdditionalPhoneNumber,
+              );
 
         for (final ref in phoneRegistryRefs) {
           final snapshot = await _windowsRest.getDocument(
@@ -306,10 +316,12 @@ class AuthRepository {
       }
 
       await _firestore.runTransaction((transaction) async {
-        final phoneRegistryRefs = _phoneRegistryRefsForRegistration(
-          primaryPhoneNumber: normalizedPhoneNumber,
-          additionalPhoneNumber: normalizedAdditionalPhoneNumber,
-        );
+        final phoneRegistryRefs = normalizedPhoneNumber == null
+            ? const <DocumentReference<Map<String, dynamic>>>[]
+            : _phoneRegistryRefsForRegistration(
+                primaryPhoneNumber: normalizedPhoneNumber,
+                additionalPhoneNumber: normalizedAdditionalPhoneNumber,
+              );
 
         for (final ref in phoneRegistryRefs) {
           final snapshot = await transaction.get(ref);
@@ -481,7 +493,7 @@ class AuthRepository {
 
   Future<void> updateAccountProfile({
     required String name,
-    required String phoneNumber,
+    String? phoneNumber,
     String? additionalPhoneNumber,
   }) async {
     final user = _auth.currentUser;
@@ -494,19 +506,26 @@ class AuthRepository {
       throw Exception('Please enter your full name.');
     }
 
-    final normalizedPrimary = _normalizeRequiredKenyaPhone(phoneNumber);
-    final normalizedAdditional = _normalizeOptionalKenyaPhone(
+    var normalizedPrimary = _normalizeOptionalKenyaPhone(phoneNumber);
+    var normalizedAdditional = _normalizeOptionalKenyaPhone(
       additionalPhoneNumber,
     );
-    if (normalizedAdditional == normalizedPrimary) {
+    if (normalizedPrimary == null && normalizedAdditional != null) {
+      normalizedPrimary = normalizedAdditional;
+      normalizedAdditional = null;
+    }
+    if (normalizedPrimary != null &&
+        normalizedAdditional == normalizedPrimary) {
       throw Exception(
         'Additional mobile number must be different from primary mobile number.',
       );
     }
-    final phoneCandidates = _buildPhoneCandidates(
-      primaryPhone: normalizedPrimary,
-      additionalPhone: normalizedAdditional,
-    );
+    final phoneCandidates = normalizedPrimary == null
+        ? const <String>[]
+        : _buildPhoneCandidates(
+            primaryPhone: normalizedPrimary,
+            additionalPhone: normalizedAdditional,
+          );
 
     if (kUseWindowsRestAuth) {
       final existing = (await _windowsRest.getDocument(
@@ -533,10 +552,12 @@ class AuthRepository {
         }
       }
 
-      final registryRefs = _phoneRegistryRefsForRegistration(
-        primaryPhoneNumber: normalizedPrimary,
-        additionalPhoneNumber: normalizedAdditional,
-      );
+      final registryRefs = normalizedPrimary == null
+          ? const <DocumentReference<Map<String, dynamic>>>[]
+          : _phoneRegistryRefsForRegistration(
+              primaryPhoneNumber: normalizedPrimary,
+              additionalPhoneNumber: normalizedAdditional,
+            );
       for (final ref in registryRefs) {
         final registrySnapshot = await _windowsRest.getDocument(
           'phone_number_registry/${ref.id}',
@@ -559,7 +580,7 @@ class AuthRepository {
       await _windowsRest.setDocument('users/${user.uid}', {
         ...existing,
         'name': trimmedName,
-        'phoneNumber': normalizedPrimary,
+        'phoneNumber': normalizedPrimary ?? '',
         'additionalPhoneNumber': normalizedAdditional,
         'phoneNumbers': phoneCandidates,
         'updatedAt': now,
@@ -623,10 +644,12 @@ class AuthRepository {
         }
       }
 
-      final registryRefs = _phoneRegistryRefsForRegistration(
-        primaryPhoneNumber: normalizedPrimary,
-        additionalPhoneNumber: normalizedAdditional,
-      );
+      final registryRefs = normalizedPrimary == null
+          ? const <DocumentReference<Map<String, dynamic>>>[]
+          : _phoneRegistryRefsForRegistration(
+              primaryPhoneNumber: normalizedPrimary,
+              additionalPhoneNumber: normalizedAdditional,
+            );
 
       for (final ref in registryRefs) {
         final registrySnapshot = await transaction.get(ref);
@@ -645,7 +668,7 @@ class AuthRepository {
 
       transaction.update(userRef, {
         'name': trimmedName,
-        'phoneNumber': normalizedPrimary,
+        'phoneNumber': normalizedPrimary ?? '',
         'additionalPhoneNumber': normalizedAdditional,
         'phoneNumbers': phoneCandidates,
         'updatedAt': FieldValue.serverTimestamp(),

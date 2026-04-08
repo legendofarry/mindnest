@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -35,18 +33,8 @@ class RegisterDetailsScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
-  static const _kenyaPrefix = '+254';
-  static const _primaryDuplicateMessage =
-      'This mobile number is already linked to another account.';
-  static const _additionalDuplicateMessage =
-      'This additional mobile is already linked to another account.';
-
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _additionalPhoneController = TextEditingController();
-  final _phoneFocusNode = FocusNode();
-  final _additionalPhoneFocusNode = FocusNode();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -55,17 +43,9 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   bool _isConfirmPasswordVisible = false;
   bool _nameFieldError = false;
   bool _emailFieldError = false;
-  bool _phoneFieldError = false;
-  bool _additionalPhoneFieldError = false;
   bool _passwordFieldError = false;
   bool _confirmPasswordFieldError = false;
-
-  String? _phoneDuplicateError;
-  String? _additionalPhoneDuplicateError;
   String? _formError;
-
-  int _phoneCheckToken = 0;
-  int _additionalPhoneCheckToken = 0;
 
   Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
     inviteId: widget.inviteId ?? '',
@@ -100,50 +80,20 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
     final email = _emailController.text.trim();
     final hasEmail = email.isNotEmpty && email.contains('@');
 
-    final primaryPhone = _normalizeKenyaPhoneInput(_phoneController.text);
-    final hasPhone = _isValidKenyaPhone(primaryPhone);
-
-    final additionalRaw = _additionalPhoneController.text.trim();
-    final hasAdditional =
-        additionalRaw.isNotEmpty && additionalRaw != _kenyaPrefix;
-    final additionalPhone = hasAdditional
-        ? _normalizeKenyaPhoneInput(additionalRaw)
-        : null;
-    final hasValidAdditional =
-        additionalPhone == null || _isValidKenyaPhone(additionalPhone);
-    final hasDistinctAdditional =
-        additionalPhone == null || additionalPhone != primaryPhone;
-
     final hasPassword = _passwordController.text.length >= 8;
     final hasMatchingPassword =
         _confirmPasswordController.text == _passwordController.text;
 
-    return hasName &&
-        hasEmail &&
-        hasPhone &&
-        hasValidAdditional &&
-        hasDistinctAdditional &&
-        hasPassword &&
-        hasMatchingPassword;
+    return hasName && hasEmail && hasPassword && hasMatchingPassword;
   }
 
-  bool get _canSubmit {
-    return !_isSubmitting &&
-        _isFormStructurallyValid &&
-        _phoneDuplicateError == null &&
-        _additionalPhoneDuplicateError == null;
-  }
+  bool get _canSubmit => !_isSubmitting && _isFormStructurallyValid;
 
   @override
   void initState() {
     super.initState();
     _isPasswordVisible = false;
     _isConfirmPasswordVisible = false;
-    _phoneController.text = _kenyaPrefix;
-    _phoneController.addListener(_enforcePrimaryPhonePrefix);
-    _additionalPhoneController.addListener(_enforceOptionalPhonePrefix);
-    _phoneFocusNode.addListener(_onPrimaryPhoneFocusChange);
-    _additionalPhoneFocusNode.addListener(_onAdditionalPhoneFocusChange);
 
     final invitedName = (widget.invitedName ?? '').trim();
     if (invitedName.isNotEmpty) {
@@ -158,180 +108,11 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
 
   @override
   void dispose() {
-    _phoneController.removeListener(_enforcePrimaryPhonePrefix);
-    _additionalPhoneController.removeListener(_enforceOptionalPhonePrefix);
-    _phoneFocusNode.removeListener(_onPrimaryPhoneFocusChange);
-    _additionalPhoneFocusNode.removeListener(_onAdditionalPhoneFocusChange);
     _nameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
-    _additionalPhoneController.dispose();
-    _phoneFocusNode.dispose();
-    _additionalPhoneFocusNode.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
-  }
-
-  void _enforcePrimaryPhonePrefix() {
-    final normalized = _normalizeKenyaPhoneInput(_phoneController.text);
-    if (_phoneController.text == normalized) {
-      return;
-    }
-    _phoneController.value = TextEditingValue(
-      text: normalized,
-      selection: TextSelection.collapsed(offset: normalized.length),
-    );
-  }
-
-  void _enforceOptionalPhonePrefix() {
-    final text = _additionalPhoneController.text.trim();
-    if (text.isEmpty) {
-      return;
-    }
-    final normalized = _normalizeKenyaPhoneInput(text);
-    if (_additionalPhoneController.text == normalized) {
-      return;
-    }
-    _additionalPhoneController.value = TextEditingValue(
-      text: normalized,
-      selection: TextSelection.collapsed(offset: normalized.length),
-    );
-  }
-
-  String _normalizeKenyaPhoneInput(String input) {
-    var digits = input.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.startsWith('254')) {
-      digits = digits.substring(3);
-    }
-    if (digits.startsWith('0')) {
-      digits = digits.substring(1);
-    }
-    return '$_kenyaPrefix$digits';
-  }
-
-  bool _isValidKenyaPhone(String value) {
-    return RegExp(r'^\+254\d{9}$').hasMatch(value);
-  }
-
-  void _onPrimaryPhoneFocusChange() {
-    if (_phoneFocusNode.hasFocus) {
-      return;
-    }
-    unawaited(_checkPrimaryPhoneDuplicate());
-  }
-
-  void _onAdditionalPhoneFocusChange() {
-    if (_additionalPhoneFocusNode.hasFocus) {
-      return;
-    }
-    unawaited(_checkAdditionalPhoneDuplicate());
-  }
-
-  Future<void> _checkPrimaryPhoneDuplicate() async {
-    final normalized = _normalizeKenyaPhoneInput(_phoneController.text);
-    if (!_isValidKenyaPhone(normalized)) {
-      if (_phoneDuplicateError != null || _phoneFieldError) {
-        setState(() {
-          _phoneDuplicateError = null;
-          _phoneFieldError = false;
-        });
-      }
-      return;
-    }
-
-    final token = ++_phoneCheckToken;
-    try {
-      final isAvailable = await ref
-          .read(authRepositoryProvider)
-          .isPhoneNumberAvailableForRegistration(normalized);
-      if (!mounted || token != _phoneCheckToken) {
-        return;
-      }
-      setState(() {
-        _phoneDuplicateError = isAvailable ? null : _primaryDuplicateMessage;
-        _phoneFieldError = !isAvailable;
-        if (!isAvailable) {
-          _formError = _primaryDuplicateMessage;
-        } else if (_formError == _primaryDuplicateMessage) {
-          _formError = null;
-        }
-      });
-    } catch (_) {
-      if (!mounted || token != _phoneCheckToken) {
-        return;
-      }
-      setState(() {
-        _phoneDuplicateError = null;
-        _phoneFieldError = false;
-      });
-    }
-  }
-
-  Future<void> _checkAdditionalPhoneDuplicate() async {
-    final trimmed = _additionalPhoneController.text.trim();
-    if (trimmed.isEmpty || trimmed == _kenyaPrefix) {
-      if (_additionalPhoneDuplicateError != null ||
-          _additionalPhoneFieldError) {
-        setState(() {
-          _additionalPhoneDuplicateError = null;
-          _additionalPhoneFieldError = false;
-          if (_formError == _additionalDuplicateMessage) {
-            _formError = null;
-          }
-        });
-      }
-      return;
-    }
-
-    final normalized = _normalizeKenyaPhoneInput(trimmed);
-    final primaryPhone = _normalizeKenyaPhoneInput(_phoneController.text);
-    if (!_isValidKenyaPhone(normalized) || normalized == primaryPhone) {
-      if (_additionalPhoneDuplicateError != null ||
-          _additionalPhoneFieldError) {
-        setState(() {
-          _additionalPhoneDuplicateError = null;
-          _additionalPhoneFieldError = false;
-        });
-      }
-      return;
-    }
-
-    final token = ++_additionalPhoneCheckToken;
-    try {
-      final isAvailable = await ref
-          .read(authRepositoryProvider)
-          .isPhoneNumberAvailableForRegistration(normalized);
-      if (!mounted || token != _additionalPhoneCheckToken) {
-        return;
-      }
-      setState(() {
-        _additionalPhoneDuplicateError = isAvailable
-            ? null
-            : _additionalDuplicateMessage;
-        _additionalPhoneFieldError = !isAvailable;
-        if (!isAvailable) {
-          _formError = _additionalDuplicateMessage;
-        } else if (_formError == _additionalDuplicateMessage) {
-          _formError = null;
-        }
-      });
-    } catch (_) {
-      if (!mounted || token != _additionalPhoneCheckToken) {
-        return;
-      }
-      setState(() {
-        _additionalPhoneDuplicateError = null;
-        _additionalPhoneFieldError = false;
-      });
-    }
-  }
-
-  Future<bool> _runPhoneDuplicationChecksBeforeSubmit() async {
-    await _checkPrimaryPhoneDuplicate();
-    await _checkAdditionalPhoneDuplicate();
-    return _phoneDuplicateError != null ||
-        _additionalPhoneDuplicateError != null;
   }
 
   Future<void> _openLegalDoc(LegalDocumentType type) async {
@@ -347,57 +128,20 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
     final email = _emailController.text.trim();
     final hasEmail = email.isNotEmpty && email.contains('@');
 
-    final primaryPhone = _normalizeKenyaPhoneInput(_phoneController.text);
-    final hasPhone = _isValidKenyaPhone(primaryPhone);
-
-    final additionalRaw = _additionalPhoneController.text.trim();
-    final hasAdditional =
-        additionalRaw.isNotEmpty && additionalRaw != _kenyaPrefix;
-    final additionalPhone = hasAdditional
-        ? _normalizeKenyaPhoneInput(additionalRaw)
-        : null;
-    final hasValidAdditional =
-        additionalPhone == null || _isValidKenyaPhone(additionalPhone);
-    final hasDistinctAdditional =
-        additionalPhone == null || additionalPhone != primaryPhone;
-
     final hasPassword = _passwordController.text.length >= 8;
     final hasMatchingPassword =
         _confirmPasswordController.text == _passwordController.text;
-    final hasDuplicatePrimary = _phoneDuplicateError != null;
-    final hasDuplicateAdditional = _additionalPhoneDuplicateError != null;
 
     setState(() {
       _nameFieldError = !hasName;
       _emailFieldError = !hasEmail;
-      _phoneFieldError = !hasPhone || hasDuplicatePrimary;
-      _additionalPhoneFieldError =
-          !hasValidAdditional ||
-          !hasDistinctAdditional ||
-          hasDuplicateAdditional;
       _passwordFieldError = !hasPassword;
       _confirmPasswordFieldError = !hasMatchingPassword;
     });
 
-    if (!hasName ||
-        !hasEmail ||
-        !hasPhone ||
-        !hasValidAdditional ||
-        !hasDistinctAdditional ||
-        !hasPassword ||
-        !hasMatchingPassword) {
+    if (!hasName || !hasEmail || !hasPassword || !hasMatchingPassword) {
       setState(() {
         _formError = 'Please correct the highlighted fields.';
-      });
-      return false;
-    }
-
-    if (hasDuplicatePrimary || hasDuplicateAdditional) {
-      setState(() {
-        _formError =
-            _phoneDuplicateError ??
-            _additionalPhoneDuplicateError ??
-            'A mobile number is already linked to another account.';
       });
       return false;
     }
@@ -412,16 +156,6 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
 
     setState(() => _isSubmitting = true);
 
-    final hasDuplicatePhone = await _runPhoneDuplicationChecksBeforeSubmit();
-    if (!mounted) {
-      return;
-    }
-
-    if (hasDuplicatePhone || !_validateBeforeSubmit()) {
-      setState(() => _isSubmitting = false);
-      return;
-    }
-
     try {
       await ref
           .read(authRepositoryProvider)
@@ -429,8 +163,6 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             name: _nameController.text,
             email: _emailController.text,
             password: _passwordController.text,
-            phoneNumber: _phoneController.text.trim(),
-            additionalPhoneNumber: _additionalPhoneController.text.trim(),
             counselorRegistrationIntent: _isCounselorIntent,
           );
       await syncAuthSessionState(ref);
@@ -549,7 +281,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
           SizedBox(height: fieldGap),
           _buildEmailField(),
           SizedBox(height: fieldGap),
-          _buildPhoneAndPasswordRows(fieldGap: fieldGap, pairGap: pairGap),
+          _buildPasswordRows(pairGap: pairGap),
           SizedBox(height: fieldGap),
           _buildTermsCard(),
           SizedBox(height: submitGap),
@@ -706,56 +438,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
     );
   }
 
-  Widget _buildPhoneAndPasswordRows({
-    required double fieldGap,
-    required double pairGap,
-  }) {
-    final primaryPhoneField = _LabeledFieldBlock(
-      label: 'MOBILE NUMBER',
-      child: _RoundedInput(
-        hasError: _phoneFieldError || _phoneDuplicateError != null,
-        child: TextFormField(
-          controller: _phoneController,
-          focusNode: _phoneFocusNode,
-          keyboardType: TextInputType.phone,
-          onChanged: (_) => setState(() {
-            _phoneFieldError = false;
-            _phoneDuplicateError = null;
-            _formError = null;
-          }),
-          decoration: const InputDecoration(
-            border: InputBorder.none,
-            hintText: '+2547..',
-            prefixIcon: Icon(Icons.phone_rounded),
-          ),
-        ),
-      ),
-    );
-
-    final additionalPhoneField = _LabeledFieldBlock(
-      label: 'OTHER MOBILE',
-      child: _RoundedInput(
-        hasError:
-            _additionalPhoneFieldError ||
-            _additionalPhoneDuplicateError != null,
-        child: TextFormField(
-          controller: _additionalPhoneController,
-          focusNode: _additionalPhoneFocusNode,
-          keyboardType: TextInputType.phone,
-          onChanged: (_) => setState(() {
-            _additionalPhoneFieldError = false;
-            _additionalPhoneDuplicateError = null;
-            _formError = null;
-          }),
-          decoration: const InputDecoration(
-            border: InputBorder.none,
-            hintText: '+2547..',
-            prefixIcon: Icon(Icons.phone_android_rounded),
-          ),
-        ),
-      ),
-    );
-
+  Widget _buildPasswordRows({required double pairGap}) {
     final passwordField = _LabeledFieldBlock(
       label: 'PASSWORD',
       child: _RoundedInput(
@@ -820,15 +503,6 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
 
     return Column(
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: primaryPhoneField),
-            SizedBox(width: pairGap),
-            Expanded(child: additionalPhoneField),
-          ],
-        ),
-        SizedBox(height: fieldGap),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1121,8 +795,8 @@ class _DesktopRegisterDetailsSupportPanel extends StatelessWidget {
               icon: Icons.person_outline_rounded,
             ),
             _DesktopSupportChipData(
-              label: 'Phone number',
-              icon: Icons.phone_rounded,
+              label: 'Verified email',
+              icon: Icons.mail_outline_rounded,
             ),
             _DesktopSupportChipData(
               label: 'Approval invite',
@@ -1139,8 +813,8 @@ class _DesktopRegisterDetailsSupportPanel extends StatelessWidget {
               icon: Icons.mail_outline_rounded,
             ),
             _DesktopSupportChipData(
-              label: 'Mobile number',
-              icon: Icons.phone_rounded,
+              label: 'Secure password',
+              icon: Icons.password_rounded,
             ),
           ];
     final steps = hasInviteContext
@@ -1167,7 +841,7 @@ class _DesktopRegisterDetailsSupportPanel extends StatelessWidget {
             _DesktopSupportStepData(
               title: 'Enter your account details',
               description:
-                  'Use the email and phone number you will use for sign-in and follow-up communication.',
+                  'Use the email and password you want for secure sign-in.',
             ),
             _DesktopSupportStepData(
               title: 'Verify your email',

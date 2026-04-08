@@ -81,8 +81,6 @@ class InstitutionAdminProfileScreen extends ConsumerStatefulWidget {
 class _InstitutionAdminProfileScreenState
     extends ConsumerState<InstitutionAdminProfileScreen> {
   final _name = TextEditingController();
-  final _primaryPhone = TextEditingController(text: '+254');
-  final _additionalPhone = TextEditingController();
   Stream<int>? _unreadMessageCount;
 
   bool _seeded = false;
@@ -94,8 +92,6 @@ class _InstitutionAdminProfileScreenState
   @override
   void dispose() {
     _name.dispose();
-    _primaryPhone.dispose();
-    _additionalPhone.dispose();
     super.dispose();
   }
 
@@ -134,10 +130,6 @@ class _InstitutionAdminProfileScreenState
                 }).length,
               );
     _name.text = profile.name;
-    _primaryPhone.text = (profile.phoneNumber ?? '').isNotEmpty
-        ? profile.phoneNumber!
-        : '+254';
-    _additionalPhone.text = profile.additionalPhoneNumber ?? '';
     _seeded = true;
   }
 
@@ -154,13 +146,7 @@ class _InstitutionAdminProfileScreenState
     try {
       await ref
           .read(authRepositoryProvider)
-          .updateAccountProfile(
-            name: _name.text.trim(),
-            phoneNumber: _primaryPhone.text.trim(),
-            additionalPhoneNumber: _additionalPhone.text.trim().isEmpty
-                ? null
-                : _additionalPhone.text.trim(),
-          );
+          .updateAccountProfile(name: _name.text.trim());
       if (!mounted) return;
       showModernBannerFromSnackBar(
         context,
@@ -326,8 +312,7 @@ class _InstitutionAdminProfileScreenState
                       final isWide = constraints.maxWidth >= 920;
                       final accountCard = _SettingsCard(
                         title: 'Account',
-                        subtitle:
-                            'Edit your display identity and mobile reach.',
+                        subtitle: 'Edit your display identity.',
                         child: Column(
                           children: [
                             _LabeledField(
@@ -335,14 +320,6 @@ class _InstitutionAdminProfileScreenState
                               icon: Icons.badge_rounded,
                               controller: _name,
                               hint: 'e.g. Jane Doe',
-                            ),
-                            const SizedBox(height: 12),
-                            _LabeledField(
-                              label: 'Primary mobile',
-                              icon: Icons.phone_rounded,
-                              controller: _primaryPhone,
-                              keyboardType: TextInputType.phone,
-                              hint: '+2547...',
                             ),
                             const SizedBox(height: 14),
                             Align(
@@ -363,31 +340,21 @@ class _InstitutionAdminProfileScreenState
                             ),
                             AnimatedCrossFade(
                               firstChild: const SizedBox.shrink(),
-                              secondChild: Padding(
-                                padding: const EdgeInsets.only(top: 12),
-                                child: _LabeledField(
-                                  label: 'Additional mobile (optional)',
-                                  icon: Icons.smartphone_rounded,
-                                  controller: _additionalPhone,
-                                  keyboardType: TextInputType.phone,
-                                  hint: '+254...',
+                              secondChild: const Padding(
+                                padding: EdgeInsets.only(top: 12),
+                                child: Text(
+                                  'No additional account fields are required at the moment.',
+                                  style: TextStyle(
+                                    color: Color(0xFF64748B),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                               crossFadeState: _advancedExpanded
                                   ? CrossFadeState.showSecond
                                   : CrossFadeState.showFirst,
                               duration: const Duration(milliseconds: 180),
-                            ),
-                            const SizedBox(height: 10),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                'Use Kenya mobile numbers in +254 format.',
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.outline,
-                                  fontSize: 12.5,
-                                ),
-                              ),
                             ),
                             const SizedBox(height: 16),
                             SizedBox(
@@ -513,7 +480,9 @@ class _InstitutionAdminProfileScreenState
                               children: [
                                 ListTile(
                                   contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(Icons.mail_outline_rounded),
+                                  leading: const Icon(
+                                    Icons.mail_outline_rounded,
+                                  ),
                                   title: const Text('Email'),
                                   subtitle: Text(profile.email),
                                   trailing: IconButton(
@@ -1010,14 +979,12 @@ class _LabeledField extends StatelessWidget {
     required this.icon,
     required this.controller,
     this.hint,
-    this.keyboardType,
   });
 
   final String label;
   final IconData icon;
   final TextEditingController controller;
   final String? hint;
-  final TextInputType? keyboardType;
 
   @override
   Widget build(BuildContext context) {
@@ -1035,7 +1002,6 @@ class _LabeledField extends StatelessWidget {
         const SizedBox(height: 6),
         TextField(
           controller: controller,
-          keyboardType: keyboardType,
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: Icon(icon),

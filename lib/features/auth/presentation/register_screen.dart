@@ -341,7 +341,7 @@ class _RegisterDesktopSupportPanel extends StatelessWidget {
                   number: '2',
                   title: 'Enter your details',
                   description:
-                      'Add your name, email, phone number, and password on the next screen.',
+                      'Add your name, email, and password on the next screen.',
                 ),
                 SizedBox(height: 14),
                 _DesktopStepRow(

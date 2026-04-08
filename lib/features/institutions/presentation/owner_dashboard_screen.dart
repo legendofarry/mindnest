@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -21,8 +23,20 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   final _declineReasonController = TextEditingController();
   final _clearDbConfirmationController = TextEditingController();
   final _institutionSearchController = TextEditingController();
+  List<Map<String, dynamic>> _ownerInstitutions = const [];
+  List<Map<String, dynamic>> _ownerSchoolRequests = const [];
+  bool _isOwnerDataLoading = true;
+  bool _isOwnerDataRefreshing = false;
+  String? _ownerDataError;
+  DateTime? _ownerLastRefreshedAt;
   bool _isClearingDatabase = false;
   String _institutionStatusFilter = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOwnerData();
+  }
 
   @override
   void dispose() {
@@ -30,6 +44,59 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     _clearDbConfirmationController.dispose();
     _institutionSearchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadOwnerData({bool manualRefresh = false}) async {
+    if (manualRefresh && _isOwnerDataRefreshing) {
+      return;
+    }
+    setState(() {
+      if (manualRefresh) {
+        _isOwnerDataRefreshing = true;
+      } else {
+        _isOwnerDataLoading = true;
+      }
+      _ownerDataError = null;
+    });
+
+    try {
+      final repository = ref.read(institutionRepositoryProvider);
+      final results = await Future.wait<List<Map<String, dynamic>>>([
+        repository.getOwnerInstitutions(),
+        repository.getOwnerSchoolRequests(),
+      ]);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _ownerInstitutions = results[0];
+        _ownerSchoolRequests = results[1];
+        _ownerLastRefreshedAt = DateTime.now();
+        _ownerDataError = null;
+      });
+      if (manualRefresh) {
+        showModernBannerFromSnackBar(
+          context,
+          const SnackBar(content: Text('Owner data refreshed.')),
+        );
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final message = error.toString().replaceFirst('Exception: ', '');
+      setState(() {
+        _ownerDataError = message;
+      });
+      showModernBannerFromSnackBar(context, SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isOwnerDataLoading = false;
+          _isOwnerDataRefreshing = false;
+        });
+      }
+    }
   }
 
   Future<void> _approveInstitution(String institutionId) async {
@@ -42,7 +109,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       }
       showModernBannerFromSnackBar(
         context,
-        const SnackBar(content: Text('Institution approved successfully.')),
+        const SnackBar(
+          content: Text(
+            'Institution approved. Click Refresh to update owner records.',
+          ),
+        ),
       );
     } catch (error) {
       if (!mounted) {
@@ -111,7 +182,9 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       }
       showModernBannerFromSnackBar(
         context,
-        const SnackBar(content: Text('Institution declined.')),
+        const SnackBar(
+          content: Text('Institution declined. Click Refresh to sync changes.'),
+        ),
       );
     } catch (error) {
       if (!mounted) {
@@ -141,7 +214,9 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
         context,
         SnackBar(
           content: Text(
-            approved ? 'School request approved.' : 'School request declined.',
+            approved
+                ? 'School request approved. Click Refresh to sync.'
+                : 'School request declined. Click Refresh to sync.',
           ),
         ),
       );
@@ -165,6 +240,12 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
           '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
     }
     return '--';
+  }
+
+  String _formatRefreshStamp(DateTime value) {
+    final local = value.toLocal();
+    return '${local.day.toString().padLeft(2, '0')} ${_monthLabel(local.month)} '
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 
   String _formatShortDate(dynamic value) {
@@ -476,6 +557,34 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   Widget build(BuildContext context) {
     final authUser = ref.watch(authStateChangesProvider).valueOrNull;
     final isOwner = isOwnerEmail(authUser?.email);
+    final institutions = _ownerInstitutions;
+    final pendingInstitutions = institutions
+        .where(
+          (item) =>
+              ((item['status'] as String?) ?? '').trim().toLowerCase() ==
+              'pending',
+        )
+        .toList(growable: false);
+    final filteredInstitutions = _applyInstitutionFilters(institutions);
+    final activities = _buildRecentActivities(
+      institutions: institutions,
+      schoolRequests: _ownerSchoolRequests,
+    );
+    final pendingCount = pendingInstitutions.length;
+    final approvedCount = institutions
+        .where(
+          (item) =>
+              ((item['status'] as String?) ?? '').trim().toLowerCase() ==
+              'approved',
+        )
+        .length;
+    final declinedCount = institutions
+        .where(
+          (item) =>
+              ((item['status'] as String?) ?? '').trim().toLowerCase() ==
+              'declined',
+        )
+        .length;
 
     return MindNestShell(
       maxWidth: 1200,
@@ -484,6 +593,20 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          TextButton.icon(
+            onPressed: _isOwnerDataRefreshing
+                ? null
+                : () => _loadOwnerData(manualRefresh: true),
+            icon: _isOwnerDataRefreshing
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh_rounded),
+            label: const Text('Refresh'),
+          ),
+          const SizedBox(width: 8),
           TextButton.icon(
             onPressed: () => confirmAndLogout(context: context, ref: ref),
             icon: const Icon(Icons.logout_rounded),
@@ -507,226 +630,236 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 GlassCard(
                   child: Padding(
                     padding: const EdgeInsets.all(18),
-                    child: Row(
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         const Icon(Icons.admin_panel_settings_rounded),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Signed in as owner (${authUser?.email ?? kOwnerEmail})',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                        Text(
+                          'Signed in as owner (${authUser?.email ?? kOwnerEmail})',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        if (_ownerLastRefreshedAt != null)
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEAF2FF),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              child: Text(
+                                'Last refreshed ${_formatRefreshStamp(_ownerLastRefreshedAt!)}',
+                                style: const TextStyle(
+                                  color: Color(0xFF365176),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Color(0xFFE8F8F2),
+                            borderRadius: BorderRadius.all(
+                              Radius.circular(999),
+                            ),
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            child: Text(
+                              'Manual refresh mode',
+                              style: TextStyle(
+                                color: Color(0xFF0A8A78),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
+                if (_ownerDataError != null) ...[
+                  const SizedBox(height: 14),
+                  GlassCard(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: Color(0xFFB91C1C),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _ownerDataError!,
+                              style: const TextStyle(color: Color(0xFF7F1D1D)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 GlassCard(
                   child: Padding(
                     padding: const EdgeInsets.all(18),
-                    child: StreamBuilder<List<Map<String, dynamic>>>(
-                      stream: ref
-                          .read(institutionRepositoryProvider)
-                          .watchOwnerInstitutions(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                                ConnectionState.waiting &&
-                            (snapshot.data ?? const <Map<String, dynamic>>[])
-                                .isEmpty) {
-                          return const Center(
+                    child: _isOwnerDataLoading && institutions.isEmpty
+                        ? const Center(
                             child: Padding(
                               padding: EdgeInsets.all(20),
                               child: CircularProgressIndicator(),
                             ),
-                          );
-                        }
-
-                        final institutions =
-                            snapshot.data ?? const <Map<String, dynamic>>[];
-                        final pendingCount = institutions
-                            .where(
-                              (item) =>
-                                  ((item['status'] as String?) ?? '')
-                                      .toLowerCase() ==
-                                  'pending',
-                            )
-                            .length;
-                        final approvedCount = institutions
-                            .where(
-                              (item) =>
-                                  ((item['status'] as String?) ?? '')
-                                      .toLowerCase() ==
-                                  'approved',
-                            )
-                            .length;
-                        final declinedCount = institutions
-                            .where(
-                              (item) =>
-                                  ((item['status'] as String?) ?? '')
-                                      .toLowerCase() ==
-                                  'declined',
-                            )
-                            .length;
-                        final filtered = _applyInstitutionFilters(institutions);
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Text(
-                              'Owner overview',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                'Owner overview',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 18,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 6),
-                            const Text(
-                              'Live institution telemetry and owner records in one place so you can govern beyond simple approve/decline flows.',
-                              style: TextStyle(
-                                color: Color(0xFF5D7291),
-                                height: 1.4,
+                              const SizedBox(height: 6),
+                              const Text(
+                                'Live institution telemetry and owner records in one place so you can govern beyond simple approve/decline flows.',
+                                style: TextStyle(
+                                  color: Color(0xFF5D7291),
+                                  height: 1.4,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: [
-                                _OwnerStatChip(
-                                  icon: Icons.apartment_rounded,
-                                  label: 'Institutions ${institutions.length}',
-                                  background: const Color(0xFFE6F8FF),
-                                  foreground: const Color(0xFF0F6D96),
-                                ),
-                                _OwnerStatChip(
-                                  icon: Icons.hourglass_top_rounded,
-                                  label: 'Pending $pendingCount',
-                                  background: const Color(0xFFFFF3DE),
-                                  foreground: const Color(0xFFB56A08),
-                                ),
-                                _OwnerStatChip(
-                                  icon: Icons.verified_rounded,
-                                  label: 'Approved $approvedCount',
-                                  background: const Color(0xFFE3F8F1),
-                                  foreground: const Color(0xFF0A8A78),
-                                ),
-                                _OwnerStatChip(
-                                  icon: Icons.block_rounded,
-                                  label: 'Declined $declinedCount',
-                                  background: const Color(0xFFFFEBEF),
-                                  foreground: const Color(0xFFC93552),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 340,
-                                  child: TextField(
-                                    controller: _institutionSearchController,
-                                    onChanged: (_) => setState(() {}),
-                                    decoration: const InputDecoration(
-                                      hintText: 'Search institution records...',
-                                      prefixIcon: Icon(Icons.search_rounded),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: [
+                                  _OwnerStatChip(
+                                    icon: Icons.apartment_rounded,
+                                    label:
+                                        'Institutions ${institutions.length}',
+                                    background: const Color(0xFFE6F8FF),
+                                    foreground: const Color(0xFF0F6D96),
+                                  ),
+                                  _OwnerStatChip(
+                                    icon: Icons.hourglass_top_rounded,
+                                    label: 'Pending $pendingCount',
+                                    background: const Color(0xFFFFF3DE),
+                                    foreground: const Color(0xFFB56A08),
+                                  ),
+                                  _OwnerStatChip(
+                                    icon: Icons.verified_rounded,
+                                    label: 'Approved $approvedCount',
+                                    background: const Color(0xFFE3F8F1),
+                                    foreground: const Color(0xFF0A8A78),
+                                  ),
+                                  _OwnerStatChip(
+                                    icon: Icons.block_rounded,
+                                    label: 'Declined $declinedCount',
+                                    background: const Color(0xFFFFEBEF),
+                                    foreground: const Color(0xFFC93552),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 340,
+                                    child: TextField(
+                                      controller: _institutionSearchController,
+                                      onChanged: (_) => setState(() {}),
+                                      decoration: const InputDecoration(
+                                        hintText:
+                                            'Search institution records...',
+                                        prefixIcon: Icon(Icons.search_rounded),
+                                      ),
                                     ),
                                   ),
-                                ),
-                                for (final option in const <String>[
-                                  'all',
-                                  'pending',
-                                  'approved',
-                                  'declined',
-                                ])
-                                  ChoiceChip(
-                                    label: Text(
-                                      option == 'all'
-                                          ? 'All'
-                                          : _statusLabel(option),
+                                  for (final option in const <String>[
+                                    'all',
+                                    'pending',
+                                    'approved',
+                                    'declined',
+                                  ])
+                                    ChoiceChip(
+                                      label: Text(
+                                        option == 'all'
+                                            ? 'All'
+                                            : _statusLabel(option),
+                                      ),
+                                      selected:
+                                          _institutionStatusFilter == option,
+                                      onSelected: (_) => setState(() {
+                                        _institutionStatusFilter = option;
+                                      }),
                                     ),
-                                    selected:
-                                        _institutionStatusFilter == option,
-                                    onSelected: (_) => setState(() {
-                                      _institutionStatusFilter = option;
-                                    }),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            _OwnerInstitutionRecordsTable(
-                              rows: filtered,
-                              formatStatus: _statusLabel,
-                              formatDate: _formatShortDate,
-                              statusBackground: _statusBackground,
-                              statusForeground: _statusForeground,
-                              statusIcon: _statusIcon,
-                            ),
-                          ],
-                        );
-                      },
-                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              _OwnerInstitutionRecordsTable(
+                                rows: filteredInstitutions,
+                                formatStatus: _statusLabel,
+                                formatDate: _formatShortDate,
+                                statusBackground: _statusBackground,
+                                statusForeground: _statusForeground,
+                                statusIcon: _statusIcon,
+                              ),
+                            ],
+                          ),
                   ),
                 ),
                 const SizedBox(height: 14),
                 GlassCard(
                   child: Padding(
                     padding: const EdgeInsets.all(18),
-                    child: StreamBuilder<List<Map<String, dynamic>>>(
-                      stream: ref
-                          .read(institutionRepositoryProvider)
-                          .watchOwnerInstitutions(),
-                      builder: (context, institutionSnapshot) {
-                        return StreamBuilder<List<Map<String, dynamic>>>(
-                          stream: ref
-                              .read(institutionRepositoryProvider)
-                              .watchOwnerSchoolRequests(),
-                          builder: (context, schoolSnapshot) {
-                            final institutions =
-                                institutionSnapshot.data ??
-                                const <Map<String, dynamic>>[];
-                            final schoolRequests =
-                                schoolSnapshot.data ??
-                                const <Map<String, dynamic>>[];
-                            final activities = _buildRecentActivities(
-                              institutions: institutions,
-                              schoolRequests: schoolRequests,
-                            );
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Recent owner activity',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 18,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Recent owner activity',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        if (_isOwnerDataLoading && activities.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 14),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else if (activities.isEmpty)
+                          const Text(
+                            'Activity will appear here as institutions and school requests move.',
+                            style: TextStyle(color: Color(0xFF5D7291)),
+                          )
+                        else
+                          Column(
+                            children: activities
+                                .map(
+                                  (item) => _OwnerActivityTile(
+                                    item: item,
+                                    formatDate: _formatDate,
                                   ),
-                                ),
-                                const SizedBox(height: 10),
-                                if (activities.isEmpty)
-                                  const Text(
-                                    'Activity will appear here as institutions and school requests move.',
-                                    style: TextStyle(color: Color(0xFF5D7291)),
-                                  )
-                                else
-                                  Column(
-                                    children: activities
-                                        .map(
-                                          (item) => _OwnerActivityTile(
-                                            item: item,
-                                            formatDate: _formatDate,
-                                          ),
-                                        )
-                                        .toList(growable: false),
-                                  ),
-                              ],
-                            );
-                          },
-                        );
-                      },
+                                )
+                                .toList(growable: false),
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -853,111 +986,99 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        StreamBuilder<List<Map<String, dynamic>>>(
-                          stream: ref
-                              .read(institutionRepositoryProvider)
-                              .watchOwnerPendingInstitutions(),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(14),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
-                            final rows =
-                                snapshot.data ?? const <Map<String, dynamic>>[];
-                            if (rows.isEmpty) {
-                              return const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 8),
-                                child: Text('No pending institution requests.'),
-                              );
-                            }
-                            return Column(
-                              children: rows
-                                  .map((item) {
-                                    final id = (item['id'] as String?) ?? '';
-                                    final name =
-                                        (item['name'] as String?) ??
-                                        'Institution';
-                                    final createdBy =
-                                        (item['createdBy'] as String?) ?? '--';
-                                    final contactNumber =
-                                        (item['adminPhoneNumber'] as String?) ??
-                                        (item['contactPhone'] as String?) ??
-                                        (item['mobileNumber'] as String?) ??
-                                        '--';
-                                    return Card(
-                                      margin: const EdgeInsets.only(bottom: 10),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              name,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
+                        if (_isOwnerDataLoading && pendingInstitutions.isEmpty)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(14),
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        else if (pendingInstitutions.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text('No pending institution requests.'),
+                          )
+                        else
+                          Column(
+                            children: pendingInstitutions
+                                .map((item) {
+                                  final id = (item['id'] as String?) ?? '';
+                                  final name =
+                                      (item['name'] as String?) ??
+                                      'Institution';
+                                  final createdBy =
+                                      (item['createdBy'] as String?) ?? '--';
+                                  final contactNumber =
+                                      (item['adminPhoneNumber'] as String?) ??
+                                      (item['contactPhone'] as String?) ??
+                                      (item['mobileNumber'] as String?) ??
+                                      '--';
+                                  return Card(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text('Created by: $createdBy'),
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.phone_rounded,
+                                                size: 16,
+                                                color: Color(0xFF0E7490),
                                               ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text('Created by: $createdBy'),
-                                            Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.phone_rounded,
-                                                  size: 16,
-                                                  color: Color(0xFF0E7490),
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Expanded(
-                                                  child: Text(
-                                                    'Admin contact: $contactNumber',
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                    ),
+                                              const SizedBox(width: 6),
+                                              Expanded(
+                                                child: Text(
+                                                  'Admin contact: $contactNumber',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
                                                   ),
                                                 ),
-                                              ],
-                                            ),
-                                            Text(
-                                              'Submitted: ${_formatDate(item['createdAt'])}',
-                                            ),
-                                            const SizedBox(height: 10),
-                                            Row(
-                                              children: [
-                                                FilledButton.icon(
-                                                  onPressed: () =>
-                                                      _approveInstitution(id),
-                                                  icon: const Icon(
-                                                    Icons.check_rounded,
-                                                  ),
-                                                  label: const Text('Approve'),
+                                              ),
+                                            ],
+                                          ),
+                                          Text(
+                                            'Submitted: ${_formatDate(item['createdAt'])}',
+                                          ),
+                                          const SizedBox(height: 10),
+                                          Row(
+                                            children: [
+                                              FilledButton.icon(
+                                                onPressed: () =>
+                                                    _approveInstitution(id),
+                                                icon: const Icon(
+                                                  Icons.check_rounded,
                                                 ),
-                                                const SizedBox(width: 8),
-                                                OutlinedButton.icon(
-                                                  onPressed: () =>
-                                                      _declineInstitution(id),
-                                                  icon: const Icon(
-                                                    Icons.close_rounded,
-                                                  ),
-                                                  label: const Text('Decline'),
+                                                label: const Text('Approve'),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              OutlinedButton.icon(
+                                                onPressed: () =>
+                                                    _declineInstitution(id),
+                                                icon: const Icon(
+                                                  Icons.close_rounded,
                                                 ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
+                                                label: const Text('Decline'),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
-                                    );
-                                  })
-                                  .toList(growable: false),
-                            );
-                          },
-                        ),
+                                    ),
+                                  );
+                                })
+                                .toList(growable: false),
+                          ),
                       ],
                     ),
                   ),
@@ -977,122 +1098,110 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        StreamBuilder<List<Map<String, dynamic>>>(
-                          stream: ref
-                              .read(institutionRepositoryProvider)
-                              .watchOwnerSchoolRequests(),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(14),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
-                            final rows =
-                                snapshot.data ?? const <Map<String, dynamic>>[];
-                            if (rows.isEmpty) {
-                              return const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 8),
-                                child: Text('No school requests right now.'),
-                              );
-                            }
-                            return Column(
-                              children: rows
-                                  .map((item) {
-                                    final id = (item['id'] as String?) ?? '';
-                                    final schoolName =
-                                        (item['schoolName'] as String?) ?? '--';
-                                    final contactNumber =
-                                        (item['mobileNumber'] as String?) ??
-                                        (item['phoneNumber'] as String?) ??
-                                        (item['mobile'] as String?) ??
-                                        '--';
-                                    final requesterEmail =
-                                        (item['requesterEmail'] as String?) ??
-                                        '--';
-                                    final requesterName =
-                                        (item['requesterName'] as String?) ??
-                                        '--';
-                                    return Card(
-                                      margin: const EdgeInsets.only(bottom: 10),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              schoolName,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
+                        if (_isOwnerDataLoading && _ownerSchoolRequests.isEmpty)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(14),
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        else if (_ownerSchoolRequests.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text('No school requests right now.'),
+                          )
+                        else
+                          Column(
+                            children: _ownerSchoolRequests
+                                .map((item) {
+                                  final id = (item['id'] as String?) ?? '';
+                                  final schoolName =
+                                      (item['schoolName'] as String?) ?? '--';
+                                  final contactNumber =
+                                      (item['mobileNumber'] as String?) ??
+                                      (item['phoneNumber'] as String?) ??
+                                      (item['mobile'] as String?) ??
+                                      '--';
+                                  final requesterEmail =
+                                      (item['requesterEmail'] as String?) ??
+                                      '--';
+                                  final requesterName =
+                                      (item['requesterName'] as String?) ??
+                                      '--';
+                                  return Card(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            schoolName,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.phone_rounded,
+                                                size: 16,
+                                                color: Color(0xFF0E7490),
                                               ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.phone_rounded,
-                                                  size: 16,
-                                                  color: Color(0xFF0E7490),
+                                              const SizedBox(width: 6),
+                                              Expanded(
+                                                child: Text(
+                                                  'Contact: $contactNumber',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
                                                 ),
-                                                const SizedBox(width: 6),
-                                                Expanded(
-                                                  child: Text(
-                                                    'Contact: $contactNumber',
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w700,
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text('Requester: $requesterName'),
+                                          Text('Email: $requesterEmail'),
+                                          Text(
+                                            'Submitted: ${_formatDate(item['createdAt'])}',
+                                          ),
+                                          const SizedBox(height: 10),
+                                          Row(
+                                            children: [
+                                              FilledButton.icon(
+                                                onPressed: () =>
+                                                    _resolveSchoolRequest(
+                                                      requestId: id,
+                                                      approved: true,
                                                     ),
-                                                  ),
+                                                icon: const Icon(
+                                                  Icons.check_rounded,
                                                 ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text('Requester: $requesterName'),
-                                            Text('Email: $requesterEmail'),
-                                            Text(
-                                              'Submitted: ${_formatDate(item['createdAt'])}',
-                                            ),
-                                            const SizedBox(height: 10),
-                                            Row(
-                                              children: [
-                                                FilledButton.icon(
-                                                  onPressed: () =>
-                                                      _resolveSchoolRequest(
-                                                        requestId: id,
-                                                        approved: true,
-                                                      ),
-                                                  icon: const Icon(
-                                                    Icons.check_rounded,
-                                                  ),
-                                                  label: const Text('Approve'),
+                                                label: const Text('Approve'),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              OutlinedButton.icon(
+                                                onPressed: () =>
+                                                    _resolveSchoolRequest(
+                                                      requestId: id,
+                                                      approved: false,
+                                                    ),
+                                                icon: const Icon(
+                                                  Icons.close_rounded,
                                                 ),
-                                                const SizedBox(width: 8),
-                                                OutlinedButton.icon(
-                                                  onPressed: () =>
-                                                      _resolveSchoolRequest(
-                                                        requestId: id,
-                                                        approved: false,
-                                                      ),
-                                                  icon: const Icon(
-                                                    Icons.close_rounded,
-                                                  ),
-                                                  label: const Text('Decline'),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
+                                                label: const Text('Decline'),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
-                                    );
-                                  })
-                                  .toList(growable: false),
-                            );
-                          },
-                        ),
+                                    ),
+                                  );
+                                })
+                                .toList(growable: false),
+                          ),
                       ],
                     ),
                   ),
@@ -1196,151 +1305,169 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
       );
     }
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 980),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF6FAFF),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFD6E5F4)),
-              ),
-              child: const Row(
-                children: [
-                  Expanded(flex: 3, child: _OwnerHeader('Institution')),
-                  Expanded(flex: 3, child: _OwnerHeader('Catalog / Contact')),
-                  Expanded(flex: 2, child: _OwnerHeader('Status')),
-                  Expanded(flex: 2, child: _OwnerHeader('Created')),
-                  Expanded(flex: 2, child: _OwnerHeader('Updated')),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            ...rows.map((row) {
-              final status = (row['status'] as String? ?? '').trim();
-              final contact =
-                  (row['adminPhoneNumber'] as String?) ??
-                  (row['contactPhone'] as String?) ??
-                  '--';
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFDCE8F5)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            (row['name'] as String? ?? 'Institution').trim(),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F233F),
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            (row['id'] as String? ?? '--').trim(),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF7B92AF),
-                            ),
-                          ),
-                        ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const minTableWidth = 980.0;
+        final availableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : minTableWidth;
+        final tableWidth = math.max(minTableWidth, availableWidth);
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: tableWidth,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6FAFF),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFD6E5F4)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Expanded(flex: 3, child: _OwnerHeader('Institution')),
+                      Expanded(
+                        flex: 3,
+                        child: _OwnerHeader('Catalog / Contact'),
                       ),
+                      Expanded(flex: 2, child: _OwnerHeader('Status')),
+                      Expanded(flex: 2, child: _OwnerHeader('Created')),
+                      Expanded(flex: 2, child: _OwnerHeader('Updated')),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...rows.map((row) {
+                  final status = (row['status'] as String? ?? '').trim();
+                  final contact =
+                      (row['adminPhoneNumber'] as String?) ??
+                      (row['contactPhone'] as String?) ??
+                      '--';
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
                     ),
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            (row['institutionCatalogId'] as String? ?? '--')
-                                .trim(),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF203854),
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            contact,
-                            style: const TextStyle(color: Color(0xFF5D7291)),
-                          ),
-                        ],
-                      ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFDCE8F5)),
                     ),
-                    Expanded(
-                      flex: 2,
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: statusBackground(status),
-                            borderRadius: BorderRadius.circular(999),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                (row['name'] as String? ?? 'Institution')
+                                    .trim(),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0F233F),
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                (row['id'] as String? ?? '--').trim(),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF7B92AF),
+                                ),
+                              ),
+                            ],
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  statusIcon(status),
-                                  size: 14,
-                                  color: statusForeground(status),
+                        ),
+                        Expanded(
+                          flex: 3,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                (row['institutionCatalogId'] as String? ?? '--')
+                                    .trim(),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF203854),
                                 ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  formatStatus(status),
-                                  style: TextStyle(
-                                    color: statusForeground(status),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12,
-                                  ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                contact,
+                                style: const TextStyle(
+                                  color: Color(0xFF5D7291),
                                 ),
-                              ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: statusBackground(status),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      statusIcon(status),
+                                      size: 14,
+                                      color: statusForeground(status),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      formatStatus(status),
+                                      style: TextStyle(
+                                        color: statusForeground(status),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            formatDate(row['createdAt']),
+                            style: const TextStyle(color: Color(0xFF2D4360)),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            formatDate(row['updatedAt']),
+                            style: const TextStyle(color: Color(0xFF2D4360)),
+                          ),
+                        ),
+                      ],
                     ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        formatDate(row['createdAt']),
-                        style: const TextStyle(color: Color(0xFF2D4360)),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        formatDate(row['updatedAt']),
-                        style: const TextStyle(color: Color(0xFF2D4360)),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

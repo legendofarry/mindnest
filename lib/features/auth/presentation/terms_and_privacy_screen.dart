@@ -70,7 +70,7 @@ class TermsAndPrivacyScreen extends StatelessWidget {
             icon: Icons.dataset_rounded,
             title: 'What We Collect',
             points: [
-              'Profile info like name, email, and phone numbers.',
+              'Profile info like name, email, and role details.',
               'Wellness activity such as onboarding responses and mood check-ins.',
               'Institution records when you join a school or organization.',
             ],

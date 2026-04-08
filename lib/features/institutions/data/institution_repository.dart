@@ -427,7 +427,7 @@ class InstitutionRepository {
   Future<void> createInstitutionAdminAccount({
     required String adminName,
     required String adminEmail,
-    required String adminPhoneNumber,
+    String? adminPhoneNumber,
     String? additionalAdminPhoneNumber,
     required String password,
     required String institutionCatalogId,
@@ -436,19 +436,27 @@ class InstitutionRepository {
     final trimmedName = adminName.trim();
     final trimmedInstitutionCatalogId = institutionCatalogId.trim();
     final trimmedInstitutionName = institutionName.trim();
-    final normalizedAdminPhone = _normalizePhoneE164(adminPhoneNumber);
-    final normalizedAdditionalAdminPhone = _normalizeOptionalPhoneE164(
+    var normalizedAdminPhone = _normalizeOptionalPhoneE164(adminPhoneNumber);
+    var normalizedAdditionalAdminPhone = _normalizeOptionalPhoneE164(
       additionalAdminPhoneNumber,
     );
-    if (normalizedAdditionalAdminPhone == normalizedAdminPhone) {
+    if (normalizedAdminPhone == null &&
+        normalizedAdditionalAdminPhone != null) {
+      normalizedAdminPhone = normalizedAdditionalAdminPhone;
+      normalizedAdditionalAdminPhone = null;
+    }
+    if (normalizedAdminPhone != null &&
+        normalizedAdditionalAdminPhone == normalizedAdminPhone) {
       throw Exception(
         'Additional mobile number must be different from primary mobile number.',
       );
     }
-    final phoneCandidates = _buildPhoneCandidates(
-      primaryPhone: normalizedAdminPhone,
-      additionalPhone: normalizedAdditionalAdminPhone,
-    );
+    final phoneCandidates = normalizedAdminPhone == null
+        ? const <String>[]
+        : _buildPhoneCandidates(
+            primaryPhone: normalizedAdminPhone,
+            additionalPhone: normalizedAdditionalAdminPhone,
+          );
     final normalizedEmail = adminEmail.trim().toLowerCase();
     final normalizedInstitutionName = _normalizeInstitutionName(
       trimmedInstitutionName,
@@ -456,7 +464,7 @@ class InstitutionRepository {
     if (trimmedName.length < 2 ||
         trimmedInstitutionCatalogId.isEmpty ||
         trimmedInstitutionName.length < 2) {
-      throw Exception('Name, institution name, and phone number are required.');
+      throw Exception('Name and institution name are required.');
     }
 
     await _assertInstitutionCatalogIdAvailable(trimmedInstitutionCatalogId);
@@ -487,10 +495,13 @@ class InstitutionRepository {
 
         await _auth.sendEmailVerification();
 
-        for (final path in _phoneRegistryPathsForRegistration(
-          primaryPhoneNumber: normalizedAdminPhone,
-          additionalPhoneNumber: normalizedAdditionalAdminPhone,
-        )) {
+        final phoneRegistryPaths = normalizedAdminPhone == null
+            ? const <String>[]
+            : _phoneRegistryPathsForRegistration(
+                primaryPhoneNumber: normalizedAdminPhone,
+                additionalPhoneNumber: normalizedAdditionalAdminPhone,
+              );
+        for (final path in phoneRegistryPaths) {
           final registryPhoneSnapshot = await _windowsRest.getDocument(path);
           if (registryPhoneSnapshot == null) {
             continue;
@@ -525,9 +536,9 @@ class InstitutionRepository {
           'institutionCatalogId': trimmedInstitutionCatalogId,
           'status': 'pending',
           'createdBy': createdUser.uid,
-          'adminPhoneNumber': normalizedAdminPhone,
+          'adminPhoneNumber': normalizedAdminPhone ?? '',
           'additionalAdminPhoneNumber': normalizedAdditionalAdminPhone,
-          'contactPhone': normalizedAdminPhone,
+          'contactPhone': normalizedAdminPhone ?? '',
           'createdAt': now,
           'updatedAt': now,
           'review': const <String, dynamic>{
@@ -546,7 +557,7 @@ class InstitutionRepository {
           'institutionName': trimmedInstitutionName,
           'institutionCatalogId': trimmedInstitutionCatalogId,
           'institutionWelcomePending': true,
-          'phoneNumber': normalizedAdminPhone,
+          'phoneNumber': normalizedAdminPhone ?? '',
           'additionalPhoneNumber': normalizedAdditionalAdminPhone,
           'phoneNumbers': phoneCandidates,
           'createdAt': now,
@@ -560,17 +571,20 @@ class InstitutionRepository {
             'role': UserRole.institutionAdmin.name,
             'userName': trimmedName,
             'email': createdUser.email,
-            'phoneNumber': normalizedAdminPhone,
+            'phoneNumber': normalizedAdminPhone ?? '',
             'additionalPhoneNumber': normalizedAdditionalAdminPhone,
             'joinedAt': now,
             'status': 'active',
             'updatedAt': now,
           },
         );
-        for (final key in _phoneRegistryKeysForRegistration(
-          primaryPhoneNumber: normalizedAdminPhone,
-          additionalPhoneNumber: normalizedAdditionalAdminPhone,
-        )) {
+        final phoneRegistryKeys = normalizedAdminPhone == null
+            ? const <String>[]
+            : _phoneRegistryKeysForRegistration(
+                primaryPhoneNumber: normalizedAdminPhone,
+                additionalPhoneNumber: normalizedAdditionalAdminPhone,
+              );
+        for (final key in phoneRegistryKeys) {
           await _windowsRest.setDocument('phone_number_registry/$key', {
             'uid': createdUser.uid,
             'phoneNumber': '+$key',
@@ -664,10 +678,12 @@ class InstitutionRepository {
           .doc('${institutionRef.id}_${createdUser.uid}');
 
       await _firestore.runTransaction((transaction) async {
-        final phoneRegistryRefs = _phoneRegistryRefsForRegistration(
-          primaryPhoneNumber: normalizedAdminPhone,
-          additionalPhoneNumber: normalizedAdditionalAdminPhone,
-        );
+        final phoneRegistryRefs = normalizedAdminPhone == null
+            ? const <DocumentReference<Map<String, dynamic>>>[]
+            : _phoneRegistryRefsForRegistration(
+                primaryPhoneNumber: normalizedAdminPhone,
+                additionalPhoneNumber: normalizedAdditionalAdminPhone,
+              );
         for (final ref in phoneRegistryRefs) {
           final registryPhoneSnapshot = await transaction.get(ref);
           if (!registryPhoneSnapshot.exists) {
@@ -702,9 +718,9 @@ class InstitutionRepository {
           'institutionCatalogId': trimmedInstitutionCatalogId,
           'status': 'pending',
           'createdBy': createdUser.uid,
-          'adminPhoneNumber': normalizedAdminPhone,
+          'adminPhoneNumber': normalizedAdminPhone ?? '',
           'additionalAdminPhoneNumber': normalizedAdditionalAdminPhone,
-          'contactPhone': normalizedAdminPhone,
+          'contactPhone': normalizedAdminPhone ?? '',
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
           'review': <String, dynamic>{
@@ -723,7 +739,7 @@ class InstitutionRepository {
           'institutionName': trimmedInstitutionName,
           'institutionCatalogId': trimmedInstitutionCatalogId,
           'institutionWelcomePending': true,
-          'phoneNumber': normalizedAdminPhone,
+          'phoneNumber': normalizedAdminPhone ?? '',
           'additionalPhoneNumber': normalizedAdditionalAdminPhone,
           'phoneNumbers': phoneCandidates,
           'createdAt': FieldValue.serverTimestamp(),
@@ -734,7 +750,7 @@ class InstitutionRepository {
           'role': UserRole.institutionAdmin.name,
           'userName': trimmedName,
           'email': createdUser.email,
-          'phoneNumber': normalizedAdminPhone,
+          'phoneNumber': normalizedAdminPhone ?? '',
           'additionalPhoneNumber': normalizedAdditionalAdminPhone,
           'joinedAt': FieldValue.serverTimestamp(),
           'status': 'active',

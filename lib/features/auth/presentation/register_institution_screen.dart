@@ -25,16 +25,11 @@ class RegisterInstitutionScreen extends ConsumerStatefulWidget {
 class _RegisterInstitutionScreenState
     extends ConsumerState<RegisterInstitutionScreen>
     with SingleTickerProviderStateMixin {
-  static const _kenyaPrefix = '+254';
   static const _desktopBreakpoint = 1100.0;
   static const _stepCount = 3;
   final _formKey = GlobalKey<FormState>();
   final _adminNameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _adminPhoneController = TextEditingController();
-  final _additionalAdminPhoneController = TextEditingController();
-  final _adminPhoneFocusNode = FocusNode();
-  final _additionalAdminPhoneFocusNode = FocusNode();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   String? _selectedSchoolId;
@@ -46,15 +41,9 @@ class _RegisterInstitutionScreenState
   bool _schoolFieldError = false;
   bool _adminNameFieldError = false;
   bool _adminEmailFieldError = false;
-  bool _adminPhoneFieldError = false;
-  bool _additionalAdminPhoneFieldError = false;
-  String? _adminPhoneDuplicateError;
-  String? _additionalAdminPhoneDuplicateError;
   bool _passwordFieldError = false;
   bool _confirmPasswordFieldError = false;
   String? _formError;
-  int _adminPhoneCheckToken = 0;
-  int _additionalAdminPhoneCheckToken = 0;
 
   late final AnimationController _shakeController = AnimationController(
     vsync: this,
@@ -97,24 +86,7 @@ class _RegisterInstitutionScreenState
         final hasName = _adminNameController.text.trim().length >= 2;
         final email = _emailController.text.trim();
         final hasEmail = email.isNotEmpty && email.contains('@');
-        final primaryPhone = _normalizeKenyaPhoneInput(
-          _adminPhoneController.text,
-        );
-        final hasPhone = _isValidKenyaPhone(primaryPhone);
-        final optionalPhone = _optionalPhoneValue(
-          _additionalAdminPhoneController.text,
-        );
-        final hasValidOptionalPhone =
-            optionalPhone == null || _isValidKenyaPhone(optionalPhone);
-        final hasDistinctOptionalPhone =
-            optionalPhone == null || optionalPhone != primaryPhone;
-        return hasName &&
-            hasEmail &&
-            hasPhone &&
-            hasValidOptionalPhone &&
-            hasDistinctOptionalPhone &&
-            _adminPhoneDuplicateError == null &&
-            _additionalAdminPhoneDuplicateError == null;
+        return hasName && hasEmail;
       default:
         return _passwordController.text.length >= 8 &&
             _confirmPasswordController.text.isNotEmpty &&
@@ -123,186 +95,16 @@ class _RegisterInstitutionScreenState
   }
 
   @override
-  void initState() {
-    super.initState();
-    _adminPhoneController.text = _kenyaPrefix;
-    _adminPhoneController.addListener(_enforceAdminPhonePrefix);
-    _additionalAdminPhoneController.addListener(_enforceAdditionalAdminPhone);
-    _adminPhoneFocusNode.addListener(_onAdminPhoneFocusChange);
-    _additionalAdminPhoneFocusNode.addListener(
-      _onAdditionalAdminPhoneFocusChange,
-    );
-  }
+  void initState() => super.initState();
 
   @override
   void dispose() {
     _shakeController.dispose();
-    _adminPhoneController.removeListener(_enforceAdminPhonePrefix);
-    _additionalAdminPhoneController.removeListener(
-      _enforceAdditionalAdminPhone,
-    );
-    _adminPhoneFocusNode.removeListener(_onAdminPhoneFocusChange);
-    _additionalAdminPhoneFocusNode.removeListener(
-      _onAdditionalAdminPhoneFocusChange,
-    );
     _adminNameController.dispose();
     _emailController.dispose();
-    _adminPhoneController.dispose();
-    _additionalAdminPhoneController.dispose();
-    _adminPhoneFocusNode.dispose();
-    _additionalAdminPhoneFocusNode.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
-  }
-
-  void _enforceAdminPhonePrefix() {
-    _enforceKenyaPrefix(_adminPhoneController);
-  }
-
-  void _enforceAdditionalAdminPhone() {
-    final trimmed = _additionalAdminPhoneController.text.trim();
-    if (trimmed.isEmpty) {
-      return;
-    }
-    _enforceKenyaPrefix(_additionalAdminPhoneController);
-  }
-
-  void _enforceKenyaPrefix(TextEditingController controller) {
-    final normalized = _normalizeKenyaPhoneInput(controller.text);
-    if (controller.text == normalized) {
-      return;
-    }
-    controller.value = TextEditingValue(
-      text: normalized,
-      selection: TextSelection.collapsed(offset: normalized.length),
-    );
-  }
-
-  String _normalizeKenyaPhoneInput(String input) {
-    var digits = input.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.startsWith('254')) {
-      digits = digits.substring(3);
-    }
-    if (digits.startsWith('0')) {
-      digits = digits.substring(1);
-    }
-    return '$_kenyaPrefix$digits';
-  }
-
-  bool _isValidKenyaPhone(String value) {
-    return RegExp(r'^\+254\d{9}$').hasMatch(value);
-  }
-
-  void _onAdminPhoneFocusChange() {
-    if (_adminPhoneFocusNode.hasFocus) {
-      return;
-    }
-    unawaited(_checkAdminPhoneDuplicate());
-  }
-
-  void _onAdditionalAdminPhoneFocusChange() {
-    if (_additionalAdminPhoneFocusNode.hasFocus) {
-      return;
-    }
-    unawaited(_checkAdditionalAdminPhoneDuplicate());
-  }
-
-  Future<void> _checkAdminPhoneDuplicate() async {
-    final normalized = _normalizeKenyaPhoneInput(_adminPhoneController.text);
-    if (!_isValidKenyaPhone(normalized)) {
-      if (_adminPhoneDuplicateError != null) {
-        setState(() => _adminPhoneDuplicateError = null);
-      }
-      return;
-    }
-
-    final token = ++_adminPhoneCheckToken;
-    try {
-      final isAvailable = await ref
-          .read(authRepositoryProvider)
-          .isPhoneNumberAvailableForRegistration(normalized);
-      if (!mounted || token != _adminPhoneCheckToken) {
-        return;
-      }
-      setState(() {
-        _adminPhoneDuplicateError = isAvailable
-            ? null
-            : 'This mobile number is already linked to another account.';
-        if (_adminPhoneDuplicateError != null) {
-          _formError = _adminPhoneDuplicateError;
-        } else if (_formError ==
-            'This mobile number is already linked to another account.') {
-          _formError = null;
-        }
-      });
-    } catch (_) {
-      if (!mounted || token != _adminPhoneCheckToken) {
-        return;
-      }
-      setState(() => _adminPhoneDuplicateError = null);
-    }
-  }
-
-  Future<void> _checkAdditionalAdminPhoneDuplicate() async {
-    final optionalPhone = _optionalPhoneValue(
-      _additionalAdminPhoneController.text,
-    );
-    if (optionalPhone == null) {
-      if (_additionalAdminPhoneDuplicateError != null) {
-        setState(() => _additionalAdminPhoneDuplicateError = null);
-      }
-      return;
-    }
-    final normalized = _normalizeKenyaPhoneInput(optionalPhone);
-    if (!_isValidKenyaPhone(normalized) ||
-        normalized == _adminPhoneController.text.trim()) {
-      if (_additionalAdminPhoneDuplicateError != null) {
-        setState(() => _additionalAdminPhoneDuplicateError = null);
-      }
-      return;
-    }
-
-    final token = ++_additionalAdminPhoneCheckToken;
-    try {
-      final isAvailable = await ref
-          .read(authRepositoryProvider)
-          .isPhoneNumberAvailableForRegistration(normalized);
-      if (!mounted || token != _additionalAdminPhoneCheckToken) {
-        return;
-      }
-      setState(() {
-        _additionalAdminPhoneDuplicateError = isAvailable
-            ? null
-            : 'This additional mobile is already linked to another account.';
-        if (_additionalAdminPhoneDuplicateError != null) {
-          _formError = _additionalAdminPhoneDuplicateError;
-        } else if (_formError ==
-            'This additional mobile is already linked to another account.') {
-          _formError = null;
-        }
-      });
-    } catch (_) {
-      if (!mounted || token != _additionalAdminPhoneCheckToken) {
-        return;
-      }
-      setState(() => _additionalAdminPhoneDuplicateError = null);
-    }
-  }
-
-  Future<bool> _runAdminPhoneDuplicationChecks() async {
-    await _checkAdminPhoneDuplicate();
-    await _checkAdditionalAdminPhoneDuplicate();
-    return _adminPhoneDuplicateError != null ||
-        _additionalAdminPhoneDuplicateError != null;
-  }
-
-  String? _optionalPhoneValue(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty || trimmed == _kenyaPrefix) {
-      return null;
-    }
-    return trimmed;
   }
 
   Future<void> _openCatalogSchoolPicker() async {
@@ -347,10 +149,6 @@ class _RegisterInstitutionScreenState
           .createInstitutionAdminAccount(
             adminName: _adminNameController.text.trim(),
             adminEmail: _emailController.text.trim(),
-            adminPhoneNumber: _adminPhoneController.text.trim(),
-            additionalAdminPhoneNumber: _optionalPhoneValue(
-              _additionalAdminPhoneController.text,
-            ),
             password: _passwordController.text,
             institutionCatalogId: selectedSchool.id,
             institutionName: selectedSchool.name,
@@ -413,34 +211,11 @@ class _RegisterInstitutionScreenState
         final hasName = _adminNameController.text.trim().length >= 2;
         final email = _emailController.text.trim();
         final hasEmail = email.isNotEmpty && email.contains('@');
-        final hasPhone = _isValidKenyaPhone(_adminPhoneController.text.trim());
-        final optionalPhone = _optionalPhoneValue(
-          _additionalAdminPhoneController.text,
-        );
-        final hasValidOptionalPhone =
-            optionalPhone == null || _isValidKenyaPhone(optionalPhone);
-        final hasDistinctOptionalPhone =
-            optionalPhone == null ||
-            optionalPhone != _adminPhoneController.text.trim();
-        final hasDuplicateAdminPhone = _adminPhoneDuplicateError != null;
-        final hasDuplicateAdditionalPhone =
-            _additionalAdminPhoneDuplicateError != null;
         setState(() {
           _adminNameFieldError = !hasName;
           _adminEmailFieldError = !hasEmail;
-          _adminPhoneFieldError = !hasPhone || hasDuplicateAdminPhone;
-          _additionalAdminPhoneFieldError =
-              !hasValidOptionalPhone ||
-              !hasDistinctOptionalPhone ||
-              hasDuplicateAdditionalPhone;
         });
-        if (!hasName ||
-            !hasEmail ||
-            !hasPhone ||
-            !hasValidOptionalPhone ||
-            !hasDistinctOptionalPhone ||
-            hasDuplicateAdminPhone ||
-            hasDuplicateAdditionalPhone) {
+        if (!hasName || !hasEmail) {
           return 'Please correct the highlighted fields.';
         }
         return null;
@@ -491,15 +266,6 @@ class _RegisterInstitutionScreenState
     if (stepError != null) {
       await _showFormError(stepError);
       return;
-    }
-
-    if (_activeStep == 1) {
-      await _runAdminPhoneDuplicationChecks();
-      stepError = _validateCurrentStep();
-      if (stepError != null) {
-        await _showFormError(stepError);
-        return;
-      }
     }
 
     if (_activeStep == 0) {
@@ -625,7 +391,7 @@ class _RegisterInstitutionScreenState
       case 0:
         return 'Choose your institution from the approved catalog.';
       case 1:
-        return 'Add administrator contact details for approval and onboarding.';
+        return 'Add administrator identity details for approval and onboarding.';
       default:
         return 'Create a secure password and confirm it to continue.';
     }
@@ -753,82 +519,6 @@ class _RegisterInstitutionScreenState
               hintText: 'alex@example.com',
               prefixIcon: Icon(Icons.mail_outline_rounded),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const _FieldLabel(text: 'ADMIN PHONE'),
-                  const SizedBox(height: 8),
-                  _RoundedInput(
-                    hasError:
-                        _adminPhoneFieldError ||
-                        _adminPhoneDuplicateError != null,
-                    child: TextFormField(
-                      controller: _adminPhoneController,
-                      focusNode: _adminPhoneFocusNode,
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.next,
-                      onChanged: (_) => setState(() {
-                        _adminPhoneFieldError = false;
-                        _adminPhoneDuplicateError = null;
-                        _formError = null;
-                      }),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: '+254...',
-                        prefixIcon: Icon(Icons.phone_rounded),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const _FieldLabel(text: 'OTHER PHONE'),
-                  const SizedBox(height: 8),
-                  _RoundedInput(
-                    hasError:
-                        _additionalAdminPhoneFieldError ||
-                        _additionalAdminPhoneDuplicateError != null,
-                    child: TextFormField(
-                      controller: _additionalAdminPhoneController,
-                      focusNode: _additionalAdminPhoneFocusNode,
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.done,
-                      onChanged: (_) => setState(() {
-                        _additionalAdminPhoneFieldError = false;
-                        _additionalAdminPhoneDuplicateError = null;
-                        _formError = null;
-                      }),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        hintText: '+254...',
-                        prefixIcon: Icon(Icons.phone_android_rounded),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'This number may be called to help confirm institution eligibility.',
-          style: TextStyle(
-            color: Color(0xFF6A7D96),
-            fontSize: 12.5,
-            fontWeight: FontWeight.w600,
           ),
         ),
       ],
