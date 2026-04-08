@@ -20,12 +20,15 @@ class OwnerDashboardScreen extends ConsumerStatefulWidget {
 class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   final _declineReasonController = TextEditingController();
   final _clearDbConfirmationController = TextEditingController();
+  final _institutionSearchController = TextEditingController();
   bool _isClearingDatabase = false;
+  String _institutionStatusFilter = 'all';
 
   @override
   void dispose() {
     _declineReasonController.dispose();
     _clearDbConfirmationController.dispose();
+    _institutionSearchController.dispose();
     super.dispose();
   }
 
@@ -162,6 +165,200 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
           '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
     }
     return '--';
+  }
+
+  String _formatShortDate(dynamic value) {
+    if (value is Timestamp) {
+      final local = value.toDate().toLocal();
+      return '${local.day.toString().padLeft(2, '0')} ${_monthLabel(local.month)} ${local.year}';
+    }
+    return '--';
+  }
+
+  String _monthLabel(int month) {
+    const labels = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final monthIndex = month < 1
+        ? 1
+        : month > 12
+        ? 12
+        : month;
+    return labels[monthIndex - 1];
+  }
+
+  String _statusLabel(String raw) {
+    switch (raw.trim().toLowerCase()) {
+      case 'approved':
+        return 'Approved';
+      case 'declined':
+        return 'Declined';
+      case 'pending':
+        return 'Pending';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  IconData _statusIcon(String raw) {
+    switch (raw.trim().toLowerCase()) {
+      case 'approved':
+        return Icons.verified_rounded;
+      case 'declined':
+        return Icons.block_rounded;
+      case 'pending':
+        return Icons.hourglass_top_rounded;
+      default:
+        return Icons.info_outline_rounded;
+    }
+  }
+
+  Color _statusBackground(String raw) {
+    switch (raw.trim().toLowerCase()) {
+      case 'approved':
+        return const Color(0xFFE0F7F3);
+      case 'declined':
+        return const Color(0xFFFFE8EA);
+      case 'pending':
+        return const Color(0xFFFFF1D8);
+      default:
+        return const Color(0xFFE8EEF7);
+    }
+  }
+
+  Color _statusForeground(String raw) {
+    switch (raw.trim().toLowerCase()) {
+      case 'approved':
+        return const Color(0xFF0B8E7D);
+      case 'declined':
+        return const Color(0xFFCC304D);
+      case 'pending':
+        return const Color(0xFFB56A08);
+      default:
+        return const Color(0xFF4C6484);
+    }
+  }
+
+  List<Map<String, dynamic>> _applyInstitutionFilters(
+    List<Map<String, dynamic>> institutions,
+  ) {
+    final query = _institutionSearchController.text.trim().toLowerCase();
+    return institutions
+        .where((institution) {
+          final status = (institution['status'] as String? ?? '').trim();
+          if (_institutionStatusFilter != 'all' &&
+              status.toLowerCase() != _institutionStatusFilter) {
+            return false;
+          }
+
+          if (query.isEmpty) {
+            return true;
+          }
+
+          final fields = <String>[
+            (institution['name'] as String? ?? ''),
+            (institution['institutionCatalogId'] as String? ?? ''),
+            (institution['adminPhoneNumber'] as String? ?? ''),
+            (institution['contactPhone'] as String? ?? ''),
+            (institution['additionalAdminPhoneNumber'] as String? ?? ''),
+            status,
+          ];
+          return fields.any((field) => field.toLowerCase().contains(query));
+        })
+        .toList(growable: false);
+  }
+
+  List<_OwnerActivityItem> _buildRecentActivities({
+    required List<Map<String, dynamic>> institutions,
+    required List<Map<String, dynamic>> schoolRequests,
+  }) {
+    final items = <_OwnerActivityItem>[];
+
+    for (final institution in institutions) {
+      final name = (institution['name'] as String? ?? 'Institution').trim();
+      final status = (institution['status'] as String? ?? '')
+          .trim()
+          .toLowerCase();
+      final createdAt = institution['createdAt'];
+      final review = institution['review'] as Map<String, dynamic>?;
+      final decision = (review?['decision'] as String? ?? '')
+          .trim()
+          .toLowerCase();
+      final reviewedAt = review?['reviewedAt'];
+      final updatedAt = institution['updatedAt'];
+
+      if (createdAt != null) {
+        items.add(
+          _OwnerActivityItem(
+            icon: Icons.apartment_rounded,
+            title: '$name registered',
+            subtitle: 'Institution request entered the owner review queue.',
+            occurredAt: createdAt,
+            tone: _statusForeground('pending'),
+          ),
+        );
+      }
+
+      if (decision == 'approved' && reviewedAt != null) {
+        items.add(
+          _OwnerActivityItem(
+            icon: Icons.verified_rounded,
+            title: '$name approved',
+            subtitle: 'Institution is now cleared to onboard members.',
+            occurredAt: reviewedAt,
+            tone: _statusForeground('approved'),
+          ),
+        );
+      } else if (decision == 'declined' && reviewedAt != null) {
+        items.add(
+          _OwnerActivityItem(
+            icon: Icons.block_rounded,
+            title: '$name declined',
+            subtitle: 'The institution request was closed by owner review.',
+            occurredAt: reviewedAt,
+            tone: _statusForeground('declined'),
+          ),
+        );
+      } else if (status == 'pending' && updatedAt != null) {
+        items.add(
+          _OwnerActivityItem(
+            icon: Icons.hourglass_top_rounded,
+            title: '$name awaiting review',
+            subtitle: 'Still sitting in the live owner approvals queue.',
+            occurredAt: updatedAt,
+            tone: _statusForeground('pending'),
+          ),
+        );
+      }
+    }
+
+    for (final request in schoolRequests) {
+      final schoolName = (request['schoolName'] as String? ?? 'School request')
+          .trim();
+      items.add(
+        _OwnerActivityItem(
+          icon: Icons.school_rounded,
+          title: '$schoolName requested',
+          subtitle: 'A school-not-listed request is waiting for owner review.',
+          occurredAt: request['createdAt'],
+          tone: const Color(0xFF2C6BE5),
+        ),
+      );
+    }
+
+    items.sort((a, b) => b.sortDate.compareTo(a.sortDate));
+    return items.take(8).toList(growable: false);
   }
 
   Future<void> _confirmAndClearDatabase() async {
@@ -321,6 +518,215 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                GlassCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: StreamBuilder<List<Map<String, dynamic>>>(
+                      stream: ref
+                          .read(institutionRepositoryProvider)
+                          .watchOwnerInstitutions(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
+                            (snapshot.data ?? const <Map<String, dynamic>>[])
+                                .isEmpty) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+
+                        final institutions =
+                            snapshot.data ?? const <Map<String, dynamic>>[];
+                        final pendingCount = institutions
+                            .where(
+                              (item) =>
+                                  ((item['status'] as String?) ?? '')
+                                      .toLowerCase() ==
+                                  'pending',
+                            )
+                            .length;
+                        final approvedCount = institutions
+                            .where(
+                              (item) =>
+                                  ((item['status'] as String?) ?? '')
+                                      .toLowerCase() ==
+                                  'approved',
+                            )
+                            .length;
+                        final declinedCount = institutions
+                            .where(
+                              (item) =>
+                                  ((item['status'] as String?) ?? '')
+                                      .toLowerCase() ==
+                                  'declined',
+                            )
+                            .length;
+                        final filtered = _applyInstitutionFilters(institutions);
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Text(
+                              'Owner overview',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Live institution telemetry and owner records in one place so you can govern beyond simple approve/decline flows.',
+                              style: TextStyle(
+                                color: Color(0xFF5D7291),
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                _OwnerStatChip(
+                                  icon: Icons.apartment_rounded,
+                                  label: 'Institutions ${institutions.length}',
+                                  background: const Color(0xFFE6F8FF),
+                                  foreground: const Color(0xFF0F6D96),
+                                ),
+                                _OwnerStatChip(
+                                  icon: Icons.hourglass_top_rounded,
+                                  label: 'Pending $pendingCount',
+                                  background: const Color(0xFFFFF3DE),
+                                  foreground: const Color(0xFFB56A08),
+                                ),
+                                _OwnerStatChip(
+                                  icon: Icons.verified_rounded,
+                                  label: 'Approved $approvedCount',
+                                  background: const Color(0xFFE3F8F1),
+                                  foreground: const Color(0xFF0A8A78),
+                                ),
+                                _OwnerStatChip(
+                                  icon: Icons.block_rounded,
+                                  label: 'Declined $declinedCount',
+                                  background: const Color(0xFFFFEBEF),
+                                  foreground: const Color(0xFFC93552),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 340,
+                                  child: TextField(
+                                    controller: _institutionSearchController,
+                                    onChanged: (_) => setState(() {}),
+                                    decoration: const InputDecoration(
+                                      hintText: 'Search institution records...',
+                                      prefixIcon: Icon(Icons.search_rounded),
+                                    ),
+                                  ),
+                                ),
+                                for (final option in const <String>[
+                                  'all',
+                                  'pending',
+                                  'approved',
+                                  'declined',
+                                ])
+                                  ChoiceChip(
+                                    label: Text(
+                                      option == 'all'
+                                          ? 'All'
+                                          : _statusLabel(option),
+                                    ),
+                                    selected:
+                                        _institutionStatusFilter == option,
+                                    onSelected: (_) => setState(() {
+                                      _institutionStatusFilter = option;
+                                    }),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            _OwnerInstitutionRecordsTable(
+                              rows: filtered,
+                              formatStatus: _statusLabel,
+                              formatDate: _formatShortDate,
+                              statusBackground: _statusBackground,
+                              statusForeground: _statusForeground,
+                              statusIcon: _statusIcon,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                GlassCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: StreamBuilder<List<Map<String, dynamic>>>(
+                      stream: ref
+                          .read(institutionRepositoryProvider)
+                          .watchOwnerInstitutions(),
+                      builder: (context, institutionSnapshot) {
+                        return StreamBuilder<List<Map<String, dynamic>>>(
+                          stream: ref
+                              .read(institutionRepositoryProvider)
+                              .watchOwnerSchoolRequests(),
+                          builder: (context, schoolSnapshot) {
+                            final institutions =
+                                institutionSnapshot.data ??
+                                const <Map<String, dynamic>>[];
+                            final schoolRequests =
+                                schoolSnapshot.data ??
+                                const <Map<String, dynamic>>[];
+                            final activities = _buildRecentActivities(
+                              institutions: institutions,
+                              schoolRequests: schoolRequests,
+                            );
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Recent owner activity',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                if (activities.isEmpty)
+                                  const Text(
+                                    'Activity will appear here as institutions and school requests move.',
+                                    style: TextStyle(color: Color(0xFF5D7291)),
+                                  )
+                                else
+                                  Column(
+                                    children: activities
+                                        .map(
+                                          (item) => _OwnerActivityTile(
+                                            item: item,
+                                            formatDate: _formatDate,
+                                          ),
+                                        )
+                                        .toList(growable: false),
+                                  ),
+                              ],
+                            );
+                          },
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -693,6 +1099,331 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _OwnerActivityItem {
+  const _OwnerActivityItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.occurredAt,
+    required this.tone,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final dynamic occurredAt;
+  final Color tone;
+
+  DateTime get sortDate {
+    if (occurredAt is Timestamp) {
+      return (occurredAt as Timestamp).toDate().toLocal();
+    }
+    if (occurredAt is DateTime) {
+      return (occurredAt as DateTime).toLocal();
+    }
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+}
+
+class _OwnerStatChip extends StatelessWidget {
+  const _OwnerStatChip({
+    required this.icon,
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: foreground),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(color: foreground, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OwnerInstitutionRecordsTable extends StatelessWidget {
+  const _OwnerInstitutionRecordsTable({
+    required this.rows,
+    required this.formatStatus,
+    required this.formatDate,
+    required this.statusBackground,
+    required this.statusForeground,
+    required this.statusIcon,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final String Function(String status) formatStatus;
+  final String Function(dynamic value) formatDate;
+  final Color Function(String status) statusBackground;
+  final Color Function(String status) statusForeground;
+  final IconData Function(String status) statusIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          'No institutions match the current filter.',
+          style: TextStyle(color: Color(0xFF5D7291)),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 980),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF6FAFF),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFD6E5F4)),
+              ),
+              child: const Row(
+                children: [
+                  Expanded(flex: 3, child: _OwnerHeader('Institution')),
+                  Expanded(flex: 3, child: _OwnerHeader('Catalog / Contact')),
+                  Expanded(flex: 2, child: _OwnerHeader('Status')),
+                  Expanded(flex: 2, child: _OwnerHeader('Created')),
+                  Expanded(flex: 2, child: _OwnerHeader('Updated')),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...rows.map((row) {
+              final status = (row['status'] as String? ?? '').trim();
+              final contact =
+                  (row['adminPhoneNumber'] as String?) ??
+                  (row['contactPhone'] as String?) ??
+                  '--';
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFDCE8F5)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            (row['name'] as String? ?? 'Institution').trim(),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F233F),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            (row['id'] as String? ?? '--').trim(),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF7B92AF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            (row['institutionCatalogId'] as String? ?? '--')
+                                .trim(),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF203854),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            contact,
+                            style: const TextStyle(color: Color(0xFF5D7291)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: statusBackground(status),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  statusIcon(status),
+                                  size: 14,
+                                  color: statusForeground(status),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  formatStatus(status),
+                                  style: TextStyle(
+                                    color: statusForeground(status),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        formatDate(row['createdAt']),
+                        style: const TextStyle(color: Color(0xFF2D4360)),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        formatDate(row['updatedAt']),
+                        style: const TextStyle(color: Color(0xFF2D4360)),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OwnerHeader extends StatelessWidget {
+  const _OwnerHeader(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: const TextStyle(
+        fontWeight: FontWeight.w800,
+        color: Color(0xFF5D7391),
+      ),
+    );
+  }
+}
+
+class _OwnerActivityTile extends StatelessWidget {
+  const _OwnerActivityTile({required this.item, required this.formatDate});
+
+  final _OwnerActivityItem item;
+  final String Function(dynamic value) formatDate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFDCE8F5)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: item.tone.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(item.icon, color: item.tone, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF142842),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  item.subtitle,
+                  style: const TextStyle(
+                    color: Color(0xFF5D7291),
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  formatDate(item.occurredAt),
+                  style: const TextStyle(
+                    color: Color(0xFF8096B2),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

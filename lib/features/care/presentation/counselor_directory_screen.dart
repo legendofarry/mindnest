@@ -571,6 +571,13 @@ class _CounselorDirectoryScreenState
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
+    final useDesktopFilterPanel =
+        widget.embeddedInDesktopShell ||
+        isDesktop ||
+        (!kIsWeb &&
+            (defaultTargetPlatform == TargetPlatform.windows ||
+                defaultTargetPlatform == TargetPlatform.macOS ||
+                defaultTargetPlatform == TargetPlatform.linux));
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final institutionId = profile?.institutionId ?? '';
     final canAccessLive =
@@ -962,7 +969,7 @@ class _CounselorDirectoryScreenState
                               _currentPage = 0;
                             }),
                             onOpenFilters: () {
-                              if (kIsWeb) {
+                              if (useDesktopFilterPanel) {
                                 setState(() {
                                   _isFilterPanelOpen = !_isFilterPanelOpen;
                                 });
@@ -973,8 +980,9 @@ class _CounselorDirectoryScreenState
                                 modeOptions: modeOptions,
                               );
                             },
-                            showFilterPanel: kIsWeb && _isFilterPanelOpen,
-                            filterPanel: kIsWeb
+                            showFilterPanel:
+                                useDesktopFilterPanel && _isFilterPanelOpen,
+                            filterPanel: useDesktopFilterPanel
                                 ? _CounselorDiscoveryFilterPanel(
                                     initialSort: _sort,
                                     initialSpecialization:

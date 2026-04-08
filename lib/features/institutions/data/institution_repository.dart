@@ -2560,6 +2560,38 @@ class InstitutionRepository {
         });
   }
 
+  Stream<List<Map<String, dynamic>>> watchOwnerInstitutions() {
+    _ensureOwnerAccount();
+    if (_useWindowsPollingWorkaround) {
+      return _buildWindowsPollingStream<List<Map<String, dynamic>>>(
+        load: getOwnerInstitutions,
+        signature: (items) => items
+            .map(
+              (item) =>
+                  '${item['id']}|${item['status']}|${item['updatedAt']}|${item['createdAt']}',
+            )
+            .join(';'),
+      );
+    }
+    return _firestore.collection('institutions').snapshots().map((snapshot) {
+      final items = snapshot.docs
+          .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+          .toList(growable: false);
+      items.sort((a, b) {
+        final aDate =
+            _asUtcDate(a['updatedAt']) ??
+            _asUtcDate(a['createdAt']) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate =
+            _asUtcDate(b['updatedAt']) ??
+            _asUtcDate(b['createdAt']) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
+      return items;
+    });
+  }
+
   Future<void> submitSchoolRequest({
     required String schoolName,
     String? mobileNumber,
@@ -2694,6 +2726,46 @@ class InstitutionRepository {
         .where('status', isEqualTo: 'pending')
         .get();
     return _sortDocumentsByCreatedAt(snapshot.docs);
+  }
+
+  Future<List<Map<String, dynamic>>> getOwnerInstitutions() async {
+    _ensureOwnerAccount();
+    if (kUseWindowsRestAuth) {
+      final documents = await _windowsRest.queryCollection(
+        collectionId: 'institutions',
+      );
+      final items = documents
+          .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data})
+          .toList(growable: false);
+      items.sort((a, b) {
+        final aDate =
+            _asUtcDate(a['updatedAt']) ??
+            _asUtcDate(a['createdAt']) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate =
+            _asUtcDate(b['updatedAt']) ??
+            _asUtcDate(b['createdAt']) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
+      return items;
+    }
+    final snapshot = await _firestore.collection('institutions').get();
+    final items = snapshot.docs
+        .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+        .toList(growable: false);
+    items.sort((a, b) {
+      final aDate =
+          _asUtcDate(a['updatedAt']) ??
+          _asUtcDate(a['createdAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate =
+          _asUtcDate(b['updatedAt']) ??
+          _asUtcDate(b['createdAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+    return items;
   }
 
   Future<void> dismissInstitutionWelcome() async {
