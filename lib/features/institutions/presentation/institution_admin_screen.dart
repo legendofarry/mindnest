@@ -831,16 +831,12 @@ class _InstitutionAdminScreenState
                 ((data['invitedName'] as String?) ?? '').trim().isNotEmpty
                 ? ((data['invitedName'] as String?) ?? '').trim()
                 : ((data['inviteeUid'] as String?) ?? '--');
-            final invitePhone = ((data['inviteePhoneE164'] as String?) ?? '')
-                .trim();
             final inviteEmail = ((data['invitedEmail'] as String?) ?? '')
                 .trim();
             return _WorkspaceEntry(
               recordId: doc.id,
               primary: invitedName,
-              secondary: invitePhone.isNotEmpty
-                  ? invitePhone
-                  : (inviteEmail.isNotEmpty ? inviteEmail : '--'),
+              secondary: inviteEmail.isNotEmpty ? inviteEmail : '--',
               type: (data['intendedRole'] as String?) ?? 'invite',
               status: _inviteStatusLabel(data),
               source: 'invite',
@@ -920,9 +916,12 @@ class _InstitutionAdminScreenState
 
         final institutionName = rawString('institutionName');
         final intendedRole = rawString('intendedRole');
-        final inviteePhone = rawString('inviteePhoneE164');
         final invitedEmail = rawString('invitedEmail');
         final deliveryChannel = rawString('deliveryChannel');
+        final secondaryLabel =
+            entry.source == 'invite' || entry.secondary.contains('@')
+            ? 'Email'
+            : 'Account';
         final created = entry.createdAt == null
             ? '--'
             : entry.createdAt!.toLocal().toString();
@@ -1035,10 +1034,8 @@ class _InstitutionAdminScreenState
                     ],
                   ),
                   const SizedBox(height: 14),
-                  _MetaRow(label: 'Secondary contact', value: entry.secondary),
-                  if (inviteePhone != null)
-                    _MetaRow(label: 'Phone', value: inviteePhone),
-                  if (invitedEmail != null)
+                  _MetaRow(label: secondaryLabel, value: entry.secondary),
+                  if (invitedEmail != null && invitedEmail != entry.secondary)
                     _MetaRow(label: 'Email', value: invitedEmail),
                   if (intendedRole != null)
                     _MetaRow(label: 'Role', value: intendedRole),

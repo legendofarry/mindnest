@@ -47,6 +47,47 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   bool _confirmPasswordFieldError = false;
   String? _formError;
 
+  bool _isValidEmail(String raw) {
+    final email = raw.trim();
+    if (email.isEmpty) {
+      return false;
+    }
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+  }
+
+  String? get _firstBlockingIssue {
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirm = _confirmPasswordController.text;
+
+    if (name.isEmpty) {
+      return 'Enter your full name.';
+    }
+    if (name.length < 2) {
+      return 'Full name must be at least 2 characters.';
+    }
+    if (email.isEmpty) {
+      return 'Enter your email address.';
+    }
+    if (!_isValidEmail(email)) {
+      return 'Enter a valid email address (example: name@example.com).';
+    }
+    if (password.isEmpty) {
+      return 'Enter a password.';
+    }
+    if (password.length < 8) {
+      return 'Password must be at least 8 characters.';
+    }
+    if (confirm.isEmpty) {
+      return 'Confirm your password.';
+    }
+    if (confirm != password) {
+      return 'Password confirmation does not match.';
+    }
+    return null;
+  }
+
   Map<String, String> get _inviteQuery => AppRoute.inviteQuery(
     inviteId: widget.inviteId ?? '',
     invitedEmail: widget.invitedEmail,
@@ -77,8 +118,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
 
   bool get _isFormStructurallyValid {
     final hasName = _nameController.text.trim().length >= 2;
-    final email = _emailController.text.trim();
-    final hasEmail = email.isNotEmpty && email.contains('@');
+    final hasEmail = _isValidEmail(_emailController.text);
 
     final hasPassword = _passwordController.text.length >= 8;
     final hasMatchingPassword =
@@ -125,8 +165,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
 
   bool _validateBeforeSubmit() {
     final hasName = _nameController.text.trim().length >= 2;
-    final email = _emailController.text.trim();
-    final hasEmail = email.isNotEmpty && email.contains('@');
+    final hasEmail = _isValidEmail(_emailController.text);
 
     final hasPassword = _passwordController.text.length >= 8;
     final hasMatchingPassword =
@@ -286,6 +325,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
           _buildTermsCard(),
           SizedBox(height: submitGap),
           _buildSubmitButton(canSubmit: canSubmit, isDesktop: isDesktop),
+          _buildBlockingHint(canSubmit: canSubmit),
           if (_hasInviteContext) ...[
             const SizedBox(height: 6),
             _buildExistingAccountLink(context),
@@ -397,8 +437,9 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
           hasError: _nameFieldError,
           child: TextFormField(
             controller: _nameController,
-            onChanged: (_) => setState(() {
-              _nameFieldError = false;
+            onChanged: (value) => setState(() {
+              final trimmed = value.trim();
+              _nameFieldError = trimmed.isNotEmpty && trimmed.length < 2;
               _formError = null;
             }),
             decoration: const InputDecoration(
@@ -408,6 +449,8 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             ),
           ),
         ),
+        if (_nameFieldError)
+          const _FieldErrorText('Full name must be at least 2 characters.'),
       ],
     );
   }
@@ -423,8 +466,9 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
           child: TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
-            onChanged: (_) => setState(() {
-              _emailFieldError = false;
+            onChanged: (value) => setState(() {
+              final email = value.trim();
+              _emailFieldError = email.isNotEmpty && !_isValidEmail(email);
               _formError = null;
             }),
             decoration: const InputDecoration(
@@ -434,6 +478,10 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             ),
           ),
         ),
+        if (_emailFieldError)
+          const _FieldErrorText(
+            'Enter a valid email address (example: name@example.com).',
+          ),
       ],
     );
   }
@@ -441,13 +489,16 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   Widget _buildPasswordRows({required double pairGap}) {
     final passwordField = _LabeledFieldBlock(
       label: 'PASSWORD',
+      errorText: _passwordFieldError
+          ? 'Password must be at least 8 characters.'
+          : null,
       child: _RoundedInput(
         hasError: _passwordFieldError,
         child: TextFormField(
           controller: _passwordController,
           obscureText: !_isPasswordVisible,
-          onChanged: (_) => setState(() {
-            _passwordFieldError = false;
+          onChanged: (value) => setState(() {
+            _passwordFieldError = value.isNotEmpty && value.length < 8;
             _confirmPasswordFieldError =
                 _confirmPasswordController.text.isNotEmpty &&
                 _confirmPasswordController.text != _passwordController.text;
@@ -472,6 +523,9 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
 
     final confirmPasswordField = _LabeledFieldBlock(
       label: 'CONFIRM',
+      errorText: _confirmPasswordFieldError
+          ? 'Password confirmation does not match.'
+          : null,
       child: _RoundedInput(
         hasError: _confirmPasswordFieldError,
         child: TextFormField(
@@ -657,6 +711,39 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                   ],
                 ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildBlockingHint({required bool canSubmit}) {
+    if (_isSubmitting || canSubmit) {
+      return const SizedBox(height: 0);
+    }
+    final issue = _firstBlockingIssue;
+    if (issue == null) {
+      return const SizedBox(height: 0);
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 16,
+            color: Color(0xFF6A7F9B),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              issue,
+              style: const TextStyle(
+                color: Color(0xFF607792),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1204,10 +1291,15 @@ class _FieldLabel extends StatelessWidget {
 }
 
 class _LabeledFieldBlock extends StatelessWidget {
-  const _LabeledFieldBlock({required this.label, required this.child});
+  const _LabeledFieldBlock({
+    required this.label,
+    required this.child,
+    this.errorText,
+  });
 
   final String label;
   final Widget child;
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
@@ -1217,7 +1309,29 @@ class _LabeledFieldBlock extends StatelessWidget {
         _FieldLabel(text: label),
         const SizedBox(height: 8),
         child,
+        if (errorText != null) _FieldErrorText(errorText!),
       ],
+    );
+  }
+}
+
+class _FieldErrorText extends StatelessWidget {
+  const _FieldErrorText(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 7, left: 6),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Color(0xFFC1272D),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

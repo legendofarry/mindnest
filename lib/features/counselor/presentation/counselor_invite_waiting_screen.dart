@@ -839,7 +839,7 @@ class _CounselorInviteWaitingScreenState
         Text(
           hasInvite
               ? 'Your institution invite is here.'
-              : 'Account is waiting for institution access.',
+              : 'Waiting for institution invite',
           textAlign: isDesktop ? TextAlign.left : TextAlign.center,
           style: theme.textTheme.headlineMedium?.copyWith(
             fontSize: isDesktop ? 40 : 30,
@@ -853,7 +853,7 @@ class _CounselorInviteWaitingScreenState
         Text(
           hasInvite
               ? 'Enter the institution code from the admin and accept or reject right here. Notifications still remains available as the secondary path.'
-              : 'You are registered. When the institution admin invite arrives, this screen turns into a live action panel so you can respond immediately.',
+              : 'Your account is ready, but counselor tools stay locked until an institution admin sends your invite.',
           textAlign: isDesktop ? TextAlign.left : TextAlign.center,
           style: theme.textTheme.titleMedium?.copyWith(
             fontSize: isDesktop ? 18 : 16,
@@ -883,8 +883,8 @@ class _CounselorInviteWaitingScreenState
         _infoCard(
           isDesktop,
           '02',
-          'Watch this screen',
-          'This screen flips into an action state at the same time.',
+          'Keep this page open',
+          'Keep this page open or check Notifications for updates.',
           const Color(0xFF0D7FA1),
         ),
         const SizedBox(height: 12),
@@ -892,7 +892,7 @@ class _CounselorInviteWaitingScreenState
           isDesktop,
           '03',
           'Accept and continue setup',
-          'Once accepted, counselor setup opens and the institution link becomes active.',
+          'When the invite arrives, click Accept to continue setup.',
           const Color(0xFF2563EB),
         ),
       ],

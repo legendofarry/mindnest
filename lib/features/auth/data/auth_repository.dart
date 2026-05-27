@@ -702,7 +702,57 @@ class AuthRepository {
   }
 
   Future<void> reloadCurrentUser() async {
-    await _auth.reloadCurrentUser();
+    final user = await _auth.reloadCurrentUser();
+    if (user == null) {
+      return;
+    }
+    await _syncCurrentAuthUserVerification(user);
+  }
+
+  Future<void> _syncCurrentAuthUserVerification(AppAuthUser user) async {
+    final normalizedEmail = user.email.trim().toLowerCase();
+    if (kUseWindowsRestAuth) {
+      final existing = await _windowsRest.getDocument('users/${user.uid}');
+      if (existing == null) {
+        return;
+      }
+      final currentVerified = existing.data['emailVerified'] as bool?;
+      final currentEmail = ((existing.data['email'] as String?) ?? '')
+          .trim()
+          .toLowerCase();
+      if (currentVerified == user.emailVerified &&
+          currentEmail == normalizedEmail) {
+        return;
+      }
+      await _windowsRest.updateDocument('users/${user.uid}', {
+        'email': user.email,
+        'emailLower': normalizedEmail,
+        'emailVerified': user.emailVerified,
+        'updatedAt': DateTime.now().toUtc(),
+      });
+      return;
+    }
+
+    final userDoc = _firestore.collection('users').doc(user.uid);
+    final snapshot = await userDoc.get();
+    if (!snapshot.exists) {
+      return;
+    }
+    final data = snapshot.data();
+    final currentVerified = data?['emailVerified'] as bool?;
+    final currentEmail = ((data?['email'] as String?) ?? '')
+        .trim()
+        .toLowerCase();
+    if (currentVerified == user.emailVerified &&
+        currentEmail == normalizedEmail) {
+      return;
+    }
+    await userDoc.set({
+      'email': user.email,
+      'emailLower': normalizedEmail,
+      'emailVerified': user.emailVerified,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   Future<void> _ensureWindowsLoginProfileExists(AppAuthUser user) async {

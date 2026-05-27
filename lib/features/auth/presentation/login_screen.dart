@@ -1,5 +1,4 @@
 // features/auth/presentation/login_screen.dart
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,12 +8,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
-import 'package:mindnest/features/ai/data/assistant_providers.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mindnest/features/auth/presentation/login_did_you_know_session.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -819,31 +818,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 }
 
-class _DesktopMarketingPanel extends ConsumerStatefulWidget {
+class _DesktopMarketingPanel extends StatefulWidget {
   const _DesktopMarketingPanel();
 
   @override
-  ConsumerState<_DesktopMarketingPanel> createState() =>
-      _DesktopMarketingPanelState();
+  State<_DesktopMarketingPanel> createState() => _DesktopMarketingPanelState();
 }
 
-class _DesktopMarketingPanelState
-    extends ConsumerState<_DesktopMarketingPanel> {
-  // Temporary quota guard. Set to false to resume AI fact generation.
-  static const _pauseAiFactGeneration = true;
-  static const _seenFactIdsKey = 'login.did_you_know.seen_ids';
-  static const _recentFactsKey = 'login.did_you_know.recent_facts';
-  static const _reactionCountKey = 'login.did_you_know.reaction_count';
-
-  static const List<String> _topics = <String>[
-    'Sleep',
-    'Stress',
-    'Focus',
-    'Mood',
-    'Energy',
-    'Connection',
-  ];
-
+class _DesktopMarketingPanelState extends State<_DesktopMarketingPanel> {
   static const Map<String, List<String>>
   _fallbackFacts = <String, List<String>>{
     'Sleep': <String>[
@@ -884,164 +866,107 @@ class _DesktopMarketingPanelState
     ],
   };
 
+  static final List<_DidYouKnowFact> _factCatalog = _buildFactCatalog();
+  static final _DidYouKnowFact _defaultFact = _DidYouKnowFact(
+    id: _stableFactId(
+      'Did you know? Tiny daily habits, repeated consistently, often create the biggest wellness gains over time.',
+    ),
+    text:
+        'Did you know? Tiny daily habits, repeated consistently, often create the biggest wellness gains over time.',
+    topic: 'Wellness',
+    source: 'MindNest pick',
+  );
+
   final math.Random _random = math.Random();
-  Timer? _autoFactTimer;
 
-  Set<String> _seenFactIds = <String>{};
-  List<String> _recentFactTexts = <String>[];
-  String _selectedTopic = _topics.first;
   _DidYouKnowFact? _currentFact;
-
   bool _isFactLoading = true;
-  bool _showMindBlownState = false;
-  int _reactionCount = 0;
 
   @override
   void initState() {
     super.initState();
-    _restoreFactState();
+    _restoreSessionFact();
   }
 
-  @override
-  void dispose() {
-    _autoFactTimer?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _restoreFactState() async {
-    final preferences = await SharedPreferences.getInstance();
-    final seenIds = preferences.getStringList(_seenFactIdsKey) ?? const [];
-    final recentFacts = preferences.getStringList(_recentFactsKey) ?? const [];
-    final reactionCount = preferences.getInt(_reactionCountKey) ?? 0;
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _seenFactIds = seenIds.toSet();
-      _recentFactTexts = recentFacts;
-      _reactionCount = reactionCount;
-      _isFactLoading = false;
-    });
-    _startAutoRotation();
-    await _loadNextFact();
-  }
-
-  void _startAutoRotation() {
-    _autoFactTimer?.cancel();
-    _autoFactTimer = Timer.periodic(const Duration(seconds: 22), (_) {
-      if (!mounted || _isFactLoading || _showMindBlownState) {
+  Future<void> _restoreSessionFact() async {
+    final activeFactId = LoginDidYouKnowSession.activeFactId;
+    if (activeFactId != null) {
+      final activeFact = _factForId(activeFactId);
+      if (activeFact != null) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _currentFact = activeFact;
+          _isFactLoading = false;
+        });
         return;
       }
-      _loadNextFact();
-    });
-  }
-
-  Future<void> _loadNextFact() async {
-    if (_isFactLoading) {
-      return;
     }
 
-    setState(() => _isFactLoading = true);
-    final generated = await _generateUniqueFact();
+    final lastFactId = kIsWeb
+        ? await LoginDidYouKnowSession.readLastFactId()
+        : null;
+    final nextFact = _pickNextFact(lastFactId: lastFactId);
+    LoginDidYouKnowSession.setActiveFact(nextFact.id);
+    if (kIsWeb) {
+      await LoginDidYouKnowSession.persistLastFactId(nextFact.id);
+    }
 
     if (!mounted) {
       return;
     }
-
-    if (generated != null) {
-      await _persistFactMemory(generated);
-    }
-
     setState(() {
-      _currentFact = generated ?? _buildFallbackFact();
+      _currentFact = nextFact;
       _isFactLoading = false;
     });
   }
 
-  Future<_DidYouKnowFact?> _generateUniqueFact() async {
-    if (_pauseAiFactGeneration) {
-      return _buildFallbackFact();
-    }
-
-    final avoidFacts = <String>[
-      ..._recentFactTexts.take(18),
-      if (_currentFact != null) _currentFact!.text,
-    ];
-
-    for (var attempt = 0; attempt < 3; attempt++) {
-      final aiText = await ref
-          .read(assistantRepositoryProvider)
-          .generateWellnessDidYouKnowFact(
-            topic: _selectedTopic,
-            avoidFacts: avoidFacts,
-          );
-      if (aiText == null || aiText.trim().isEmpty) {
-        continue;
-      }
-
-      final candidate = _DidYouKnowFact(
-        id: _stableFactId(aiText),
-        text: aiText.trim(),
-        topic: _selectedTopic,
-        source: 'AI',
-      );
-      if (_seenFactIds.contains(candidate.id)) {
-        avoidFacts.add(candidate.text);
-        continue;
-      }
-      return candidate;
-    }
-
-    final fallback = _buildFallbackFact();
-    if (_seenFactIds.contains(fallback.id)) {
-      return fallback;
-    }
-    return fallback;
-  }
-
-  _DidYouKnowFact _buildFallbackFact() {
-    final selectedTopicFacts = _fallbackFacts[_selectedTopic] ?? const [];
-    final pool = <String>[
-      ...selectedTopicFacts,
-      for (final entry in _fallbackFacts.entries)
-        if (entry.key != _selectedTopic) ...entry.value,
-    ];
-    if (pool.isEmpty) {
-      const text =
-          'Did you know? Tiny daily habits, repeated consistently, often create the biggest wellness gains over time.';
-      return _DidYouKnowFact(
-        id: _stableFactId(text),
-        text: text,
-        topic: _selectedTopic,
-        source: 'Fallback',
-      );
-    }
-
-    final unseen = pool
-        .where((fact) => !_seenFactIds.contains(_stableFactId(fact)))
+  _DidYouKnowFact _pickNextFact({String? lastFactId}) {
+    final candidates = _factCatalog
+        .where((fact) => fact.id != (lastFactId ?? '').trim())
         .toList(growable: false);
-    final candidatePool = unseen.isNotEmpty ? unseen : pool;
-
-    String picked = candidatePool[_random.nextInt(candidatePool.length)];
-    if (_currentFact != null && candidatePool.length > 1) {
-      var guard = 0;
-      while (picked == _currentFact!.text && guard < 8) {
-        picked = candidatePool[_random.nextInt(candidatePool.length)];
-        guard++;
-      }
+    final pool = candidates.isEmpty ? _factCatalog : candidates;
+    if (pool.isEmpty) {
+      return _defaultFact;
     }
-
-    return _DidYouKnowFact(
-      id: _stableFactId(picked),
-      text: picked,
-      topic: _selectedTopic,
-      source: 'Fallback',
-    );
+    return pool[_random.nextInt(pool.length)];
   }
 
-  String _stableFactId(String text) {
+  static List<_DidYouKnowFact> _buildFactCatalog() {
+    final facts = <_DidYouKnowFact>[];
+    for (final entry in _fallbackFacts.entries) {
+      for (final text in entry.value) {
+        facts.add(
+          _DidYouKnowFact(
+            id: _stableFactId(text),
+            text: text,
+            topic: entry.key,
+            source: 'MindNest pick',
+          ),
+        );
+      }
+    }
+    return facts;
+  }
+
+  static _DidYouKnowFact? _factForId(String factId) {
+    final normalized = factId.trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    for (final fact in _factCatalog) {
+      if (fact.id == normalized) {
+        return fact;
+      }
+    }
+    if (_defaultFact.id == normalized) {
+      return _defaultFact;
+    }
+    return null;
+  }
+
+  static String _stableFactId(String text) {
     final normalized = text.trim().toLowerCase().replaceAll(
       RegExp(r'\s+'),
       ' ',
@@ -1052,55 +977,6 @@ class _DesktopMarketingPanelState
       hash = (hash * 0x01000193) & 0xFFFFFFFF;
     }
     return hash.toRadixString(16).padLeft(8, '0');
-  }
-
-  Future<void> _persistFactMemory(_DidYouKnowFact fact) async {
-    _seenFactIds.add(fact.id);
-    _recentFactTexts = <String>[
-      fact.text,
-      ..._recentFactTexts.where((entry) => entry != fact.text),
-    ].take(32).toList(growable: false);
-
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setStringList(
-      _seenFactIdsKey,
-      _seenFactIds.toList(growable: false),
-    );
-    await preferences.setStringList(_recentFactsKey, _recentFactTexts);
-  }
-
-  Future<void> _onMindBlownPressed() async {
-    if (_isFactLoading || _currentFact == null) {
-      return;
-    }
-
-    final nextCount = _reactionCount + 1;
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setInt(_reactionCountKey, nextCount);
-
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _reactionCount = nextCount;
-      _showMindBlownState = true;
-    });
-
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) {
-      return;
-    }
-
-    setState(() => _showMindBlownState = false);
-    await _loadNextFact();
-  }
-
-  Future<void> _onTopicTap(String topic) async {
-    if (topic == _selectedTopic) {
-      return;
-    }
-    setState(() => _selectedTopic = topic);
-    await _loadNextFact();
   }
 
   @override
@@ -1155,6 +1031,7 @@ class _DesktopMarketingPanelState
 
   Widget _buildDidYouKnowCard(BuildContext context) {
     final fact = _currentFact;
+    final topicLabel = fact?.topic ?? 'Wellness';
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
       decoration: BoxDecoration(
@@ -1209,7 +1086,7 @@ class _DesktopMarketingPanelState
               ),
               const SizedBox(width: 10),
               Text(
-                'MindNest AI feed',
+                'MindNest welcome note',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: const Color(0xFF315A74),
                   fontWeight: FontWeight.w700,
@@ -1244,7 +1121,7 @@ class _DesktopMarketingPanelState
                 border: Border.all(color: const Color(0xFFDBEEE9)),
               ),
               child: Text(
-                fact?.text ?? 'Curating a fresh fact for you...',
+                fact?.text ?? 'Loading a welcome fact for this visit...',
                 style: const TextStyle(
                   color: Color(0xFF14324D),
                   fontSize: 27,
@@ -1255,8 +1132,10 @@ class _DesktopMarketingPanelState
               ),
             ),
           ),
-          const SizedBox(height: 6),
-          Row(
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -1268,7 +1147,7 @@ class _DesktopMarketingPanelState
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  fact == null ? _selectedTopic : fact.topic,
+                  topicLabel,
                   style: const TextStyle(
                     color: Color(0xFF0F6C68),
                     fontWeight: FontWeight.w700,
@@ -1276,7 +1155,6 @@ class _DesktopMarketingPanelState
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -1287,7 +1165,7 @@ class _DesktopMarketingPanelState
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  fact?.source == 'AI' ? 'AI generated' : 'MindNest picks',
+                  fact?.source ?? 'MindNest pick',
                   style: const TextStyle(
                     color: Color(0xFF315A74),
                     fontWeight: FontWeight.w700,
@@ -1295,98 +1173,26 @@ class _DesktopMarketingPanelState
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _topics
-                .map((topic) {
-                  final selected = topic == _selectedTopic;
-                  return ChoiceChip(
-                    label: Text(topic),
-                    selected: selected,
-                    onSelected: (_) => _onTopicTap(topic),
-                    labelStyle: TextStyle(
-                      color: selected
-                          ? const Color(0xFF063B52)
-                          : const Color(0xFF48637B),
+              if (kIsWeb)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2F7FF),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'New one after logout',
+                    style: TextStyle(
+                      color: Color(0xFF48637B),
                       fontWeight: FontWeight.w700,
+                      fontSize: 12.5,
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
-                      side: BorderSide(
-                        color: selected
-                            ? const Color(0xFF6DE4D9)
-                            : const Color(0xFFD3E5E8),
-                      ),
-                    ),
-                    backgroundColor: Colors.white,
-                    selectedColor: const Color(0xFFBDF5EE),
-                  );
-                })
-                .toList(growable: false),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              ElevatedButton.icon(
-                onPressed: _isFactLoading ? null : _onMindBlownPressed,
-                style: ElevatedButton.styleFrom(
-                  elevation: 0,
-                  backgroundColor: const Color(0xFF073B4C),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                icon: const Icon(Icons.emoji_objects_rounded, size: 18),
-                label: Text(
-                  _showMindBlownState
-                      ? 'Mind blown unlocked'
-                      : 'That was mind-blowing 🤯',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: _isFactLoading ? null : _loadNextFact,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF0E9B90),
-                  side: const BorderSide(color: Color(0xFF8ADFD7)),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text(
-                  'Give me another',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
             ],
-          ),
-          const SizedBox(height: 10),
-          AnimatedOpacity(
-            opacity: _showMindBlownState ? 1 : 0,
-            duration: const Duration(milliseconds: 220),
-            child: const Text(
-              'MindNest AI is finding your next one...',
-              style: TextStyle(
-                color: Color(0xFF0E9B90),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
           ),
         ],
       ),

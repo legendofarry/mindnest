@@ -1,5 +1,6 @@
 // features/auth/presentation/register_institution_screen.dart
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart'
@@ -111,15 +112,70 @@ class _RegisterInstitutionScreenState
     if (_isFormBusy) {
       return;
     }
-    final selectedId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _CatalogSchoolPickerSheet(
-        schools: kCatalogSchools,
-        selectedSchoolId: _selectedSchoolId,
-      ),
-    );
+    Map<String, String> claimedInstitutionIdsBySchoolId =
+        const <String, String>{};
+    try {
+      claimedInstitutionIdsBySchoolId = await ref
+          .read(institutionRepositoryProvider)
+          .getInstitutionCatalogClaims();
+    } catch (_) {
+      claimedInstitutionIdsBySchoolId = const <String, String>{};
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final useFloatingDialog =
+        kIsWeb || defaultTargetPlatform == TargetPlatform.windows;
+    String? selectedId;
+    if (useFloatingDialog) {
+      selectedId = await showDialog<String>(
+        context: context,
+        barrierDismissible: true,
+        barrierColor: const Color(0x73071A33),
+        builder: (dialogContext) {
+          final size = MediaQuery.sizeOf(dialogContext);
+          final maxWidth = size.width >= 1280 ? 820.0 : 760.0;
+          final maxHeight = (size.height - 72).clamp(480.0, 760.0);
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: const ColoredBox(color: Colors.transparent),
+                ),
+              ),
+              Center(
+                child: SizedBox(
+                  width: maxWidth,
+                  height: maxHeight.toDouble(),
+                  child: _CatalogSchoolPickerSheet(
+                    schools: kCatalogSchools,
+                    selectedSchoolId: _selectedSchoolId,
+                    claimedInstitutionIdsBySchoolId:
+                        claimedInstitutionIdsBySchoolId,
+                    desktopMode: true,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      selectedId = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => _CatalogSchoolPickerSheet(
+          schools: kCatalogSchools,
+          selectedSchoolId: _selectedSchoolId,
+          claimedInstitutionIdsBySchoolId: claimedInstitutionIdsBySchoolId,
+          desktopMode: false,
+        ),
+      );
+    }
     if (!mounted || selectedId == null) {
       return;
     }
@@ -1057,10 +1113,14 @@ class _CatalogSchoolPickerSheet extends StatefulWidget {
   const _CatalogSchoolPickerSheet({
     required this.schools,
     required this.selectedSchoolId,
+    this.claimedInstitutionIdsBySchoolId = const <String, String>{},
+    this.desktopMode = false,
   });
 
   final List<CatalogSchool> schools;
   final String? selectedSchoolId;
+  final Map<String, String> claimedInstitutionIdsBySchoolId;
+  final bool desktopMode;
 
   @override
   State<_CatalogSchoolPickerSheet> createState() =>
@@ -1083,170 +1143,265 @@ class _CatalogSchoolPickerSheetState extends State<_CatalogSchoolPickerSheet> {
         .where((school) => school.name.toLowerCase().contains(query))
         .toList(growable: false);
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        height: 640,
-        decoration: const BoxDecoration(
-          color: Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 54,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD2DCE9),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Text(
-                'Select institution',
-                style: TextStyle(
-                  color: Color(0xFF071937),
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.6,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Search the approved institution catalog and choose your school from the list below.',
-                style: TextStyle(
-                  color: Color(0xFF516784),
-                  fontWeight: FontWeight.w500,
-                  height: 1.45,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFD2DCE9)),
-                  boxShadow: const [
+    return Material(
+      color: Colors.transparent,
+      child: SafeArea(
+        top: !widget.desktopMode,
+        child: Container(
+          height: widget.desktopMode ? double.infinity : 640,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: widget.desktopMode
+                ? BorderRadius.circular(30)
+                : const BorderRadius.vertical(top: Radius.circular(30)),
+            border: widget.desktopMode
+                ? Border.all(color: const Color(0xFFDDE6F1))
+                : null,
+            boxShadow: widget.desktopMode
+                ? const [
                     BoxShadow(
-                      color: Color(0x120F172A),
-                      blurRadius: 12,
-                      offset: Offset(0, 4),
+                      color: Color(0x26071A33),
+                      blurRadius: 34,
+                      offset: Offset(0, 20),
                     ),
-                  ],
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    hintText: 'Search institution',
-                    prefixIcon: Icon(Icons.search_rounded),
+                  ]
+                : null,
+          ),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              18,
+              widget.desktopMode ? 18 : 12,
+              18,
+              18,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!widget.desktopMode)
+                  Center(
+                    child: Container(
+                      width: 54,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD2DCE9),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  )
+                else
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Select institution',
+                  style: TextStyle(
+                    color: Color(0xFF071937),
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.6,
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: Container(
+                const SizedBox(height: 8),
+                const Text(
+                  'Search the approved institution catalog and choose your school from the list below.',
+                  style: TextStyle(
+                    color: Color(0xFF516784),
+                    fontWeight: FontWeight.w500,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: const Color(0xFFDDE6F1)),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFD2DCE9)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x120F172A),
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  child: filteredSchools.isEmpty
-                      ? const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Text(
-                              'No institution matches your search.',
-                              style: TextStyle(
-                                color: Color(0xFF64748B),
-                                fontWeight: FontWeight.w600,
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Search institution',
+                      prefixIcon: Icon(Icons.search_rounded),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: const Color(0xFFDDE6F1)),
+                    ),
+                    child: filteredSchools.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                'No institution matches your search.',
+                                style: TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                          ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.all(12),
-                          itemCount: filteredSchools.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final school = filteredSchools[index];
-                            final isSelected =
-                                school.id == widget.selectedSchoolId;
-                            return InkWell(
-                              onTap: () => Navigator.of(context).pop(school.id),
-                              borderRadius: BorderRadius.circular(18),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 14,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? const Color(0xFFEFFFFC)
-                                      : const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? const Color(0xFF0E9B90)
-                                        : const Color(0xFFDCE6F0),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.all(12),
+                            itemCount: filteredSchools.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final school = filteredSchools[index];
+                              final isSelected =
+                                  school.id == widget.selectedSchoolId;
+                              final isClaimed = widget
+                                  .claimedInstitutionIdsBySchoolId
+                                  .containsKey(school.id);
+                              return InkWell(
+                                onTap: isClaimed
+                                    ? null
+                                    : () =>
+                                          Navigator.of(context).pop(school.id),
+                                borderRadius: BorderRadius.circular(18),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 14,
                                   ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 42,
-                                      height: 42,
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? const Color(
-                                                0xFF0E9B90,
-                                              ).withValues(alpha: 0.14)
-                                            : const Color(0xFFE2E8F0),
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      child: Icon(
-                                        Icons.account_balance_rounded,
-                                        color: isSelected
-                                            ? const Color(0xFF0E9B90)
-                                            : const Color(0xFF64748B),
-                                      ),
+                                  decoration: BoxDecoration(
+                                    color: isClaimed
+                                        ? const Color(0xFFF3F4F6)
+                                        : isSelected
+                                        ? const Color(0xFFEFFFFC)
+                                        : const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: isClaimed
+                                          ? const Color(0xFFE2E8F0)
+                                          : isSelected
+                                          ? const Color(0xFF0E9B90)
+                                          : const Color(0xFFDCE6F0),
                                     ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        school.name,
-                                        style: const TextStyle(
-                                          color: Color(0xFF071937),
-                                          fontWeight: FontWeight.w700,
-                                          height: 1.35,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 42,
+                                        height: 42,
+                                        decoration: BoxDecoration(
+                                          color: isClaimed
+                                              ? const Color(0xFFE5E7EB)
+                                              : isSelected
+                                              ? const Color(
+                                                  0xFF0E9B90,
+                                                ).withValues(alpha: 0.14)
+                                              : const Color(0xFFE2E8F0),
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.account_balance_rounded,
+                                          color: isClaimed
+                                              ? const Color(0xFF94A3B8)
+                                              : isSelected
+                                              ? const Color(0xFF0E9B90)
+                                              : const Color(0xFF64748B),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Icon(
-                                      isSelected
-                                          ? Icons.check_circle_rounded
-                                          : Icons.arrow_outward_rounded,
-                                      color: isSelected
-                                          ? const Color(0xFF0E9B90)
-                                          : const Color(0xFF94A3B8),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              school.name,
+                                              style: TextStyle(
+                                                color: isClaimed
+                                                    ? const Color(0xFF94A3B8)
+                                                    : const Color(0xFF071937),
+                                                fontWeight: FontWeight.w700,
+                                                height: 1.35,
+                                              ),
+                                            ),
+                                            if (isClaimed) ...[
+                                              const SizedBox(height: 6),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 5,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFFE5E7EB,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        999,
+                                                      ),
+                                                  border: Border.all(
+                                                    color: const Color(
+                                                      0xFFD1D5DB,
+                                                    ),
+                                                  ),
+                                                ),
+                                                child: const Text(
+                                                  'Institution exists',
+                                                  style: TextStyle(
+                                                    color: Color(0xFF475569),
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w800,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Icon(
+                                        isClaimed
+                                            ? Icons.block_rounded
+                                            : isSelected
+                                            ? Icons.check_circle_rounded
+                                            : Icons.arrow_outward_rounded,
+                                        color: isClaimed
+                                            ? const Color(0xFF94A3B8)
+                                            : isSelected
+                                            ? const Color(0xFF0E9B90)
+                                            : const Color(0xFF94A3B8),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
+                              );
+                            },
+                          ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

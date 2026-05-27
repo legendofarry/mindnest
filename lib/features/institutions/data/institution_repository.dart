@@ -46,6 +46,13 @@ class InAppInviteDraft {
   final String whatsAppMessage;
 }
 
+class _UserIdentity {
+  const _UserIdentity({required this.email, required this.name});
+
+  final String email;
+  final String name;
+}
+
 class InstitutionRepository {
   InstitutionRepository({
     required FirebaseFirestore Function()? firestoreFactory,
@@ -80,6 +87,8 @@ class InstitutionRepository {
   final WindowsFirestoreRestClient _windowsRest;
   final Random _random = Random.secure();
   int _windowsRestIdCounter = 0;
+  final Map<String, _UserIdentity?> _userIdentityCache =
+      <String, _UserIdentity?>{};
 
   bool get _useWindowsPollingWorkaround =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
@@ -424,6 +433,50 @@ class InstitutionRepository {
     return !registrySnapshot.exists;
   }
 
+  Future<Map<String, String>> getInstitutionCatalogClaims() async {
+    if (kUseWindowsRestAuth) {
+      final documents = await _windowsRest.queryCollection(
+        collectionId: 'institution_catalog_registry',
+      );
+      final claims = <String, String>{};
+      for (final document in documents) {
+        final data = document.data;
+        final catalogId =
+            ((data['institutionCatalogId'] as String?) ?? document.id).trim();
+        final institutionId = (data['institutionId'] as String? ?? '').trim();
+        final status = (data['status'] as String? ?? '').trim().toLowerCase();
+        if (catalogId.isEmpty || institutionId.isEmpty) {
+          continue;
+        }
+        if (status == 'cancelled') {
+          continue;
+        }
+        claims[catalogId] = institutionId;
+      }
+      return claims;
+    }
+
+    final snapshot = await _firestore
+        .collection('institution_catalog_registry')
+        .get();
+    final claims = <String, String>{};
+    for (final document in snapshot.docs) {
+      final data = document.data();
+      final catalogId =
+          ((data['institutionCatalogId'] as String?) ?? document.id).trim();
+      final institutionId = ((data['institutionId'] as String?) ?? '').trim();
+      final status = ((data['status'] as String?) ?? '').trim().toLowerCase();
+      if (catalogId.isEmpty || institutionId.isEmpty) {
+        continue;
+      }
+      if (status == 'cancelled') {
+        continue;
+      }
+      claims[catalogId] = institutionId;
+    }
+    return claims;
+  }
+
   Future<void> createInstitutionAdminAccount({
     required String adminName,
     required String adminEmail,
@@ -535,6 +588,8 @@ class InstitutionRepository {
           'nameNormalized': normalizedInstitutionName,
           'institutionCatalogId': trimmedInstitutionCatalogId,
           'status': 'pending',
+          'adminEmail': normalizedEmail,
+          'contactEmail': normalizedEmail,
           'createdBy': createdUser.uid,
           'adminPhoneNumber': normalizedAdminPhone ?? '',
           'additionalAdminPhoneNumber': normalizedAdditionalAdminPhone,
@@ -717,6 +772,8 @@ class InstitutionRepository {
           'nameNormalized': normalizedInstitutionName,
           'institutionCatalogId': trimmedInstitutionCatalogId,
           'status': 'pending',
+          'adminEmail': normalizedEmail,
+          'contactEmail': normalizedEmail,
           'createdBy': createdUser.uid,
           'adminPhoneNumber': normalizedAdminPhone ?? '',
           'additionalAdminPhoneNumber': normalizedAdditionalAdminPhone,
@@ -2705,13 +2762,15 @@ class InstitutionRepository {
             DateTime.fromMillisecondsSinceEpoch(0);
         return bDate.compareTo(aDate);
       });
-      return items;
+      return _attachInstitutionAdminEmails(items);
     }
     final snapshot = await _firestore
         .collection('institutions')
         .where('status', isEqualTo: 'pending')
         .get();
-    return _sortDocumentsByCreatedAt(snapshot.docs);
+    return _attachInstitutionAdminEmails(
+      _sortDocumentsByCreatedAt(snapshot.docs),
+    );
   }
 
   Future<List<Map<String, dynamic>>> getOwnerSchoolRequests() async {
@@ -2764,7 +2823,7 @@ class InstitutionRepository {
             DateTime.fromMillisecondsSinceEpoch(0);
         return bDate.compareTo(aDate);
       });
-      return items;
+      return _attachInstitutionAdminEmails(items);
     }
     final snapshot = await _firestore.collection('institutions').get();
     final items = snapshot.docs
@@ -2781,7 +2840,7 @@ class InstitutionRepository {
           DateTime.fromMillisecondsSinceEpoch(0);
       return bDate.compareTo(aDate);
     });
-    return items;
+    return _attachInstitutionAdminEmails(items);
   }
 
   Future<void> dismissInstitutionWelcome() async {
@@ -2808,6 +2867,105 @@ class InstitutionRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _attachInstitutionAdminEmails(
+    List<Map<String, dynamic>> institutions,
+  ) async {
+    if (institutions.isEmpty) {
+      return institutions;
+    }
+    final enriched = await Future.wait<Map<String, dynamic>>(
+      institutions.map(_attachSingleInstitutionAdminEmail),
+    );
+    return enriched;
+  }
+
+  Future<Map<String, dynamic>> _attachSingleInstitutionAdminEmail(
+    Map<String, dynamic> institution,
+  ) async {
+    String? bestEmail;
+    for (final candidate in <Object?>[
+      institution['adminEmail'],
+      institution['contactEmail'],
+      institution['createdByEmail'],
+      institution['email'],
+    ]) {
+      final normalized = (candidate as String? ?? '').trim().toLowerCase();
+      if (normalized.isNotEmpty) {
+        bestEmail = normalized;
+        break;
+      }
+    }
+
+    final createdByUid = (institution['createdBy'] as String? ?? '').trim();
+    final status = (institution['status'] as String? ?? '')
+        .trim()
+        .toLowerCase();
+    _UserIdentity? creatorIdentity;
+    if (createdByUid.isNotEmpty && (status == 'pending' || bestEmail == null)) {
+      creatorIdentity = await _lookupUserIdentity(createdByUid);
+    }
+
+    final resolvedCreatorEmail = (creatorIdentity?.email ?? '')
+        .trim()
+        .toLowerCase();
+    final effectiveEmail = (bestEmail ?? resolvedCreatorEmail)
+        .trim()
+        .toLowerCase();
+    if (effectiveEmail.isEmpty) {
+      return institution;
+    }
+
+    final enriched = <String, dynamic>{
+      ...institution,
+      'adminEmail': effectiveEmail,
+      'contactEmail': effectiveEmail,
+      'createdByEmail': resolvedCreatorEmail.isNotEmpty
+          ? resolvedCreatorEmail
+          : effectiveEmail,
+    };
+
+    final creatorName = (creatorIdentity?.name ?? '').trim();
+    if (status == 'pending' && creatorName.isNotEmpty) {
+      enriched['createdByName'] = creatorName;
+    }
+
+    return enriched;
+  }
+
+  Future<_UserIdentity?> _lookupUserIdentity(String uid) async {
+    final normalizedUid = uid.trim();
+    if (normalizedUid.isEmpty) {
+      return null;
+    }
+    if (_userIdentityCache.containsKey(normalizedUid)) {
+      return _userIdentityCache[normalizedUid];
+    }
+    if (kUseWindowsRestAuth) {
+      final userData = (await _windowsRest.getDocument(
+        'users/$normalizedUid',
+      ))?.data;
+      final email = (userData?['email'] as String? ?? '').trim().toLowerCase();
+      final name = (userData?['name'] as String? ?? '').trim();
+      final identity = email.isEmpty && name.isEmpty
+          ? null
+          : _UserIdentity(email: email, name: name);
+      _userIdentityCache[normalizedUid] = identity;
+      return identity;
+    }
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(normalizedUid)
+        .get();
+    final data = snapshot.data();
+    final email = (data?['email'] as String? ?? '').trim().toLowerCase();
+    final name = (data?['name'] as String? ?? '').trim();
+    final identity = email.isEmpty && name.isEmpty
+        ? null
+        : _UserIdentity(email: email, name: name);
+    _userIdentityCache[normalizedUid] = identity;
+    return identity;
   }
 
   Future<void> approveInstitutionRequest({
@@ -3134,23 +3292,58 @@ class InstitutionRepository {
       final nextCatalogRegistryPath = _institutionCatalogRegistryPath(
         trimmedInstitutionCatalogId,
       );
+      final currentInstitutionName =
+          (data['name'] as String? ?? trimmedInstitutionName).trim();
+      final currentNormalizedNameKey = _normalizeInstitutionName(
+        currentInstitutionName,
+      );
       if (currentCatalogId != trimmedInstitutionCatalogId) {
         final conflict = await _windowsRest.getDocument(
           nextCatalogRegistryPath,
         );
         if (conflict != null) {
+          final registryStatus = (conflict.data['status'] as String? ?? '')
+              .trim();
           final claimedInstitutionId =
               (conflict.data['institutionId'] as String?) ?? '';
-          if (claimedInstitutionId != institutionId) {
+          if (claimedInstitutionId != institutionId &&
+              registryStatus.toLowerCase() != 'cancelled') {
             throw Exception(
               'This institution already exists or is pending approval.',
             );
           }
         }
         if (currentCatalogId.isNotEmpty) {
-          await _windowsRest.deleteDocument(
-            _institutionCatalogRegistryPath(currentCatalogId),
+          final currentCatalogRegistryPath = _institutionCatalogRegistryPath(
+            currentCatalogId,
           );
+          await _windowsRest.setDocument(currentCatalogRegistryPath, {
+            ...(await _windowsRest.getDocument(
+                  currentCatalogRegistryPath,
+                ))?.data ??
+                const <String, dynamic>{},
+            'institutionId': institutionId,
+            'institutionCatalogId': currentCatalogId,
+            'institutionName': currentInstitutionName,
+            'status': 'cancelled',
+            'updatedAt': DateTime.now().toUtc(),
+          });
+        }
+        if (currentNormalizedNameKey.isNotEmpty) {
+          final currentNameRegistryPath = _institutionNameRegistryPath(
+            currentNormalizedNameKey,
+          );
+          await _windowsRest.setDocument(currentNameRegistryPath, {
+            ...(await _windowsRest.getDocument(
+                  currentNameRegistryPath,
+                ))?.data ??
+                const <String, dynamic>{},
+            'institutionId': institutionId,
+            'institutionName': currentInstitutionName,
+            'normalizedName': currentNormalizedNameKey,
+            'status': 'cancelled',
+            'updatedAt': DateTime.now().toUtc(),
+          });
         }
       }
 
@@ -3228,9 +3421,12 @@ class InstitutionRepository {
           if (currentCatalogId != trimmedInstitutionCatalogId) {
             final conflict = await transaction.get(nextCatalogRegistryRef);
             if (conflict.exists) {
+              final registryStatus =
+                  (conflict.data()?['status'] as String? ?? '').trim();
               final claimedInstitutionId =
                   (conflict.data()?['institutionId'] as String?) ?? '';
-              if (claimedInstitutionId != institutionId) {
+              if (claimedInstitutionId != institutionId &&
+                  registryStatus.toLowerCase() != 'cancelled') {
                 throw const _InstitutionDuplicationException(
                   'This institution already exists or is pending approval.',
                 );
@@ -3241,7 +3437,42 @@ class InstitutionRepository {
                 currentCatalogRegistryRef,
               );
               if (currentRegistrySnapshot.exists) {
-                transaction.delete(currentCatalogRegistryRef);
+                transaction.set(currentCatalogRegistryRef, {
+                  ...(currentRegistrySnapshot.data() ??
+                      const <String, dynamic>{}),
+                  'institutionId': institutionId,
+                  'institutionCatalogId': currentCatalogId,
+                  'institutionName':
+                      (data['name'] as String? ?? trimmedInstitutionName)
+                          .trim(),
+                  'status': 'cancelled',
+                  'updatedAt': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
+              }
+            }
+
+            final currentNormalizedNameKey = _normalizeInstitutionName(
+              ((data['name'] as String?) ?? trimmedInstitutionName).trim(),
+            );
+            if (currentNormalizedNameKey.isNotEmpty) {
+              final currentNameRegistryRef = _institutionNameRegistryRef(
+                currentNormalizedNameKey,
+              );
+              final currentNameRegistrySnapshot = await transaction.get(
+                currentNameRegistryRef,
+              );
+              if (currentNameRegistrySnapshot.exists) {
+                transaction.set(currentNameRegistryRef, {
+                  ...(currentNameRegistrySnapshot.data() ??
+                      const <String, dynamic>{}),
+                  'institutionId': institutionId,
+                  'institutionName':
+                      (data['name'] as String? ?? trimmedInstitutionName)
+                          .trim(),
+                  'normalizedName': currentNormalizedNameKey,
+                  'status': 'cancelled',
+                  'updatedAt': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
               }
             }
           }
@@ -3302,6 +3533,317 @@ class InstitutionRepository {
         ),
       ]);
     }
+  }
+
+  Future<void> cancelCurrentAdminInstitutionRequest() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('You must be logged in.');
+    }
+
+    final profile = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument('users/${currentUser.uid}'))?.data
+        : (await _firestore.collection('users').doc(currentUser.uid).get())
+              .data();
+    if (profile == null ||
+        (profile['role'] as String?) != UserRole.institutionAdmin.name) {
+      throw Exception('Only institution admins can cancel requests.');
+    }
+
+    final institutionId = (profile['institutionId'] as String? ?? '').trim();
+    if (institutionId.isEmpty) {
+      throw Exception('Admin profile is not linked to an institution.');
+    }
+
+    final existingInstitution = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument('institutions/$institutionId'))?.data
+        : (await _firestore.collection('institutions').doc(institutionId).get())
+              .data();
+    if (existingInstitution == null) {
+      throw Exception('Institution request not found.');
+    }
+
+    final currentStatus =
+        (existingInstitution['status'] as String? ?? 'pending').trim();
+    if (currentStatus == 'approved') {
+      throw Exception('Approved institutions cannot be cancelled here.');
+    }
+
+    final currentCatalogId =
+        (existingInstitution['institutionCatalogId'] as String? ?? '').trim();
+    final institutionName =
+        (existingInstitution['name'] as String? ?? 'Institution').trim();
+    final normalizedNameKey = _normalizeInstitutionName(institutionName);
+    final membershipId = '${institutionId}_${currentUser.uid}';
+    final userPath = 'users/${currentUser.uid}';
+    final institutionPath = 'institutions/$institutionId';
+
+    if (kUseWindowsRestAuth) {
+      final userData = (await _windowsRest.getDocument(userPath))?.data;
+      if (userData == null) {
+        throw Exception('Your admin profile could not be loaded.');
+      }
+
+      if (currentCatalogId.isNotEmpty) {
+        final registryPath = _institutionCatalogRegistryPath(currentCatalogId);
+        final registrySnapshot = await _windowsRest.getDocument(registryPath);
+        final claimedInstitutionId =
+            (registrySnapshot?.data['institutionId'] as String? ?? '').trim();
+        if (claimedInstitutionId == institutionId) {
+          await _windowsRest.deleteDocument(registryPath);
+        }
+      }
+
+      if (normalizedNameKey.isNotEmpty) {
+        final nameRegistryPath = _institutionNameRegistryPath(
+          normalizedNameKey,
+        );
+        final nameRegistrySnapshot = await _windowsRest.getDocument(
+          nameRegistryPath,
+        );
+        final claimedInstitutionId =
+            (nameRegistrySnapshot?.data['institutionId'] as String? ?? '')
+                .trim();
+        if (claimedInstitutionId == institutionId) {
+          await _windowsRest.deleteDocument(nameRegistryPath);
+        }
+      }
+
+      await _windowsRest.deleteDocument('institution_members/$membershipId');
+      await _windowsRest.deleteDocument(institutionPath);
+      await _windowsRest.setDocument(userPath, {
+        ...userData,
+        'institutionId': null,
+        'institutionName': null,
+        'institutionCatalogId': null,
+        'institutionWelcomePending': false,
+        'updatedAt': DateTime.now().toUtc(),
+      });
+    } else {
+      final userRef = _firestore.collection('users').doc(currentUser.uid);
+      final institutionRef = _firestore
+          .collection('institutions')
+          .doc(institutionId);
+      final userSnapshot = await userRef.get();
+      if (!userSnapshot.exists) {
+        throw Exception('Your admin profile could not be loaded.');
+      }
+
+      final batch = _firestore.batch();
+      if (currentCatalogId.isNotEmpty) {
+        final catalogRegistryRef = _institutionCatalogRegistryRef(
+          currentCatalogId,
+        );
+        final catalogRegistrySnapshot = await catalogRegistryRef.get();
+        final claimedInstitutionId =
+            (catalogRegistrySnapshot.data()?['institutionId'] as String? ?? '')
+                .trim();
+        if (catalogRegistrySnapshot.exists &&
+            claimedInstitutionId == institutionId) {
+          batch.delete(catalogRegistryRef);
+        }
+      }
+
+      if (normalizedNameKey.isNotEmpty) {
+        final nameRegistryRef = _institutionNameRegistryRef(normalizedNameKey);
+        final nameRegistrySnapshot = await nameRegistryRef.get();
+        final claimedInstitutionId =
+            (nameRegistrySnapshot.data()?['institutionId'] as String? ?? '')
+                .trim();
+        if (nameRegistrySnapshot.exists &&
+            claimedInstitutionId == institutionId) {
+          batch.delete(nameRegistryRef);
+        }
+      }
+
+      batch.delete(
+        _firestore.collection('institution_members').doc(membershipId),
+      );
+      batch.delete(institutionRef);
+      batch.update(userRef, {
+        'institutionId': null,
+        'institutionName': null,
+        'institutionCatalogId': null,
+        'institutionWelcomePending': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      await batch.commit();
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getCurrentUserSupportMessages() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('You must be logged in.');
+    }
+
+    if (kUseWindowsRestAuth) {
+      final docs = await _windowsRest.queryCollection(
+        collectionId: 'owner_support_messages',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal('threadKey', currentUser.uid),
+        ],
+        limit: 200,
+      );
+      final messages = docs
+          .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data})
+          .toList(growable: false);
+      messages.sort(_sortSupportMessagesByCreatedAt);
+      return messages;
+    }
+
+    final snapshot = await _firestore
+        .collection('owner_support_messages')
+        .where('threadKey', isEqualTo: currentUser.uid)
+        .get();
+    final messages = snapshot.docs
+        .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+        .toList(growable: false);
+    messages.sort(_sortSupportMessagesByCreatedAt);
+    return messages;
+  }
+
+  Future<List<Map<String, dynamic>>> getOwnerSupportMessages() async {
+    _ensureOwnerAccount();
+
+    if (kUseWindowsRestAuth) {
+      final docs = await _windowsRest.queryCollection(
+        collectionId: 'owner_support_messages',
+        limit: 400,
+      );
+      final messages = docs
+          .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data})
+          .toList(growable: false);
+      messages.sort(_sortSupportMessagesByCreatedAt);
+      return messages;
+    }
+
+    final snapshot = await _firestore
+        .collection('owner_support_messages')
+        .get();
+    final messages = snapshot.docs
+        .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+        .toList(growable: false);
+    messages.sort(_sortSupportMessagesByCreatedAt);
+    return messages;
+  }
+
+  Future<void> sendCurrentUserSupportMessage({
+    required String body,
+    String? institutionId,
+    String? institutionName,
+    String? contextStatus,
+  }) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('You must be logged in.');
+    }
+    final trimmedBody = body.trim();
+    if (trimmedBody.isEmpty) {
+      throw Exception('Write a message first.');
+    }
+
+    final userData = kUseWindowsRestAuth
+        ? (await _windowsRest.getDocument('users/${currentUser.uid}'))?.data
+        : (await _firestore.collection('users').doc(currentUser.uid).get())
+              .data();
+    final requesterEmail =
+        (currentUser.email.isNotEmpty
+                ? currentUser.email
+                : ((userData?['email'] as String?) ?? ''))
+            .trim()
+            .toLowerCase();
+    final requesterName =
+        ((userData?['name'] as String?) ?? currentUser.displayName ?? '')
+            .trim();
+
+    final payload = <String, dynamic>{
+      'threadKey': currentUser.uid,
+      'requesterId': currentUser.uid,
+      'requesterEmail': requesterEmail,
+      'requesterName': requesterName.isEmpty ? 'MindNest user' : requesterName,
+      'institutionId':
+          (institutionId ?? (userData?['institutionId'] as String?) ?? '')
+              .trim(),
+      'institutionName':
+          (institutionName ?? (userData?['institutionName'] as String?) ?? '')
+              .trim(),
+      'contextStatus': (contextStatus ?? '').trim(),
+      'senderId': currentUser.uid,
+      'senderRole': 'requester',
+      'body': trimmedBody,
+    };
+
+    if (kUseWindowsRestAuth) {
+      await _windowsRest.setDocument(
+        'owner_support_messages/${_windowsDocId('owner_support')}',
+        {...payload, 'createdAt': DateTime.now().toUtc()},
+      );
+      return;
+    }
+
+    await _firestore.collection('owner_support_messages').add({
+      ...payload,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> sendOwnerSupportReply({
+    required String requesterId,
+    required String requesterEmail,
+    required String requesterName,
+    required String body,
+    String? institutionId,
+    String? institutionName,
+  }) async {
+    _ensureOwnerAccount();
+    final owner = _auth.currentUser;
+    if (owner == null) {
+      throw Exception('You must be logged in.');
+    }
+    final trimmedBody = body.trim();
+    if (trimmedBody.isEmpty) {
+      throw Exception('Write a reply first.');
+    }
+
+    final payload = <String, dynamic>{
+      'threadKey': requesterId.trim(),
+      'requesterId': requesterId.trim(),
+      'requesterEmail': requesterEmail.trim().toLowerCase(),
+      'requesterName': requesterName.trim().isEmpty
+          ? 'MindNest user'
+          : requesterName.trim(),
+      'institutionId': (institutionId ?? '').trim(),
+      'institutionName': (institutionName ?? '').trim(),
+      'contextStatus': '',
+      'senderId': owner.uid,
+      'senderRole': 'owner',
+      'body': trimmedBody,
+    };
+
+    if (kUseWindowsRestAuth) {
+      await _windowsRest.setDocument(
+        'owner_support_messages/${_windowsDocId('owner_support')}',
+        {...payload, 'createdAt': DateTime.now().toUtc()},
+      );
+      return;
+    }
+
+    await _firestore.collection('owner_support_messages').add({
+      ...payload,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  int _sortSupportMessagesByCreatedAt(
+    Map<String, dynamic> a,
+    Map<String, dynamic> b,
+  ) {
+    final aDate =
+        _asUtcDate(a['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final bDate =
+        _asUtcDate(b['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    return aDate.compareTo(bDate);
   }
 
   Future<void> resolveSchoolRequest({
@@ -3459,10 +4001,13 @@ class InstitutionRepository {
         _institutionCatalogRegistryPath(normalizedCatalogId),
       );
       if (registrySnapshot != null) {
+        final registryStatus =
+            (registrySnapshot.data['status'] as String? ?? '').trim();
         final claimedInstitutionId =
             (registrySnapshot.data['institutionId'] as String?) ?? '';
-        if (excludeInstitutionId == null ||
-            claimedInstitutionId != excludeInstitutionId) {
+        if (registryStatus.toLowerCase() != 'cancelled' &&
+            (excludeInstitutionId == null ||
+                claimedInstitutionId != excludeInstitutionId)) {
           throw const _InstitutionDuplicationException(
             'This institution already exists or is pending approval.',
           );
@@ -3474,10 +4019,13 @@ class InstitutionRepository {
     final registryRef = _institutionCatalogRegistryRef(normalizedCatalogId);
     final registrySnapshot = await registryRef.get();
     if (registrySnapshot.exists) {
+      final registryStatus =
+          (registrySnapshot.data()?['status'] as String? ?? '').trim();
       final claimedInstitutionId =
           (registrySnapshot.data()?['institutionId'] as String?) ?? '';
-      if (excludeInstitutionId == null ||
-          claimedInstitutionId != excludeInstitutionId) {
+      if (registryStatus.toLowerCase() != 'cancelled' &&
+          (excludeInstitutionId == null ||
+              claimedInstitutionId != excludeInstitutionId)) {
         throw const _InstitutionDuplicationException(
           'This institution already exists or is pending approval.',
         );

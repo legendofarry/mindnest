@@ -422,6 +422,23 @@ service cloud.firestore {
         );
     }
 
+    function canInstitutionAdminResetOwnRequestContext(uid) {
+      return isOwner(uid) &&
+        resource.data.role in ['institutionAdmin', 'admin'] &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'institutionId',
+          'institutionName',
+          'institutionCatalogId',
+          'institutionWelcomePending',
+          'updatedAt'
+        ]) &&
+        request.resource.data.institutionId == null &&
+        request.resource.data.institutionName == null &&
+        request.resource.data.institutionCatalogId == null &&
+        request.resource.data.institutionWelcomePending == false;
+    }
+
     function canAdminUpdateMembershipLifecycle() {
       return isSignedIn() &&
         sameInstitutionAdmin(resource.data.institutionId) &&
@@ -761,6 +778,7 @@ service cloud.firestore {
             request.resource.data.role == resource.data.role &&
             request.resource.data.institutionId == resource.data.institutionId
           ) ||
+          canInstitutionAdminResetOwnRequestContext(uid) ||
           (
             request.resource.data.role == 'individual' &&
             request.resource.data.institutionId == null
@@ -872,6 +890,43 @@ service cloud.firestore {
           sameInstitutionAdmin(resource.data.institutionId) ||
           isOwnerAccount()
         );
+    }
+
+    match /owner_support_messages/{messageId} {
+      allow read: if isSignedIn() &&
+        (
+          isOwnerAccount() ||
+          request.auth.uid == resource.data.requesterId
+        );
+
+      allow create: if isSignedIn() &&
+        request.resource.data.threadKey is string &&
+        request.resource.data.threadKey.size() > 0 &&
+        request.resource.data.requesterId is string &&
+        request.resource.data.requesterId.size() > 0 &&
+        request.resource.data.requesterEmail is string &&
+        request.resource.data.requesterName is string &&
+        request.resource.data.senderId is string &&
+        request.resource.data.senderRole in ['requester', 'owner'] &&
+        request.resource.data.body is string &&
+        request.resource.data.body.size() > 0 &&
+        request.resource.data.body.size() <= 4000 &&
+        request.resource.data.threadKey == request.resource.data.requesterId &&
+        (
+          (
+            request.resource.data.senderRole == 'requester' &&
+            request.resource.data.senderId == request.auth.uid &&
+            request.resource.data.requesterId == request.auth.uid
+          ) ||
+          (
+            request.resource.data.senderRole == 'owner' &&
+            request.resource.data.senderId == request.auth.uid &&
+            isOwnerAccount()
+          )
+        );
+
+      allow update: if false;
+      allow delete: if isOwnerAccount();
     }
 
     match /institution_members/{membershipId} {

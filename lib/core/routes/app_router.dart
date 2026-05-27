@@ -809,6 +809,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         }
 
         if (role == UserRole.institutionAdmin) {
+          if (!alreadyInInstitution) {
+            final canRemainInInstitutionSetupRoutes =
+                location == AppRoute.registerInstitution ||
+                location == AppRoute.registerInstitutionSchoolRequest ||
+                location == AppRoute.registerInstitutionSuccess;
+            if (!canRemainInInstitutionSetupRoutes) {
+              return AppRoute.registerInstitution;
+            }
+            return null;
+          }
           final institutionStatus =
               (institutionRequest?['status'] as String?) ?? 'approved';
           final isInstitutionBlocked = institutionStatus != 'approved';
@@ -963,7 +973,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
         if (role == UserRole.institutionAdmin &&
             (isAuthRoute || location == AppRoute.verifyEmail)) {
-          return AppRoute.institutionAdmin;
+          return alreadyInInstitution
+              ? AppRoute.institutionAdmin
+              : AppRoute.registerInstitution;
         }
 
         if (role != UserRole.institutionAdmin &&

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/presentation/login_did_you_know_session.dart';
 import 'package:mindnest/core/ui/modern_banner.dart';
 
 Future<void> confirmAndLogout({
@@ -39,6 +40,7 @@ Future<void> confirmAndLogout({
   try {
     await Future<void>.delayed(loadingDuration);
     await ref.read(authRepositoryProvider).signOut();
+    LoginDidYouKnowSession.clearActiveFact();
     await syncAuthSessionState(ref);
   } catch (error) {
     if (!context.mounted) {

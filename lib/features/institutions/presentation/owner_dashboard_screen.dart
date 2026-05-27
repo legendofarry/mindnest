@@ -23,14 +23,18 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   final _declineReasonController = TextEditingController();
   final _clearDbConfirmationController = TextEditingController();
   final _institutionSearchController = TextEditingController();
+  final _ownerSupportReplyController = TextEditingController();
   List<Map<String, dynamic>> _ownerInstitutions = const [];
   List<Map<String, dynamic>> _ownerSchoolRequests = const [];
+  List<Map<String, dynamic>> _ownerSupportMessages = const [];
   bool _isOwnerDataLoading = true;
   bool _isOwnerDataRefreshing = false;
+  bool _isSendingOwnerSupportReply = false;
   String? _ownerDataError;
   DateTime? _ownerLastRefreshedAt;
   bool _isClearingDatabase = false;
   String _institutionStatusFilter = 'all';
+  String? _selectedSupportThreadKey;
 
   @override
   void initState() {
@@ -43,6 +47,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     _declineReasonController.dispose();
     _clearDbConfirmationController.dispose();
     _institutionSearchController.dispose();
+    _ownerSupportReplyController.dispose();
     super.dispose();
   }
 
@@ -64,13 +69,27 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       final results = await Future.wait<List<Map<String, dynamic>>>([
         repository.getOwnerInstitutions(),
         repository.getOwnerSchoolRequests(),
+        repository.getOwnerSupportMessages(),
       ]);
       if (!mounted) {
         return;
       }
+      final supportMessages = results[2];
+      final availableThreadKeys = supportMessages
+          .map((message) => (message['threadKey'] as String? ?? '').trim())
+          .where((key) => key.isNotEmpty)
+          .toSet();
+      final selectedThreadKey =
+          availableThreadKeys.contains(_selectedSupportThreadKey)
+          ? _selectedSupportThreadKey
+          : availableThreadKeys.isEmpty
+          ? null
+          : availableThreadKeys.first;
       setState(() {
         _ownerInstitutions = results[0];
         _ownerSchoolRequests = results[1];
+        _ownerSupportMessages = supportMessages;
+        _selectedSupportThreadKey = selectedThreadKey;
         _ownerLastRefreshedAt = DateTime.now();
         _ownerDataError = null;
       });
@@ -350,14 +369,144 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
           final fields = <String>[
             (institution['name'] as String? ?? ''),
             (institution['institutionCatalogId'] as String? ?? ''),
-            (institution['adminPhoneNumber'] as String? ?? ''),
-            (institution['contactPhone'] as String? ?? ''),
-            (institution['additionalAdminPhoneNumber'] as String? ?? ''),
+            _institutionAdminContact(institution),
+            (institution['createdByName'] as String? ?? ''),
+            (institution['createdByEmail'] as String? ?? ''),
             status,
           ];
           return fields.any((field) => field.toLowerCase().contains(query));
         })
         .toList(growable: false);
+  }
+
+  String _institutionAdminContact(Map<String, dynamic> institution) {
+    for (final candidate in <Object?>[
+      institution['adminEmail'],
+      institution['contactEmail'],
+      institution['createdByEmail'],
+      institution['email'],
+    ]) {
+      final value = (candidate as String? ?? '').trim();
+      if (value.isNotEmpty) {
+        return value;
+      }
+    }
+    return 'Email unavailable';
+  }
+
+  String _schoolRequestContact(Map<String, dynamic> request) {
+    for (final candidate in <Object?>[
+      request['requesterEmail'],
+      request['contactEmail'],
+      request['email'],
+    ]) {
+      final value = (candidate as String? ?? '').trim();
+      if (value.isNotEmpty) {
+        return value;
+      }
+    }
+    return 'Email unavailable';
+  }
+
+  Map<String, List<Map<String, dynamic>>> _groupSupportThreads() {
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final message in _ownerSupportMessages) {
+      final key = (message['threadKey'] as String? ?? '').trim();
+      if (key.isEmpty) {
+        continue;
+      }
+      grouped.putIfAbsent(key, () => <Map<String, dynamic>>[]).add(message);
+    }
+    return grouped;
+  }
+
+  String _supportThreadTitle(List<Map<String, dynamic>> thread) {
+    if (thread.isEmpty) {
+      return 'Support thread';
+    }
+    final latest = thread.last;
+    final requesterName = (latest['requesterName'] as String? ?? '').trim();
+    if (requesterName.isNotEmpty) {
+      return requesterName;
+    }
+    final requesterEmail = (latest['requesterEmail'] as String? ?? '').trim();
+    if (requesterEmail.isNotEmpty) {
+      return requesterEmail;
+    }
+    return 'MindNest user';
+  }
+
+  String _supportThreadSubtitle(List<Map<String, dynamic>> thread) {
+    if (thread.isEmpty) {
+      return 'No messages';
+    }
+    final latest = thread.last;
+    final institutionName = (latest['institutionName'] as String? ?? '').trim();
+    final requesterEmail = (latest['requesterEmail'] as String? ?? '').trim();
+    if (institutionName.isNotEmpty) {
+      return institutionName;
+    }
+    if (requesterEmail.isNotEmpty) {
+      return requesterEmail;
+    }
+    return 'Support request';
+  }
+
+  String _supportPreview(List<Map<String, dynamic>> thread) {
+    if (thread.isEmpty) {
+      return 'No messages yet.';
+    }
+    return ((thread.last['body'] as String?) ?? '').trim();
+  }
+
+  Future<void> _sendOwnerSupportReply({
+    required String requesterId,
+    required String requesterEmail,
+    required String requesterName,
+    required String institutionId,
+    required String institutionName,
+  }) async {
+    final body = _ownerSupportReplyController.text.trim();
+    if (body.isEmpty || _isSendingOwnerSupportReply) {
+      return;
+    }
+
+    setState(() => _isSendingOwnerSupportReply = true);
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .sendOwnerSupportReply(
+            requesterId: requesterId,
+            requesterEmail: requesterEmail,
+            requesterName: requesterName,
+            body: body,
+            institutionId: institutionId,
+            institutionName: institutionName,
+          );
+      _ownerSupportReplyController.clear();
+      await _loadOwnerData();
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(content: Text('Support reply sent.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSendingOwnerSupportReply = false);
+      }
+    }
   }
 
   List<_OwnerActivityItem> _buildRecentActivities({
@@ -570,6 +719,25 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       institutions: institutions,
       schoolRequests: _ownerSchoolRequests,
     );
+    final supportThreads = _groupSupportThreads();
+    final orderedSupportThreadKeys = supportThreads.entries.toList()
+      ..sort((a, b) {
+        DateTime latest(List<Map<String, dynamic>> items) {
+          final value = items.isEmpty ? null : items.last['createdAt'];
+          if (value is Timestamp) {
+            return value.toDate().toLocal();
+          }
+          if (value is DateTime) {
+            return value.toLocal();
+          }
+          return DateTime.fromMillisecondsSinceEpoch(0);
+        }
+
+        return latest(b.value).compareTo(latest(a.value));
+      });
+    final selectedSupportThread = _selectedSupportThreadKey == null
+        ? null
+        : supportThreads[_selectedSupportThreadKey];
     final pendingCount = pendingInstitutions.length;
     final approvedCount = institutions
         .where(
@@ -590,7 +758,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       maxWidth: 1200,
       appBar: AppBar(
         title: const Text('Owner Dashboard'),
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         elevation: 0,
         actions: [
           TextButton.icon(
@@ -813,6 +981,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                               const SizedBox(height: 14),
                               _OwnerInstitutionRecordsTable(
                                 rows: filteredInstitutions,
+                                contactText: _institutionAdminContact,
                                 formatStatus: _statusLabel,
                                 formatDate: _formatShortDate,
                                 statusBackground: _statusBackground,
@@ -858,6 +1027,117 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                   ),
                                 )
                                 .toList(growable: false),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                GlassCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Support Messages',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Institution admins who are stuck can message here. Refresh manually whenever you want the latest thread state.',
+                          style: TextStyle(
+                            color: Color(0xFF5D7291),
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        if (_isOwnerDataLoading &&
+                            _ownerSupportMessages.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else if (orderedSupportThreadKeys.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Text(
+                              'No support messages yet.',
+                              style: TextStyle(color: Color(0xFF5D7291)),
+                            ),
+                          )
+                        else
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final useSplit = constraints.maxWidth >= 980;
+                              final threadList = _OwnerSupportThreadList(
+                                threadEntries: orderedSupportThreadKeys,
+                                selectedThreadKey: _selectedSupportThreadKey,
+                                formatDate: _formatDate,
+                                threadTitle: _supportThreadTitle,
+                                threadSubtitle: _supportThreadSubtitle,
+                                previewText: _supportPreview,
+                                onSelect: (threadKey) {
+                                  setState(() {
+                                    _selectedSupportThreadKey = threadKey;
+                                  });
+                                },
+                              );
+                              final conversation = _OwnerSupportConversation(
+                                thread:
+                                    selectedSupportThread ??
+                                    orderedSupportThreadKeys.first.value,
+                                formatDate: _formatDate,
+                                controller: _ownerSupportReplyController,
+                                isSending: _isSendingOwnerSupportReply,
+                                onSend: (thread) {
+                                  final latest = thread.last;
+                                  return _sendOwnerSupportReply(
+                                    requesterId:
+                                        (latest['requesterId'] as String? ?? '')
+                                            .trim(),
+                                    requesterEmail:
+                                        (latest['requesterEmail'] as String? ??
+                                                '')
+                                            .trim(),
+                                    requesterName:
+                                        (latest['requesterName'] as String? ??
+                                                '')
+                                            .trim(),
+                                    institutionId:
+                                        (latest['institutionId'] as String? ??
+                                                '')
+                                            .trim(),
+                                    institutionName:
+                                        (latest['institutionName'] as String? ??
+                                                '')
+                                            .trim(),
+                                  );
+                                },
+                              );
+
+                              if (!useSplit) {
+                                return Column(
+                                  children: [
+                                    threadList,
+                                    const SizedBox(height: 14),
+                                    conversation,
+                                  ],
+                                );
+                              }
+
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(flex: 5, child: threadList),
+                                  const SizedBox(width: 14),
+                                  Expanded(flex: 8, child: conversation),
+                                ],
+                              );
+                            },
                           ),
                       ],
                     ),
@@ -1006,13 +1286,22 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                   final name =
                                       (item['name'] as String?) ??
                                       'Institution';
-                                  final createdBy =
-                                      (item['createdBy'] as String?) ?? '--';
-                                  final contactNumber =
-                                      (item['adminPhoneNumber'] as String?) ??
-                                      (item['contactPhone'] as String?) ??
-                                      (item['mobileNumber'] as String?) ??
-                                      '--';
+                                  final contactEmail = _institutionAdminContact(
+                                    item,
+                                  );
+                                  final createdByName =
+                                      (item['createdByName'] as String? ?? '')
+                                          .trim();
+                                  final createdByEmail =
+                                      (item['createdByEmail'] as String? ?? '')
+                                          .trim();
+                                  final createdByLabel =
+                                      createdByName.isNotEmpty
+                                      ? createdByName
+                                      : createdByEmail.isNotEmpty &&
+                                            createdByEmail != contactEmail
+                                      ? createdByEmail
+                                      : 'Institution admin';
                                   return Card(
                                     margin: const EdgeInsets.only(bottom: 10),
                                     child: Padding(
@@ -1028,18 +1317,18 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                             ),
                                           ),
                                           const SizedBox(height: 4),
-                                          Text('Created by: $createdBy'),
+                                          Text('Created by: $createdByLabel'),
                                           Row(
                                             children: [
                                               const Icon(
-                                                Icons.phone_rounded,
+                                                Icons.alternate_email_rounded,
                                                 size: 16,
                                                 color: Color(0xFF0E7490),
                                               ),
                                               const SizedBox(width: 6),
                                               Expanded(
                                                 child: Text(
-                                                  'Admin contact: $contactNumber',
+                                                  'Admin contact: $contactEmail',
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.w700,
                                                   ),
@@ -1117,11 +1406,9 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                   final id = (item['id'] as String?) ?? '';
                                   final schoolName =
                                       (item['schoolName'] as String?) ?? '--';
-                                  final contactNumber =
-                                      (item['mobileNumber'] as String?) ??
-                                      (item['phoneNumber'] as String?) ??
-                                      (item['mobile'] as String?) ??
-                                      '--';
+                                  final contactEmail = _schoolRequestContact(
+                                    item,
+                                  );
                                   final requesterEmail =
                                       (item['requesterEmail'] as String?) ??
                                       '--';
@@ -1146,14 +1433,14 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                           Row(
                                             children: [
                                               const Icon(
-                                                Icons.phone_rounded,
+                                                Icons.alternate_email_rounded,
                                                 size: 16,
                                                 color: Color(0xFF0E7490),
                                               ),
                                               const SizedBox(width: 6),
                                               Expanded(
                                                 child: Text(
-                                                  'Contact: $contactNumber',
+                                                  'Requester email: $contactEmail',
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.w700,
                                                   ),
@@ -1208,6 +1495,288 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _OwnerSupportThreadList extends StatelessWidget {
+  const _OwnerSupportThreadList({
+    required this.threadEntries,
+    required this.selectedThreadKey,
+    required this.formatDate,
+    required this.threadTitle,
+    required this.threadSubtitle,
+    required this.previewText,
+    required this.onSelect,
+  });
+
+  final List<MapEntry<String, List<Map<String, dynamic>>>> threadEntries;
+  final String? selectedThreadKey;
+  final String Function(dynamic value) formatDate;
+  final String Function(List<Map<String, dynamic>> thread) threadTitle;
+  final String Function(List<Map<String, dynamic>> thread) threadSubtitle;
+  final String Function(List<Map<String, dynamic>> thread) previewText;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCE8F5)),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: const EdgeInsets.all(12),
+        itemCount: threadEntries.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final entry = threadEntries[index];
+          final thread = entry.value;
+          final latest = thread.last;
+          final isSelected = entry.key == selectedThreadKey;
+          return InkWell(
+            onTap: () => onSelect(entry.key),
+            borderRadius: BorderRadius.circular(20),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isSelected ? const Color(0xFFE8F4FF) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected
+                      ? const Color(0xFF60A5FA)
+                      : const Color(0xFFD7E4F3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          threadTitle(thread),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        formatDate(latest['createdAt']),
+                        style: const TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    threadSubtitle(thread),
+                    style: const TextStyle(
+                      color: Color(0xFF2563EB),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    previewText(thread),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF5D7291),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _OwnerSupportConversation extends StatelessWidget {
+  const _OwnerSupportConversation({
+    required this.thread,
+    required this.formatDate,
+    required this.controller,
+    required this.isSending,
+    required this.onSend,
+  });
+
+  final List<Map<String, dynamic>> thread;
+  final String Function(dynamic value) formatDate;
+  final TextEditingController controller;
+  final bool isSending;
+  final Future<void> Function(List<Map<String, dynamic>> thread) onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    final latest = thread.last;
+    final requesterEmail = (latest['requesterEmail'] as String? ?? '').trim();
+    final institutionName = (latest['institutionName'] as String? ?? '').trim();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCE8F5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            (latest['requesterName'] as String? ?? 'MindNest user').trim(),
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            requesterEmail.isEmpty ? 'Email unavailable' : requesterEmail,
+            style: const TextStyle(
+              color: Color(0xFF2563EB),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (institutionName.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              institutionName,
+              style: const TextStyle(
+                color: Color(0xFF5D7291),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 420),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFD6E4F3)),
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(14),
+              itemCount: thread.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final message = thread[index];
+                final isOwner =
+                    ((message['senderRole'] as String? ?? '')
+                        .trim()
+                        .toLowerCase()) ==
+                    'owner';
+                return Align(
+                  alignment: isOwner
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isOwner
+                            ? const Color(0xFF0F9D8A)
+                            : const Color(0xFFF8FBFF),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: isOwner
+                              ? const Color(0xFF0C8A7A)
+                              : const Color(0xFFD6E4F3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isOwner ? 'You' : 'Requester',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: isOwner
+                                  ? Colors.white
+                                  : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            ((message['body'] as String?) ?? '').trim(),
+                            style: TextStyle(
+                              color: isOwner
+                                  ? Colors.white
+                                  : const Color(0xFF334155),
+                              height: 1.45,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            formatDate(message['createdAt']),
+                            style: TextStyle(
+                              color: isOwner
+                                  ? const Color(0xFFD5FAF5)
+                                  : const Color(0xFF94A3B8),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFD6E4F3)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    minLines: 1,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      hintText: 'Reply to this support thread...',
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                FilledButton.icon(
+                  onPressed: isSending ? null : () => onSend(thread),
+                  icon: Icon(
+                    isSending
+                        ? Icons.hourglass_top_rounded
+                        : Icons.send_rounded,
+                  ),
+                  label: Text(isSending ? 'Sending...' : 'Reply'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1279,6 +1848,7 @@ class _OwnerStatChip extends StatelessWidget {
 class _OwnerInstitutionRecordsTable extends StatelessWidget {
   const _OwnerInstitutionRecordsTable({
     required this.rows,
+    required this.contactText,
     required this.formatStatus,
     required this.formatDate,
     required this.statusBackground,
@@ -1287,6 +1857,7 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
   });
 
   final List<Map<String, dynamic>> rows;
+  final String Function(Map<String, dynamic> row) contactText;
   final String Function(String status) formatStatus;
   final String Function(dynamic value) formatDate;
   final Color Function(String status) statusBackground;
@@ -1333,7 +1904,7 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
                       Expanded(flex: 3, child: _OwnerHeader('Institution')),
                       Expanded(
                         flex: 3,
-                        child: _OwnerHeader('Catalog / Contact'),
+                        child: _OwnerHeader('Catalog / Admin Email'),
                       ),
                       Expanded(flex: 2, child: _OwnerHeader('Status')),
                       Expanded(flex: 2, child: _OwnerHeader('Created')),
@@ -1344,10 +1915,7 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
                 const SizedBox(height: 8),
                 ...rows.map((row) {
                   final status = (row['status'] as String? ?? '').trim();
-                  final contact =
-                      (row['adminPhoneNumber'] as String?) ??
-                      (row['contactPhone'] as String?) ??
-                      '--';
+                  final contact = contactText(row);
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.symmetric(
