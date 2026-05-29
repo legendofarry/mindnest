@@ -1,5 +1,5 @@
 name: mindnest
-description: "A new Flutter project."
+description: "MindNest is a web-first mental wellness workspace for students, staff, counselors, and institutions."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -84,6 +84,8 @@ flutter:
     - assets/logo.png
     - assets/mindnest-logo.png
     - assets/google.svg
+    - assets/MindNest-Logo.svg
+    - assets/MindNest-Logo-512px.svg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -121,5 +123,5 @@ msix_config:
   identity_name: LusaaSoftware.MindNest
   publisher: CN=32FDEC33-6DA5-43E6-8E5C-D10CD46F1DB4
   msix_version: 1.0.2.0
-  logo_path: assets/logo.png
+  logo_path: assets/MindNest-Logo-512px.svg
   store: true

@@ -1,9 +1,11 @@
 // features/live/data/live_repository.dart
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/models/app_auth_user.dart';
@@ -48,14 +50,17 @@ class LiveRepository {
   LiveRepository({
     required FirebaseFirestore Function()? firestoreFactory,
     required AppAuthClient auth,
+    required http.Client httpClient,
     required WindowsFirestoreRestClient windowsRest,
   }) : _firestoreFactory = firestoreFactory,
        _auth = auth,
+       _httpClient = httpClient,
        _windowsRest = windowsRest;
 
   final FirebaseFirestore Function()? _firestoreFactory;
   FirebaseFirestore? _cachedFirestore;
   final AppAuthClient _auth;
+  final http.Client _httpClient;
   final WindowsFirestoreRestClient _windowsRest;
   int _windowsRestIdCounter = 0;
   static const Duration _windowsPollInterval = Duration(seconds: 15);
@@ -77,13 +82,20 @@ class LiveRepository {
     'LIVEKIT_API_SECRET',
     defaultValue: '',
   );
+  static const String _liveKitTokenEndpointFromDefine = String.fromEnvironment(
+    'LIVEKIT_TOKEN_ENDPOINT',
+    defaultValue: '',
+  );
+  static const String _pushDispatchEndpointFromDefine = String.fromEnvironment(
+    'PUSH_DISPATCH_ENDPOINT',
+    defaultValue: '',
+  );
   // Source-file fallback for local/dev use when --dart-define values are absent.
-  // Leave blank in source; use --dart-define values in local/CI.
-  static const String _liveKitUrlFromSource =
-      'wss://mindnest-ubdebdzl.livekit.cloud';
-  static const String _liveKitApiKeyFromSource = 'API7JbqEBm8JXyA';
-  static const String _liveKitApiSecretFromSource =
-      '0NXJafVMXSlarGmz4RICuXqWSn5yaRMrwdzDxje09faA';
+  // Keep secrets blank in source; web must use LIVEKIT_TOKEN_ENDPOINT.
+  static const String _liveKitUrlFromSource = '';
+  static const String _liveKitApiKeyFromSource = '';
+  static const String _liveKitApiSecretFromSource = '';
+  static const String _liveKitTokenEndpointFromSource = '';
 
   static String get _liveKitUrl => _liveKitUrlFromDefine.isNotEmpty
       ? _liveKitUrlFromDefine
@@ -94,6 +106,34 @@ class LiveRepository {
   static String get _liveKitApiSecret => _liveKitApiSecretFromDefine.isNotEmpty
       ? _liveKitApiSecretFromDefine
       : _liveKitApiSecretFromSource;
+  static String get _liveKitTokenEndpoint {
+    if (_liveKitTokenEndpointFromDefine.trim().isNotEmpty) {
+      return _liveKitTokenEndpointFromDefine.trim();
+    }
+    if (_liveKitTokenEndpointFromSource.trim().isNotEmpty) {
+      return _liveKitTokenEndpointFromSource.trim();
+    }
+    return _deriveTokenEndpointFromPushEndpoint(
+      _pushDispatchEndpointFromDefine,
+    );
+  }
+
+  static String _deriveTokenEndpointFromPushEndpoint(String pushEndpoint) {
+    final trimmed = (pushEndpoint ?? '').trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    try {
+      final uri = Uri.parse(trimmed);
+      if (!uri.hasScheme || (uri.host ?? '').isEmpty) {
+        return '';
+      }
+      // Replace path with a conventional livekit token endpoint path.
+      return uri.replace(path: '/livekit/token').toString();
+    } catch (_) {
+      return '';
+    }
+  }
 
   CollectionReference<Map<String, dynamic>> get _liveCollection =>
       _firestore.collection('live_sessions');
@@ -1653,6 +1693,18 @@ class LiveRepository {
     if (user == null) {
       throw Exception('You must be logged in.');
     }
+    final tokenEndpoint = _liveKitTokenEndpoint;
+    if (tokenEndpoint.isNotEmpty) {
+      return _createLiveKitJoinCredentialsFromBackend(
+        sessionId: sessionId,
+        tokenEndpoint: tokenEndpoint,
+      );
+    }
+    if (kIsWeb) {
+      throw Exception(
+        'Audio backend is not configured. Missing LIVEKIT_TOKEN_ENDPOINT.',
+      );
+    }
     if (_liveKitUrl.isEmpty ||
         _liveKitApiKey.isEmpty ||
         _liveKitApiSecret.isEmpty) {
@@ -1726,6 +1778,65 @@ class LiveRepository {
     );
   }
 
+  Future<LiveKitJoinCredentials> _createLiveKitJoinCredentialsFromBackend({
+    required String sessionId,
+    required String tokenEndpoint,
+  }) async {
+    var idToken = await _auth.getIdToken();
+    if ((idToken ?? '').trim().isEmpty) {
+      idToken = await _auth.getIdToken(forceRefresh: true);
+    }
+    if ((idToken ?? '').trim().isEmpty) {
+      throw Exception('You must be logged in.');
+    }
+
+    late final Uri endpoint;
+    try {
+      endpoint = Uri.parse(tokenEndpoint);
+    } catch (_) {
+      throw Exception('Audio backend endpoint is invalid.');
+    }
+    if (!endpoint.hasScheme || endpoint.host.isEmpty) {
+      throw Exception('Audio backend endpoint is invalid.');
+    }
+
+    final response = await _httpClient
+        .post(
+          endpoint,
+          headers: <String, String>{
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${idToken!.trim()}',
+          },
+          body: jsonEncode(<String, String>{'sessionId': sessionId}),
+        )
+        .timeout(const Duration(seconds: 18));
+
+    final payload = _decodeJsonMap(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final message = (payload['error'] as String?)?.trim();
+      throw Exception(
+        message?.isNotEmpty == true
+            ? message
+            : 'Audio backend rejected the join request.',
+      );
+    }
+
+    final serverUrl = (payload['serverUrl'] as String?)?.trim() ?? '';
+    final token = (payload['token'] as String?)?.trim() ?? '';
+    final roomName = (payload['roomName'] as String?)?.trim() ?? '';
+    final canPublishAudio = (payload['canPublishAudio'] as bool?) ?? false;
+    if (serverUrl.isEmpty || token.isEmpty || roomName.isEmpty) {
+      throw Exception('Audio backend returned incomplete credentials.');
+    }
+
+    return LiveKitJoinCredentials(
+      serverUrl: serverUrl,
+      token: token,
+      roomName: roomName,
+      canPublishAudio: canPublishAudio,
+    );
+  }
+
   Future<void> _cleanupEphemeralCollections(String sessionId) async {
     if (_useWindowsPollingWorkaround) {
       await _deleteWindowsSubcollection(
@@ -1781,5 +1892,19 @@ class LiveRepository {
       }
       await batch.commit();
     }
+  }
+
+  Map<String, dynamic> _decodeJsonMap(String body) {
+    if (body.trim().isEmpty) {
+      return const <String, dynamic>{};
+    }
+    final decoded = jsonDecode(body);
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    if (decoded is Map) {
+      return decoded.map((key, value) => MapEntry(key.toString(), value));
+    }
+    return const <String, dynamic>{};
   }
 }

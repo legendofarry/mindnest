@@ -14,6 +14,7 @@ import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/desktop_profile_open_signal.dart';
 import 'package:mindnest/core/ui/desktop_section_shell.dart';
+import 'package:mindnest/core/ui/mindnest_logo.dart';
 import 'package:mindnest/features/ai/models/assistant_models.dart';
 import 'package:mindnest/features/ai/presentation/assistant_fab.dart';
 import 'package:mindnest/features/ai/presentation/home_ai_assistant_section.dart';
@@ -1545,7 +1546,11 @@ class HomeScreen extends ConsumerWidget {
                   SizedBox(
                     width: 99,
                     height: 99,
-                    child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+                    child: MindNestLogo(
+                      width: 99,
+                      height: 99,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ],
               ),

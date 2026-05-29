@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/mindnest_logo.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
@@ -189,10 +190,9 @@ class DesktopSectionNav extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Align(
+          Align(
             alignment: Alignment.center,
-            child: Image(
-              image: AssetImage('assets/mindnest-logo.png'),
+            child: MindNestLogo(
               height: 44,
               fit: BoxFit.contain,
               alignment: Alignment.center,

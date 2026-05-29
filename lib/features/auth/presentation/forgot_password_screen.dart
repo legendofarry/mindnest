@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
-import 'package:mindnest/core/ui/auth_desktop_shell.dart';
+// Desktop shell removed for simplified desktop layout.
 import 'package:mindnest/core/ui/modern_banner.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 
@@ -64,7 +64,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         showModernBanner(
           context,
           message:
-              'If an account exists for this email, we\'ll send a reset link.',
+              'If an account exists for this email, you’ll receive a password reset link shortly.',
           icon: Icons.mark_email_read_rounded,
           color: const Color(0xFF0E9B90),
         );
@@ -95,14 +95,44 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= _desktopBreakpoint;
     if (isDesktop) {
-      return AuthDesktopShell(
-        heroHighlightText: 'Reset your access',
-        heroBaseText: 'securely and quickly.',
-        heroDescription:
-            'Enter your account email and, if it exists in MindNest, we will '
-            'send a secure reset link so you can get back to your wellness '
-            'workspace.',
-        formChild: _buildFormContent(context),
+      return Scaffold(
+        backgroundColor: const Color(0xFFF7FBFC),
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 52, vertical: 28),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1400),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: const Color(0xFFBEE9E4),
+                          width: 1.1,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x140F172A),
+                            blurRadius: 36,
+                            offset: Offset(0, 18),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(34, 28, 34, 26),
+                        child: _buildFormContent(context),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       );
     }
 
@@ -193,12 +223,12 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 0),
           Text(
-            'Enter your email and, if an account exists,\nwe\'ll send a link to reset your password.',
+            '',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: const Color(0xFF516784),
-              height: 1.4,
+              height: 0.01,
               fontWeight: FontWeight.w500,
               fontSize: 16,
             ),

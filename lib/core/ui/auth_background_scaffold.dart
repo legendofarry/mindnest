@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:mindnest/core/ui/mindnest_logo.dart';
 import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 
 class AuthBackgroundScaffold extends StatefulWidget {
@@ -153,7 +154,7 @@ class _BrandGlyph extends StatelessWidget {
         SizedBox(
           width: size,
           height: size,
-          child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+          child: MindNestLogo(width: size, height: size, fit: BoxFit.contain),
         ),
       ],
     );

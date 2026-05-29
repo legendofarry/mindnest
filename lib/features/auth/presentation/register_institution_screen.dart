@@ -299,8 +299,8 @@ class _RegisterInstitutionScreenState
     final isDesktop = MediaQuery.sizeOf(context).width >= _desktopBreakpoint;
     if (isDesktop) {
       return AuthDesktopShell(
-        heroHighlightText: 'Build your institution',
-        heroBaseText: 'wellness workspace.',
+        heroHighlightText: '',
+        heroBaseText: 'Build your account',
         heroDescription:
             'Create your admin account, generate join access, and onboard '
             'counselors and members in one secure flow.',

@@ -38,9 +38,11 @@ class RegisterScreen extends StatelessWidget {
 
     if (isDesktop) {
       return AuthDesktopShell(
-        heroHighlightText: 'Start your journey',
-        heroBaseText: 'to better mental wellness.',
-        heroDescription: '',
+        heroHighlightText: '',
+        heroBaseText: '',
+        heroHighlightAfterBase: true,
+        heroDescription:
+            'Empower your mental well-being with personalized tools, guidance, and community support.',
         heroSupplement: _RegisterDesktopSupportPanel(
           hasInviteContext: hasInviteContext,
           institutionName: institutionName,
@@ -278,7 +280,7 @@ class _RegisterContent extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
             child: const Text(
-              'Register Institution',
+              'Request Institution Access',
               style: TextStyle(color: Colors.white), // text color
             ),
           ),

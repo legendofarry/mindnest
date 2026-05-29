@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
+import 'package:mindnest/core/ui/mindnest_logo.dart';
 import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/presentation/login_did_you_know_session.dart';
@@ -334,53 +335,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   ),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 1400),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const Expanded(
-                          flex: 6,
-                          child: _DesktopMarketingPanel(),
-                        ),
-                        const SizedBox(width: 54),
-                        Expanded(
-                          flex: 5,
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 500),
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  borderRadius: BorderRadius.circular(30),
-                                  border: Border.all(
-                                    color: const Color(0xFFBEE9E4),
-                                    width: 1.1,
-                                  ),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Color(0x140F172A),
-                                      blurRadius: 36,
-                                      offset: Offset(0, 18),
-                                    ),
-                                  ],
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    34,
-                                    28,
-                                    34,
-                                    26,
-                                  ),
-                                  child: _buildFormContent(
-                                    context,
-                                    showBrand: false,
-                                  ),
-                                ),
-                              ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 500),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(
+                              color: const Color(0xFFBEE9E4),
+                              width: 1.1,
                             ),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x140F172A),
+                                blurRadius: 36,
+                                offset: Offset(0, 18),
+                              ),
+                            ],
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(34, 28, 34, 26),
+                            child: _buildFormContent(context, showBrand: false),
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -819,7 +798,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 }
 
 class _DesktopMarketingPanel extends StatefulWidget {
-  const _DesktopMarketingPanel();
+  const _DesktopMarketingPanel({
+    this.onCreateAccount,
+    this.onRegisterInstitution,
+    this.hasInviteContext = false,
+    this.institutionName,
+  });
+
+  final VoidCallback? onCreateAccount;
+  final VoidCallback? onRegisterInstitution;
+  final bool hasInviteContext;
+  final String? institutionName;
 
   @override
   State<_DesktopMarketingPanel> createState() => _DesktopMarketingPanelState();
@@ -981,6 +970,8 @@ class _DesktopMarketingPanelState extends State<_DesktopMarketingPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final inviteInstitutionName = (widget.institutionName ?? '').trim();
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 2, 16, 2),
       child: Column(
@@ -1003,23 +994,192 @@ class _DesktopMarketingPanelState extends State<_DesktopMarketingPanel> {
               ),
             ],
           ),
-          const SizedBox(),
-          RichText(
-            text: const TextSpan(
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF062E43),
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x14062E43),
+                  blurRadius: 18,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                TextSpan(
-                  text: 'Your safe space',
+                Icon(
+                  Icons.language_rounded,
+                  size: 16,
+                  color: Color(0xFF7CF4E8),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Web-first workspace for institutions and care teams',
                   style: TextStyle(
-                    color: Color(0xFF0E9B90),
-                    fontSize: 62,
+                    color: Color(0xFFF4FFFE),
                     fontWeight: FontWeight.w800,
-                    height: 0,
+                    letterSpacing: 0.1,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 22),
+          RichText(
+            text: const TextSpan(
+              style: TextStyle(
+                fontSize: 58,
+                fontWeight: FontWeight.w800,
+                height: 0.95,
+                letterSpacing: -1.7,
+              ),
+              children: [
+                TextSpan(
+                  text: 'A calmer browser workspace ',
+                  style: TextStyle(color: Color(0xFF0F172A)),
+                ),
+                TextSpan(
+                  text: 'for mental wellness teams.',
+                  style: TextStyle(color: Color(0xFF0E9B90)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Text(
+              'MindNest brings invites, onboarding, booking workflows, notifications, live support rooms, and privacy-aware role journeys into one polished web experience for students, staff, counselors, admins, owners, and individual members.',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: const Color(0xFF4B617B),
+                height: 1.42,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: const [
+              _RoleBadge(label: 'Students'),
+              _RoleBadge(label: 'Staff'),
+              _RoleBadge(label: 'Counselors'),
+              _RoleBadge(label: 'Admins'),
+              _RoleBadge(label: 'Owners'),
+              _RoleBadge(label: 'Individuals'),
+            ],
+          ),
+          if (widget.hasInviteContext) ...[
+            const SizedBox(height: 22),
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFFFFC),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFB6ECDD)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0E9B90).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.mark_email_read_rounded,
+                      color: Color(0xFF0E9B90),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      inviteInstitutionName.isEmpty
+                          ? 'Invite ready. Sign in or create your account with the invited email to enter your workspace without extra setup.'
+                          : 'Invite ready for $inviteInstitutionName. Sign in or create your account with the invited email to land in the right workspace without extra setup.',
+                      style: const TextStyle(
+                        color: Color(0xFF0D6F69),
+                        height: 1.35,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 22),
+          Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: const [
+              _MarketingMetricCard(
+                title: '6 tailored roles',
+                description:
+                    'Owner, admin, counselor, student, staff, and individual journeys stay role-aware from login onward.',
+              ),
+              _MarketingMetricCard(
+                title: 'Realtime operations',
+                description:
+                    'Invites, schedules, and notification state stay live in the browser instead of feeling static.',
+              ),
+              _MarketingMetricCard(
+                title: 'Pitch-ready flow',
+                description:
+                    'A branded entry, cleaner onboarding, and persistent workspace navigation make the product easier to sell.',
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              ElevatedButton.icon(
+                onPressed: widget.onCreateAccount,
+                icon: const Icon(Icons.person_add_alt_1_rounded),
+                label: const Text('Create account'),
+              ),
+              OutlinedButton.icon(
+                onPressed: widget.onRegisterInstitution,
+                icon: const Icon(Icons.apartment_rounded),
+                label: const Text('Register institution'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: const [
+              _MarketingFeatureCard(
+                icon: Icons.mark_email_unread_rounded,
+                title: 'Invite-led onboarding',
+                description:
+                    'Institution members can join through guided invites and land in the right role with less back-and-forth.',
+              ),
+              _MarketingFeatureCard(
+                icon: Icons.event_available_rounded,
+                title: 'Care operations in one place',
+                description:
+                    'Scheduling, counselor discovery, session queues, and notifications stay inside one connected web workspace.',
+              ),
+              _MarketingFeatureCard(
+                icon: Icons.graphic_eq_rounded,
+                title: 'Live support moments',
+                description:
+                    'MindNest already supports live audio rooms and follow-up flows, which makes demos feel like a product, not a mockup.',
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: _buildDidYouKnowCard(context),
@@ -1124,7 +1284,7 @@ class _DesktopMarketingPanelState extends State<_DesktopMarketingPanel> {
                 fact?.text ?? 'Loading a welcome fact for this visit...',
                 style: const TextStyle(
                   color: Color(0xFF14324D),
-                  fontSize: 27,
+                  fontSize: 23,
                   height: 1.28,
                   fontWeight: FontWeight.w600,
                   letterSpacing: -0.4,
@@ -1200,6 +1360,143 @@ class _DesktopMarketingPanelState extends State<_DesktopMarketingPanel> {
   }
 }
 
+class _RoleBadge extends StatelessWidget {
+  const _RoleBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFD7E6EE)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF315A74),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _MarketingMetricCard extends StatelessWidget {
+  const _MarketingMetricCard({required this.title, required this.description});
+
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 222,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFDCECF1)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x110F172A),
+              blurRadius: 18,
+              offset: Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF0F172A),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: const TextStyle(
+                color: Color(0xFF4B617B),
+                height: 1.4,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MarketingFeatureCard extends StatelessWidget {
+  const _MarketingFeatureCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 242,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF9FFFE), Color(0xFFF5FBFF)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFD6EBE8)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0E9B90).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: const Color(0xFF0E9B90)),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: const Color(0xFF0F172A),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              description,
+              style: const TextStyle(
+                color: Color(0xFF4B617B),
+                height: 1.42,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DidYouKnowFact {
   const _DidYouKnowFact({
     required this.id,
@@ -1222,7 +1519,7 @@ class _DesktopBrandIcon extends StatelessWidget {
     return SizedBox(
       width: 150,
       height: 150,
-      child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+      child: MindNestLogo(width: 150, height: 150, fit: BoxFit.contain),
     );
   }
 }

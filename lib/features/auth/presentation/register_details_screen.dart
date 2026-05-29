@@ -1,10 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
+import 'package:mindnest/core/ui/auth_desktop_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/terms_and_privacy_screen.dart';
@@ -33,6 +33,8 @@ class RegisterDetailsScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
+  static const _desktopBreakpoint = 1100.0;
+
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -227,57 +229,29 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.sizeOf(context);
-    final isWindowsDesktop =
-        !kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.windows &&
-        screenSize.width >= 1180;
+    final isDesktop = screenSize.width >= _desktopBreakpoint;
     final isCompactDesktopHeight = screenSize.height < 950;
-    final breadcrumbItems = <_BreadcrumbItem>[
-      _BreadcrumbItem(
-        label: _hasInviteContext ? 'Invitation' : 'Account type',
-        route: AppRoute.register,
-        icon: _hasInviteContext
-            ? Icons.mark_email_unread_outlined
-            : Icons.account_tree_outlined,
-      ),
-      _BreadcrumbItem(
-        label: 'Your details',
-        icon: _hasInviteContext
-            ? Icons.person_add_alt_1_rounded
-            : _isCounselorIntent
-            ? Icons.psychology_alt_outlined
-            : Icons.badge_outlined,
-      ),
-    ];
-    final trailingLabel = _hasInviteContext
-        ? 'Step 2 of 2'
-        : _isCounselorIntent
-        ? 'Counselor sign up'
-        : 'Step 2 of 2';
     final formContent = _buildRegisterDetailsForm(
       context: context,
-      isDesktop: isWindowsDesktop,
+      isDesktop: isDesktop,
       isCompactDesktopHeight: isCompactDesktopHeight,
-      breadcrumbItems: breadcrumbItems,
-      trailingLabel: trailingLabel,
     );
 
-    if (isWindowsDesktop) {
-      return AuthBackgroundScaffold(
-        maxWidth: 1360,
-        scrollable: false,
-        child: _DesktopRegisterDetailsLayout(
-          supportPanel: _DesktopRegisterDetailsSupportPanel(
-            hasInviteContext: _hasInviteContext,
-            isCounselorIntent: _isCounselorIntent,
-            institutionName: widget.institutionName,
-            compact: isCompactDesktopHeight,
-          ),
-          formPanel: _DesktopRegisterDetailsFormCard(
-            compact: isCompactDesktopHeight,
-            child: formContent,
-          ),
+    if (isDesktop) {
+      return AuthDesktopShell(
+        heroHighlightText: '',
+        heroBaseText: '',
+        heroHighlightAfterBase: true,
+        heroDescription:
+            'Empower your mental well-being with personalized tools, guidance, and community support.',
+        heroSupplement: _DesktopRegisterDetailsSupportPanel(
+          hasInviteContext: _hasInviteContext,
+          isCounselorIntent: _isCounselorIntent,
+          institutionName: widget.institutionName,
+          compact: isCompactDesktopHeight,
         ),
+        formMaxWidth: 600,
+        formChild: formContent,
       );
     }
 
@@ -288,8 +262,6 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
     required BuildContext context,
     required bool isDesktop,
     required bool isCompactDesktopHeight,
-    required List<_BreadcrumbItem> breadcrumbItems,
-    required String trailingLabel,
   }) {
     final canSubmit = _canSubmit;
     final fieldGap = isDesktop ? 14.0 : 18.0;
@@ -302,10 +274,10 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (isDesktop) ...[
-            _AuthBreadcrumb(
-              items: breadcrumbItems,
-              onTapRoute: (route) => context.go(route),
-              trailingLabel: trailingLabel,
+            _RegisterDetailsBackLink(
+              label: _hasInviteContext ? 'Back to invite' : 'Back',
+              onTap: () =>
+                  context.go(_routeWithCurrentContext(AppRoute.register)),
             ),
             SizedBox(height: isCompactDesktopHeight ? 14 : 18),
           ],
@@ -356,7 +328,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             fontWeight: FontWeight.w800,
             color: const Color(0xFF071937),
             letterSpacing: -0.5,
-            fontSize: isDesktop ? 22 : 24,
+            fontSize: isDesktop ? 30 : 24,
           ),
         ),
         const SizedBox(height: 6),
@@ -365,7 +337,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: const Color(0xFF516784),
             fontWeight: FontWeight.w500,
-            fontSize: isDesktop ? 15 : null,
+            fontSize: isDesktop ? 16 : null,
           ),
         ),
       ],
@@ -763,67 +735,58 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
   }
 }
 
-class _DesktopRegisterDetailsLayout extends StatelessWidget {
-  const _DesktopRegisterDetailsLayout({
-    required this.supportPanel,
-    required this.formPanel,
-  });
+class _RegisterDetailsBackLink extends StatefulWidget {
+  const _RegisterDetailsBackLink({required this.label, required this.onTap});
 
-  final Widget supportPanel;
-  final Widget formPanel;
+  final String label;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(flex: 5, child: supportPanel),
-        const SizedBox(width: 34),
-        Expanded(
-          flex: 4,
-          child: Align(alignment: Alignment.centerRight, child: formPanel),
-        ),
-      ],
-    );
-  }
+  State<_RegisterDetailsBackLink> createState() =>
+      _RegisterDetailsBackLinkState();
 }
 
-class _DesktopRegisterDetailsFormCard extends StatelessWidget {
-  const _DesktopRegisterDetailsFormCard({
-    required this.child,
-    required this.compact,
-  });
-
-  final Widget child;
-  final bool compact;
+class _RegisterDetailsBackLinkState extends State<_RegisterDetailsBackLink> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: compact ? 600 : 620),
-      child: Container(
-        padding: EdgeInsets.fromLTRB(28, compact ? 24 : 28, 28, 24),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: const Color(0xFFD6E7EE)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x140F172A),
-              blurRadius: 32,
-              offset: Offset(0, 16),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            transform: Matrix4.translationValues(_hovered ? -2 : 0, 0, 0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.chevron_left_rounded,
+                  size: 22,
+                  color: _hovered
+                      ? const Color(0xFF0E9B90)
+                      : const Color(0xFF9AAAC0),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    color: _hovered
+                        ? const Color(0xFF0D6F69)
+                        : const Color(0xFF9AAAC0),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: child,
-              ),
-            );
-          },
+          ),
         ),
       ),
     );
@@ -845,148 +808,178 @@ class _DesktopRegisterDetailsSupportPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final headline = hasInviteContext
-        ? 'Finish your invited sign up in one safe step.'
-        : isCounselorIntent
-        ? 'Set up your counselor account, then wait for approval.'
-        : 'Finish your details and join your institution faster.';
-    final description = hasInviteContext
-        ? 'Use the invited email, verify it, and return to MindNest to enter your workspace.'
-        : isCounselorIntent
-        ? 'After email verification, an institution admin can invite you into the counselor workspace.'
-        : 'You are on the last account step. After email verification, you can continue into onboarding and your institution workspace.';
-    final accentIcon = hasInviteContext
-        ? Icons.mark_email_unread_outlined
-        : isCounselorIntent
-        ? Icons.psychology_alt_outlined
-        : Icons.badge_outlined;
-    final chips = hasInviteContext
-        ? const [
-            _DesktopSupportChipData(
-              label: 'Invited email',
-              icon: Icons.mail_outline_rounded,
-            ),
-            _DesktopSupportChipData(
-              label: 'New password',
-              icon: Icons.password_rounded,
-            ),
-            _DesktopSupportChipData(
-              label: 'Email verification',
-              icon: Icons.verified_user_outlined,
-            ),
-          ]
-        : isCounselorIntent
-        ? const [
-            _DesktopSupportChipData(
-              label: 'Full name',
-              icon: Icons.person_outline_rounded,
-            ),
-            _DesktopSupportChipData(
-              label: 'Verified email',
-              icon: Icons.mail_outline_rounded,
-            ),
-            _DesktopSupportChipData(
-              label: 'Approval invite',
-              icon: Icons.mark_email_read_outlined,
-            ),
-          ]
-        : const [
-            _DesktopSupportChipData(
-              label: 'Full name',
-              icon: Icons.person_outline_rounded,
-            ),
-            _DesktopSupportChipData(
-              label: 'Email address',
-              icon: Icons.mail_outline_rounded,
-            ),
-            _DesktopSupportChipData(
-              label: 'Secure password',
-              icon: Icons.password_rounded,
-            ),
-          ];
+    final title = hasInviteContext
+        ? 'Finish sign up in simple steps.'
+        : 'Get started in simple steps.';
     final steps = hasInviteContext
         ? [
             _DesktopSupportStepData(
-              title: 'Create the account',
+              title: 'Use the invited email',
               description:
-                  'Use the same invited email so MindNest can match the invitation automatically.',
+                  'Create your account with the same email that received the invitation.',
             ),
             _DesktopSupportStepData(
               title: 'Verify your email',
-              description:
-                  'Open the verification email we send you, then come back to the app.',
+              description: 'We send a verification email before you continue.',
             ),
             _DesktopSupportStepData(
-              title: 'Accept the workspace invite',
+              title: 'Join the workspace',
               description: (institutionName ?? '').trim().isEmpty
-                  ? 'Once you sign in, you can accept the invitation and enter the workspace.'
-                  : 'Once you sign in, you can join ${(institutionName ?? '').trim()}.',
+                  ? 'After you sign in, you can accept the invitation and enter your workspace.'
+                  : 'After you sign in, you can join ${(institutionName ?? '').trim()}.',
             ),
           ]
-        : isCounselorIntent
-        ? const [
+        : [
             _DesktopSupportStepData(
-              title: 'Enter your account details',
-              description:
-                  'Use the email and password you want for secure sign-in.',
+              title: 'Choose account type',
+              description: isCounselorIntent
+                  ? 'You selected counselor, so this form prepares your approval-ready account.'
+                  : 'Student and staff accounts use this form to join an institution.',
+            ),
+            const _DesktopSupportStepData(
+              title: 'Enter details',
+              description: 'Securely add your name, email, and password.',
             ),
             _DesktopSupportStepData(
-              title: 'Verify your email',
-              description:
-                  'We send a verification email before you continue into the app.',
-            ),
-            _DesktopSupportStepData(
-              title: 'Wait for an institution invite',
-              description:
-                  'An admin invites you into the counselor workspace after approval.',
-            ),
-          ]
-        : const [
-            _DesktopSupportStepData(
-              title: 'Create your account',
-              description:
-                  'Enter the details you want to use when signing in to MindNest.',
-            ),
-            _DesktopSupportStepData(
-              title: 'Verify your email',
-              description:
-                  'Open the verification email we send you before continuing.',
-            ),
-            _DesktopSupportStepData(
-              title: 'Continue into onboarding',
-              description:
-                  'After verification, you can finish setup and enter your institution workspace.',
+              title: isCounselorIntent
+                  ? 'Verify and await approval'
+                  : 'Verify email',
+              description: isCounselorIntent
+                  ? 'Confirm via email, then an institution can invite you into the counselor workspace.'
+                  : 'Confirm via the link we send to your inbox.',
             ),
           ];
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Container(
+      padding: EdgeInsets.fromLTRB(28, compact ? 24 : 28, 28, 28),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFD5E8EC)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            hasInviteContext ? 'WHAT HAPPENS NEXT' : 'HOW SIGN UP WORKS',
+            style: const TextStyle(
+              color: Color(0xFF0E9B90),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: TextStyle(
+              color: const Color(0xFF0F172A),
+              fontSize: compact ? 23 : 25,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              height: 1.1,
+            ),
+          ),
+          SizedBox(height: compact ? 20 : 24),
+          for (var index = 0; index < steps.length; index++) ...[
+            _DesktopSupportStepRow(
+              number: '${index + 1}',
+              title: steps[index].title,
+              description: steps[index].description,
+              compact: compact,
+            ),
+            if (index < steps.length - 1) SizedBox(height: compact ? 16 : 18),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopSupportStepData {
+  const _DesktopSupportStepData({
+    required this.title,
+    required this.description,
+  });
+
+  final String title;
+  final String description;
+}
+
+class _DesktopSupportStepRow extends StatelessWidget {
+  const _DesktopSupportStepRow({
+    required this.number,
+    required this.title,
+    required this.description,
+    required this.compact,
+  });
+
+  final String number;
+  final String title;
+  final String description;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _DesktopSupportOverviewCard(
-          eyebrow: hasInviteContext
-              ? 'Invitation'
-              : isCounselorIntent
-              ? 'Counselor sign up'
-              : 'Final step',
-          title: headline,
-          description: description,
-          icon: accentIcon,
-          compact: compact,
-          chips: chips,
+        Container(
+          width: compact ? 34 : 38,
+          height: compact ? 34 : 38,
+          decoration: BoxDecoration(
+            color: const Color(0xFFC6F7EE),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            number,
+            style: const TextStyle(
+              color: Color(0xFF0D6F69),
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+            ),
+          ),
         ),
-        SizedBox(height: compact ? 16 : 18),
-        _DesktopSupportStepsCard(
-          title: 'What happens next',
-          steps: steps,
-          compact: compact,
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: const Color(0xFF0F172A),
+                  fontSize: compact ? 16 : 17,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: TextStyle(
+                  color: const Color(0xFF516784),
+                  fontSize: compact ? 13 : 14,
+                  height: 1.45,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 }
 
-class _DesktopSupportOverviewCard extends StatelessWidget {
+/*
   const _DesktopSupportOverviewCard({
     required this.eyebrow,
     required this.title,
@@ -1271,6 +1264,7 @@ class _DesktopSupportStepData {
   final String description;
 }
 
+*/
 class _FieldLabel extends StatelessWidget {
   const _FieldLabel({required this.text});
 
@@ -1427,208 +1421,3 @@ class _LegacyAuthBreadcrumb extends StatelessWidget {
 }
 
 */
-
-class _BreadcrumbItem {
-  const _BreadcrumbItem({required this.label, this.route, this.icon});
-
-  final String label;
-  final String? route;
-  final IconData? icon;
-}
-
-class _AuthBreadcrumb extends StatelessWidget {
-  const _AuthBreadcrumb({
-    required this.items,
-    this.onTapRoute,
-    this.trailingLabel,
-  });
-
-  final List<_BreadcrumbItem> items;
-  final void Function(String route)? onTapRoute;
-  final String? trailingLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFD5E6EE)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x120F172A),
-            blurRadius: 22,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var i = 0; i < items.length; i++) ...[
-                  _BreadcrumbChip(
-                    item: items[i],
-                    isActive: i == items.length - 1,
-                    onTap: items[i].route != null && onTapRoute != null
-                        ? () => onTapRoute?.call(items[i].route!)
-                        : null,
-                  ),
-                  if (i < items.length - 1)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 2),
-                      child: Icon(
-                        Icons.chevron_right_rounded,
-                        color: Color(0xFF9AAAC0),
-                        size: 18,
-                      ),
-                    ),
-                ],
-              ],
-            ),
-          ),
-          if ((trailingLabel ?? '').trim().isNotEmpty) ...[
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F7F4),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: const Color(0xFFC0EBE4)),
-              ),
-              child: Text(
-                trailingLabel!,
-                style: const TextStyle(
-                  color: Color(0xFF0D6F69),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                  letterSpacing: 0.2,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _BreadcrumbChip extends StatefulWidget {
-  const _BreadcrumbChip({
-    required this.item,
-    required this.isActive,
-    this.onTap,
-  });
-
-  final _BreadcrumbItem item;
-  final bool isActive;
-  final VoidCallback? onTap;
-
-  @override
-  State<_BreadcrumbChip> createState() => _BreadcrumbChipState();
-}
-
-class _BreadcrumbChipState extends State<_BreadcrumbChip> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final isClickable = widget.onTap != null;
-    final showHoverState = isClickable && _isHovered && !widget.isActive;
-    final backgroundColor = widget.isActive
-        ? const Color(0xFF0F172A)
-        : showHoverState
-        ? const Color(0xFFEAF8F5)
-        : const Color(0xFFF5FAFD);
-    final borderColor = widget.isActive
-        ? const Color(0xFF16213A)
-        : showHoverState
-        ? const Color(0xFF8FDED4)
-        : const Color(0xFFD6E4EF);
-    final foregroundColor = widget.isActive
-        ? Colors.white
-        : showHoverState
-        ? const Color(0xFF0B6E67)
-        : const Color(0xFF16324F);
-    final iconColor = widget.isActive
-        ? const Color(0xFF9EF2E8)
-        : showHoverState
-        ? const Color(0xFF0A9388)
-        : const Color(0xFF0E9B90);
-
-    return Material(
-      color: Colors.transparent,
-      child: MouseRegion(
-        opaque: true,
-        cursor: isClickable
-            ? SystemMouseCursors.click
-            : SystemMouseCursors.basic,
-        onEnter: isClickable ? (_) => setState(() => _isHovered = true) : null,
-        onExit: isClickable ? (_) => setState(() => _isHovered = false) : null,
-        child: AnimatedScale(
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOutCubic,
-          scale: showHoverState ? 1.01 : 1,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            curve: Curves.easeOutCubic,
-            transform: Matrix4.translationValues(0, showHoverState ? -2 : 0, 0),
-            child: InkWell(
-              onTap: widget.onTap,
-              borderRadius: BorderRadius.circular(18),
-              hoverColor: Colors.transparent,
-              splashColor: const Color(0x120E9B90),
-              highlightColor: Colors.transparent,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: backgroundColor,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: borderColor),
-                  boxShadow: widget.isActive || showHoverState
-                      ? [
-                          BoxShadow(
-                            color: showHoverState
-                                ? const Color(0x1F0E9B90)
-                                : const Color(0x120F172A),
-                            blurRadius: showHoverState ? 18 : 12,
-                            offset: Offset(0, showHoverState ? 10 : 6),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (widget.item.icon != null) ...[
-                      Icon(widget.item.icon, size: 16, color: iconColor),
-                      const SizedBox(width: 8),
-                    ],
-                    Text(
-                      widget.item.label,
-                      style: TextStyle(
-                        color: foregroundColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                        letterSpacing: -0.1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

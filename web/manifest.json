@@ -1,13 +1,14 @@
 {
-    "name": "mindnest",
-    "short_name": "mindnest",
+    "name": "MindNest",
+    "short_name": "MindNest",
     "start_url": ".",
-    "display": "fullscreen",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "display": "standalone",
+    "background_color": "#F7FBFC",
+    "theme_color": "#0E9B90",
+    "description": "MindNest is a web-first mental wellness workspace for students, staff, counselors, and institutions.",
+    "orientation": "any",
     "prefer_related_applications": false,
+    "categories": ["health", "education", "productivity"],
     "icons": [
         {
             "src": "icons/Icon-192.png",

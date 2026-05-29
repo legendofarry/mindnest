@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/config/school_catalog.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart' show GlassCard;
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
@@ -23,6 +25,7 @@ class _InstitutionPendingScreenState
     extends ConsumerState<InstitutionPendingScreen>
     with SingleTickerProviderStateMixin {
   bool _isResubmitting = false;
+  bool _isCancellingRequest = false;
   bool _schoolFieldError = false;
   String? _selectedSchoolId;
   late final AnimationController _pulseController;
@@ -187,6 +190,65 @@ class _InstitutionPendingScreenState
         _selectedSchoolId = normalized;
       });
     });
+  }
+
+  Future<void> _cancelRequest() async {
+    if (_isResubmitting || _isCancellingRequest) {
+      return;
+    }
+
+    final shouldCancel = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel institution request?'),
+        content: const Text(
+          'This removes the current request from review, clears the linked '
+          'institution setup, and sends you back to start a fresh request.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep request'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFBE123C),
+            ),
+            child: const Text('Cancel and reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldCancel != true) {
+      return;
+    }
+
+    setState(() => _isCancellingRequest = true);
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .cancelCurrentAdminInstitutionRequest();
+      if (!mounted) {
+        return;
+      }
+      context.go(AppRoute.registerInstitution);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isCancellingRequest = false);
+      }
+    }
   }
 
   Future<void> _contactSupport({
@@ -472,20 +534,22 @@ class _InstitutionPendingScreenState
           icon: Icons.timeline_rounded,
           title: 'What happens next',
           description: isCancelled
-              ? 'This request is no longer active in the review queue. If that looks wrong, open support and we will inspect it with you.'
+              ? 'This request is no longer in the review queue. You can now start fresh with another institution or open support if something feels off.'
               : 'Your request is under review by our team. Once the review completes, access updates automatically.',
           accent: const Color(0xFF2563EB),
         );
         final selectedSchool = catalogSchoolById(_selectedSchoolId);
         final cardB = _RequestManagementCard(
-          isBusy: _isResubmitting,
+          isBusy: _isResubmitting || _isCancellingRequest,
+          isCancelling: _isCancellingRequest,
           isCancelled: isCancelled,
           selectedSchoolName: selectedSchool?.name,
           hasError: _schoolFieldError,
           onPickInstitution: () => _openCatalogSchoolPicker(
             currentInstitutionId: currentInstitutionId,
           ),
-          onUpdate: _resubmit,
+          onUpdate: _isCancellingRequest ? null : _resubmit,
+          onCancel: _isResubmitting ? null : _cancelRequest,
           onContactSupport: () =>
               _contactSupport(institutionName: institutionName, status: status),
         );
@@ -532,7 +596,7 @@ class _InstitutionPendingScreenState
     final body = isDeclined
         ? 'Correct the institution selection and send the request again from this same workspace.'
         : isCancelled
-        ? 'The request is no longer active in review. Open support if you need us to inspect what happened here.'
+        ? 'The request is gone from review. Start fresh from institution setup whenever you are ready, or open support if you need a hand.'
         : isApproved
         ? 'Your institution is approved. The dashboard will unlock the full admin workflow automatically.'
         : 'Approval is still in progress. You will get access once your institution is approved.';
@@ -691,7 +755,9 @@ class _InstitutionPendingScreenState
               runSpacing: 10,
               children: [
                 FilledButton.icon(
-                  onPressed: _isResubmitting ? null : _resubmit,
+                  onPressed: _isResubmitting || _isCancellingRequest
+                      ? null
+                      : _resubmit,
                   icon: Icon(
                     _isResubmitting
                         ? Icons.hourglass_top_rounded
@@ -702,7 +768,18 @@ class _InstitutionPendingScreenState
                   ),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _isResubmitting
+                  onPressed: _isResubmitting ? null : _cancelRequest,
+                  icon: Icon(
+                    _isCancellingRequest
+                        ? Icons.hourglass_top_rounded
+                        : Icons.close_rounded,
+                  ),
+                  label: Text(
+                    _isCancellingRequest ? 'Cancelling...' : 'Cancel Request',
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _isResubmitting || _isCancellingRequest
                       ? null
                       : () => _contactSupport(
                           institutionName: institutionName,
@@ -1378,20 +1455,24 @@ class _HeroPill extends StatelessWidget {
 class _RequestManagementCard extends StatelessWidget {
   const _RequestManagementCard({
     required this.isBusy,
+    required this.isCancelling,
     required this.isCancelled,
     required this.selectedSchoolName,
     required this.hasError,
     required this.onPickInstitution,
     required this.onUpdate,
+    required this.onCancel,
     required this.onContactSupport,
   });
 
   final bool isBusy;
+  final bool isCancelling;
   final bool isCancelled;
   final String? selectedSchoolName;
   final bool hasError;
   final VoidCallback onPickInstitution;
   final VoidCallback? onUpdate;
+  final VoidCallback? onCancel;
   final VoidCallback? onContactSupport;
 
   @override
@@ -1431,7 +1512,7 @@ class _RequestManagementCard extends StatelessWidget {
                       ),
                       SizedBox(height: 6),
                       Text(
-                        'Pick another institution and update the same live request, or contact support if the review needs a human hand.',
+                        'Pick another institution, update the live request while it is still in review, or cancel and start fresh if you want to reset the flow.',
                         style: TextStyle(
                           color: Color(0xFF516784),
                           height: 1.4,
@@ -1462,6 +1543,17 @@ class _RequestManagementCard extends StatelessWidget {
                   ),
                   label: Text(
                     isCancelled ? 'Send Back To Review' : 'Update Request',
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onCancel,
+                  icon: Icon(
+                    isCancelling
+                        ? Icons.hourglass_top_rounded
+                        : Icons.close_rounded,
+                  ),
+                  label: Text(
+                    isCancelling ? 'Cancelling...' : 'Cancel Request',
                   ),
                 ),
                 OutlinedButton.icon(

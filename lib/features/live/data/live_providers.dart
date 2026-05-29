@@ -9,6 +9,7 @@ final liveRepositoryProvider = Provider<LiveRepository>((ref) {
         ? null
         : () => ref.read(firestoreProvider),
     auth: ref.watch(appAuthClientProvider),
+    httpClient: ref.watch(authHttpClientProvider),
     windowsRest: ref.watch(windowsFirestoreRestClientProvider),
   );
 });

@@ -18,23 +18,280 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="MindNest is a web-first mental wellness workspace for students, staff, counselors, and institutions.">
+  <meta name="theme-color" content="#0E9B90">
+  <meta name="application-name" content="MindNest">
+  <meta property="og:title" content="MindNest | Mental Wellness Support for Institutions">
+  <meta property="og:description" content="Invite-ready onboarding, counselor workflows, live support rooms, and privacy-aware care journeys in one browser workspace.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://mindnestke.netlify.app/">
+  <meta property="og:image" content="https://mindnestke.netlify.app/icons/Icon-512.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="MindNest | Mental Wellness Support for Institutions">
+  <meta name="twitter:description" content="Invite-ready onboarding, counselor workflows, live support rooms, and privacy-aware care journeys in one browser workspace.">
+  <meta name="twitter:image" content="https://mindnestke.netlify.app/icons/Icon-512.png">
+  <link rel="canonical" href="https://mindnestke.netlify.app/">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="apple-mobile-web-app-title" content="mindnest">
+  <meta name="apple-mobile-web-app-title" content="MindNest">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>mindnest</title>
+  <title>MindNest | Mental Wellness Support for Institutions</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    :root {
+      color-scheme: light;
+      --mindnest-ink: #0f172a;
+      --mindnest-muted: #48637b;
+      --mindnest-brand: #0e9b90;
+      --mindnest-brand-soft: #7cf4e8;
+      --mindnest-bg: #f7fbfc;
+      --mindnest-panel: rgba(255, 255, 255, 0.9);
+      --mindnest-border: rgba(190, 233, 228, 0.95);
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(130, 233, 224, 0.36), transparent 36%),
+        radial-gradient(circle at right 22%, rgba(184, 244, 239, 0.32), transparent 28%),
+        linear-gradient(135deg, #f8fcfd 0%, #f5fafc 100%);
+      font-family: "Montserrat", "Segoe UI", sans-serif;
+    }
+
+    body {
+      overflow: hidden;
+    }
+
+    #mindnest-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      transition: opacity 280ms ease, transform 280ms ease;
+    }
+
+    #mindnest-loader.loader-hidden {
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+      pointer-events: none;
+    }
+
+    .mindnest-loader-card {
+      width: min(560px, calc(100vw - 32px));
+      padding: 28px;
+      border-radius: 30px;
+      background: var(--mindnest-panel);
+      border: 1px solid var(--mindnest-border);
+      box-shadow: 0 24px 48px rgba(15, 23, 42, 0.12);
+      backdrop-filter: blur(18px);
+    }
+
+    .mindnest-loader-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .mindnest-loader-brand img {
+      width: 68px;
+      height: 68px;
+      object-fit: contain;
+    }
+
+    .mindnest-loader-brand span {
+      color: var(--mindnest-ink);
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .mindnest-loader-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: #062e43;
+      color: #f4fffe;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .mindnest-loader-title {
+      margin: 18px 0 12px;
+      color: var(--mindnest-ink);
+      font-size: clamp(34px, 5vw, 46px);
+      line-height: 0.97;
+      letter-spacing: -0.05em;
+      font-weight: 800;
+    }
+
+    .mindnest-loader-title strong {
+      color: var(--mindnest-brand);
+      font-weight: 800;
+    }
+
+    .mindnest-loader-copy {
+      margin: 0;
+      color: var(--mindnest-muted);
+      font-size: 16px;
+      line-height: 1.55;
+      font-weight: 500;
+    }
+
+    .mindnest-loader-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 18px 0 20px;
+    }
+
+    .mindnest-loader-tags span {
+      padding: 9px 13px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.86);
+      border: 1px solid rgba(215, 230, 238, 0.98);
+      color: #315a74;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .mindnest-loader-footer {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-top: 8px;
+    }
+
+    .mindnest-loader-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #0d6f69;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .mindnest-loader-dots {
+      display: inline-flex;
+      gap: 5px;
+    }
+
+    .mindnest-loader-dots span {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--mindnest-brand);
+      animation: mindnest-loader-bounce 1s infinite ease-in-out;
+    }
+
+    .mindnest-loader-dots span:nth-child(2) {
+      animation-delay: 0.14s;
+    }
+
+    .mindnest-loader-dots span:nth-child(3) {
+      animation-delay: 0.28s;
+    }
+
+    .mindnest-loader-note {
+      color: #48637b;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    @keyframes mindnest-loader-bounce {
+      0%,
+      80%,
+      100% {
+        transform: translateY(0);
+        opacity: 0.38;
+      }
+
+      40% {
+        transform: translateY(-5px);
+        opacity: 1;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .mindnest-loader-card {
+        padding: 22px;
+        border-radius: 24px;
+      }
+
+      .mindnest-loader-brand span {
+        font-size: 24px;
+      }
+
+      .mindnest-loader-title {
+        margin-top: 16px;
+      }
+    }
+  </style>
+  <script>
+    window.addEventListener("flutter-first-frame", function () {
+      var loader = document.getElementById("mindnest-loader");
+      if (!loader) {
+        return;
+      }
+
+      window.setTimeout(function () {
+        loader.classList.add("loader-hidden");
+        window.setTimeout(function () {
+          loader.remove();
+        }, 320);
+      }, 120);
+    });
+  </script>
 </head>
 <body>
+  <div id="mindnest-loader" aria-live="polite">
+    <div class="mindnest-loader-card">
+      <div class="mindnest-loader-brand">
+        <img src="assets/assets/MindNest-Logo.svg" alt="MindNest logo">
+        <span>MindNest</span>
+      </div>
+      <div class="mindnest-loader-eyebrow">Web-first workspace for mental wellness teams</div>
+      <h1 class="mindnest-loader-title">A calmer browser workspace <strong>is loading.</strong></h1>
+      <p class="mindnest-loader-copy">
+        Invite-ready onboarding, counselor workflows, live support rooms, and privacy-aware care journeys are warming up now.
+      </p>
+      <div class="mindnest-loader-tags" aria-hidden="true">
+        <span>Students</span>
+        <span>Staff</span>
+        <span>Counselors</span>
+        <span>Admins</span>
+        <span>Owners</span>
+      </div>
+      <div class="mindnest-loader-footer">
+        <div class="mindnest-loader-status">
+          <span>Opening your workspace</span>
+          <span class="mindnest-loader-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+        </div>
+        <span class="mindnest-loader-note">MindNest 1.0.2 web polish</span>
+      </div>
+    </div>
+  </div>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
