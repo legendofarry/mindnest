@@ -227,18 +227,19 @@ class _AuthDesktopPhysicsFormCardState
     damping: 20,
   );
 
-  late final AnimationController _rotateX = AnimationController.unbounded(
-    vsync: this,
-  );
-  late final AnimationController _rotateY = AnimationController.unbounded(
-    vsync: this,
-  );
-  late final AnimationController _shiftX = AnimationController.unbounded(
-    vsync: this,
-  );
-  late final AnimationController _shiftY = AnimationController.unbounded(
-    vsync: this,
-  );
+  late final AnimationController _rotateX;
+  late final AnimationController _rotateY;
+  late final AnimationController _shiftX;
+  late final AnimationController _shiftY;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotateX = AnimationController.unbounded(vsync: this);
+    _rotateY = AnimationController.unbounded(vsync: this);
+    _shiftX = AnimationController.unbounded(vsync: this);
+    _shiftY = AnimationController.unbounded(vsync: this);
+  }
 
   @override
   void dispose() {

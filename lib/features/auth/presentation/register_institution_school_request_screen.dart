@@ -27,12 +27,51 @@ class _RegisterInstitutionSchoolRequestScreenState
   bool _institutionFieldError = false;
   bool _confirmationError = false;
   String? _formError;
+  int _currentStep = 0;
 
   @override
   void dispose() {
     _searchController.dispose();
     _institutionNameController.dispose();
     super.dispose();
+  }
+
+  static const _requestStepCount = 2;
+
+  int get _activeStep {
+    if (_currentStep < 0) {
+      return 0;
+    }
+    if (_currentStep >= _requestStepCount) {
+      return _requestStepCount - 1;
+    }
+    return _currentStep;
+  }
+
+  bool get _isCatalogStep => _activeStep == 0;
+
+  bool get _isRequestStep => _activeStep == 1;
+
+  void _goToCatalogStep() {
+    if (_isSubmitting) {
+      return;
+    }
+    setState(() {
+      _currentStep = 0;
+      _formError = null;
+      _institutionFieldError = false;
+      _confirmationError = false;
+    });
+  }
+
+  void _goToRequestStep() {
+    if (_isSubmitting) {
+      return;
+    }
+    setState(() {
+      _currentStep = 1;
+      _formError = null;
+    });
   }
 
   List<CatalogSchool> get _filteredSchools {
@@ -53,6 +92,11 @@ class _RegisterInstitutionSchoolRequestScreenState
   }
 
   Future<void> _submit() async {
+    if (_isCatalogStep) {
+      _goToRequestStep();
+      return;
+    }
+
     final schoolName = _institutionNameController.text.trim();
     final hasName = schoolName.length >= 2;
     final alreadyExists = hasName && _alreadyExists(schoolName);
@@ -115,6 +159,7 @@ class _RegisterInstitutionSchoolRequestScreenState
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= _desktopBreakpoint;
+    final content = _buildContent(context, isDesktop: isDesktop);
 
     if (isDesktop) {
       return AuthDesktopShell(
@@ -123,20 +168,21 @@ class _RegisterInstitutionSchoolRequestScreenState
         heroDescription:
             'Search the approved catalog first. If your institution is truly not listed, submit the name and we will review it for onboarding.',
         formMaxWidth: 660,
-        formChild: _buildContent(context),
+        formChild: content,
       );
     }
 
     return AuthBackgroundScaffold(
       fallingSnow: true,
       maxWidth: 680,
-      child: _buildContent(context),
+      child: content,
     );
   }
 
-  Widget _buildContent(BuildContext context) {
+  Widget _buildContent(BuildContext context, {required bool isDesktop}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Align(
           alignment: Alignment.centerLeft,
@@ -148,31 +194,20 @@ class _RegisterInstitutionSchoolRequestScreenState
             label: const Text('Back to registration'),
           ),
         ),
-        Text(
-          'School not listed?',
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF071937),
-            letterSpacing: -0.5,
-            fontSize: 24,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Search the approved catalog below first. If your institution is really not present, confirm that and send the institution name for review.',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: const Color(0xFF516784),
-            fontWeight: FontWeight.w500,
-            height: 1.4,
-          ),
-        ),
+        if (isDesktop) ...[
+          const SizedBox(height: 6),
+          _buildStepRail(),
+          const SizedBox(height: 14),
+        ] else ...[
+          const SizedBox(height: 8),
+        ],
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
           child: (_formError == null || _formError!.trim().isEmpty)
-              ? const SizedBox(height: 18)
+              ? const SizedBox.shrink()
               : Container(
                   key: ValueKey(_formError),
-                  margin: const EdgeInsets.only(top: 14, bottom: 8),
+                  margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 10,
@@ -203,6 +238,135 @@ class _RegisterInstitutionSchoolRequestScreenState
                   ),
                 ),
         ),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          layoutBuilder: (currentChild, previousChildren) {
+            return Stack(
+              alignment: Alignment.topCenter,
+              children: <Widget>[
+                ...previousChildren,
+                ...(currentChild == null
+                    ? const <Widget>[]
+                    : <Widget>[currentChild]),
+              ],
+            );
+          },
+          transitionBuilder: (child, animation) {
+            final offset = Tween<Offset>(
+              begin: const Offset(0.03, 0),
+              end: Offset.zero,
+            ).animate(animation);
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(position: offset, child: child),
+            );
+          },
+          child: _isCatalogStep
+              ? _buildCatalogStep(context, isDesktop: isDesktop)
+              : _buildRequestStep(context, isDesktop: isDesktop),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStepRail() {
+    final activeColor = const Color(0xFF0E9B90);
+    final inactiveColor = const Color(0xFFB7C5D8);
+    final lineColor = _isRequestStep ? activeColor : const Color(0xFFD9E4EE);
+
+    Widget stepTile({
+      required String number,
+      required String label,
+      required bool isActive,
+      required bool isComplete,
+    }) {
+      final highlight = isActive || isComplete;
+      final background = highlight
+          ? const Color(0xFFEFFFFC)
+          : const Color(0xFFF4F7FB);
+      final textColor = highlight
+          ? const Color(0xFF0D6F69)
+          : const Color(0xFF8EA3BB);
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: highlight
+                    ? activeColor.withValues(alpha: 0.18)
+                    : inactiveColor.withValues(alpha: 0.22),
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              number,
+              style: TextStyle(
+                color: highlight ? activeColor : inactiveColor,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        stepTile(
+          number: '1',
+          label: 'Search catalog',
+          isActive: _isCatalogStep,
+          isComplete: _isRequestStep,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              color: lineColor,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        stepTile(
+          number: '2',
+          label: 'Send request',
+          isActive: _isRequestStep,
+          isComplete: false,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCatalogStep(BuildContext context, {required bool isDesktop}) {
+    final schools = _filteredSchools;
+    final listHeight = _catalogListHeight(context, isDesktop: isDesktop);
+
+    return Column(
+      key: const ValueKey('catalog-step'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         const _SchoolRequestSectionLabel(text: 'SEARCH APPROVED CATALOG'),
         const SizedBox(height: 8),
         _SchoolRequestInputShell(
@@ -216,15 +380,15 @@ class _RegisterInstitutionSchoolRequestScreenState
             ),
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         Container(
-          height: 320,
+          height: listHeight,
           decoration: BoxDecoration(
             color: const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: const Color(0xFFDDE6F1)),
           ),
-          child: _filteredSchools.isEmpty
+          child: schools.isEmpty
               ? const Center(
                   child: Padding(
                     padding: EdgeInsets.all(24),
@@ -239,10 +403,10 @@ class _RegisterInstitutionSchoolRequestScreenState
                 )
               : ListView.separated(
                   padding: const EdgeInsets.all(12),
-                  itemCount: _filteredSchools.length,
+                  itemCount: schools.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
-                    final school = _filteredSchools[index];
+                    final school = schools[index];
                     return Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,
@@ -284,7 +448,61 @@ class _RegisterInstitutionSchoolRequestScreenState
                   },
                 ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 12),
+        if (isDesktop)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  'If you see your institution above, go back and choose the approved entry instead.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF516784),
+                    height: 1.45,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 208,
+                child: _buildPrimaryActionButton(
+                  label: 'I did not find it',
+                  onPressed: _isSubmitting ? null : _goToRequestStep,
+                  isBusy: false,
+                  height: 54,
+                ),
+              ),
+            ],
+          )
+        else ...[
+          Text(
+            'If you see your institution above, go back and choose the approved entry instead.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF516784),
+              height: 1.45,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildPrimaryActionButton(
+            label: 'I did not find it',
+            onPressed: _isSubmitting ? null : _goToRequestStep,
+            isBusy: false,
+            height: 54,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildRequestStep(BuildContext context, {required bool isDesktop}) {
+    return Column(
+      key: const ValueKey('request-step'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SchoolRequestSectionLabel(text: 'CONFIRM NOT LISTED'),
+        const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
@@ -320,7 +538,7 @@ class _RegisterInstitutionSchoolRequestScreenState
             ),
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
         const _SchoolRequestSectionLabel(text: 'INSTITUTION NAME TO REVIEW'),
         const SizedBox(height: 8),
         _SchoolRequestInputShell(
@@ -338,41 +556,122 @@ class _RegisterInstitutionSchoolRequestScreenState
             ),
           ),
         ),
-        const SizedBox(height: 22),
-        Container(
-          height: 58,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: LinearGradient(
-              colors: _isSubmitting
-                  ? const [Color(0xFFB8C5D6), Color(0xFFAAB8CB)]
-                  : const [Color(0xFF0E9B90), Color(0xFF18A89D)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-          ),
-          child: ElevatedButton(
+        const SizedBox(height: 18),
+        if (isDesktop)
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: _isSubmitting ? null : _goToCatalogStep,
+                icon: const Icon(Icons.arrow_back_rounded),
+                label: const Text('Back to catalog'),
+              ),
+              const Spacer(),
+              SizedBox(
+                width: 240,
+                child: _buildPrimaryActionButton(
+                  label: 'Send institution request',
+                  onPressed: _isSubmitting ? null : _submit,
+                  isBusy: _isSubmitting,
+                  height: 56,
+                ),
+              ),
+            ],
+          )
+        else ...[
+          _buildPrimaryActionButton(
+            label: 'Send institution request',
             onPressed: _isSubmitting ? null : _submit,
-            style: ElevatedButton.styleFrom(
-              shadowColor: Colors.transparent,
-              backgroundColor: Colors.transparent,
-              disabledBackgroundColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-            ),
-            child: Text(
-              _isSubmitting ? 'Sending request...' : 'Send institution request',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 16.5,
-              ),
-            ),
+            isBusy: _isSubmitting,
+            height: 56,
           ),
-        ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _isSubmitting ? null : _goToCatalogStep,
+            icon: const Icon(Icons.arrow_back_rounded),
+            label: const Text('Back to catalog'),
+          ),
+        ],
       ],
     );
+  }
+
+  Widget _buildPrimaryActionButton({
+    required String label,
+    required VoidCallback? onPressed,
+    required bool isBusy,
+    required double height,
+  }) {
+    final enabled = onPressed != null;
+    final colors = enabled
+        ? const [Color(0xFF0E9B90), Color(0xFF18A89D)]
+        : const [Color(0xFFB8C5D6), Color(0xFFAAB8CB)];
+
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          shadowColor: Colors.transparent,
+          backgroundColor: Colors.transparent,
+          disabledBackgroundColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: isBusy
+              ? Row(
+                  key: const ValueKey('busy'),
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Sending request...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16.5,
+                      ),
+                    ),
+                  ],
+                )
+              : Text(
+                  label,
+                  key: const ValueKey('idle'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16.5,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  double _catalogListHeight(BuildContext context, {required bool isDesktop}) {
+    final height = MediaQuery.sizeOf(context).height;
+    final target = height * (isDesktop ? 0.27 : 0.34);
+    final minHeight = isDesktop ? 210.0 : 280.0;
+    final maxHeight = isDesktop ? 255.0 : 340.0;
+    return target.clamp(minHeight, maxHeight).toDouble();
   }
 }
 
