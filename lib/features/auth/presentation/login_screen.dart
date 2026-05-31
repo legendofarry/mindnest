@@ -1,5 +1,6 @@
 // features/auth/presentation/login_screen.dart
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart'
@@ -49,11 +50,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   bool _rememberMe = true;
   bool _isSubmitting = false;
   bool _isGoogleSubmitting = false;
+  bool _isBiometricScanning = false;
   bool _isPasswordVisible = false;
+  bool _showEmailForm = false;
   bool _emailFieldError = false;
   bool _passwordFieldError = false;
   String? _lastEmail;
   String? _formError;
+  String? _biometricNotice;
 
   late final AnimationController _shakeController = AnimationController(
     vsync: this,
@@ -95,8 +99,70 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   bool get _isBusy => _isSubmitting || _isGoogleSubmitting;
+  bool get _isEntryLocked => _isBusy || _isBiometricScanning;
   bool get _isWindowsLoginOnlyMode =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+
+  void _showEmailLogin() {
+    if (_isEntryLocked) {
+      return;
+    }
+    setState(() {
+      _showEmailForm = true;
+      _biometricNotice = null;
+    });
+  }
+
+  void _showBiometricLogin() {
+    if (_isEntryLocked) {
+      return;
+    }
+    setState(() {
+      _showEmailForm = false;
+      _formError = null;
+      _biometricNotice = null;
+    });
+  }
+
+  Future<void> _startBiometricSkeleton() async {
+    if (_isEntryLocked) {
+      return;
+    }
+
+    setState(() {
+      _formError = null;
+      _biometricNotice = null;
+      _isBiometricScanning = true;
+    });
+
+    await Future<void>.delayed(const Duration(milliseconds: 1450));
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isBiometricScanning = false;
+      _biometricNotice =
+          'Biometric sign-in is being prepared. Use Google or email for now.';
+    });
+  }
+
+  void _goToSignup() {
+    if (_isEntryLocked) {
+      return;
+    }
+
+    if (_isWindowsLoginOnlyMode) {
+      _openSignupOnWeb();
+      return;
+    }
+
+    context.go(
+      _hasInviteContext
+          ? AppRoute.withInviteQuery(AppRoute.registerDetails, _inviteQuery)
+          : AppRoute.register,
+    );
+  }
 
   Future<void> _submit() async {
     if (_isBusy) return;
@@ -120,6 +186,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       _emailFieldError = false;
       _passwordFieldError = false;
       _formError = null;
+      _biometricNotice = null;
       _isSubmitting = true;
     });
 
@@ -163,6 +230,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (_isBusy) return;
     setState(() {
       _formError = null;
+      _biometricNotice = null;
       _isGoogleSubmitting = true;
     });
     try {
@@ -322,55 +390,99 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     if (isDesktop) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF7FBFC),
+        backgroundColor: const Color(0xFF03110F),
         body: Stack(
           children: [
-            const Positioned.fill(child: _DesktopAmbientBackground()),
+            const Positioned.fill(child: _DarkDesktopBackground()),
             SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 52,
-                    vertical: 28,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1400),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 500),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(
-                              color: const Color(0xFFBEE9E4),
-                              width: 1.1,
-                            ),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x140F172A),
-                                blurRadius: 36,
-                                offset: Offset(0, 18),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(34, 24, 34, 26),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const _DesktopLoginBrand(),
+                        const Spacer(),
+                        _DesktopCreateAccountLink(
+                          onPressed: _goToSignup,
+                          disabled: _isEntryLocked,
+                        ),
+                        const SizedBox(width: 12),
+                        const WindowsDesktopWindowControls(),
+                      ],
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1440),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              AnimatedAlign(
+                                duration: const Duration(milliseconds: 520),
+                                curve: Curves.easeOutCubic,
+                                alignment: _showEmailForm
+                                    ? const Alignment(-0.86, 0.02)
+                                    : Alignment.center,
+                                child: AnimatedScale(
+                                  duration: const Duration(milliseconds: 520),
+                                  curve: Curves.easeOutCubic,
+                                  scale: _showEmailForm ? 0.78 : 1,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: _BiometricHero(
+                                      isBiometricScanning: _isBiometricScanning,
+                                      isGoogleSubmitting: _isGoogleSubmitting,
+                                      isBusy: _isEntryLocked,
+                                      isEmailOpen: _showEmailForm,
+                                      noticeText: _biometricNotice,
+                                      errorText: _showEmailForm
+                                          ? null
+                                          : _formError,
+                                      onBiometricTap: _startBiometricSkeleton,
+                                      onGooglePressed: _signInWithGoogle,
+                                      onUseEmailPressed: _showEmailLogin,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              AnimatedAlign(
+                                duration: const Duration(milliseconds: 520),
+                                curve: Curves.easeOutCubic,
+                                alignment: Alignment.centerRight,
+                                child: AnimatedSlide(
+                                  duration: const Duration(milliseconds: 520),
+                                  curve: Curves.easeOutCubic,
+                                  offset: _showEmailForm
+                                      ? Offset.zero
+                                      : const Offset(0.22, 0),
+                                  child: AnimatedOpacity(
+                                    duration: const Duration(milliseconds: 320),
+                                    curve: Curves.easeOut,
+                                    opacity: _showEmailForm ? 1 : 0,
+                                    child: IgnorePointer(
+                                      ignoring: !_showEmailForm,
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 520,
+                                        ),
+                                        child: _DesktopEmailLoginCard(
+                                          child: _buildFormContent(
+                                            context,
+                                            showBrand: false,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ],
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(34, 28, 34, 26),
-                            child: _buildFormContent(context, showBrand: false),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              ),
-            ),
-            SafeArea(
-              child: Align(
-                alignment: Alignment.topRight,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                  child: WindowsDesktopWindowControls(),
+                  ],
                 ),
               ),
             ),
@@ -399,6 +511,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (!showBrand)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _isEntryLocked ? null : _showBiometricLogin,
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                  label: const Text(''),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF0D7F76),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
             if (showBrand) ...[
               const SizedBox(),
               BrandMark(
@@ -413,7 +538,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     : 0,
               ),
             ] else ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
             ],
             Text(
               'Welcome Back',
@@ -799,9 +924,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
 class _DesktopMarketingPanel extends StatefulWidget {
   const _DesktopMarketingPanel({
+    // ignore: unused_element_parameter
     this.onCreateAccount,
+    // ignore: unused_element_parameter
     this.onRegisterInstitution,
+    // ignore: unused_element_parameter
     this.hasInviteContext = false,
+    // ignore: unused_element_parameter
     this.institutionName,
   });
 
@@ -1573,6 +1702,7 @@ class _TypingDotsState extends State<_TypingDots>
   }
 }
 
+// ignore: unused_element
 class _DesktopAmbientBackground extends StatelessWidget {
   const _DesktopAmbientBackground();
 
@@ -1648,6 +1778,932 @@ class _GlowBlob extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DarkDesktopBackground extends StatelessWidget {
+  const _DarkDesktopBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                colors: [
+                  const Color(0xFF063D36),
+                  const Color(0xFF031916),
+                  const Color(0xFF030A09),
+                ],
+                center: const Alignment(-0.92, -0.72),
+                radius: 1.4,
+              ),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  const Color(0xFF020807).withValues(alpha: 0.62),
+                  const Color(0xFF05211D).withValues(alpha: 0.9),
+                ],
+                stops: const [0.0, 0.52, 1.0],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          left: -210,
+          top: -230,
+          child: _GlowBlob(
+            size: 760,
+            color: const Color(0xFF0E9B90).withValues(alpha: 0.22),
+          ),
+        ),
+        Positioned(
+          right: -180,
+          top: 70,
+          child: _GlowBlob(
+            size: 620,
+            color: const Color(0xFF6DE3D9).withValues(alpha: 0.14),
+          ),
+        ),
+        Positioned(
+          right: 115,
+          bottom: -260,
+          child: _GlowBlob(
+            size: 720,
+            color: const Color(0xFF0E9B90).withValues(alpha: 0.13),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopLoginBrand extends StatelessWidget {
+  const _DesktopLoginBrand();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: const MindNestLogo(width: 32, height: 32),
+        ),
+        const SizedBox(width: 10),
+        const Text(
+          'mindnest',
+          style: TextStyle(
+            color: Color(0xFFE6FFFB),
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.35,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopCreateAccountLink extends StatefulWidget {
+  const _DesktopCreateAccountLink({
+    required this.onPressed,
+    required this.disabled,
+  });
+
+  final VoidCallback onPressed;
+  final bool disabled;
+
+  @override
+  State<_DesktopCreateAccountLink> createState() =>
+      _DesktopCreateAccountLinkState();
+}
+
+class _DesktopCreateAccountLinkState extends State<_DesktopCreateAccountLink> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = widget.disabled;
+    return MouseRegion(
+      cursor: disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: disabled ? null : widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: _isHovered && !disabled
+                ? Colors.white.withValues(alpha: 0.10)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: _isHovered && !disabled
+                  ? Colors.white.withValues(alpha: 0.16)
+                  : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'New here? Create account',
+                style: TextStyle(
+                  color: disabled
+                      ? Colors.white.withValues(alpha: 0.34)
+                      : Colors.white.withValues(alpha: 0.68),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.1,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.north_east_rounded,
+                size: 15,
+                color: disabled
+                    ? Colors.white.withValues(alpha: 0.34)
+                    : Colors.white.withValues(alpha: 0.72),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopEmailLoginCard extends StatelessWidget {
+  const _DesktopEmailLoginCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = math.max(520.0, MediaQuery.sizeOf(context).height - 150);
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(34),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5FAFA).withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(34),
+              border: Border.all(
+                color: const Color(0xFFBEE9E4).withValues(alpha: 0.9),
+                width: 1.1,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x4510B8A6),
+                  blurRadius: 46,
+                  offset: Offset(0, 22),
+                ),
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 60,
+                  offset: Offset(0, 30),
+                ),
+              ],
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(34, 24, 34, 30),
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BiometricHero extends StatefulWidget {
+  const _BiometricHero({
+    required this.isBiometricScanning,
+    required this.isGoogleSubmitting,
+    required this.isBusy,
+    required this.isEmailOpen,
+    required this.noticeText,
+    required this.errorText,
+    required this.onBiometricTap,
+    required this.onGooglePressed,
+    required this.onUseEmailPressed,
+  });
+
+  final bool isBiometricScanning;
+  final bool isGoogleSubmitting;
+  final bool isBusy;
+  final bool isEmailOpen;
+  final String? noticeText;
+  final String? errorText;
+  final VoidCallback onBiometricTap;
+  final VoidCallback onGooglePressed;
+  final VoidCallback onUseEmailPressed;
+
+  @override
+  State<_BiometricHero> createState() => _BiometricHeroState();
+}
+
+class _BiometricHeroState extends State<_BiometricHero>
+    with TickerProviderStateMixin {
+  late final AnimationController _orbitController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 4200),
+  )..repeat();
+
+  late final AnimationController _pulseController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1250),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _orbitController.dispose();
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final width = widget.isEmailOpen ? 690.0 : 760.0;
+    return SizedBox(
+      width: width,
+      height: 650,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _BiometricOrbitPainter(
+                showEmailPill: !widget.isEmailOpen,
+              ),
+            ),
+          ),
+          Positioned(
+            top: 55,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _WelcomePill(isScanning: widget.isBiometricScanning),
+            ),
+          ),
+          Positioned(
+            left: widget.isEmailOpen ? 82 : 116,
+            top: 210,
+            child: _StagePillButton(
+              label: widget.isGoogleSubmitting ? 'Connecting...' : 'Google',
+              isLight: true,
+              disabled: widget.isBusy,
+              onPressed: widget.onGooglePressed,
+              leading: widget.isGoogleSubmitting
+                  ? const SizedBox(
+                      width: 17,
+                      height: 17,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : SvgPicture.asset(
+                      'assets/google.svg',
+                      width: 18,
+                      height: 18,
+                    ),
+            ),
+          ),
+          Positioned(
+            left: widget.isEmailOpen ? 152 : 186,
+            top: 271,
+            child: Container(
+              width: 1,
+              height: 58,
+              color: Colors.white.withValues(alpha: 0.12),
+            ),
+          ),
+          if (!widget.isEmailOpen) ...[
+            Positioned(
+              right: 156,
+              top: 327,
+              child: Container(
+                width: 1,
+                height: 86,
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+            ),
+            Positioned(
+              right: 156,
+              top: 412,
+              child: Container(
+                width: 70,
+                height: 1,
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+            ),
+            Positioned(
+              right: 40,
+              top: 384,
+              child: _StagePillButton(
+                label: 'Use email instead',
+                disabled: widget.isBusy,
+                onPressed: widget.onUseEmailPressed,
+                trailing: const Icon(
+                  Icons.north_east_rounded,
+                  size: 18,
+                  color: Color(0xFFE6FFFB),
+                ),
+              ),
+            ),
+          ],
+          Positioned(
+            top: 242,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _BiometricOrb(
+                orbitController: _orbitController,
+                pulseController: _pulseController,
+                isScanning: widget.isBiometricScanning,
+                disabled: widget.isBusy,
+                onTap: widget.onBiometricTap,
+              ),
+            ),
+          ),
+          Positioned(
+            top: widget.isBiometricScanning ? 480 : 493,
+            left: 0,
+            right: 0,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 260),
+              child: Column(
+                key: ValueKey(widget.isBiometricScanning),
+                children: [
+                  Text(
+                    widget.isBiometricScanning ? 'Scanning...' : 'Tap to enter',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Face ID - Touch ID',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.56),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 78,
+            left: 0,
+            right: 0,
+            child: _StageMessage(
+              errorText: widget.errorText,
+              noticeText: widget.noticeText,
+            ),
+          ),
+          Positioned(
+            bottom: 28,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Text(
+                'END-TO-END ENCRYPTED - PRIVATE BY DESIGN',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.23),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 3.2,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BiometricOrbitPainter extends CustomPainter {
+  const _BiometricOrbitPainter({required this.showEmailPill});
+
+  final bool showEmailPill;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, 360);
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = Colors.white.withValues(alpha: 0.055);
+
+    for (final radius in <double>[132, 198, 258, 318]) {
+      canvas.drawCircle(center, radius, ringPaint);
+    }
+
+    final auraPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFF0E9B90).withValues(alpha: 0.22),
+          const Color(0xFF0E9B90).withValues(alpha: 0.06),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: 290));
+    canvas.drawCircle(center, 290, auraPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BiometricOrbitPainter oldDelegate) {
+    return oldDelegate.showEmailPill != showEmailPill;
+  }
+}
+
+class _WelcomePill extends StatelessWidget {
+  const _WelcomePill({required this.isScanning});
+
+  final bool isScanning;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: isScanning ? 0.11 : 0.06),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: const BoxDecoration(
+              color: Color(0xFF72ECDC),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            isScanning ? 'VERIFYING ACCESS' : 'WELCOME BACK',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.72),
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BiometricOrb extends StatelessWidget {
+  const _BiometricOrb({
+    required this.orbitController,
+    required this.pulseController,
+    required this.isScanning,
+    required this.disabled,
+    required this.onTap,
+  });
+
+  final AnimationController orbitController;
+  final AnimationController pulseController;
+  final bool isScanning;
+  final bool disabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([orbitController, pulseController]),
+      builder: (context, _) {
+        final pulse = isScanning
+            ? (math.sin(pulseController.value * math.pi * 2) + 1) / 2
+            : 0.0;
+        return MouseRegion(
+          cursor: disabled
+              ? SystemMouseCursors.basic
+              : SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: disabled ? null : onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 420),
+              curve: Curves.easeOutCubic,
+              width: isScanning ? 255 : 244,
+              height: isScanning ? 326 : 244,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(180),
+                color: const Color(
+                  0xFF0E9B90,
+                ).withValues(alpha: isScanning ? 0.20 + (pulse * 0.06) : 0.02),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(
+                      0xFF35D7C7,
+                    ).withValues(alpha: isScanning ? 0.36 : 0.24),
+                    blurRadius: isScanning ? 74 : 42,
+                    spreadRadius: isScanning ? 8 : 1,
+                  ),
+                ],
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 260),
+                    opacity: isScanning ? 1 : 0,
+                    child: Container(
+                      width: 186,
+                      height: 300,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(130),
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white.withValues(alpha: 0.03),
+                            Colors.white.withValues(alpha: 0.13),
+                            Colors.white.withValues(alpha: 0.03),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 222,
+                    height: 222,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF287F69).withValues(alpha: 0.88),
+                      border: Border.all(
+                        color: const Color(0xFF45DDB9),
+                        width: 9,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x3314B8A6),
+                          blurRadius: 38,
+                          offset: Offset(0, 18),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Transform.rotate(
+                    angle: orbitController.value * math.pi * 2,
+                    child: SizedBox(
+                      width: 228,
+                      height: 228,
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFFBFFFF7,
+                                ).withValues(alpha: 0.9),
+                                blurRadius: 18,
+                                spreadRadius: 4,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.fingerprint_rounded,
+                    color: Colors.white,
+                    size: 92,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _StagePillButton extends StatefulWidget {
+  const _StagePillButton({
+    required this.label,
+    required this.onPressed,
+    this.leading,
+    this.trailing,
+    this.disabled = false,
+    this.isLight = false,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final Widget? leading;
+  final Widget? trailing;
+  final bool disabled;
+  final bool isLight;
+
+  @override
+  State<_StagePillButton> createState() => _StagePillButtonState();
+}
+
+class _StagePillButtonState extends State<_StagePillButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = widget.disabled;
+    final isLight = widget.isLight;
+    final foreground = isLight
+        ? const Color(0xFF071937)
+        : const Color(0xFFF5FFFD);
+    final baseColor = isLight
+        ? Colors.white.withValues(alpha: 0.96)
+        : Colors.white.withValues(alpha: 0.12);
+    final hoverColor = isLight
+        ? const Color(0xFFE9FFFB)
+        : Colors.white.withValues(alpha: 0.20);
+
+    return MouseRegion(
+      cursor: disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: disabled ? null : widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 190),
+          curve: Curves.easeOut,
+          constraints: const BoxConstraints(minHeight: 62),
+          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
+          decoration: BoxDecoration(
+            color: _isHovered && !disabled ? hoverColor : baseColor,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: isLight
+                  ? Colors.white.withValues(alpha: 0.9)
+                  : Colors.white.withValues(alpha: _isHovered ? 0.22 : 0.14),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isLight
+                    ? Colors.black.withValues(alpha: _isHovered ? 0.16 : 0.10)
+                    : const Color(
+                        0xFF0E9B90,
+                      ).withValues(alpha: _isHovered ? 0.30 : 0.12),
+                blurRadius: _isHovered ? 30 : 18,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.leading != null) ...[
+                widget.leading!,
+                const SizedBox(width: 12),
+              ],
+              Text(
+                widget.label,
+                style: TextStyle(
+                  color: disabled
+                      ? foreground.withValues(alpha: 0.45)
+                      : foreground,
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              if (widget.trailing != null) ...[
+                const SizedBox(width: 12),
+                widget.trailing!,
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StageMessage extends StatelessWidget {
+  const _StageMessage({required this.errorText, required this.noticeText});
+
+  final String? errorText;
+  final String? noticeText;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = (errorText ?? noticeText ?? '').trim();
+    final isError = (errorText ?? '').trim().isNotEmpty;
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      child: message.isEmpty
+          ? const SizedBox.shrink()
+          : Center(
+              key: ValueKey(message),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 500),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color:
+                      (isError
+                              ? const Color(0xFFFFF1F2)
+                              : const Color(0xFFEFFFFC))
+                          .withValues(alpha: 0.94),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: isError
+                        ? const Color(0xFFFECDD3)
+                        : const Color(0xFF91F0E4),
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 24,
+                      offset: Offset(0, 14),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isError
+                          ? Icons.error_outline_rounded
+                          : Icons.fingerprint_rounded,
+                      size: 17,
+                      color: isError
+                          ? const Color(0xFFBE123C)
+                          : const Color(0xFF0D7F76),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        message,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: isError
+                              ? const Color(0xFF9F1239)
+                              : const Color(0xFF0D6F69),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+// ignore: unused_element
+class _LegacyBiometricHero extends StatelessWidget {
+  const _LegacyBiometricHero();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Floating Google pill (visual only)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x140F172A),
+                  blurRadius: 12,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SvgPicture.asset('assets/google.svg', height: 16, width: 16),
+                const SizedBox(width: 8),
+                const Text(
+                  'Google',
+                  style: TextStyle(
+                    color: Color(0xFF071937),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 26),
+        GestureDetector(
+          onTap: () {
+            // biometric flow will be implemented later; skeleton only
+          },
+          child: Container(
+            width: 320,
+            height: 320,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const RadialGradient(
+                colors: [Color(0xFF0E9B90), Color(0xFF065D55)],
+                center: Alignment(-0.2, -0.2),
+                radius: 0.9,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x3318A89D),
+                  blurRadius: 40,
+                  offset: Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.06),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    width: 2,
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.fingerprint_rounded,
+                    size: 88,
+                    color: Colors.white.withValues(alpha: 0.95),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'Tap to enter',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Face ID · Touch ID',
+          style: TextStyle(
+            color: Color(0xFFBFECE6),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }

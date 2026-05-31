@@ -1,11 +1,12 @@
 # Web Phase 1 Test Log
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 ## Results
 
 | Date | Area | Scenario | Status | Notes |
 | --- | --- | --- | --- | --- |
+| 2026-05-31 | Desktop Login Biometric Shell | Rebuilt the desktop login entry around a biometric-first stage with email fallback | Fixed in code | Desktop login now starts on a dark MindNest biometric shell with an animated fingerprint orb, revolving white border dot, hover-reactive Google and email pills, a scanning skeleton state, and an email/password card that appears only after `Use email instead`; the real biometric provider is intentionally not wired yet. |
 | 2026-05-30 | Auth Shell Lifecycle + Institution Request Flow | Fixed the shared auth-shell ancestor lookup crash and split the institution request into a viewport-friendly two-step flow | Fixed in code | The shared desktop auth shell now initializes its hover animation controllers in `initState`, which prevents the deactivated-widget ancestor lookup assertion during dispose, and the institution request screen now uses a step-based layout so the desktop form fits the screen without forcing a long page scroll. |
 | 2026-05-30 | Chrome Web Bootstrap | Local Chrome runs now load CanvasKit from the SDK instead of fetching it from `gstatic` | Fixed in code | Added a custom `web/flutter_bootstrap.js` that keeps Flutter's standard loader and build config but points localhost dev runs at the local `canvaskit/` bundle, which should stop the startup failure that was blocking the first frame. |
 | 2026-05-27 | Web Pitch Entry | Reframed the desktop login experience and browser shell for pitch readiness | Fixed in code | The web sign-in screen now sells the product with role-aware value messaging, feature cards, and direct account/institution CTAs instead of leaning mostly on a wellness fact card, while `web/index.html`, `manifest.json`, and the app package description now use real MindNest branding plus a branded loading stage and share metadata instead of starter-template placeholders. |

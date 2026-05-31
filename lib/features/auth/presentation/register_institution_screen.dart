@@ -299,12 +299,15 @@ class _RegisterInstitutionScreenState
     final isDesktop = MediaQuery.sizeOf(context).width >= _desktopBreakpoint;
     if (isDesktop) {
       return AuthDesktopShell(
+        heroBaseText: '',
         heroHighlightText: '',
-        heroBaseText: 'Build your account',
         heroDescription:
             'Create your admin account, generate join access, and onboard '
-            'counselors and members in one secure flow.',
+            'counselors and members in one secure, auditable flow.',
+        heroHighlightAfterBase: true,
+        heroSupplement: const _RegisterHeroSupplement(),
         formChild: _buildFormContent(context),
+        disableScroll: true,
       );
     }
 
@@ -714,6 +717,7 @@ class _RegisterInstitutionScreenState
       child: Form(
         key: _formKey,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Align(
@@ -1402,6 +1406,226 @@ class _CatalogSchoolPickerSheetState extends State<_CatalogSchoolPickerSheet> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RegisterHintCard extends StatefulWidget {
+  const _RegisterHintCard({super.key});
+
+  @override
+  State<_RegisterHintCard> createState() => _RegisterHintCardState();
+}
+
+class _RegisterHeroSupplement extends StatelessWidget {
+  const _RegisterHeroSupplement({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: const [
+        SizedBox(height: 18),
+        _FeatureRow(),
+        SizedBox(height: 18),
+        _RegisterHintCard(),
+      ],
+    );
+  }
+}
+
+class _FeatureRow extends StatelessWidget {
+  const _FeatureRow({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: const [
+        Expanded(
+          child: _FeatureCard(
+            icon: Icons.shield_outlined,
+            title: 'FERPA-ready',
+            subtitle: 'Encrypted at rest',
+          ),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: _FeatureCard(
+            icon: Icons.vpn_key_outlined,
+            title: 'Join codes',
+            subtitle: 'Rotate anytime',
+          ),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: _FeatureCard(
+            icon: Icons.group_outlined,
+            title: 'Role-based',
+            subtitle: 'Admins · Counselors',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FeatureCard extends StatelessWidget {
+  const _FeatureCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 140),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF9FFFE), Color(0xFFF5FBFF)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFD6EBE8)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0E9B90).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: const Color(0xFF0E9B90)),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF071937),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                color: Color(0xFF7B8CA4),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RegisterHintCardState extends State<_RegisterHintCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  );
+  late final Animation<Offset> _slide = Tween<Offset>(
+    begin: const Offset(0, 0.05),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOut,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SlideTransition(
+      position: _slide,
+      child: FadeTransition(
+        opacity: _fade,
+        child: Container(
+          margin: const EdgeInsets.only(top: 28),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF6FFFB),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFBEEDE3)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x120F172A),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0E9B90).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.lightbulb_outline_rounded,
+                  color: Color(0xFF0E9B90),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Quick tip',
+                      style: TextStyle(
+                        color: Color(0xFF0E9B90),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'If your school is not listed, request it using "School not listed?" — you\'ll be notified when it\'s added. After registration you will receive a join code to share with counselors.',
+                      style: TextStyle(
+                        color: Color(0xFF475569),
+                        fontSize: 14,
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

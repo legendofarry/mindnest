@@ -1,3 +1,4 @@
+// lib\core\ui\auth_desktop_shell.dart
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -16,6 +17,8 @@ class AuthDesktopShell extends StatelessWidget {
     this.heroSupplement,
     this.heroHighlightAfterBase = false,
     this.formMaxWidth = 560,
+    this.disableScroll = false,
+    this.showTopHeroOverlay = true,
   });
 
   final Widget formChild;
@@ -25,6 +28,8 @@ class AuthDesktopShell extends StatelessWidget {
   final Widget? heroSupplement;
   final bool heroHighlightAfterBase;
   final double formMaxWidth;
+  final bool disableScroll;
+  final bool showTopHeroOverlay;
 
   @override
   Widget build(BuildContext context) {
@@ -50,43 +55,141 @@ class AuthDesktopShell extends StatelessWidget {
             ),
           ),
 
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 52,
-                  vertical: 28,
-                ),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1500),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        flex: 6,
-                        child: _AuthDesktopHero(
-                          heroHighlightText: heroHighlightText,
-                          heroBaseText: heroBaseText,
-                          heroDescription: heroDescription,
-                          heroSupplement: heroSupplement,
-                          heroHighlightAfterBase: heroHighlightAfterBase,
-                        ),
-                      ),
-
-                      const SizedBox(width: 54),
-
-                      Expanded(
-                        flex: 5,
-                        child: _AuthDesktopPhysicsFormCard(
-                          alignment: Alignment.centerRight,
-                          maxWidth: formMaxWidth,
-                          child: formChild,
-                        ),
-                      ),
-                    ],
+          if (showTopHeroOverlay &&
+              (heroHighlightText.trim().isNotEmpty ||
+                  heroBaseText.trim().isNotEmpty))
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 52, top: 8),
+                child: IgnorePointer(
+                  child: RichText(
+                    text: TextSpan(
+                      children: [
+                        if (heroHighlightText.trim().isNotEmpty)
+                          TextSpan(
+                            text: '${heroHighlightText.trim()}\n',
+                            style: const TextStyle(
+                              color: Color(0xFF0E9B90),
+                              fontSize: 74,
+                              fontWeight: FontWeight.w800,
+                              height: 0.96,
+                              letterSpacing: -1.9,
+                            ),
+                          ),
+                        if (heroBaseText.trim().isNotEmpty)
+                          TextSpan(
+                            text: heroBaseText.trim(),
+                            style: const TextStyle(
+                              color: Color(0xFF0F172A),
+                              fontSize: 74,
+                              fontWeight: FontWeight.w800,
+                              height: 0.96,
+                              letterSpacing: -1.9,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
+            ),
+
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // When disableScroll is requested we size the content to fit the
+                // available viewport area and avoid vertical scrolling.
+                if (disableScroll) {
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1500),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 40),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              flex: 6,
+                              fit: FlexFit.loose,
+                              child: _AuthDesktopHero(
+                                heroHighlightText: heroHighlightText,
+                                heroBaseText: heroBaseText,
+                                heroDescription: heroDescription,
+                                heroSupplement: heroSupplement,
+                                heroHighlightAfterBase: heroHighlightAfterBase,
+                              ),
+                            ),
+                            const SizedBox(width: 54),
+                            Flexible(
+                              flex: 5,
+                              fit: FlexFit.loose,
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: formMaxWidth,
+                                  ),
+                                  child: _AuthDesktopPhysicsFormCard(
+                                    alignment: Alignment.centerRight,
+                                    maxWidth: formMaxWidth,
+                                    child: formChild,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                return Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 52,
+                      vertical: 28,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1500),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            flex: 6,
+                            fit: FlexFit.loose,
+                            child: _AuthDesktopHero(
+                              heroHighlightText: heroHighlightText,
+                              heroBaseText: heroBaseText,
+                              heroDescription: heroDescription,
+                              heroSupplement: heroSupplement,
+                              heroHighlightAfterBase: heroHighlightAfterBase,
+                            ),
+                          ),
+                          const SizedBox(width: 54),
+                          Flexible(
+                            flex: 5,
+                            fit: FlexFit.loose,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: formMaxWidth,
+                                ),
+                                child: _AuthDesktopPhysicsFormCard(
+                                  alignment: Alignment.centerRight,
+                                  maxWidth: formMaxWidth,
+                                  child: formChild,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
 
@@ -160,7 +263,9 @@ class _AuthDesktopHero extends StatelessWidget {
                   const SizedBox(height: 2),
                 ],
 
-                Text(heroBaseText, style: heroBaseStyle),
+                if (heroBaseText.trim().isNotEmpty) ...[
+                  Text(heroBaseText, style: heroBaseStyle),
+                ],
 
                 if (hasHighlight && heroHighlightAfterBase) ...[
                   const SizedBox(height: 2),

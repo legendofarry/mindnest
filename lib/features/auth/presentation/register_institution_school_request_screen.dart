@@ -163,6 +163,8 @@ class _RegisterInstitutionSchoolRequestScreenState
 
     if (isDesktop) {
       return AuthDesktopShell(
+        // Hide the small top-left duplicate hero text which crowds the layout
+        showTopHeroOverlay: false,
         heroHighlightText: 'Request your institution',
         heroBaseText: 'for review.',
         heroDescription:
