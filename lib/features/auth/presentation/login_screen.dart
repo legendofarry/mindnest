@@ -17,6 +17,7 @@ import 'package:mindnest/features/auth/presentation/login_did_you_know_session.d
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({
@@ -98,6 +99,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     await _shakeController.forward(from: 0);
   }
 
+  void _showStageBanner(
+    String message, {
+    bool isError = false,
+    Duration? autoDismissAfter,
+  }) {
+    final text = message.trim();
+    if (text.isEmpty) return;
+
+    final icon = isError
+        ? Icons.error_outline_rounded
+        : Icons.fingerprint_rounded;
+    final color = isError ? const Color(0xFFBE123C) : const Color(0xFF0E9B90);
+
+    try {
+      showModernBanner(
+        context,
+        message: text,
+        icon: icon,
+        color: color,
+        autoDismissAfter: autoDismissAfter ?? const Duration(seconds: 6),
+      );
+    } catch (_) {}
+  }
+
   bool get _isBusy => _isSubmitting || _isGoogleSubmitting;
   bool get _isEntryLocked => _isBusy || _isBiometricScanning;
   bool get _isWindowsLoginOnlyMode =>
@@ -145,6 +170,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       _biometricNotice =
           'Biometric sign-in is being prepared. Use Google or email for now.';
     });
+    if (_biometricNotice != null && _biometricNotice!.trim().isNotEmpty) {
+      _showStageBanner(_biometricNotice!, isError: false);
+    }
   }
 
   void _goToSignup() {
@@ -177,6 +205,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         _passwordFieldError = passwordInvalid;
         _formError = 'Please correct the highlighted fields.';
       });
+      _showStageBanner(_formError!, isError: true);
       await _triggerShake();
       return;
     }
@@ -210,6 +239,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       setState(() {
         _formError = _friendlyLoginErrorMessage(error);
       });
+      _showStageBanner(_formError!, isError: true);
       await _triggerShake();
     } catch (error) {
       if (!mounted) {
@@ -218,6 +248,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       setState(() {
         _formError = error.toString().replaceFirst('Exception: ', '');
       });
+      _showStageBanner(_formError!, isError: true);
       await _triggerShake();
     } finally {
       if (mounted) {
@@ -255,6 +286,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           fallback: 'Google sign-in failed. Please try again.',
         );
       });
+      _showStageBanner(_formError!, isError: true);
       await _triggerShake();
     } catch (error) {
       if (!mounted) {
@@ -263,6 +295,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       setState(() {
         _formError = error.toString().replaceFirst('Exception: ', '');
       });
+      _showStageBanner(_formError!, isError: true);
       await _triggerShake();
     } finally {
       if (mounted) {
@@ -342,6 +375,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       _formError =
           'We could not open the web sign-up page. Visit mindnestke.netlify.app in your browser.';
     });
+    _showStageBanner(_formError!, isError: true);
     await _triggerShake();
   }
 
@@ -2119,15 +2153,7 @@ class _BiometricHeroState extends State<_BiometricHero>
               ),
             ),
           ),
-          Positioned(
-            bottom: 78,
-            left: 0,
-            right: 0,
-            child: _StageMessage(
-              errorText: widget.errorText,
-              noticeText: widget.noticeText,
-            ),
-          ),
+          // Stage message now shown via overlay banners (modern_banner.dart).
           Positioned(
             bottom: 28,
             left: 0,
