@@ -446,6 +446,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                   ),
                                 ),
                               ),
+                              // When the email form is open, allow clicks anywhere
+                              // outside the form to close it by tapping this overlay.
+                              if (_showEmailForm)
+                                Positioned.fill(
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: _showBiometricLogin,
+                                    child: Container(color: Colors.transparent),
+                                  ),
+                                ),
                               AnimatedAlign(
                                 duration: const Duration(milliseconds: 520),
                                 curve: Curves.easeOutCubic,
@@ -512,18 +522,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (!showBrand)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: _isEntryLocked ? null : _showBiometricLogin,
-                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                  label: const Text(''),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF0D7F76),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-              ),
+              // removed: biometric quick-entry button (desktop) per request
+              const SizedBox(height: 4),
             if (showBrand) ...[
               const SizedBox(),
               BrandMark(
@@ -763,43 +763,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ],
             ),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _isBusy ? null : _signInWithGoogle,
-              style: ElevatedButton.styleFrom(
-                elevation: 0,
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF0F172A),
-                shadowColor: Colors.transparent,
-                side: const BorderSide(color: Color(0xFFD0D9E6)),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              icon: _isGoogleSubmitting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : SvgPicture.asset(
-                      'assets/google.svg',
-                      height: 20,
-                      width: 20,
-                    ),
-              label: Text(
-                _isGoogleSubmitting
-                    ? 'Connecting to Google...'
-                    : 'Continue with Google',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.1,
-                ),
-              ),
-            ),
             const SizedBox(height: 16),
             Container(
               height: 62,
@@ -874,47 +837,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  _isWindowsLoginOnlyMode
-                      ? 'Need a MindNest account? '
-                      : 'New to MindNest? ',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: const Color(0xFF4A607C),
-                  ),
-                ),
-                MouseRegion(
-                  cursor: _isBusy
-                      ? SystemMouseCursors.basic
-                      : SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: _isBusy
-                        ? null
-                        : _isWindowsLoginOnlyMode
-                        ? _openSignupOnWeb
-                        : () => context.go(
-                            _hasInviteContext
-                                ? AppRoute.withInviteQuery(
-                                    AppRoute.registerDetails,
-                                    _inviteQuery,
-                                  )
-                                : AppRoute.register,
-                          ),
-                    child: Text(
-                      _isWindowsLoginOnlyMode ? 'Sign Up' : 'Create Account',
-                      style: TextStyle(
-                        color: Color(0xFF0E9B90),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            // 'Create account' footer removed per request.
           ],
         ),
       ),
@@ -1928,16 +1851,31 @@ class _DesktopCreateAccountLinkState extends State<_DesktopCreateAccountLink> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'New here? Create account',
-                style: TextStyle(
-                  color: disabled
-                      ? Colors.white.withValues(alpha: 0.34)
-                      : Colors.white.withValues(alpha: 0.68),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.1,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'New here? ',
+                    style: TextStyle(
+                      color: disabled
+                          ? Colors.white.withValues(alpha: 0.34)
+                          : Colors.white.withValues(alpha: 0.72),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    'Create account',
+                    style: TextStyle(
+                      color: disabled
+                          ? Colors.white.withValues(alpha: 0.34)
+                          : Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.1,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(width: 6),
               Icon(
@@ -1945,7 +1883,7 @@ class _DesktopCreateAccountLinkState extends State<_DesktopCreateAccountLink> {
                 size: 15,
                 color: disabled
                     ? Colors.white.withValues(alpha: 0.34)
-                    : Colors.white.withValues(alpha: 0.72),
+                    : Colors.white,
               ),
             ],
           ),
