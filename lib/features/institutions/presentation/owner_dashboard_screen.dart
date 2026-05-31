@@ -900,248 +900,609 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                   fontSize: 18,
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                'Live institution telemetry and owner records in one place so you can govern beyond simple approve/decline flows.',
-                                style: TextStyle(
-                                  color: Color(0xFF5D7291),
-                                  height: 1.4,
-                                ),
-                              ),
                               const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 10,
-                                children: [
-                                  _OwnerStatChip(
-                                    icon: Icons.apartment_rounded,
-                                    label:
-                                        'Institutions ${institutions.length}',
-                                    background: const Color(0xFFE6F8FF),
-                                    foreground: const Color(0xFF0F6D96),
-                                  ),
-                                  _OwnerStatChip(
-                                    icon: Icons.hourglass_top_rounded,
-                                    label: 'Pending $pendingCount',
-                                    background: const Color(0xFFFFF3DE),
-                                    foreground: const Color(0xFFB56A08),
-                                  ),
-                                  _OwnerStatChip(
-                                    icon: Icons.verified_rounded,
-                                    label: 'Approved $approvedCount',
-                                    background: const Color(0xFFE3F8F1),
-                                    foreground: const Color(0xFF0A8A78),
-                                  ),
-                                  _OwnerStatChip(
-                                    icon: Icons.block_rounded,
-                                    label: 'Declined $declinedCount',
-                                    background: const Color(0xFFFFEBEF),
-                                    foreground: const Color(0xFFC93552),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 10,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  SizedBox(
-                                    width: 340,
-                                    child: TextField(
-                                      controller: _institutionSearchController,
-                                      onChanged: (_) => setState(() {}),
-                                      decoration: const InputDecoration(
-                                        hintText:
-                                            'Search institution records...',
-                                        prefixIcon: Icon(Icons.search_rounded),
-                                      ),
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final useRow = constraints.maxWidth >= 760;
+                                  final cards = [
+                                    _OwnerOverviewCard(
+                                      icon: Icons.apartment_rounded,
+                                      count: institutions.length,
+                                      label: 'INSTITUTIONS',
+                                      background: const Color(0xFFE6F8FF),
+                                      foreground: const Color(0xFF0F6D96),
                                     ),
-                                  ),
-                                  for (final option in const <String>[
-                                    'all',
-                                    'pending',
-                                    'approved',
-                                    'declined',
-                                  ])
-                                    ChoiceChip(
-                                      label: Text(
-                                        option == 'all'
-                                            ? 'All'
-                                            : _statusLabel(option),
-                                      ),
-                                      selected:
-                                          _institutionStatusFilter == option,
-                                      onSelected: (_) => setState(() {
-                                        _institutionStatusFilter = option;
-                                      }),
+                                    _OwnerOverviewCard(
+                                      icon: Icons.hourglass_top_rounded,
+                                      count: pendingCount,
+                                      label: 'PENDING',
+                                      background: const Color(0xFFFFF3DE),
+                                      foreground: const Color(0xFFB56A08),
                                     ),
-                                ],
+                                    _OwnerOverviewCard(
+                                      icon: Icons.verified_rounded,
+                                      count: approvedCount,
+                                      label: 'APPROVED',
+                                      background: const Color(0xFFE3F8F1),
+                                      foreground: const Color(0xFF0A8A78),
+                                    ),
+                                    _OwnerOverviewCard(
+                                      icon: Icons.block_rounded,
+                                      count: declinedCount,
+                                      label: 'DECLINED',
+                                      background: const Color(0xFFFFEBEF),
+                                      foreground: const Color(0xFFC93552),
+                                    ),
+                                  ];
+
+                                  if (useRow) {
+                                    return Row(
+                                      children: [
+                                        for (
+                                          var i = 0;
+                                          i < cards.length;
+                                          i++
+                                        ) ...[
+                                          Expanded(child: cards[i]),
+                                          if (i != cards.length - 1)
+                                            const SizedBox(width: 12),
+                                        ],
+                                      ],
+                                    );
+                                  }
+
+                                  return Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: cards,
+                                  );
+                                },
                               ),
-                              const SizedBox(height: 14),
-                              _OwnerInstitutionRecordsTable(
-                                rows: filteredInstitutions,
-                                contactText: _institutionAdminContact,
-                                formatStatus: _statusLabel,
-                                formatDate: _formatShortDate,
-                                statusBackground: _statusBackground,
-                                statusForeground: _statusForeground,
-                                statusIcon: _statusIcon,
-                              ),
+                              const SizedBox(height: 0),
                             ],
                           ),
                   ),
                 ),
                 const SizedBox(height: 14),
-                GlassCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Recent owner activity',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 18,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        if (_isOwnerDataLoading && activities.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 14),
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        else if (activities.isEmpty)
-                          const Text(
-                            'Activity will appear here as institutions and school requests move.',
-                            style: TextStyle(color: Color(0xFF5D7291)),
-                          )
-                        else
-                          Column(
-                            children: activities
-                                .map(
-                                  (item) => _OwnerActivityTile(
-                                    item: item,
-                                    formatDate: _formatDate,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final useSplit = constraints.maxWidth >= 980;
+
+                    final leftCard = GlassCard(
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: _isOwnerDataLoading && institutions.isEmpty
+                            ? const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(20),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    children: const [
+                                      Icon(Icons.apartment_rounded),
+                                      SizedBox(width: 10),
+                                      Text(
+                                        'Institution records',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 18,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                )
-                                .toList(growable: false),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                GlassCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Support Messages',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 18,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Institution admins who are stuck can message here. Refresh manually whenever you want the latest thread state.',
-                          style: TextStyle(
-                            color: Color(0xFF5D7291),
-                            height: 1.4,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        if (_isOwnerDataLoading &&
-                            _ownerSupportMessages.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 20),
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        else if (orderedSupportThreadKeys.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            child: Text(
-                              'No support messages yet.',
+                                  const SizedBox(height: 6),
+                                  const Text(
+                                    'Live institution telemetry and owner records in one place so you can govern beyond simple approve/decline flows.',
+                                    style: TextStyle(
+                                      color: Color(0xFF5D7291),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _institutionSearchController,
+                                    onChanged: (_) => setState(() {}),
+                                    decoration: const InputDecoration(
+                                      hintText:
+                                          'Search institutions, admins, IDs...',
+                                      prefixIcon: Icon(Icons.search_rounded),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: [
+                                      for (final option in const <String>[
+                                        'all',
+                                        'pending',
+                                        'approved',
+                                        'declined',
+                                      ])
+                                        ChoiceChip(
+                                          label: Text(
+                                            option == 'all'
+                                                ? 'All'
+                                                : _statusLabel(option),
+                                          ),
+                                          selected:
+                                              _institutionStatusFilter ==
+                                              option,
+                                          onSelected: (_) => setState(() {
+                                            _institutionStatusFilter = option;
+                                          }),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  if (_isOwnerDataLoading &&
+                                      institutions.isEmpty)
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    )
+                                  else if (filteredInstitutions.isEmpty)
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 56,
+                                          height: 56,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF3FBF9),
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: const Icon(
+                                            Icons.apartment_rounded,
+                                            color: Color(0xFF0F6D96),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        const Text(
+                                          'No institutions match',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        const Text(
+                                          'When admins submit applications, they will land here for your review.',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: Color(0xFF5D7291),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  else
+                                    _OwnerInstitutionRecordsTable(
+                                      rows: filteredInstitutions,
+                                      contactText: _institutionAdminContact,
+                                      formatStatus: _statusLabel,
+                                      formatDate: _formatShortDate,
+                                      statusBackground: _statusBackground,
+                                      statusForeground: _statusForeground,
+                                      statusIcon: _statusIcon,
+                                    ),
+                                ],
+                              ),
+                      ),
+                    );
+
+                    final rightCard = GlassCard(
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Recent activity',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Live feed of governance actions.',
                               style: TextStyle(color: Color(0xFF5D7291)),
                             ),
-                          )
-                        else
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              final useSplit = constraints.maxWidth >= 980;
-                              final threadList = _OwnerSupportThreadList(
-                                threadEntries: orderedSupportThreadKeys,
-                                selectedThreadKey: _selectedSupportThreadKey,
-                                formatDate: _formatDate,
-                                threadTitle: _supportThreadTitle,
-                                threadSubtitle: _supportThreadSubtitle,
-                                previewText: _supportPreview,
-                                onSelect: (threadKey) {
-                                  setState(() {
-                                    _selectedSupportThreadKey = threadKey;
-                                  });
-                                },
-                              );
-                              final conversation = _OwnerSupportConversation(
-                                thread:
-                                    selectedSupportThread ??
-                                    orderedSupportThreadKeys.first.value,
-                                formatDate: _formatDate,
-                                controller: _ownerSupportReplyController,
-                                isSending: _isSendingOwnerSupportReply,
-                                onSend: (thread) {
-                                  final latest = thread.last;
-                                  return _sendOwnerSupportReply(
-                                    requesterId:
-                                        (latest['requesterId'] as String? ?? '')
-                                            .trim(),
-                                    requesterEmail:
-                                        (latest['requesterEmail'] as String? ??
-                                                '')
-                                            .trim(),
-                                    requesterName:
-                                        (latest['requesterName'] as String? ??
-                                                '')
-                                            .trim(),
-                                    institutionId:
-                                        (latest['institutionId'] as String? ??
-                                                '')
-                                            .trim(),
-                                    institutionName:
-                                        (latest['institutionName'] as String? ??
-                                                '')
-                                            .trim(),
-                                  );
-                                },
-                              );
+                            const SizedBox(height: 10),
+                            Expanded(
+                              child: _isOwnerDataLoading && activities.isEmpty
+                                  ? const Center(
+                                      child: CircularProgressIndicator(),
+                                    )
+                                  : activities.isEmpty
+                                  ? const Center(
+                                      child: Text(
+                                        'Activity will appear here as institutions and school requests move.',
+                                        style: TextStyle(
+                                          color: Color(0xFF5D7291),
+                                        ),
+                                      ),
+                                    )
+                                  : Scrollbar(
+                                      thumbVisibility: true,
+                                      child: ListView.separated(
+                                        padding: EdgeInsets.zero,
+                                        itemCount: activities.length,
+                                        separatorBuilder: (context, index) =>
+                                            const SizedBox(height: 10),
+                                        itemBuilder: (context, index) {
+                                          final item = activities[index];
+                                          return ExpansionTile(
+                                            tilePadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                ),
+                                            leading: Container(
+                                              width: 38,
+                                              height: 38,
+                                              decoration: BoxDecoration(
+                                                color: item.tone.withOpacity(
+                                                  0.12,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: Icon(
+                                                item.icon,
+                                                color: item.tone,
+                                                size: 18,
+                                              ),
+                                            ),
+                                            title: Text(
+                                              item.title,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: Color(0xFF142842),
+                                              ),
+                                            ),
+                                            subtitle: Text(
+                                              item.subtitle,
+                                              style: const TextStyle(
+                                                color: Color(0xFF5D7291),
+                                              ),
+                                            ),
+                                            children: [
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                      vertical: 8,
+                                                    ),
+                                                child: Row(
+                                                  children: [
+                                                    Text(
+                                                      _formatDate(
+                                                        item.occurredAt,
+                                                      ),
+                                                      style: const TextStyle(
+                                                        color: Color(
+                                                          0xFF94A3B8,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
 
-                              if (!useSplit) {
-                                return Column(
-                                  children: [
-                                    threadList,
-                                    const SizedBox(height: 14),
-                                    conversation,
-                                  ],
-                                );
-                              }
+                    if (useSplit) {
+                      return IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(flex: 3, child: leftCard),
+                            const SizedBox(width: 14),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 380),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: rightCard,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
 
-                              return Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(flex: 5, child: threadList),
-                                  const SizedBox(width: 14),
-                                  Expanded(flex: 8, child: conversation),
-                                ],
-                              );
-                            },
-                          ),
+                    return Column(
+                      children: [
+                        leftCard,
+                        const SizedBox(height: 14),
+                        rightCard,
                       ],
-                    ),
-                  ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final threeAcross = constraints.maxWidth >= 980;
+                    final supportCount = orderedSupportThreadKeys.length;
+                    final pendingCountLocal = pendingCount;
+                    final schoolCount = _ownerSchoolRequests.length;
+
+                    Widget supportPanel() {
+                      return GlassCard(
+                        child: Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.chat_bubble_rounded,
+                                    color: Color(0xFF0A8A78),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'Support messages',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEFFAF8),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        supportCount.toString(),
+                                        style: const TextStyle(
+                                          color: Color(0xFF0A8A78),
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              const Divider(height: 1),
+                              const SizedBox(height: 18),
+                              Column(
+                                children: [
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF3FBF9),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: const Icon(
+                                      Icons.chat_bubble_outline,
+                                      color: Color(0xFF0A8A78),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'No support messages',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    "Inbox is clear. We'll ping you when a thread arrives.",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Color(0xFF5D7291)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    Widget pendingPanel() {
+                      return GlassCard(
+                        child: Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.hourglass_top_rounded,
+                                    color: Color(0xFFB56A08),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'Pending institutions',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF6E8),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        pendingCountLocal.toString(),
+                                        style: const TextStyle(
+                                          color: Color(0xFFB56A08),
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              const Divider(height: 1),
+                              const SizedBox(height: 18),
+                              Column(
+                                children: [
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFDF7EE),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: const Icon(
+                                      Icons.mark_email_unread_rounded,
+                                      color: Color(0xFFB56A08),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'Nothing pending',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'All caught up — no institution requests in queue.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Color(0xFF5D7291)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    Widget schoolPanel() {
+                      return GlassCard(
+                        child: Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.apartment_rounded,
+                                    color: Color(0xFF0F6D96),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'School not listed',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE8F8FF),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        schoolCount.toString(),
+                                        style: const TextStyle(
+                                          color: Color(0xFF0F6D96),
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              const Divider(height: 1),
+                              const SizedBox(height: 18),
+                              Column(
+                                children: [
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEFF9FB),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: const Icon(
+                                      Icons.apartment_rounded,
+                                      color: Color(0xFF0F6D96),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'No requests',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    "Users haven't flagged any missing schools.",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Color(0xFF5D7291)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    final panels = [
+                      supportPanel(),
+                      pendingPanel(),
+                      schoolPanel(),
+                    ];
+
+                    if (threeAcross) {
+                      return Row(
+                        children: [
+                          Expanded(child: panels[0]),
+                          const SizedBox(width: 12),
+                          Expanded(child: panels[1]),
+                          const SizedBox(width: 12),
+                          Expanded(child: panels[2]),
+                        ],
+                      );
+                    }
+
+                    return Wrap(spacing: 10, runSpacing: 10, children: panels);
+                  },
                 ),
                 const SizedBox(height: 14),
                 if (kIsWeb) ...[
@@ -1252,247 +1613,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                   ),
                   const SizedBox(height: 14),
                 ],
-                GlassCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Pending Institution Requests',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        if (_isOwnerDataLoading && pendingInstitutions.isEmpty)
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(14),
-                              child: CircularProgressIndicator(),
-                            ),
-                          )
-                        else if (pendingInstitutions.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8),
-                            child: Text('No pending institution requests.'),
-                          )
-                        else
-                          Column(
-                            children: pendingInstitutions
-                                .map((item) {
-                                  final id = (item['id'] as String?) ?? '';
-                                  final name =
-                                      (item['name'] as String?) ??
-                                      'Institution';
-                                  final contactEmail = _institutionAdminContact(
-                                    item,
-                                  );
-                                  final createdByName =
-                                      (item['createdByName'] as String? ?? '')
-                                          .trim();
-                                  final createdByEmail =
-                                      (item['createdByEmail'] as String? ?? '')
-                                          .trim();
-                                  final createdByLabel =
-                                      createdByName.isNotEmpty
-                                      ? createdByName
-                                      : createdByEmail.isNotEmpty &&
-                                            createdByEmail != contactEmail
-                                      ? createdByEmail
-                                      : 'Institution admin';
-                                  return Card(
-                                    margin: const EdgeInsets.only(bottom: 10),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            name,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text('Created by: $createdByLabel'),
-                                          Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.alternate_email_rounded,
-                                                size: 16,
-                                                color: Color(0xFF0E7490),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Expanded(
-                                                child: Text(
-                                                  'Admin contact: $contactEmail',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          Text(
-                                            'Submitted: ${_formatDate(item['createdAt'])}',
-                                          ),
-                                          const SizedBox(height: 10),
-                                          Row(
-                                            children: [
-                                              FilledButton.icon(
-                                                onPressed: () =>
-                                                    _approveInstitution(id),
-                                                icon: const Icon(
-                                                  Icons.check_rounded,
-                                                ),
-                                                label: const Text('Approve'),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              OutlinedButton.icon(
-                                                onPressed: () =>
-                                                    _declineInstitution(id),
-                                                icon: const Icon(
-                                                  Icons.close_rounded,
-                                                ),
-                                                label: const Text('Decline'),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                })
-                                .toList(growable: false),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                GlassCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'School Not Listed Requests',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        if (_isOwnerDataLoading && _ownerSchoolRequests.isEmpty)
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(14),
-                              child: CircularProgressIndicator(),
-                            ),
-                          )
-                        else if (_ownerSchoolRequests.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8),
-                            child: Text('No school requests right now.'),
-                          )
-                        else
-                          Column(
-                            children: _ownerSchoolRequests
-                                .map((item) {
-                                  final id = (item['id'] as String?) ?? '';
-                                  final schoolName =
-                                      (item['schoolName'] as String?) ?? '--';
-                                  final contactEmail = _schoolRequestContact(
-                                    item,
-                                  );
-                                  final requesterEmail =
-                                      (item['requesterEmail'] as String?) ??
-                                      '--';
-                                  final requesterName =
-                                      (item['requesterName'] as String?) ??
-                                      '--';
-                                  return Card(
-                                    margin: const EdgeInsets.only(bottom: 10),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            schoolName,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.alternate_email_rounded,
-                                                size: 16,
-                                                color: Color(0xFF0E7490),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Expanded(
-                                                child: Text(
-                                                  'Requester email: $contactEmail',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text('Requester: $requesterName'),
-                                          Text('Email: $requesterEmail'),
-                                          Text(
-                                            'Submitted: ${_formatDate(item['createdAt'])}',
-                                          ),
-                                          const SizedBox(height: 10),
-                                          Row(
-                                            children: [
-                                              FilledButton.icon(
-                                                onPressed: () =>
-                                                    _resolveSchoolRequest(
-                                                      requestId: id,
-                                                      approved: true,
-                                                    ),
-                                                icon: const Icon(
-                                                  Icons.check_rounded,
-                                                ),
-                                                label: const Text('Approve'),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              OutlinedButton.icon(
-                                                onPressed: () =>
-                                                    _resolveSchoolRequest(
-                                                      requestId: id,
-                                                      approved: false,
-                                                    ),
-                                                icon: const Icon(
-                                                  Icons.close_rounded,
-                                                ),
-                                                label: const Text('Decline'),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                })
-                                .toList(growable: false),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
               ],
             ),
     );
@@ -1837,6 +1957,146 @@ class _OwnerStatChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(color: foreground, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OwnerOverviewCard extends StatefulWidget {
+  const _OwnerOverviewCard({
+    Key? key,
+    required this.icon,
+    required this.count,
+    required this.label,
+    required this.background,
+    required this.foreground,
+  }) : super(key: key);
+
+  final IconData icon;
+  final int count;
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  State<_OwnerOverviewCard> createState() => _OwnerOverviewCardState();
+}
+
+class _OwnerOverviewCardState extends State<_OwnerOverviewCard> {
+  bool _hovering = false;
+
+  void _setHover(bool value) {
+    if (_hovering == value) return;
+    setState(() => _hovering = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final baseBg = widget.background;
+    final hoveredGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [baseBg.withOpacity(0.98), baseBg.withOpacity(0.92)],
+    );
+
+    final decoration = BoxDecoration(
+      gradient: _hovering ? hoveredGradient : null,
+      color: _hovering ? null : baseBg,
+      borderRadius: BorderRadius.circular(14),
+      boxShadow: _hovering
+          ? [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ]
+          : [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 3),
+              ),
+            ],
+    );
+
+    final chevronColor = _hovering
+        ? widget.foreground.withOpacity(0.95)
+        : const Color(0xFFBACBD6);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => _setHover(true),
+      onExit: (_) => _setHover(false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        transform: _hovering
+            ? Matrix4.translationValues(0, -6, 0)
+            : Matrix4.identity(),
+        height: 120,
+        padding: const EdgeInsets.all(18),
+        decoration: decoration,
+        child: Stack(
+          children: [
+            Align(
+              alignment: Alignment.topRight,
+              child: Icon(Icons.chevron_right_rounded, color: chevronColor),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(999),
+                    border: _hovering
+                        ? Border.all(
+                            color: widget.foreground.withOpacity(0.12),
+                            width: 1.5,
+                          )
+                        : null,
+                  ),
+                  child: Icon(widget.icon, color: widget.foreground, size: 20),
+                ),
+                const SizedBox(height: 10),
+                Flexible(
+                  fit: FlexFit.loose,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      widget.count.toString(),
+                      style: const TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F233F),
+                      ),
+                      maxLines: 1,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Flexible(
+                  fit: FlexFit.loose,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      widget.label,
+                      style: const TextStyle(
+                        color: Color(0xFF5D7291),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
