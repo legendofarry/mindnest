@@ -532,21 +532,41 @@ class InstitutionRepository {
       );
 
       AppAuthUser? user;
+      var createdNewUser = false;
       try {
-        final credential = await _auth.createUserWithEmailAndPassword(
-          email: normalizedEmail,
-          password: password,
-          displayName: trimmedName,
-        );
-        user = await _ensureWindowsAuthenticatedAfterSignUp(
-          email: normalizedEmail,
-          password: password,
-          fallbackUser: credential.user,
-        );
+        // Reuse the current auth session if present to avoid creating
+        // duplicate accounts when a user retries registration after
+        // cancelling a previous request.
+        final currentAuthUser = _auth.currentUser;
+        if (currentAuthUser != null) {
+          final currentEmail = (currentAuthUser.email ?? '')
+              .trim()
+              .toLowerCase();
+          if (currentEmail.isNotEmpty && currentEmail != normalizedEmail) {
+            throw Exception(
+              'You are signed in as $currentEmail. Sign out to register with a different email.',
+            );
+          }
+          user = currentAuthUser;
+        } else {
+          final credential = await _auth.createUserWithEmailAndPassword(
+            email: normalizedEmail,
+            password: password,
+            displayName: trimmedName,
+          );
+          user = await _ensureWindowsAuthenticatedAfterSignUp(
+            email: normalizedEmail,
+            password: password,
+            fallbackUser: credential.user,
+          );
+          createdNewUser = true;
+        }
         final createdUser = user;
         final now = DateTime.now().toUtc();
 
-        await _auth.sendEmailVerification();
+        try {
+          await _auth.sendEmailVerification();
+        } catch (_) {}
 
         final phoneRegistryPaths = normalizedAdminPhone == null
             ? const <String>[]
@@ -668,14 +688,14 @@ class InstitutionRepository {
           'updatedAt': now,
         });
       } on _PhoneNumberAlreadyInUseException catch (error) {
-        if (user != null) {
+        if (createdNewUser && user != null) {
           try {
             await _auth.deleteCurrentUser();
           } catch (_) {}
         }
         throw Exception(error.message);
       } on _InstitutionDuplicationException {
-        if (user != null) {
+        if (createdNewUser && user != null) {
           try {
             await _auth.deleteCurrentUser();
           } catch (_) {}
@@ -717,16 +737,33 @@ class InstitutionRepository {
     );
 
     AppAuthUser? user;
+    var createdNewUser = false;
     try {
-      final credential = await _auth.createUserWithEmailAndPassword(
-        email: normalizedEmail,
-        password: password,
-        displayName: trimmedName,
-      );
-      user = credential.user;
+      // Reuse existing authenticated user when possible to avoid
+      // "email already in use" on re-registration after cancellations.
+      final currentAuthUser = _auth.currentUser;
+      if (currentAuthUser != null) {
+        final currentEmail = (currentAuthUser.email ?? '').trim().toLowerCase();
+        if (currentEmail.isNotEmpty && currentEmail != normalizedEmail) {
+          throw Exception(
+            'You are signed in as $currentEmail. Sign out to register with a different email.',
+          );
+        }
+        user = currentAuthUser;
+      } else {
+        final credential = await _auth.createUserWithEmailAndPassword(
+          email: normalizedEmail,
+          password: password,
+          displayName: trimmedName,
+        );
+        user = credential.user;
+        createdNewUser = true;
+      }
       final createdUser = user;
 
-      await _auth.sendEmailVerification();
+      try {
+        await _auth.sendEmailVerification();
+      } catch (_) {}
 
       final membershipRef = _firestore
           .collection('institution_members')
@@ -842,7 +879,7 @@ class InstitutionRepository {
         );
       });
     } on _PhoneNumberAlreadyInUseException catch (error) {
-      if (user != null) {
+      if (createdNewUser && user != null) {
         try {
           await _auth.deleteCurrentUser();
         } catch (_) {
@@ -851,7 +888,7 @@ class InstitutionRepository {
       }
       throw Exception(error.message);
     } on _InstitutionDuplicationException {
-      if (user != null) {
+      if (createdNewUser && user != null) {
         try {
           await _auth.deleteCurrentUser();
         } catch (_) {
@@ -2875,9 +2912,20 @@ class InstitutionRepository {
     if (institutions.isEmpty) {
       return institutions;
     }
-    final enriched = await Future.wait<Map<String, dynamic>>(
-      institutions.map(_attachSingleInstitutionAdminEmail),
-    );
+
+    final enriched = <Map<String, dynamic>>[];
+    for (final inst in institutions) {
+      try {
+        final e = await _attachSingleInstitutionAdminEmail(inst);
+        enriched.add(e);
+      } catch (error) {
+        // If enriching a single institution fails, skip enrichment for that
+        // document and include the raw data so the owner still sees the
+        // institution records instead of the entire operation failing.
+        enriched.add(inst);
+      }
+    }
+
     return enriched;
   }
 

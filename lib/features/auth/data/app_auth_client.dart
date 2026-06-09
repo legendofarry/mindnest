@@ -42,6 +42,8 @@ abstract class AppAuthClient {
     bool existingAccountsOnly = false,
   });
 
+  Future<AppAuthSignInResult> signInWithCustomToken(String customToken);
+
   Future<void> signOut();
 
   Future<void> deleteCurrentUser();
@@ -124,6 +126,16 @@ class FirebaseAppAuthClient implements AppAuthClient {
     throw UnsupportedError(
       'Google sign-in should be handled by platform-specific auth flows.',
     );
+  }
+
+  @override
+  Future<AppAuthSignInResult> signInWithCustomToken(String customToken) async {
+    final credential = await _auth.signInWithCustomToken(customToken);
+    final user = _mapUser(credential.user);
+    if (user == null) {
+      throw Exception('Unable to complete passkey sign-in.');
+    }
+    return AppAuthSignInResult(user: user);
   }
 
   @override
@@ -346,6 +358,18 @@ class WindowsRestAppAuthClient implements AppAuthClient {
           'postBody': postBody,
           'returnSecureToken': true,
           'returnIdpCredential': true,
+        });
+    final session = await _sessionFromAuthPayload(response);
+    await _setSession(session);
+    return AppAuthSignInResult(user: session.user);
+  }
+
+  @override
+  Future<AppAuthSignInResult> signInWithCustomToken(String customToken) async {
+    final response =
+        await _postIdentityToolkit('accounts:signInWithCustomToken', <String, dynamic>{
+          'token': customToken.trim(),
+          'returnSecureToken': true,
         });
     final session = await _sessionFromAuthPayload(response);
     await _setSession(session);

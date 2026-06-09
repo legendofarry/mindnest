@@ -9,6 +9,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   firebase_core
   flutter_webrtc
   livekit_client
+  passkeys_windows
   screen_retriever_windows
   speech_to_text_windows
   url_launcher_windows

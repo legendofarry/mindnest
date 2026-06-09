@@ -530,7 +530,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               counselorAccessStatus ==
                   CounselorInstitutionAccessStatus.suspended;
           final institutionStatus =
-              (institutionRequest?['status'] as String?) ?? 'approved';
+              (institutionRequest?['status'] as String?) ?? 'pending';
 
           if (hasCounselorRegistrationIntent) {
             final target = windowsSetupRoute('counselor-invite');
@@ -820,7 +820,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return null;
           }
           final institutionStatus =
-              (institutionRequest?['status'] as String?) ?? 'approved';
+              (institutionRequest?['status'] as String?) ?? 'pending';
           final isInstitutionBlocked = institutionStatus != 'approved';
           if (isInstitutionBlocked &&
               location != AppRoute.institutionPending &&
@@ -973,16 +973,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
         if (role == UserRole.institutionAdmin &&
             (isAuthRoute || location == AppRoute.verifyEmail)) {
-          return alreadyInInstitution
-              ? AppRoute.institutionAdmin
-              : AppRoute.registerInstitution;
-        }
+          if (!alreadyInInstitution) {
+            return AppRoute.registerInstitution;
+          }
 
-        if (role != UserRole.institutionAdmin &&
-            (isAuthRoute ||
-                location == AppRoute.verifyEmail ||
-                location == AppRoute.registerInstitutionSuccess)) {
-          return AppRoute.home;
+          // If we have no institution document yet for this admin account,
+          // avoid routing directly to the admin dashboard. Waiting here
+          // prevents a brief flash into the dashboard before the
+          // institution's approval status is known.
+          final institutionRequestValue =
+              currentAdminInstitutionAsync.valueOrNull;
+          if (institutionRequestValue == null) {
+            return null;
+          }
+          final instStatus =
+              (institutionRequestValue['status'] as String?) ?? 'pending';
+          final isInstitutionBlocked = instStatus != 'approved';
+          if (isInstitutionBlocked) {
+            return AppRoute.institutionPending;
+          }
+          return AppRoute.institutionAdmin;
         }
 
         return null;

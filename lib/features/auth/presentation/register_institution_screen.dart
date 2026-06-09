@@ -77,6 +77,8 @@ class _RegisterInstitutionScreenState
   bool get _isFormBusy => _isSubmitting || _isCheckingInstitutionAvailability;
 
   bool get _isPrimaryActionEnabled {
+    final authUser = ref.read(authStateChangesProvider).valueOrNull;
+    final isLoggedIn = authUser != null;
     if (_isFormBusy) {
       return false;
     }
@@ -87,8 +89,11 @@ class _RegisterInstitutionScreenState
         final hasName = _adminNameController.text.trim().length >= 2;
         final email = _emailController.text.trim();
         final hasEmail = email.isNotEmpty && email.contains('@');
-        return hasName && hasEmail;
+        return isLoggedIn ? hasName : (hasName && hasEmail);
       default:
+        if (isLoggedIn) {
+          return true;
+        }
         return _passwordController.text.length >= 8 &&
             _confirmPasswordController.text.isNotEmpty &&
             _confirmPasswordController.text == _passwordController.text;
@@ -264,18 +269,30 @@ class _RegisterInstitutionScreenState
         }
         return null;
       case 1:
+        final authUser = ref.read(authStateChangesProvider).valueOrNull;
+        final isLoggedIn = authUser != null;
         final hasName = _adminNameController.text.trim().length >= 2;
         final email = _emailController.text.trim();
         final hasEmail = email.isNotEmpty && email.contains('@');
         setState(() {
           _adminNameFieldError = !hasName;
-          _adminEmailFieldError = !hasEmail;
+          _adminEmailFieldError = !isLoggedIn && !hasEmail;
         });
-        if (!hasName || !hasEmail) {
+        if (!hasName || (!isLoggedIn && !hasEmail)) {
           return 'Please correct the highlighted fields.';
         }
         return null;
       default:
+        final authUser = ref.watch(authStateChangesProvider).valueOrNull;
+        final isLoggedIn = authUser != null;
+        if (isLoggedIn) {
+          // No password required when using an existing authenticated account.
+          setState(() {
+            _passwordFieldError = false;
+            _confirmPasswordFieldError = false;
+          });
+          return null;
+        }
         final hasPassword = _passwordController.text.length >= 8;
         final hasConfirm = _confirmPasswordController.text.isNotEmpty;
         final matches =
@@ -373,7 +390,9 @@ class _RegisterInstitutionScreenState
       return;
     }
     if (_activeStep == 0) {
-      context.go(AppRoute.login);
+      // Navigate to the regular register screen instead of login to avoid
+      // triggering router redirects that force this screen back into view.
+      context.go(AppRoute.register);
       return;
     }
     setState(() {
@@ -538,6 +557,17 @@ class _RegisterInstitutionScreenState
   }
 
   Widget _buildAdminDetailsStep() {
+    final authUser = ref.watch(authStateChangesProvider).valueOrNull;
+    final isLoggedIn = authUser != null;
+    if (isLoggedIn) {
+      final currentEmail = (authUser!.email ?? '').trim();
+      if (currentEmail.isNotEmpty &&
+          _emailController.text.trim().toLowerCase() !=
+              currentEmail.toLowerCase()) {
+        _emailController.text = currentEmail;
+      }
+    }
+
     return Column(
       key: const ValueKey('admin-step'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -564,27 +594,67 @@ class _RegisterInstitutionScreenState
         const _FieldLabel(text: 'ADMIN EMAIL ADDRESS'),
         const SizedBox(height: 8),
         _RoundedInput(
-          hasError: _adminEmailFieldError,
-          child: TextFormField(
-            controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-            onChanged: (_) => setState(() {
-              _adminEmailFieldError = false;
-              _formError = null;
-            }),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              hintText: 'alex@example.com',
-              prefixIcon: Icon(Icons.mail_outline_rounded),
-            ),
-          ),
+          hasError: _adminEmailFieldError && !isLoggedIn,
+          child: isLoggedIn
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 16,
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.mail_outline_rounded),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          authUser!.email ?? '',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  onChanged: (_) => setState(() {
+                    _adminEmailFieldError = false;
+                    _formError = null;
+                  }),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    hintText: 'alex@example.com',
+                    prefixIcon: Icon(Icons.mail_outline_rounded),
+                  ),
+                ),
         ),
       ],
     );
   }
 
   Widget _buildSecurityStep() {
+    final authUser = ref.watch(authStateChangesProvider).valueOrNull;
+    final isLoggedIn = authUser != null;
+    if (isLoggedIn) {
+      return Column(
+        key: const ValueKey('security-step-logged-in'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 6),
+          const Text(
+            'You are signed in and will register this institution using your existing account. No password is required.',
+            style: TextStyle(
+              color: Color(0xFF516784),
+              fontSize: 13,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       key: const ValueKey('security-step'),
       crossAxisAlignment: CrossAxisAlignment.stretch,

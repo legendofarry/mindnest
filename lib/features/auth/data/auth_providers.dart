@@ -9,6 +9,7 @@ import 'package:mindnest/features/auth/data/account_export_service.dart';
 import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/data/auth_repository.dart';
+import 'package:mindnest/features/auth/data/passkey_repository.dart';
 import 'package:mindnest/features/auth/models/app_auth_user.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 
@@ -56,6 +57,13 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
         ? null
         : () => ref.read(firestoreProvider),
     windowsRest: ref.read(windowsFirestoreRestClientProvider),
+  );
+});
+
+final passkeyRepositoryProvider = Provider<PasskeyRepository>((ref) {
+  return PasskeyRepository(
+    auth: ref.read(appAuthClientProvider),
+    httpClient: ref.read(authHttpClientProvider),
   );
 });
 

@@ -1,9 +1,21 @@
 import cors from 'cors';
 import express from 'express';
 import admin from 'firebase-admin';
+import { registerPasskeyRoutes } from './passkeys.js';
 
 const app = express();
-app.use(cors());
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin || _isAllowedOrigin(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error('Not allowed by CORS.'));
+  },
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 
 const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -35,6 +47,46 @@ async function authenticate(req, res, next) {
     return next();
   } catch (_) {
     return res.status(401).json({ error: 'Invalid auth token.' });
+  }
+}
+
+function _isAllowedOrigin(origin) {
+  try {
+    const parsed = new URL(origin);
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1'
+    ) {
+      return true;
+    }
+
+    const configuredOrigins = [
+      process.env.PASSKEY_ALLOWED_ORIGINS,
+      process.env.WEB_APP_ORIGIN,
+    ]
+      .flatMap((value) =>
+        (value || '')
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+      )
+      .map((value) => {
+        try {
+          return new URL(value).origin;
+        } catch (_) {
+          return value;
+        }
+      });
+
+    if (configuredOrigins.includes(parsed.origin)) {
+      return true;
+    }
+
+    return hostname === 'mindnestke.netlify.app';
+  } catch (_) {
+    return false;
   }
 }
 
@@ -151,6 +203,13 @@ app.post('/push/dispatch', authenticate, async (req, res) => {
     success: response.successCount,
     failure: response.failureCount,
   });
+});
+
+registerPasskeyRoutes({
+  app,
+  db,
+  admin,
+  authenticate,
 });
 
 const port = Number(process.env.PORT || 8080);

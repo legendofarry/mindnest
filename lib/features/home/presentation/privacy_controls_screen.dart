@@ -8,6 +8,7 @@ import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/account_export_sheet.dart';
+import 'package:mindnest/features/auth/presentation/passkey_management_dialog.dart';
 
 class PrivacyControlsScreen extends ConsumerStatefulWidget {
   const PrivacyControlsScreen({
@@ -58,6 +59,9 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
       subtitle:
           'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your account export.',
     );
+    final onManagePasskeys = () {
+      return showPasskeyManagementDialog(context: context);
+    };
     final onOpenAdminProfile =
         widget.embeddedInAdminShell && role == UserRole.institutionAdmin
         ? () => context.go(
@@ -94,11 +98,13 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
                 ? _CounselorPrivacyContent(
                     onOpenProfile: () => context.go(AppRoute.counselorSettings),
                     onExport: onExport,
+                    onManagePasskeys: onManagePasskeys,
                   )
                 : _RoleScopedPrivacyContent(
                     role: role,
                     onOpenProfile: onOpenAdminProfile,
                     onExport: onExport,
+                    onManagePasskeys: onManagePasskeys,
                     compactEmbedded: adminEmbedded,
                   ),
           ),
@@ -221,12 +227,14 @@ class _RoleScopedPrivacyContent extends StatelessWidget {
   const _RoleScopedPrivacyContent({
     required this.role,
     required this.onExport,
+    required this.onManagePasskeys,
     this.onOpenProfile,
     this.compactEmbedded = false,
   });
 
   final UserRole role;
   final Future<void> Function() onExport;
+  final VoidCallback onManagePasskeys;
   final VoidCallback? onOpenProfile;
   final bool compactEmbedded;
 
@@ -303,6 +311,29 @@ class _RoleScopedPrivacyContent extends StatelessWidget {
           _PrivacyStateCard(message: '$_roleLabel scope. $_scopeMessage'),
           const SizedBox(height: 12),
           _PrivacyModuleCard(
+            title: 'Security',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Manage your saved passkeys from here. Add fingerprint, Face ID, Touch ID, or Windows Hello sign-in for this account.',
+                  style: TextStyle(
+                    color: Color(0xFF5A6E87),
+                    fontWeight: FontWeight.w500,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: onManagePasskeys,
+                  icon: const Icon(Icons.fingerprint_rounded),
+                  label: const Text('Manage Passkeys'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _PrivacyModuleCard(
             title: 'Data self-service',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -336,10 +367,12 @@ class _CounselorPrivacyContent extends StatelessWidget {
   const _CounselorPrivacyContent({
     required this.onExport,
     required this.onOpenProfile,
+    required this.onManagePasskeys,
   });
 
   final Future<void> Function() onExport;
   final VoidCallback onOpenProfile;
+  final VoidCallback onManagePasskeys;
 
   @override
   Widget build(BuildContext context) {
@@ -356,6 +389,29 @@ class _CounselorPrivacyContent extends StatelessWidget {
                 title: 'Counselor Privacy & Data Controls',
                 description:
                     'Keep this page focused on your counselor account data. Student wellbeing-sharing controls live on member accounts, not here.',
+              ),
+              const SizedBox(height: 16),
+              _PrivacyModuleCard(
+                title: 'Security',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Add or remove passkeys for this counselor account. The same dialog also lets you create new biometric sign-in options.',
+                      style: TextStyle(
+                        color: Color(0xFF5A6E87),
+                        fontWeight: FontWeight.w500,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: onManagePasskeys,
+                      icon: const Icon(Icons.fingerprint_rounded),
+                      label: const Text('Manage Passkeys'),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
               const _PrivacyModuleCard(

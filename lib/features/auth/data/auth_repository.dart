@@ -475,6 +475,38 @@ class AuthRepository {
     }
   }
 
+  Future<void> signInWithCustomToken(
+    String customToken, {
+    bool rememberMe = false,
+  }) async {
+    final normalizedToken = customToken.trim();
+    if (normalizedToken.isEmpty) {
+      throw Exception('Missing passkey sign-in token.');
+    }
+
+    if (kIsWeb) {
+      await fb.FirebaseAuth.instance.setPersistence(
+        rememberMe ? fb.Persistence.LOCAL : fb.Persistence.SESSION,
+      );
+    }
+
+    final credential = await _auth.signInWithCustomToken(normalizedToken);
+    final user = credential.user;
+    if (user == null) {
+      throw Exception('Unable to complete passkey sign-in.');
+    }
+
+    if (_useWindowsPollingWorkaround) {
+      await _ensureWindowsLoginProfileExists(user);
+      await AuthSessionManager.markLogin(rememberMe: rememberMe);
+      return;
+    }
+
+    await AuthSessionManager.markLogin(rememberMe: rememberMe);
+    await _ensureProfileExists(user);
+    await _backfillPhoneRegistryForCurrentUser(user.uid);
+  }
+
   Future<void> signOut() async {
     await _auth.signOut();
     await AuthSessionManager.clear();

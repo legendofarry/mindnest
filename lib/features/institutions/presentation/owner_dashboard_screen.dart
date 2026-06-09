@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/core/config/owner_config.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
@@ -24,6 +25,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   final _clearDbConfirmationController = TextEditingController();
   final _institutionSearchController = TextEditingController();
   final _ownerSupportReplyController = TextEditingController();
+  final ScrollController _activitiesScrollController = ScrollController();
   List<Map<String, dynamic>> _ownerInstitutions = const [];
   List<Map<String, dynamic>> _ownerSchoolRequests = const [];
   List<Map<String, dynamic>> _ownerSupportMessages = const [];
@@ -35,6 +37,82 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   bool _isClearingDatabase = false;
   String _institutionStatusFilter = 'all';
   String? _selectedSupportThreadKey;
+
+  Future<void> _openInstitutionDetail(String institutionId) async {
+    final institution = _ownerInstitutions.firstWhere(
+      (i) => (i['id'] as String? ?? '') == institutionId,
+      orElse: () => <String, dynamic>{},
+    );
+    if (institution.isEmpty) {
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(content: Text('Institution not found.')),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text((institution['name'] as String?) ?? 'Institution'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ID: ${institution['id'] ?? '--'}'),
+              const SizedBox(height: 8),
+              Text('Status: ${institution['status'] ?? '--'}'),
+              const SizedBox(height: 8),
+              Text('Admin: ${institution['adminEmail'] ?? institution['createdByEmail'] ?? '--'}'),
+              const SizedBox(height: 8),
+              Text('Catalog ID: ${institution['institutionCatalogId'] ?? '--'}'),
+              const SizedBox(height: 8),
+              Text('Created: ${_formatShortDate(institution['createdAt'])}'),
+              const SizedBox(height: 8),
+              Text('Updated: ${_formatShortDate(institution['updatedAt'])}'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _exportInstitutionCsv(String institutionId) async {
+    final institution = _ownerInstitutions.firstWhere(
+      (i) => (i['id'] as String? ?? '') == institutionId,
+      orElse: () => <String, dynamic>{},
+    );
+    if (institution.isEmpty) {
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(content: Text('Institution not found.')),
+      );
+      return;
+    }
+    final csv = StringBuffer();
+    csv.writeln('field,value');
+    institution.forEach((key, value) {
+      csv.writeln('$key,${value ?? ''}');
+    });
+    try {
+      await Clipboard.setData(ClipboardData(text: csv.toString()));
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(content: Text('Institution CSV copied to clipboard.')),
+      );
+    } catch (e) {
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(content: Text('Failed to copy CSV: $e')),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -48,6 +126,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     _clearDbConfirmationController.dispose();
     _institutionSearchController.dispose();
     _ownerSupportReplyController.dispose();
+    _activitiesScrollController.dispose();
     super.dispose();
   }
 
@@ -117,7 +196,140 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       }
     }
   }
-  // Removed unused approve/decline/resolve helper methods
+
+  Future<void> _approveInstitution(String institutionId) async {
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .approveInstitutionRequest(institutionId: institutionId);
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(
+          content: Text(
+            'Institution approved. Click Refresh to update owner records.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  Future<void> _declineInstitution(String institutionId) async {
+    _declineReasonController.clear();
+    final shouldProceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Decline institution request'),
+        content: TextField(
+          controller: _declineReasonController,
+          minLines: 2,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            labelText: 'Decline reason',
+            hintText: 'Reason shown to institution admin',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Decline'),
+          ),
+        ],
+      ),
+    );
+    if (shouldProceed != true) {
+      return;
+    }
+    final reason = _declineReasonController.text.trim();
+    if (reason.length < 3) {
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(content: Text('Enter a valid decline reason.')),
+      );
+      return;
+    }
+
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .declineInstitutionRequest(
+            institutionId: institutionId,
+            declineReason: reason,
+          );
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(
+          content: Text('Institution declined. Click Refresh to sync changes.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  Future<void> _resolveSchoolRequest({
+    required String requestId,
+    required bool approved,
+  }) async {
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .resolveSchoolRequest(requestId: requestId, approved: approved);
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(
+          content: Text(
+            approved
+                ? 'School request approved. Click Refresh to sync.'
+                : 'School request declined. Click Refresh to sync.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
 
   String _formatDate(dynamic value) {
     if (value is Timestamp) {
@@ -261,6 +473,19 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     return 'Email unavailable';
   }
 
+  String _schoolRequestContact(Map<String, dynamic> request) {
+    for (final candidate in <Object?>[
+      request['requesterEmail'],
+      request['contactEmail'],
+      request['email'],
+    ]) {
+      final value = (candidate as String? ?? '').trim();
+      if (value.isNotEmpty) {
+        return value;
+      }
+    }
+    return 'Email unavailable';
+  }
 
   Map<String, List<Map<String, dynamic>>> _groupSupportThreads() {
     final grouped = <String, List<Map<String, dynamic>>>{};
@@ -273,7 +498,95 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     }
     return grouped;
   }
-  // Removed support-thread helper methods that were unused
+
+  String _supportThreadTitle(List<Map<String, dynamic>> thread) {
+    if (thread.isEmpty) {
+      return 'Support thread';
+    }
+    final latest = thread.last;
+    final requesterName = (latest['requesterName'] as String? ?? '').trim();
+    if (requesterName.isNotEmpty) {
+      return requesterName;
+    }
+    final requesterEmail = (latest['requesterEmail'] as String? ?? '').trim();
+    if (requesterEmail.isNotEmpty) {
+      return requesterEmail;
+    }
+    return 'MindNest user';
+  }
+
+  String _supportThreadSubtitle(List<Map<String, dynamic>> thread) {
+    if (thread.isEmpty) {
+      return 'No messages';
+    }
+    final latest = thread.last;
+    final institutionName = (latest['institutionName'] as String? ?? '').trim();
+    final requesterEmail = (latest['requesterEmail'] as String? ?? '').trim();
+    if (institutionName.isNotEmpty) {
+      return institutionName;
+    }
+    if (requesterEmail.isNotEmpty) {
+      return requesterEmail;
+    }
+    return 'Support request';
+  }
+
+  String _supportPreview(List<Map<String, dynamic>> thread) {
+    if (thread.isEmpty) {
+      return 'No messages yet.';
+    }
+    return ((thread.last['body'] as String?) ?? '').trim();
+  }
+
+  Future<void> _sendOwnerSupportReply({
+    required String requesterId,
+    required String requesterEmail,
+    required String requesterName,
+    required String institutionId,
+    required String institutionName,
+  }) async {
+    final body = _ownerSupportReplyController.text.trim();
+    if (body.isEmpty || _isSendingOwnerSupportReply) {
+      return;
+    }
+
+    setState(() => _isSendingOwnerSupportReply = true);
+    try {
+      await ref
+          .read(institutionRepositoryProvider)
+          .sendOwnerSupportReply(
+            requesterId: requesterId,
+            requesterEmail: requesterEmail,
+            requesterName: requesterName,
+            body: body,
+            institutionId: institutionId,
+            institutionName: institutionName,
+          );
+      _ownerSupportReplyController.clear();
+      await _loadOwnerData();
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(content: Text('Support reply sent.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSendingOwnerSupportReply = false);
+      }
+    }
+  }
 
   List<_OwnerActivityItem> _buildRecentActivities({
     required List<Map<String, dynamic>> institutions,
@@ -501,7 +814,9 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
 
         return latest(b.value).compareTo(latest(a.value));
       });
-    // selectedSupportThread removed (unused)
+    final selectedSupportThread = _selectedSupportThreadKey == null
+        ? null
+        : supportThreads[_selectedSupportThreadKey];
     final pendingCount = pendingInstitutions.length;
     final approvedCount = institutions
         .where(
@@ -564,7 +879,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                     padding: const EdgeInsets.all(18),
                     child: Wrap(
                       spacing: 12,
-                      runSpacing: 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         const Icon(Icons.admin_panel_settings_rounded),
@@ -858,6 +1172,10 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                       statusBackground: _statusBackground,
                                       statusForeground: _statusForeground,
                                       statusIcon: _statusIcon,
+                                      onView: _openInstitutionDetail,
+                                      onApprove: _approveInstitution,
+                                      onDecline: _declineInstitution,
+                                      onExport: _exportInstitutionCsv,
                                     ),
                                 ],
                               ),
@@ -883,91 +1201,97 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                               style: TextStyle(color: Color(0xFF5D7291)),
                             ),
                             const SizedBox(height: 10),
-                            Expanded(
+                            SizedBox(
+                              height: 420,
                               child: _isOwnerDataLoading && activities.isEmpty
                                   ? const Center(
                                       child: CircularProgressIndicator(),
                                     )
                                   : activities.isEmpty
-                                  ? const Center(
-                                      child: Text(
-                                        'Activity will appear here as institutions and school requests move.',
-                                        style: TextStyle(
-                                          color: Color(0xFF5D7291),
-                                        ),
-                                      ),
-                                    )
-                                  : Scrollbar(
-                                      thumbVisibility: true,
-                                      child: ListView.separated(
-                                        padding: EdgeInsets.zero,
-                                        itemCount: activities.length,
-                                        separatorBuilder: (context, index) =>
-                                            const SizedBox(height: 10),
-                                        itemBuilder: (context, index) {
-                                          final item = activities[index];
-                                          return ExpansionTile(
-                                            tilePadding:
-                                                const EdgeInsets.symmetric(
+                                      ? const Center(
+                                          child: Text(
+                                            'Activity will appear here as institutions and school requests move.',
+                                            style: TextStyle(
+                                              color: Color(0xFF5D7291),
+                                            ),
+                                          ),
+                                        )
+                                      : Scrollbar(
+                                          controller: _activitiesScrollController,
+                                          thumbVisibility: true,
+                                          child: ListView.separated(
+                                            controller: _activitiesScrollController,
+                                            primary: false,
+                                            padding: EdgeInsets.zero,
+                                            itemCount: activities.length,
+                                            separatorBuilder:
+                                                (context, index) =>
+                                                    const SizedBox(height: 10),
+                                            itemBuilder: (context, index) {
+                                              final item = activities[index];
+                                              return ExpansionTile(
+                                                tilePadding:
+                                                    const EdgeInsets.symmetric(
                                                   horizontal: 8,
                                                 ),
-                                            leading: Container(
-                                              width: 38,
-                                              height: 38,
-                                              decoration: BoxDecoration(
-                                                color: item.tone.withOpacity(
-                                                  0.12,
+                                                leading: Container(
+                                                  width: 38,
+                                                  height: 38,
+                                                  decoration: BoxDecoration(
+                                                    color: item.tone.withOpacity(
+                                                      0.12,
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(12),
+                                                  ),
+                                                  child: Icon(
+                                                    item.icon,
+                                                    color: item.tone,
+                                                    size: 18,
+                                                  ),
                                                 ),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: Icon(
-                                                item.icon,
-                                                color: item.tone,
-                                                size: 18,
-                                              ),
-                                            ),
-                                            title: Text(
-                                              item.title,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                color: Color(0xFF142842),
-                                              ),
-                                            ),
-                                            subtitle: Text(
-                                              item.subtitle,
-                                              style: const TextStyle(
-                                                color: Color(0xFF5D7291),
-                                              ),
-                                            ),
-                                            children: [
-                                              Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
+                                                title: Text(
+                                                  item.title,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    color: Color(0xFF142842),
+                                                  ),
+                                                ),
+                                                subtitle: Text(
+                                                  item.subtitle,
+                                                  style: const TextStyle(
+                                                    color: Color(0xFF5D7291),
+                                                  ),
+                                                ),
+                                                children: [
+                                                  Padding(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
                                                       horizontal: 16,
                                                       vertical: 8,
                                                     ),
-                                                child: Row(
-                                                  children: [
-                                                    Text(
-                                                      _formatDate(
-                                                        item.occurredAt,
-                                                      ),
-                                                      style: const TextStyle(
-                                                        color: Color(
-                                                          0xFF94A3B8,
+                                                    child: Row(
+                                                      children: [
+                                                        Text(
+                                                          _formatDate(
+                                                            item.occurredAt,
+                                                          ),
+                                                          style:
+                                                              const TextStyle(
+                                                            color: Color(
+                                                              0xFF94A3B8,
+                                                            ),
+                                                          ),
                                                         ),
-                                                      ),
+                                                        const SizedBox(width: 12),
+                                                      ],
                                                     ),
-                                                    const SizedBox(width: 12),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        },
-                                      ),
-                                    ),
+                                                  ),
+                                                ],
+                                              );
+                                            },
+                                          ),
+                                        ),
                             ),
                           ],
                         ),
@@ -975,21 +1299,19 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                     );
 
                     if (useSplit) {
-                      return IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(flex: 3, child: leftCard),
-                            const SizedBox(width: 14),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 380),
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: rightCard,
-                              ),
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 3, child: leftCard),
+                          const SizedBox(width: 14),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 380),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: rightCard,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       );
                     }
 
@@ -1383,7 +1705,287 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   }
 }
 
-// Removed unused support UI helpers: thread list & conversation
+class _OwnerSupportThreadList extends StatelessWidget {
+  const _OwnerSupportThreadList({
+    required this.threadEntries,
+    required this.selectedThreadKey,
+    required this.formatDate,
+    required this.threadTitle,
+    required this.threadSubtitle,
+    required this.previewText,
+    required this.onSelect,
+  });
+
+  final List<MapEntry<String, List<Map<String, dynamic>>>> threadEntries;
+  final String? selectedThreadKey;
+  final String Function(dynamic value) formatDate;
+  final String Function(List<Map<String, dynamic>> thread) threadTitle;
+  final String Function(List<Map<String, dynamic>> thread) threadSubtitle;
+  final String Function(List<Map<String, dynamic>> thread) previewText;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCE8F5)),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: const EdgeInsets.all(12),
+        itemCount: threadEntries.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final entry = threadEntries[index];
+          final thread = entry.value;
+          final latest = thread.last;
+          final isSelected = entry.key == selectedThreadKey;
+          return InkWell(
+            onTap: () => onSelect(entry.key),
+            borderRadius: BorderRadius.circular(20),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isSelected ? const Color(0xFFE8F4FF) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected
+                      ? const Color(0xFF60A5FA)
+                      : const Color(0xFFD7E4F3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          threadTitle(thread),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        formatDate(latest['createdAt']),
+                        style: const TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    threadSubtitle(thread),
+                    style: const TextStyle(
+                      color: Color(0xFF2563EB),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    previewText(thread),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF5D7291),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _OwnerSupportConversation extends StatelessWidget {
+  const _OwnerSupportConversation({
+    required this.thread,
+    required this.formatDate,
+    required this.controller,
+    required this.isSending,
+    required this.onSend,
+  });
+
+  final List<Map<String, dynamic>> thread;
+  final String Function(dynamic value) formatDate;
+  final TextEditingController controller;
+  final bool isSending;
+  final Future<void> Function(List<Map<String, dynamic>> thread) onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    final latest = thread.last;
+    final requesterEmail = (latest['requesterEmail'] as String? ?? '').trim();
+    final institutionName = (latest['institutionName'] as String? ?? '').trim();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFDCE8F5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            (latest['requesterName'] as String? ?? 'MindNest user').trim(),
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            requesterEmail.isEmpty ? 'Email unavailable' : requesterEmail,
+            style: const TextStyle(
+              color: Color(0xFF2563EB),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (institutionName.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              institutionName,
+              style: const TextStyle(
+                color: Color(0xFF5D7291),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 420),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFD6E4F3)),
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(14),
+              itemCount: thread.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final message = thread[index];
+                final isOwner =
+                    ((message['senderRole'] as String? ?? '')
+                        .trim()
+                        .toLowerCase()) ==
+                    'owner';
+                return Align(
+                  alignment: isOwner
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isOwner
+                            ? const Color(0xFF0F9D8A)
+                            : const Color(0xFFF8FBFF),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: isOwner
+                              ? const Color(0xFF0C8A7A)
+                              : const Color(0xFFD6E4F3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isOwner ? 'You' : 'Requester',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: isOwner
+                                  ? Colors.white
+                                  : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            ((message['body'] as String?) ?? '').trim(),
+                            style: TextStyle(
+                              color: isOwner
+                                  ? Colors.white
+                                  : const Color(0xFF334155),
+                              height: 1.45,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            formatDate(message['createdAt']),
+                            style: TextStyle(
+                              color: isOwner
+                                  ? const Color(0xFFD5FAF5)
+                                  : const Color(0xFF94A3B8),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFD6E4F3)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    minLines: 1,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      hintText: 'Reply to this support thread...',
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                FilledButton.icon(
+                  onPressed: isSending ? null : () => onSend(thread),
+                  icon: Icon(
+                    isSending
+                        ? Icons.hourglass_top_rounded
+                        : Icons.send_rounded,
+                  ),
+                  label: Text(isSending ? 'Sending...' : 'Reply'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _OwnerActivityItem {
   const _OwnerActivityItem({
@@ -1598,6 +2200,10 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
     required this.statusBackground,
     required this.statusForeground,
     required this.statusIcon,
+    required this.onView,
+    required this.onApprove,
+    required this.onDecline,
+    required this.onExport,
   });
 
   final List<Map<String, dynamic>> rows;
@@ -1607,6 +2213,10 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
   final Color Function(String status) statusBackground;
   final Color Function(String status) statusForeground;
   final IconData Function(String status) statusIcon;
+  final void Function(String institutionId) onView;
+  final void Function(String institutionId) onApprove;
+  final void Function(String institutionId) onDecline;
+  final void Function(String institutionId) onExport;
 
   @override
   Widget build(BuildContext context) {
@@ -1673,7 +2283,7 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        Expanded(
+                          Expanded(
                           flex: 3,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1769,6 +2379,45 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
                           child: Text(
                             formatDate(row['updatedAt']),
                             style: const TextStyle(color: Color(0xFF2D4360)),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 1,
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: PopupMenuButton<String>(
+                              tooltip: 'Actions',
+                              onSelected: (value) {
+                                final id = (row['id'] as String? ?? '').trim();
+                                if (id.isEmpty) return;
+                                switch (value) {
+                                  case 'view':
+                                    onView(id);
+                                    break;
+                                  case 'approve':
+                                    onApprove(id);
+                                    break;
+                                  case 'decline':
+                                    onDecline(id);
+                                    break;
+                                  case 'export':
+                                    onExport(id);
+                                    break;
+                                }
+                              },
+                              itemBuilder: (context) {
+                                final status = (row['status'] as String? ?? '').trim().toLowerCase();
+                                return <PopupMenuEntry<String>>[
+                                  const PopupMenuItem(value: 'view', child: Text('View')),
+                                  if (status == 'pending')
+                                    const PopupMenuItem(value: 'approve', child: Text('Approve')),
+                                  if (status == 'pending')
+                                    const PopupMenuItem(value: 'decline', child: Text('Decline')),
+                                  const PopupMenuItem(value: 'export', child: Text('Export CSV')),
+                                ];
+                              },
+                              icon: const Icon(Icons.more_vert_rounded),
+                            ),
                           ),
                         ),
                       ],

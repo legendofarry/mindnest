@@ -15,6 +15,7 @@ import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/presentation/login_did_you_know_session.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:passkeys/exceptions.dart' as passkey_exceptions;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:mindnest/core/ui/modern_banner.dart';
@@ -149,29 +150,94 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     });
   }
 
-  Future<void> _startBiometricSkeleton() async {
+  String? _passkeyFailureMessage(Object error) {
+    if (error is passkey_exceptions.PasskeyAuthCancelledException) {
+      return null;
+    }
+    if (error is passkey_exceptions.NoCredentialsAvailableException) {
+      return 'No passkey was found for this browser or device. Use Google or email, or add one in Privacy & Data Controls.';
+    }
+    if (error is passkey_exceptions.DeviceNotSupportedException ||
+        error is passkey_exceptions.PasskeyUnsupportedException) {
+      return 'This device does not support passkeys yet. Use Google or email instead.';
+    }
+    if (error is passkey_exceptions.TimeoutException) {
+      return 'The passkey prompt timed out. Please try again.';
+    }
+    if (error is FirebaseAuthException) {
+      return _friendlyLoginErrorMessage(
+        error,
+        fallback: 'Passkey sign-in failed. Please try again.',
+      );
+    }
+
+    final message = error.toString().replaceFirst('Exception: ', '').trim();
+    return message.isEmpty ? 'Passkey sign-in failed. Please try again.' : message;
+  }
+
+  Future<void> _startPasskeySignIn() async {
     if (_isEntryLocked) {
       return;
     }
 
     setState(() {
       _formError = null;
-      _biometricNotice = null;
+      _biometricNotice = 'Checking your passkey...';
       _isBiometricScanning = true;
     });
 
-    await Future<void>.delayed(const Duration(milliseconds: 1450));
-    if (!mounted) {
+    try {
+      final passkeys = ref.read(passkeyRepositoryProvider);
+      final passkeyResult = await passkeys.signIn();
+      await ref.read(authRepositoryProvider).signInWithCustomToken(
+            passkeyResult.customToken,
+            rememberMe: _rememberMe,
+          );
+      await syncAuthSessionState(ref);
+      if (!mounted) {
+        return;
+      }
+      final currentEmail = ref
+              .read(authRepositoryProvider)
+              .currentAuthUser
+              ?.email
+              .trim()
+              .toLowerCase() ??
+          '';
+      if (currentEmail.isNotEmpty) {
+        await _saveLastEmail(currentEmail);
+      }
+      _showStageBanner(
+        'Passkey verified. Welcome back.',
+        isError: false,
+        autoDismissAfter: const Duration(seconds: 4),
+      );
+    } on passkey_exceptions.PasskeyAuthCancelledException {
+      if (mounted) {
+        setState(() {
+          _isBiometricScanning = false;
+          _biometricNotice = null;
+        });
+      }
       return;
-    }
-
-    setState(() {
-      _isBiometricScanning = false;
-      _biometricNotice =
-          'Biometric sign-in is being prepared. Use Google or email for now.';
-    });
-    if (_biometricNotice != null && _biometricNotice!.trim().isNotEmpty) {
-      _showStageBanner(_biometricNotice!, isError: false);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final message = _passkeyFailureMessage(error);
+      if (message != null && message.trim().isNotEmpty) {
+        setState(() {
+          _formError = message;
+          _biometricNotice = null;
+        });
+        _showStageBanner(message, isError: true);
+        await _triggerShake();
+      }
+      return;
+    } finally {
+      if (mounted) {
+        setState(() => _isBiometricScanning = false);
+      }
     }
   }
 
@@ -473,7 +539,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                       errorText: _showEmailForm
                                           ? null
                                           : _formError,
-                                      onBiometricTap: _startBiometricSkeleton,
+                                      onBiometricTap: _startPasskeySignIn,
                                       onGooglePressed: _signInWithGoogle,
                                       onUseEmailPressed: _showEmailLogin,
                                     ),
@@ -555,9 +621,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (!showBrand)
-              // removed: biometric quick-entry button (desktop) per request
-              const SizedBox(height: 4),
+            if (!showBrand) const SizedBox(height: 4),
             if (showBrand) ...[
               const SizedBox(),
               BrandMark(
@@ -607,6 +671,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     color: Color(0xFF0D6F69),
                     fontWeight: FontWeight.w600,
                   ),
+                ),
+              ),
+            ],
+            if (showBrand) ...[
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: _isEntryLocked ? null : _startPasskeySignIn,
+                icon: _isBiometricScanning
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.fingerprint_rounded),
+                label: Text(
+                  _isBiometricScanning ? 'Verifying passkey...' : 'Use passkey',
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF0E9B90),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Fingerprint, Face ID, Touch ID, or Windows Hello on supported devices.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
                 ),
               ),
             ],
@@ -2142,7 +2244,7 @@ class _BiometricHeroState extends State<_BiometricHero>
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Face ID - Touch ID',
+                    'Passkey sign-in',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.56),
                       fontSize: 13,
@@ -2661,7 +2763,7 @@ class _LegacyBiometricHero extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Face ID · Touch ID',
+          'Passkey sign-in',
           style: TextStyle(
             color: Color(0xFFBFECE6),
             fontWeight: FontWeight.w600,
