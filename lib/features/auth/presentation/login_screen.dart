@@ -172,7 +172,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
 
     final message = error.toString().replaceFirst('Exception: ', '').trim();
-    return message.isEmpty ? 'Passkey sign-in failed. Please try again.' : message;
+    return message.isEmpty
+        ? 'Passkey sign-in failed. Please try again.'
+        : message;
   }
 
   Future<void> _startPasskeySignIn() async {
@@ -189,7 +191,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     try {
       final passkeys = ref.read(passkeyRepositoryProvider);
       final passkeyResult = await passkeys.signIn();
-      await ref.read(authRepositoryProvider).signInWithCustomToken(
+      await ref
+          .read(authRepositoryProvider)
+          .signInWithCustomToken(
             passkeyResult.customToken,
             rememberMe: _rememberMe,
           );
@@ -197,7 +201,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       if (!mounted) {
         return;
       }
-      final currentEmail = ref
+      final currentEmail =
+          ref
               .read(authRepositoryProvider)
               .currentAuthUser
               ?.email
@@ -647,15 +652,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Continue your journey to wellness.',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF5E728D),
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
             if (_hasInviteContext) ...[
               const SizedBox(height: 12),
               Container(
@@ -698,17 +694,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Fingerprint, Face ID, Touch ID, or Windows Hello on supported devices.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color(0xFF64748B),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  height: 1.35,
                 ),
               ),
             ],

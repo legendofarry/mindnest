@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/core/config/owner_config.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
@@ -25,7 +24,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   final _clearDbConfirmationController = TextEditingController();
   final _institutionSearchController = TextEditingController();
   final _ownerSupportReplyController = TextEditingController();
-  final ScrollController _activitiesScrollController = ScrollController();
   List<Map<String, dynamic>> _ownerInstitutions = const [];
   List<Map<String, dynamic>> _ownerSchoolRequests = const [];
   List<Map<String, dynamic>> _ownerSupportMessages = const [];
@@ -37,82 +35,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   bool _isClearingDatabase = false;
   String _institutionStatusFilter = 'all';
   String? _selectedSupportThreadKey;
-
-  Future<void> _openInstitutionDetail(String institutionId) async {
-    final institution = _ownerInstitutions.firstWhere(
-      (i) => (i['id'] as String? ?? '') == institutionId,
-      orElse: () => <String, dynamic>{},
-    );
-    if (institution.isEmpty) {
-      showModernBannerFromSnackBar(
-        context,
-        const SnackBar(content: Text('Institution not found.')),
-      );
-      return;
-    }
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text((institution['name'] as String?) ?? 'Institution'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('ID: ${institution['id'] ?? '--'}'),
-              const SizedBox(height: 8),
-              Text('Status: ${institution['status'] ?? '--'}'),
-              const SizedBox(height: 8),
-              Text('Admin: ${institution['adminEmail'] ?? institution['createdByEmail'] ?? '--'}'),
-              const SizedBox(height: 8),
-              Text('Catalog ID: ${institution['institutionCatalogId'] ?? '--'}'),
-              const SizedBox(height: 8),
-              Text('Created: ${_formatShortDate(institution['createdAt'])}'),
-              const SizedBox(height: 8),
-              Text('Updated: ${_formatShortDate(institution['updatedAt'])}'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _exportInstitutionCsv(String institutionId) async {
-    final institution = _ownerInstitutions.firstWhere(
-      (i) => (i['id'] as String? ?? '') == institutionId,
-      orElse: () => <String, dynamic>{},
-    );
-    if (institution.isEmpty) {
-      showModernBannerFromSnackBar(
-        context,
-        const SnackBar(content: Text('Institution not found.')),
-      );
-      return;
-    }
-    final csv = StringBuffer();
-    csv.writeln('field,value');
-    institution.forEach((key, value) {
-      csv.writeln('$key,${value ?? ''}');
-    });
-    try {
-      await Clipboard.setData(ClipboardData(text: csv.toString()));
-      showModernBannerFromSnackBar(
-        context,
-        const SnackBar(content: Text('Institution CSV copied to clipboard.')),
-      );
-    } catch (e) {
-      showModernBannerFromSnackBar(
-        context,
-        SnackBar(content: Text('Failed to copy CSV: $e')),
-      );
-    }
-  }
 
   @override
   void initState() {
@@ -126,7 +48,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     _clearDbConfirmationController.dispose();
     _institutionSearchController.dispose();
     _ownerSupportReplyController.dispose();
-    _activitiesScrollController.dispose();
     super.dispose();
   }
 
@@ -879,6 +800,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                     padding: const EdgeInsets.all(18),
                     child: Wrap(
                       spacing: 12,
+                      runSpacing: 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         const Icon(Icons.admin_panel_settings_rounded),
@@ -1172,10 +1094,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                       statusBackground: _statusBackground,
                                       statusForeground: _statusForeground,
                                       statusIcon: _statusIcon,
-                                      onView: _openInstitutionDetail,
-                                      onApprove: _approveInstitution,
-                                      onDecline: _declineInstitution,
-                                      onExport: _exportInstitutionCsv,
                                     ),
                                 ],
                               ),
@@ -1201,97 +1119,91 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                               style: TextStyle(color: Color(0xFF5D7291)),
                             ),
                             const SizedBox(height: 10),
-                            SizedBox(
-                              height: 420,
+                            Expanded(
                               child: _isOwnerDataLoading && activities.isEmpty
                                   ? const Center(
                                       child: CircularProgressIndicator(),
                                     )
                                   : activities.isEmpty
-                                      ? const Center(
-                                          child: Text(
-                                            'Activity will appear here as institutions and school requests move.',
-                                            style: TextStyle(
-                                              color: Color(0xFF5D7291),
-                                            ),
-                                          ),
-                                        )
-                                      : Scrollbar(
-                                          controller: _activitiesScrollController,
-                                          thumbVisibility: true,
-                                          child: ListView.separated(
-                                            controller: _activitiesScrollController,
-                                            primary: false,
-                                            padding: EdgeInsets.zero,
-                                            itemCount: activities.length,
-                                            separatorBuilder:
-                                                (context, index) =>
-                                                    const SizedBox(height: 10),
-                                            itemBuilder: (context, index) {
-                                              final item = activities[index];
-                                              return ExpansionTile(
-                                                tilePadding:
-                                                    const EdgeInsets.symmetric(
+                                  ? const Center(
+                                      child: Text(
+                                        'Activity will appear here as institutions and school requests move.',
+                                        style: TextStyle(
+                                          color: Color(0xFF5D7291),
+                                        ),
+                                      ),
+                                    )
+                                  : Scrollbar(
+                                      thumbVisibility: true,
+                                      child: ListView.separated(
+                                        padding: EdgeInsets.zero,
+                                        itemCount: activities.length,
+                                        separatorBuilder: (context, index) =>
+                                            const SizedBox(height: 10),
+                                        itemBuilder: (context, index) {
+                                          final item = activities[index];
+                                          return ExpansionTile(
+                                            tilePadding:
+                                                const EdgeInsets.symmetric(
                                                   horizontal: 8,
                                                 ),
-                                                leading: Container(
-                                                  width: 38,
-                                                  height: 38,
-                                                  decoration: BoxDecoration(
-                                                    color: item.tone.withOpacity(
-                                                      0.12,
-                                                    ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(12),
-                                                  ),
-                                                  child: Icon(
-                                                    item.icon,
-                                                    color: item.tone,
-                                                    size: 18,
-                                                  ),
+                                            leading: Container(
+                                              width: 38,
+                                              height: 38,
+                                              decoration: BoxDecoration(
+                                                color: item.tone.withOpacity(
+                                                  0.12,
                                                 ),
-                                                title: Text(
-                                                  item.title,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w800,
-                                                    color: Color(0xFF142842),
-                                                  ),
-                                                ),
-                                                subtitle: Text(
-                                                  item.subtitle,
-                                                  style: const TextStyle(
-                                                    color: Color(0xFF5D7291),
-                                                  ),
-                                                ),
-                                                children: [
-                                                  Padding(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: Icon(
+                                                item.icon,
+                                                color: item.tone,
+                                                size: 18,
+                                              ),
+                                            ),
+                                            title: Text(
+                                              item.title,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: Color(0xFF142842),
+                                              ),
+                                            ),
+                                            subtitle: Text(
+                                              item.subtitle,
+                                              style: const TextStyle(
+                                                color: Color(0xFF5D7291),
+                                              ),
+                                            ),
+                                            children: [
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
                                                       horizontal: 16,
                                                       vertical: 8,
                                                     ),
-                                                    child: Row(
-                                                      children: [
-                                                        Text(
-                                                          _formatDate(
-                                                            item.occurredAt,
-                                                          ),
-                                                          style:
-                                                              const TextStyle(
-                                                            color: Color(
-                                                              0xFF94A3B8,
-                                                            ),
-                                                          ),
+                                                child: Row(
+                                                  children: [
+                                                    Text(
+                                                      _formatDate(
+                                                        item.occurredAt,
+                                                      ),
+                                                      style: const TextStyle(
+                                                        color: Color(
+                                                          0xFF94A3B8,
                                                         ),
-                                                        const SizedBox(width: 12),
-                                                      ],
+                                                      ),
                                                     ),
-                                                  ),
-                                                ],
-                                              );
-                                            },
-                                          ),
-                                        ),
+                                                    const SizedBox(width: 12),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      ),
+                                    ),
                             ),
                           ],
                         ),
@@ -1299,19 +1211,21 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                     );
 
                     if (useSplit) {
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(flex: 3, child: leftCard),
-                          const SizedBox(width: 14),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 380),
-                            child: SizedBox(
-                              width: double.infinity,
-                              child: rightCard,
+                      return IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(flex: 3, child: leftCard),
+                            const SizedBox(width: 14),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 380),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: rightCard,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       );
                     }
 
@@ -2200,10 +2114,6 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
     required this.statusBackground,
     required this.statusForeground,
     required this.statusIcon,
-    required this.onView,
-    required this.onApprove,
-    required this.onDecline,
-    required this.onExport,
   });
 
   final List<Map<String, dynamic>> rows;
@@ -2213,10 +2123,6 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
   final Color Function(String status) statusBackground;
   final Color Function(String status) statusForeground;
   final IconData Function(String status) statusIcon;
-  final void Function(String institutionId) onView;
-  final void Function(String institutionId) onApprove;
-  final void Function(String institutionId) onDecline;
-  final void Function(String institutionId) onExport;
 
   @override
   Widget build(BuildContext context) {
@@ -2283,7 +2189,7 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                          Expanded(
+                        Expanded(
                           flex: 3,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2379,45 +2285,6 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
                           child: Text(
                             formatDate(row['updatedAt']),
                             style: const TextStyle(color: Color(0xFF2D4360)),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 1,
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: PopupMenuButton<String>(
-                              tooltip: 'Actions',
-                              onSelected: (value) {
-                                final id = (row['id'] as String? ?? '').trim();
-                                if (id.isEmpty) return;
-                                switch (value) {
-                                  case 'view':
-                                    onView(id);
-                                    break;
-                                  case 'approve':
-                                    onApprove(id);
-                                    break;
-                                  case 'decline':
-                                    onDecline(id);
-                                    break;
-                                  case 'export':
-                                    onExport(id);
-                                    break;
-                                }
-                              },
-                              itemBuilder: (context) {
-                                final status = (row['status'] as String? ?? '').trim().toLowerCase();
-                                return <PopupMenuEntry<String>>[
-                                  const PopupMenuItem(value: 'view', child: Text('View')),
-                                  if (status == 'pending')
-                                    const PopupMenuItem(value: 'approve', child: Text('Approve')),
-                                  if (status == 'pending')
-                                    const PopupMenuItem(value: 'decline', child: Text('Decline')),
-                                  const PopupMenuItem(value: 'export', child: Text('Export CSV')),
-                                ];
-                              },
-                              icon: const Icon(Icons.more_vert_rounded),
-                            ),
                           ),
                         ),
                       ],

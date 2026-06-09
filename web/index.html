@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -18,17 +19,20 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="MindNest is a web-first mental wellness workspace for students, staff, counselors, and institutions.">
+  <meta name="description"
+    content="MindNest is a web-first mental wellness workspace for students, staff, counselors, and institutions.">
   <meta name="theme-color" content="#0E9B90">
   <meta name="application-name" content="MindNest">
   <meta property="og:title" content="MindNest | Mental Wellness Support for Institutions">
-  <meta property="og:description" content="Invite-ready onboarding, counselor workflows, live support rooms, and privacy-aware care journeys in one browser workspace.">
+  <meta property="og:description"
+    content="Invite-ready onboarding, counselor workflows, live support rooms, and privacy-aware care journeys in one browser workspace.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://mindnestke.netlify.app/">
   <meta property="og:image" content="https://mindnestke.netlify.app/icons/Icon-512.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="MindNest | Mental Wellness Support for Institutions">
-  <meta name="twitter:description" content="Invite-ready onboarding, counselor workflows, live support rooms, and privacy-aware care journeys in one browser workspace.">
+  <meta name="twitter:description"
+    content="Invite-ready onboarding, counselor workflows, live support rooms, and privacy-aware care journeys in one browser workspace.">
   <meta name="twitter:image" content="https://mindnestke.netlify.app/icons/Icon-512.png">
   <link rel="canonical" href="https://mindnestke.netlify.app/">
 
@@ -41,7 +45,7 @@
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="favicon.png" />
 
   <title>MindNest | Mental Wellness Support for Institutions</title>
   <link rel="manifest" href="manifest.json">
@@ -89,7 +93,7 @@
     }
 
     .mindnest-loader-card {
-      width: min(560px, calc(100vw - 32px));
+      width: fit-content;
       padding: 28px;
       border-radius: 30px;
       background: var(--mindnest-panel);
@@ -216,6 +220,7 @@
     }
 
     @keyframes mindnest-loader-bounce {
+
       0%,
       80%,
       100% {
@@ -260,6 +265,7 @@
     });
   </script>
 </head>
+
 <body>
   <div id="mindnest-loader" aria-live="polite">
     <div class="mindnest-loader-card">
@@ -268,16 +274,12 @@
         <span>MindNest</span>
       </div>
       <div class="mindnest-loader-eyebrow">Web-first workspace for mental wellness teams</div>
-      <h1 class="mindnest-loader-title">A calmer browser workspace <strong>is loading.</strong></h1>
-      <p class="mindnest-loader-copy">
-        Invite-ready onboarding, counselor workflows, live support rooms, and privacy-aware care journeys are warming up now.
-      </p>
+      <h1 class="mindnest-loader-title">Workspace <strong>is loading.</strong></h1>
       <div class="mindnest-loader-tags" aria-hidden="true">
         <span>Students</span>
         <span>Staff</span>
         <span>Counselors</span>
         <span>Admins</span>
-        <span>Owners</span>
       </div>
       <div class="mindnest-loader-footer">
         <div class="mindnest-loader-status">
@@ -288,7 +290,6 @@
             <span></span>
           </span>
         </div>
-        <span class="mindnest-loader-note">MindNest 1.0.2 web polish</span>
       </div>
     </div>
   </div>
@@ -303,4 +304,5 @@
   <script src="passkeys_bundle.js" type="application/javascript"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
+
 </html>

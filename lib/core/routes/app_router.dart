@@ -813,7 +813,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             final canRemainInInstitutionSetupRoutes =
                 location == AppRoute.registerInstitution ||
                 location == AppRoute.registerInstitutionSchoolRequest ||
-                location == AppRoute.registerInstitutionSuccess;
+                location == AppRoute.registerInstitutionSuccess ||
+                // Allow an explicit intentional exit from the institution
+                // setup by visiting `/home?skipSetup=1`. This gives admins a
+                // way to leave the setup flow voluntarily without being
+                // forced back into /register-institution by redirect.
+                (location == AppRoute.home &&
+                    state.uri.queryParameters['skipSetup'] == '1');
             if (!canRemainInInstitutionSetupRoutes) {
               return AppRoute.registerInstitution;
             }

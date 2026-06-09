@@ -2912,20 +2912,9 @@ class InstitutionRepository {
     if (institutions.isEmpty) {
       return institutions;
     }
-
-    final enriched = <Map<String, dynamic>>[];
-    for (final inst in institutions) {
-      try {
-        final e = await _attachSingleInstitutionAdminEmail(inst);
-        enriched.add(e);
-      } catch (error) {
-        // If enriching a single institution fails, skip enrichment for that
-        // document and include the raw data so the owner still sees the
-        // institution records instead of the entire operation failing.
-        enriched.add(inst);
-      }
-    }
-
+    final enriched = await Future.wait<Map<String, dynamic>>(
+      institutions.map(_attachSingleInstitutionAdminEmail),
+    );
     return enriched;
   }
 
