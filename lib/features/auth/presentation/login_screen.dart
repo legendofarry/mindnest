@@ -671,31 +671,129 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
             ],
             if (showBrand) ...[
-              const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: _isEntryLocked ? null : _startPasskeySignIn,
-                icon: _isBiometricScanning
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.4,
-                          color: Colors.white,
+              const SizedBox(height: 20),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0E9B90),
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x2218A89D),
+                            blurRadius: 18,
+                            offset: Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: FilledButton.icon(
+                        onPressed: _isEntryLocked ? null : _signInWithGoogle,
+                        icon: _isGoogleSubmitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : SvgPicture.asset(
+                                'assets/google.svg',
+                                width: 20,
+                                height: 20,
+                              ),
+                        label: Text(
+                          _isGoogleSubmitting ? 'Connecting' : 'Google',
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      )
-                    : const Icon(Icons.fingerprint_rounded),
-                label: Text(
-                  _isBiometricScanning ? 'Verifying passkey...' : 'Use passkey',
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF0E9B90),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                        style: FilledButton.styleFrom(
+                          elevation: 0,
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: Container(
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF071937),
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x22071937),
+                            blurRadius: 18,
+                            offset: Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: FilledButton.icon(
+                        onPressed: _isEntryLocked ? null : _startPasskeySignIn,
+                        icon: _isBiometricScanning
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.fingerprint_rounded, size: 22),
+                        label: Text(
+                          _isBiometricScanning ? 'Verifying' : 'Biometric',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        style: FilledButton.styleFrom(
+                          elevation: 0,
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
+
+              const SizedBox(height: 24),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Divider(color: Colors.grey.shade300, thickness: 1),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'OR',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Divider(color: Colors.grey.shade300, thickness: 1),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
             ],
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 180),
