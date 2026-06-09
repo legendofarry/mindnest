@@ -28,6 +28,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   final _ownerSupportReplyController = TextEditingController();
   List<Map<String, dynamic>> _ownerInstitutions = const [];
   List<Map<String, dynamic>> _ownerSchoolRequests = const [];
+  List<Map<String, dynamic>> _ownerInstitutionHistory = const [];
   List<Map<String, dynamic>> _ownerSupportMessages = const [];
   bool _isOwnerDataLoading = true;
   bool _isOwnerDataRefreshing = false;
@@ -71,12 +72,14 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       final results = await Future.wait<List<Map<String, dynamic>>>([
         repository.getOwnerInstitutions(),
         repository.getOwnerSchoolRequests(),
+        repository.getOwnerInstitutionRequestHistory(),
         repository.getOwnerSupportMessages(),
       ]);
       if (!mounted) {
         return;
       }
-      final supportMessages = results[2];
+      final historyItems = results[2];
+      final supportMessages = results[3];
       final availableThreadKeys = supportMessages
           .map((message) => (message['threadKey'] as String? ?? '').trim())
           .where((key) => key.isNotEmpty)
@@ -90,6 +93,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       setState(() {
         _ownerInstitutions = results[0];
         _ownerSchoolRequests = results[1];
+        _ownerInstitutionHistory = historyItems;
         _ownerSupportMessages = supportMessages;
         _selectedSupportThreadKey = selectedThreadKey;
         _ownerLastRefreshedAt = DateTime.now();
@@ -306,6 +310,8 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
         return 'Approved';
       case 'declined':
         return 'Declined';
+      case 'cancelled':
+        return 'Cancelled';
       case 'pending':
         return 'Pending';
       default:
@@ -319,6 +325,8 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
         return Icons.verified_rounded;
       case 'declined':
         return Icons.block_rounded;
+      case 'cancelled':
+        return Icons.undo_rounded;
       case 'pending':
         return Icons.hourglass_top_rounded;
       default:
@@ -332,6 +340,8 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
         return const Color(0xFFE0F7F3);
       case 'declined':
         return const Color(0xFFFFE8EA);
+      case 'cancelled':
+        return const Color(0xFFF1F5F9);
       case 'pending':
         return const Color(0xFFFFF1D8);
       default:
@@ -345,6 +355,8 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
         return const Color(0xFF0B8E7D);
       case 'declined':
         return const Color(0xFFCC304D);
+      case 'cancelled':
+        return const Color(0xFF64748B);
       case 'pending':
         return const Color(0xFFB56A08);
       default:
@@ -514,64 +526,132 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   List<_OwnerActivityItem> _buildRecentActivities({
     required List<Map<String, dynamic>> institutions,
     required List<Map<String, dynamic>> schoolRequests,
+    required List<Map<String, dynamic>> institutionHistory,
   }) {
     final items = <_OwnerActivityItem>[];
 
-    for (final institution in institutions) {
-      final name = (institution['name'] as String? ?? 'Institution').trim();
-      final status = (institution['status'] as String? ?? '')
-          .trim()
-          .toLowerCase();
-      final createdAt = institution['createdAt'];
-      final review = institution['review'] as Map<String, dynamic>?;
-      final decision = (review?['decision'] as String? ?? '')
-          .trim()
-          .toLowerCase();
-      final reviewedAt = review?['reviewedAt'];
-      final updatedAt = institution['updatedAt'];
+    if (institutionHistory.isNotEmpty) {
+      for (final record in institutionHistory) {
+        final name = (record['institutionName'] as String? ?? 'Institution')
+            .trim();
+        final action = (record['action'] as String? ?? '')
+            .trim()
+            .toLowerCase();
+        final status = (record['status'] as String? ?? '')
+            .trim()
+            .toLowerCase();
+        final reason = (record['reviewReason'] as String? ?? '').trim();
+        final previousStatus = (record['previousStatus'] as String? ?? '')
+            .trim()
+            .toLowerCase();
+        final occurredAt = record['createdAt'] ?? record['updatedAt'];
 
-      if (createdAt != null) {
+        String subtitle;
+        IconData icon;
+        Color tone = _statusForeground(status.isEmpty ? action : status);
+        switch (action) {
+          case 'submitted':
+            icon = Icons.apartment_rounded;
+            subtitle =
+                'The request entered the owner review queue${previousStatus.isEmpty ? '' : ' from $previousStatus'}.';
+            tone = _statusForeground('pending');
+            break;
+          case 'resubmitted':
+            icon = Icons.update_rounded;
+            subtitle = 'The admin updated the request and sent it back for review.';
+            tone = _statusForeground('pending');
+            break;
+          case 'approved':
+            icon = Icons.verified_rounded;
+            subtitle = 'The institution is approved and ready for onboarding.';
+            tone = _statusForeground('approved');
+            break;
+          case 'declined':
+            icon = Icons.block_rounded;
+            subtitle = reason.isEmpty
+                ? 'The owner declined the institution request.'
+                : 'The owner declined the institution request: $reason';
+            tone = _statusForeground('declined');
+            break;
+          case 'cancelled':
+            icon = Icons.undo_rounded;
+            subtitle =
+                'The admin cancelled the request and reset the registration flow.';
+            tone = _statusForeground('cancelled');
+            break;
+          default:
+            icon = _statusIcon(status);
+            subtitle =
+                'Lifecycle update${status.isEmpty ? '' : ' • ${_statusLabel(status)}'}';
+        }
+
         items.add(
           _OwnerActivityItem(
-            icon: Icons.apartment_rounded,
-            title: '$name registered',
-            subtitle: 'Institution request entered the owner review queue.',
-            occurredAt: createdAt,
-            tone: _statusForeground('pending'),
+            icon: icon,
+            title: '$name ${_statusLabel(action.isEmpty ? status : action).toLowerCase()}',
+            subtitle: subtitle,
+            occurredAt: occurredAt,
+            tone: tone,
           ),
         );
       }
+    } else {
+      for (final institution in institutions) {
+        final name = (institution['name'] as String? ?? 'Institution').trim();
+        final status = (institution['status'] as String? ?? '')
+            .trim()
+            .toLowerCase();
+        final createdAt = institution['createdAt'];
+        final review = institution['review'] as Map<String, dynamic>?;
+        final decision = (review?['decision'] as String? ?? '')
+            .trim()
+            .toLowerCase();
+        final reviewedAt = review?['reviewedAt'];
+        final updatedAt = institution['updatedAt'];
 
-      if (decision == 'approved' && reviewedAt != null) {
-        items.add(
-          _OwnerActivityItem(
-            icon: Icons.verified_rounded,
-            title: '$name approved',
-            subtitle: 'Institution is now cleared to onboard members.',
-            occurredAt: reviewedAt,
-            tone: _statusForeground('approved'),
-          ),
-        );
-      } else if (decision == 'declined' && reviewedAt != null) {
-        items.add(
-          _OwnerActivityItem(
-            icon: Icons.block_rounded,
-            title: '$name declined',
-            subtitle: 'The institution request was closed by owner review.',
-            occurredAt: reviewedAt,
-            tone: _statusForeground('declined'),
-          ),
-        );
-      } else if (status == 'pending' && updatedAt != null) {
-        items.add(
-          _OwnerActivityItem(
-            icon: Icons.hourglass_top_rounded,
-            title: '$name awaiting review',
-            subtitle: 'Still sitting in the live owner approvals queue.',
-            occurredAt: updatedAt,
-            tone: _statusForeground('pending'),
-          ),
-        );
+        if (createdAt != null) {
+          items.add(
+            _OwnerActivityItem(
+              icon: Icons.apartment_rounded,
+              title: '$name registered',
+              subtitle: 'Institution request entered the owner review queue.',
+              occurredAt: createdAt,
+              tone: _statusForeground('pending'),
+            ),
+          );
+        }
+
+        if (decision == 'approved' && reviewedAt != null) {
+          items.add(
+            _OwnerActivityItem(
+              icon: Icons.verified_rounded,
+              title: '$name approved',
+              subtitle: 'Institution is now cleared to onboard members.',
+              occurredAt: reviewedAt,
+              tone: _statusForeground('approved'),
+            ),
+          );
+        } else if (decision == 'declined' && reviewedAt != null) {
+          items.add(
+            _OwnerActivityItem(
+              icon: Icons.block_rounded,
+              title: '$name declined',
+              subtitle: 'The institution request was closed by owner review.',
+              occurredAt: reviewedAt,
+              tone: _statusForeground('declined'),
+            ),
+          );
+        } else if (status == 'pending' && updatedAt != null) {
+          items.add(
+            _OwnerActivityItem(
+              icon: Icons.hourglass_top_rounded,
+              title: '$name awaiting review',
+              subtitle: 'Still sitting in the live owner approvals queue.',
+              occurredAt: updatedAt,
+              tone: _statusForeground('pending'),
+            ),
+          );
+        }
       }
     }
 
@@ -720,6 +800,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     final activities = _buildRecentActivities(
       institutions: institutions,
       schoolRequests: _ownerSchoolRequests,
+      institutionHistory: _ownerInstitutionHistory,
     );
     final supportThreads = _groupSupportThreads();
     final orderedSupportThreadKeys = supportThreads.entries.toList()
@@ -753,6 +834,13 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
           (item) =>
               ((item['status'] as String?) ?? '').trim().toLowerCase() ==
               'declined',
+        )
+        .length;
+    final cancelledCount = institutions
+        .where(
+          (item) =>
+              ((item['status'] as String?) ?? '').trim().toLowerCase() ==
+              'cancelled',
         )
         .length;
 
@@ -935,6 +1023,13 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                       background: const Color(0xFFFFEBEF),
                                       foreground: const Color(0xFFC93552),
                                     ),
+                                    _OwnerOverviewCard(
+                                      icon: Icons.undo_rounded,
+                                      count: cancelledCount,
+                                      label: 'CANCELLED',
+                                      background: const Color(0xFFF1F5F9),
+                                      foreground: const Color(0xFF64748B),
+                                    ),
                                   ];
 
                                   if (useRow) {
@@ -1024,6 +1119,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                         'pending',
                                         'approved',
                                         'declined',
+                                        'cancelled',
                                       ])
                                         ChoiceChip(
                                           label: Text(

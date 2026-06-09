@@ -1003,33 +1003,6 @@ class _RegisterInstitutionScreenState
               ],
             ),
             const SizedBox(height: 12),
-            // Allow a signed-in admin to intentionally skip institution setup
-            // and continue into the app. The router will honor the
-            // `skipSetup=1` query parameter (see app_router.dart) so this
-            // navigation doesn't immediately redirect back to this screen.
-            if (ref.read(authStateChangesProvider).valueOrNull != null)
-              Align(
-                alignment: Alignment.center,
-                child: TextButton(
-                  onPressed: _isFormBusy
-                      ? null
-                      : () {
-                          context.go(
-                            Uri(
-                              path: AppRoute.home,
-                              queryParameters: const {'skipSetup': '1'},
-                            ).toString(),
-                          );
-                        },
-                  child: const Text(
-                    'Skip for now',
-                    style: TextStyle(
-                      color: Color(0xFF516784),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
       ),

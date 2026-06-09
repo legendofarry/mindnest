@@ -716,6 +716,18 @@ class InstitutionRepository {
         ]);
       }
 
+      await _appendInstitutionRequestHistory(
+        institutionId: institutionId,
+        institutionCatalogId: trimmedInstitutionCatalogId,
+        institutionName: trimmedInstitutionName,
+        action: 'submitted',
+        status: 'pending',
+        actorUid: user.uid,
+        actorRole: UserRole.institutionAdmin.name,
+        source: 'admin_registration',
+        createdBy: user.uid,
+      );
+
       await _createNotifications([
         _notificationPayload(
           userId: user.uid,
@@ -898,6 +910,7 @@ class InstitutionRepository {
       );
     }
 
+    final createdUserId = user.uid;
     final ownerUserId = await _resolveOwnerUserId();
     if (ownerUserId != null) {
       await _createNotifications([
@@ -911,7 +924,17 @@ class InstitutionRepository {
       ]);
     }
 
-    final createdUserId = user.uid;
+    await _appendInstitutionRequestHistory(
+      institutionId: institutionRef.id,
+      institutionCatalogId: trimmedInstitutionCatalogId,
+      institutionName: trimmedInstitutionName,
+      action: 'submitted',
+      status: 'pending',
+      actorUid: createdUserId,
+      actorRole: UserRole.institutionAdmin.name,
+      source: 'admin_registration',
+      createdBy: createdUserId,
+    );
 
     await _createNotifications([
       _notificationPayload(
@@ -2878,6 +2901,53 @@ class InstitutionRepository {
     return _attachInstitutionAdminEmails(items);
   }
 
+  Future<List<Map<String, dynamic>>> getOwnerInstitutionRequestHistory({
+    int limit = 120,
+  }) async {
+    _ensureOwnerAccount();
+    final cappedLimit = limit.clamp(1, 250).toInt();
+    if (kUseWindowsRestAuth) {
+      final documents = await _windowsRest.queryCollection(
+        collectionId: 'institution_request_history',
+        limit: cappedLimit,
+      );
+      final items = documents
+          .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data})
+          .toList(growable: false);
+      items.sort((a, b) {
+        final aDate =
+            _asUtcDate(a['createdAt']) ??
+            _asUtcDate(a['updatedAt']) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate =
+            _asUtcDate(b['createdAt']) ??
+            _asUtcDate(b['updatedAt']) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
+      return items;
+    }
+    final snapshot = await _firestore
+        .collection('institution_request_history')
+        .limit(cappedLimit)
+        .get();
+    final items = snapshot.docs
+        .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+        .toList(growable: false);
+    items.sort((a, b) {
+      final aDate =
+          _asUtcDate(a['createdAt']) ??
+          _asUtcDate(a['updatedAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate =
+          _asUtcDate(b['createdAt']) ??
+          _asUtcDate(b['updatedAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+    return items;
+  }
+
   Future<void> dismissInstitutionWelcome() async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -3143,6 +3213,18 @@ class InstitutionRepository {
     }
 
     if (createdBy != null && createdBy!.isNotEmpty) {
+      await _appendInstitutionRequestHistory(
+        institutionId: institutionId,
+        institutionCatalogId: institutionCatalogId,
+        institutionName: institutionName,
+        action: 'approved',
+        status: 'approved',
+        actorUid: owner.uid,
+        actorRole: UserRole.owner.name,
+        source: 'owner_review',
+        createdBy: createdBy!,
+        reviewedBy: owner.uid,
+      );
       await _createNotifications([
         _notificationPayload(
           userId: createdBy!,
@@ -3261,6 +3343,19 @@ class InstitutionRepository {
     }
 
     if (createdBy != null && createdBy.isNotEmpty) {
+      await _appendInstitutionRequestHistory(
+        institutionId: institutionId,
+        institutionCatalogId: institutionCatalogId,
+        institutionName: institutionName,
+        action: 'declined',
+        status: 'declined',
+        actorUid: owner.uid,
+        actorRole: UserRole.owner.name,
+        source: 'owner_review',
+        createdBy: createdBy,
+        reviewedBy: owner.uid,
+        reviewReason: reason,
+      );
       await _createNotifications([
         _notificationPayload(
           userId: createdBy,
@@ -3556,6 +3651,19 @@ class InstitutionRepository {
       }
     }
 
+    await _appendInstitutionRequestHistory(
+      institutionId: institutionId,
+      institutionCatalogId: trimmedInstitutionCatalogId,
+      institutionName: trimmedInstitutionName,
+      action: 'resubmitted',
+      status: 'pending',
+      previousStatus: currentStatus,
+      actorUid: currentUser.uid,
+      actorRole: UserRole.institutionAdmin.name,
+      source: 'admin_update',
+      createdBy: profile['createdBy'] as String? ?? currentUser.uid,
+    );
+
     final ownerUserId = await _resolveOwnerUserId();
     if (ownerUserId != null) {
       await _createNotifications([
@@ -3645,13 +3753,25 @@ class InstitutionRepository {
       }
 
       await _windowsRest.deleteDocument('institution_members/$membershipId');
-      await _windowsRest.deleteDocument(institutionPath);
+      await _windowsRest.setDocument(institutionPath, {
+        ...existingInstitution,
+        'status': 'cancelled',
+        'updatedAt': DateTime.now().toUtc(),
+        'review': <String, dynamic>{
+          'reviewedBy': currentUser.uid,
+          'reviewedAt': DateTime.now().toUtc(),
+          'decision': 'cancelled',
+          'declineReason': null,
+        },
+      });
       await _windowsRest.setDocument(userPath, {
         ...userData,
+        'role': UserRole.individual.name,
         'institutionId': null,
         'institutionName': null,
         'institutionCatalogId': null,
         'institutionWelcomePending': false,
+        'registrationIntent': null,
         'updatedAt': DateTime.now().toUtc(),
       });
     } else {
@@ -3694,16 +3814,40 @@ class InstitutionRepository {
       batch.delete(
         _firestore.collection('institution_members').doc(membershipId),
       );
-      batch.delete(institutionRef);
+      batch.update(institutionRef, {
+        'status': 'cancelled',
+        'updatedAt': FieldValue.serverTimestamp(),
+        'review': <String, dynamic>{
+          'reviewedBy': currentUser.uid,
+          'reviewedAt': FieldValue.serverTimestamp(),
+          'decision': 'cancelled',
+          'declineReason': null,
+        },
+      });
       batch.update(userRef, {
+        'role': UserRole.individual.name,
         'institutionId': null,
         'institutionName': null,
         'institutionCatalogId': null,
         'institutionWelcomePending': false,
+        'registrationIntent': null,
         'updatedAt': FieldValue.serverTimestamp(),
       });
       await batch.commit();
     }
+
+    await _appendInstitutionRequestHistory(
+      institutionId: institutionId,
+      institutionCatalogId: currentCatalogId,
+      institutionName: institutionName,
+      action: 'cancelled',
+      status: 'cancelled',
+      previousStatus: currentStatus,
+      actorUid: currentUser.uid,
+      actorRole: UserRole.individual.name,
+      source: 'admin_reset',
+      createdBy: (existingInstitution['createdBy'] as String?) ?? currentUser.uid,
+    );
   }
 
   Future<List<Map<String, dynamic>>> getCurrentUserSupportMessages() async {
@@ -3980,6 +4124,10 @@ class InstitutionRepository {
 
   String _institutionNameRegistryPath(String normalizedName) {
     return 'institution_name_registry/${_institutionNameRegistryKey(normalizedName)}';
+  }
+
+  String _institutionRequestHistoryPath(String historyId) {
+    return 'institution_request_history/$historyId';
   }
 
   String _institutionCatalogRegistryPath(String institutionCatalogId) {
@@ -5359,6 +5507,57 @@ class InstitutionRepository {
       }
     } catch (_) {
       // Audit logging should not break user-facing operations.
+    }
+  }
+
+  Future<void> _appendInstitutionRequestHistory({
+    required String institutionId,
+    required String institutionCatalogId,
+    required String institutionName,
+    required String action,
+    required String status,
+    required String actorUid,
+    required String actorRole,
+    required String source,
+    String? createdBy,
+    String? reviewedBy,
+    String? previousStatus,
+    String? reviewReason,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'institutionId': institutionId,
+        'institutionCatalogId': institutionCatalogId,
+        'institutionName': institutionName,
+        'action': action,
+        'status': status,
+        'actorUid': actorUid,
+        'actorRole': actorRole,
+        'source': source,
+        'createdBy': createdBy,
+        'reviewedBy': reviewedBy,
+        'previousStatus': previousStatus,
+        'reviewReason': reviewReason,
+        'createdAt': kUseWindowsRestAuth
+            ? DateTime.now().toUtc()
+            : FieldValue.serverTimestamp(),
+        'updatedAt': kUseWindowsRestAuth
+            ? DateTime.now().toUtc()
+            : FieldValue.serverTimestamp(),
+      }..removeWhere((_, value) => value == null);
+
+      if (kUseWindowsRestAuth) {
+        await _windowsRest.setDocument(
+          _institutionRequestHistoryPath(_windowsDocId('history')),
+          payload,
+        );
+      } else {
+        await _firestore
+            .collection('institution_request_history')
+            .add(payload);
+      }
+    } catch (_) {
+      // History logging should not break user-facing operations.
     }
   }
 

@@ -1056,7 +1056,56 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
               ),
             ),
-            // 'Create account' footer removed per request.
+            if (showBrand) ...[
+              const SizedBox(height: 18),
+              Center(
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    const Text(
+                      'New here?',
+                      style: TextStyle(
+                        color: Color(0xFF4A607C),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _isEntryLocked ? null : _goToSignup,
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF0E9B90),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                      ),
+                      child: const Text(
+                        'Create account',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _isEntryLocked
+                          ? null
+                          : () => context.go(AppRoute.registerInstitution),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF0E9B90),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                      ),
+                      child: const Text(
+                        'Register institution',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
