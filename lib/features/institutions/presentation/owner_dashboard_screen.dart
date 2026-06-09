@@ -11,6 +11,8 @@ import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/core/ui/modern_banner.dart';
 
+// ignore_for_file: unused_element, unused_local_variable
+
 class OwnerDashboardScreen extends ConsumerStatefulWidget {
   const OwnerDashboardScreen({super.key});
 
@@ -1119,7 +1121,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                               style: TextStyle(color: Color(0xFF5D7291)),
                             ),
                             const SizedBox(height: 10),
-                            Expanded(
+                            Flexible(
                               child: _isOwnerDataLoading && activities.isEmpty
                                   ? const Center(
                                       child: CircularProgressIndicator(),
@@ -1151,8 +1153,8 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                               width: 38,
                                               height: 38,
                                               decoration: BoxDecoration(
-                                                color: item.tone.withOpacity(
-                                                  0.12,
+                                                color: item.tone.withValues(
+                                                  alpha: 0.12,
                                                 ),
                                                 borderRadius:
                                                     BorderRadius.circular(12),
@@ -1967,13 +1969,12 @@ class _OwnerStatChip extends StatelessWidget {
 
 class _OwnerOverviewCard extends StatefulWidget {
   const _OwnerOverviewCard({
-    Key? key,
     required this.icon,
     required this.count,
     required this.label,
     required this.background,
     required this.foreground,
-  }) : super(key: key);
+  });
 
   final IconData icon;
   final int count;
@@ -1999,7 +2000,7 @@ class _OwnerOverviewCardState extends State<_OwnerOverviewCard> {
     final hoveredGradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [baseBg.withOpacity(0.98), baseBg.withOpacity(0.92)],
+      colors: [baseBg.withValues(alpha: 0.98), baseBg.withValues(alpha: 0.92)],
     );
 
     final decoration = BoxDecoration(
@@ -2009,14 +2010,14 @@ class _OwnerOverviewCardState extends State<_OwnerOverviewCard> {
       boxShadow: _hovering
           ? [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
             ]
           : [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 6,
                 offset: const Offset(0, 3),
               ),
@@ -2024,7 +2025,7 @@ class _OwnerOverviewCardState extends State<_OwnerOverviewCard> {
     );
 
     final chevronColor = _hovering
-        ? widget.foreground.withOpacity(0.95)
+        ? widget.foreground.withValues(alpha: 0.95)
         : const Color(0xFFBACBD6);
 
     return MouseRegion(
@@ -2057,7 +2058,7 @@ class _OwnerOverviewCardState extends State<_OwnerOverviewCard> {
                     borderRadius: BorderRadius.circular(999),
                     border: _hovering
                         ? Border.all(
-                            color: widget.foreground.withOpacity(0.12),
+                            color: widget.foreground.withValues(alpha: 0.12),
                             width: 1.5,
                           )
                         : null,

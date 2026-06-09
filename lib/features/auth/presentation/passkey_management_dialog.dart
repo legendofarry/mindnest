@@ -6,9 +6,7 @@ import 'package:mindnest/core/ui/modern_banner.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/data/passkey_repository.dart';
 
-Future<void> showPasskeyManagementDialog({
-  required BuildContext context,
-}) {
+Future<void> showPasskeyManagementDialog({required BuildContext context}) {
   return showDialog<void>(
     context: context,
     barrierDismissible: true,
@@ -43,8 +41,7 @@ class _PasskeyManagementDialogState
   String? _errorMessage;
   List<PasskeyCredentialRecord> _passkeys = const <PasskeyCredentialRecord>[];
 
-  PasskeyRepository get _repository =>
-      ref.read(passkeyRepositoryProvider);
+  PasskeyRepository get _repository => ref.read(passkeyRepositoryProvider);
 
   @override
   void initState() {
@@ -52,10 +49,7 @@ class _PasskeyManagementDialogState
     unawaited(_loadPasskeys());
   }
 
-  Future<void> _showBanner(
-    String message, {
-    bool isError = false,
-  }) async {
+  Future<void> _showBanner(String message, {bool isError = false}) async {
     if (!mounted) {
       return;
     }
@@ -95,8 +89,14 @@ class _PasskeyManagementDialogState
     try {
       final passkeys = await _repository.listMyPasskeys();
       passkeys.sort((a, b) {
-        final aTime = a.lastUsedAt ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bTime = b.lastUsedAt ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final aTime =
+            a.lastUsedAt ??
+            a.createdAt ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime =
+            b.lastUsedAt ??
+            b.createdAt ??
+            DateTime.fromMillisecondsSinceEpoch(0);
         return bTime.compareTo(aTime);
       });
       if (!mounted) {
@@ -228,7 +228,8 @@ class _PasskeyManagementDialogState
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
-    final canUsePasskeys = !_loading && !_adding && !_refreshing && !_removingAll;
+    final canUsePasskeys =
+        !_loading && !_adding && !_refreshing && !_removingAll;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(26, 22, 26, 20),
@@ -257,17 +258,17 @@ class _PasskeyManagementDialogState
                     Text(
                       'Passkeys',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFF071937),
-                          ),
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF071937),
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Add or remove fingerprint, Face ID, Touch ID, and Windows Hello sign-ins.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: const Color(0xFF64748B),
-                            height: 1.35,
-                          ),
+                        color: const Color(0xFF64748B),
+                        height: 1.35,
+                      ),
                     ),
                   ],
                 ),
@@ -290,7 +291,10 @@ class _PasskeyManagementDialogState
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.verified_user_rounded, color: Color(0xFF0E9B90)),
+                  const Icon(
+                    Icons.verified_user_rounded,
+                    color: Color(0xFF0E9B90),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -325,11 +329,16 @@ class _PasskeyManagementDialogState
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF0E9B90),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
                 ),
               ),
               OutlinedButton.icon(
-                onPressed: _refreshing ? null : () => _loadPasskeys(showSpinner: false),
+                onPressed: _refreshing
+                    ? null
+                    : () => _loadPasskeys(showSpinner: false),
                 icon: _refreshing
                     ? const SizedBox(
                         width: 16,
@@ -340,7 +349,9 @@ class _PasskeyManagementDialogState
                 label: const Text('Refresh'),
               ),
               TextButton.icon(
-                onPressed: _passkeys.isEmpty || _removingAll ? null : _removeAllPasskeys,
+                onPressed: _passkeys.isEmpty || _removingAll
+                    ? null
+                    : _removeAllPasskeys,
                 icon: _removingAll
                     ? const SizedBox(
                         width: 16,
@@ -354,14 +365,15 @@ class _PasskeyManagementDialogState
           ),
           const SizedBox(height: 16),
           if (_loading)
-            const Expanded(
-              child: Center(child: CircularProgressIndicator()),
-            )
+            const Expanded(child: Center(child: CircularProgressIndicator()))
           else ...[
             if (_errorMessage != null) ...[
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF1F2),
                   borderRadius: BorderRadius.circular(16),
@@ -414,10 +426,12 @@ class _PasskeyManagementDialogState
               Expanded(
                 child: ListView.separated(
                   itemCount: _passkeys.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final passkey = _passkeys[index];
-                    final deleting = _deletingIds.contains(passkey.credentialId);
+                    final deleting = _deletingIds.contains(
+                      passkey.credentialId,
+                    );
                     return Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(

@@ -140,7 +140,7 @@ class HomeScreen extends ConsumerWidget {
   static const String _openJoinCodeQueryKey = AppRoute.openJoinCodeQuery;
 
   void _showTopErrorBanner(BuildContext context, String message) {
-    final overlay = Overlay.of(context, rootOverlay: true);
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
     if (overlay == null) return;
 
     final entry = OverlayEntry(
@@ -2218,6 +2218,8 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
                         _pauseTemporarily();
                         context.go('${AppRoute.liveRoom}?sessionId=$sessionId');
                       },
+                      onTapHowTo: null,
+                      onTapLocked: null,
                     ),
                   );
               }
@@ -2272,6 +2274,8 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
                       _pauseTemporarily();
                       context.go('${AppRoute.liveRoom}?sessionId=$sessionId');
                     },
+                    onTapHowTo: null,
+                    onTapLocked: null,
                   ),
                 );
             }
@@ -3549,7 +3553,7 @@ class _InstitutionJoinNudgeCard extends ConsumerStatefulWidget {
 class _InstitutionJoinNudgeCardState
     extends ConsumerState<_InstitutionJoinNudgeCard> {
   String? _inlineError;
-  bool _maskJoinCode = true;
+  final bool _maskJoinCode = true;
   String? _appliedPrefillCode;
   String? _selectedInviteId;
 
@@ -3596,10 +3600,10 @@ class _InstitutionJoinNudgeCardState
       final isVerified =
           ref.read(authRepositoryProvider).currentAuthUser?.emailVerified ??
           false;
-      if (!mounted) return;
+      if (!context.mounted) return;
       context.go(isVerified ? AppRoute.home : AppRoute.verifyEmail);
     } catch (error) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       final homeWidget = context.findAncestorWidgetOfExactType<HomeScreen>();
       homeWidget?._showTopErrorBanner(
         context,
@@ -4949,7 +4953,7 @@ class _StatTile extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: stat.color.withOpacity(isDark ? 0.16 : 0.12),
+            color: stat.color.withValues(alpha: isDark ? 0.16 : 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(stat.icon, color: stat.color, size: 18),
@@ -5025,7 +5029,7 @@ class _ResourceSpotlightCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF0E9B90).withOpacity(0.12),
+              color: const Color(0xFF0E9B90).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(

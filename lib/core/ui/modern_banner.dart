@@ -30,7 +30,7 @@ void showModernBanner(
   // Remove any existing overlay banner immediately
   _removeCurrentOverlayEntryImmediate();
 
-  final overlay = Overlay.of(context);
+  final overlay = Overlay.maybeOf(context);
   final messenger = ScaffoldMessenger.of(context);
   if (overlay == null) {
     // Fallback to MaterialBanner when no overlay is available.

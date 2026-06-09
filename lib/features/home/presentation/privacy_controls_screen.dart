@@ -52,27 +52,27 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
     final contentAlignment = adminEmbedded || role == UserRole.counselor
         ? Alignment.topLeft
         : Alignment.topCenter;
-    final onExport = () => showAccountExportSheet(
+    Future<void> onExport() => showAccountExportSheet(
       context: context,
       ref: ref,
       title: 'Download your account data',
       subtitle:
           'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON for your account export.',
     );
-    final onManagePasskeys = () {
-      return showPasskeyManagementDialog(context: context);
-    };
-    final onOpenAdminProfile =
-        widget.embeddedInAdminShell && role == UserRole.institutionAdmin
-        ? () => context.go(
-            Uri(
-              path: AppRoute.institutionAdmin,
-              queryParameters: const <String, String>{
-                AppRoute.adminPanelQuery: 'profile',
-              },
-            ).toString(),
-          )
-        : null;
+    void onManagePasskeys() {
+      showPasskeyManagementDialog(context: context);
+    }
+
+    void onOpenAdminProfile() {
+      context.go(
+        Uri(
+          path: AppRoute.institutionAdmin,
+          queryParameters: const <String, String>{
+            AppRoute.adminPanelQuery: 'profile',
+          },
+        ).toString(),
+      );
+    }
 
     final content = SafeArea(
       child: Padding(
@@ -102,7 +102,11 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
                   )
                 : _RoleScopedPrivacyContent(
                     role: role,
-                    onOpenProfile: onOpenAdminProfile,
+                    onOpenProfile:
+                        widget.embeddedInAdminShell &&
+                            role == UserRole.institutionAdmin
+                        ? onOpenAdminProfile
+                        : null,
                     onExport: onExport,
                     onManagePasskeys: onManagePasskeys,
                     compactEmbedded: adminEmbedded,
@@ -292,7 +296,8 @@ class _RoleScopedPrivacyContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (role == UserRole.counselor || role == UserRole.institutionAdmin) ...[
+          if (role == UserRole.counselor ||
+              role == UserRole.institutionAdmin) ...[
             _PrivacyBreadcrumb(
               items: role == UserRole.institutionAdmin
                   ? const ['Admin Profile', 'Privacy & Data Controls']

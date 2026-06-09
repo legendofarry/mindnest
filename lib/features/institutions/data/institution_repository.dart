@@ -539,9 +539,7 @@ class InstitutionRepository {
         // cancelling a previous request.
         final currentAuthUser = _auth.currentUser;
         if (currentAuthUser != null) {
-          final currentEmail = (currentAuthUser.email ?? '')
-              .trim()
-              .toLowerCase();
+          final currentEmail = currentAuthUser.email.trim().toLowerCase();
           if (currentEmail.isNotEmpty && currentEmail != normalizedEmail) {
             throw Exception(
               'You are signed in as $currentEmail. Sign out to register with a different email.',
@@ -743,7 +741,7 @@ class InstitutionRepository {
       // "email already in use" on re-registration after cancellations.
       final currentAuthUser = _auth.currentUser;
       if (currentAuthUser != null) {
-        final currentEmail = (currentAuthUser.email ?? '').trim().toLowerCase();
+        final currentEmail = currentAuthUser.email.trim().toLowerCase();
         if (currentEmail.isNotEmpty && currentEmail != normalizedEmail) {
           throw Exception(
             'You are signed in as $currentEmail. Sign out to register with a different email.',

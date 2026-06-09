@@ -119,13 +119,13 @@ class LiveRepository {
   }
 
   static String _deriveTokenEndpointFromPushEndpoint(String pushEndpoint) {
-    final trimmed = (pushEndpoint ?? '').trim();
+    final trimmed = pushEndpoint.trim();
     if (trimmed.isEmpty) {
       return '';
     }
     try {
       final uri = Uri.parse(trimmed);
-      if (!uri.hasScheme || (uri.host ?? '').isEmpty) {
+      if (!uri.hasScheme || uri.host.isEmpty) {
         return '';
       }
       // Replace path with a conventional livekit token endpoint path.

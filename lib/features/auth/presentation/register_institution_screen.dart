@@ -560,7 +560,7 @@ class _RegisterInstitutionScreenState
     final authUser = ref.watch(authStateChangesProvider).valueOrNull;
     final isLoggedIn = authUser != null;
     if (isLoggedIn) {
-      final currentEmail = (authUser!.email ?? '').trim();
+      final currentEmail = authUser.email.trim();
       if (currentEmail.isNotEmpty &&
           _emailController.text.trim().toLowerCase() !=
               currentEmail.toLowerCase()) {
@@ -607,7 +607,7 @@ class _RegisterInstitutionScreenState
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          authUser!.email ?? '',
+                          authUser.email,
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
@@ -1512,14 +1512,14 @@ class _CatalogSchoolPickerSheetState extends State<_CatalogSchoolPickerSheet> {
 }
 
 class _RegisterHintCard extends StatefulWidget {
-  const _RegisterHintCard({super.key});
+  const _RegisterHintCard();
 
   @override
   State<_RegisterHintCard> createState() => _RegisterHintCardState();
 }
 
 class _RegisterHeroSupplement extends StatelessWidget {
-  const _RegisterHeroSupplement({super.key});
+  const _RegisterHeroSupplement();
 
   @override
   Widget build(BuildContext context) {
@@ -1536,7 +1536,7 @@ class _RegisterHeroSupplement extends StatelessWidget {
 }
 
 class _FeatureRow extends StatelessWidget {
-  const _FeatureRow({super.key});
+  const _FeatureRow();
 
   @override
   Widget build(BuildContext context) {
@@ -1572,7 +1572,6 @@ class _FeatureRow extends StatelessWidget {
 
 class _FeatureCard extends StatelessWidget {
   const _FeatureCard({
-    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,

@@ -996,8 +996,8 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
                               final gap = 14.0;
                               final tileWidth =
                                   (constraints.maxWidth -
-                                          gap * (tilesPerRow - 1)) /
-                                      tilesPerRow;
+                                      gap * (tilesPerRow - 1)) /
+                                  tilesPerRow;
 
                               Widget tile(Widget child) =>
                                   SizedBox(width: tileWidth, child: child);
@@ -1327,55 +1327,6 @@ class _SessionDetailsScreenState extends ConsumerState<SessionDetailsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
         ),
       ),
-    );
-  }
-
-  Widget _partyCard({
-    required String label,
-    required String name,
-    required IconData icon,
-    required Color iconTint,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF8EA0BD),
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1,
-            fontSize: 12,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Icon(icon, color: iconTint, size: 24),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF0F172A),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 17,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }

@@ -896,6 +896,8 @@ class _InstitutionAdminScreenState
         memberUserId.isNotEmpty &&
         entry.status != 'removed';
 
+    final router = GoRouter.of(context);
+
     showDialog<String>(
       context: context,
       builder: (context) {
@@ -1052,7 +1054,7 @@ class _InstitutionAdminScreenState
       }
       switch (action) {
         case 'message_counselor':
-          context.go(
+          router.go(
             Uri(
               path: AppRoute.institutionAdminMessages,
               queryParameters: <String, String>{
@@ -2786,7 +2788,6 @@ class _WorkspaceEntry {
 
 class _WorkspacePanel extends StatelessWidget {
   const _WorkspacePanel({
-    super.key,
     required this.activeView,
     required this.searchFieldKey,
     required this.searchController,

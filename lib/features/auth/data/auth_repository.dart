@@ -492,9 +492,6 @@ class AuthRepository {
 
     final credential = await _auth.signInWithCustomToken(normalizedToken);
     final user = credential.user;
-    if (user == null) {
-      throw Exception('Unable to complete passkey sign-in.');
-    }
 
     if (_useWindowsPollingWorkaround) {
       await _ensureWindowsLoginProfileExists(user);
