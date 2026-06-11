@@ -13,6 +13,7 @@ import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/core/ui/auth_desktop_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
 class RegisterInstitutionScreen extends ConsumerStatefulWidget {
@@ -250,6 +251,24 @@ class _RegisterInstitutionScreenState
     }
     setState(() => _formError = message);
     await _triggerShake();
+  }
+
+  Future<void> _handleBackToRegister() async {
+    if (_isSubmitting) {
+      return;
+    }
+
+    final isLoggedIn = ref.read(authStateChangesProvider).valueOrNull != null;
+    if (isLoggedIn) {
+      await confirmAndLogout(context: context, ref: ref);
+      if (!mounted) {
+        return;
+      }
+    }
+
+    if (mounted) {
+      context.go(AppRoute.register);
+    }
   }
 
   Future<void> _triggerShake() async {
@@ -777,6 +796,8 @@ class _RegisterInstitutionScreenState
   }
 
   Widget _buildFormContent(BuildContext context) {
+    final authUser = ref.watch(authStateChangesProvider).valueOrNull;
+    final isLoggedIn = authUser != null;
     return AnimatedBuilder(
       animation: _shakeController,
       builder: (context, child) {
@@ -795,23 +816,26 @@ class _RegisterInstitutionScreenState
               alignment: Alignment.centerLeft,
               child: InkWell(
                 borderRadius: BorderRadius.circular(20),
-                onTap: _isSubmitting
-                    ? null
-                    : () => context.go(AppRoute.register),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                onTap: _isSubmitting ? null : _handleBackToRegister,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 2,
+                    vertical: 4,
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.arrow_back_ios_new_rounded,
+                        isLoggedIn
+                            ? Icons.logout_rounded
+                            : Icons.arrow_back_ios_new_rounded,
                         size: 17,
-                        color: Color(0xFF93A3BA),
+                        color: const Color(0xFF93A3BA),
                       ),
-                      SizedBox(width: 6),
+                      const SizedBox(width: 6),
                       Text(
-                        'Back to Register',
-                        style: TextStyle(
+                        isLoggedIn ? 'Switch account' : 'Back to Register',
+                        style: const TextStyle(
                           color: Color(0xFF93A3BA),
                           fontWeight: FontWeight.w700,
                           fontSize: 16,
@@ -834,7 +858,9 @@ class _RegisterInstitutionScreenState
             ),
             const SizedBox(height: 6),
             Text(
-              _stepTitle(),
+              isLoggedIn
+                  ? 'Continue your admin setup or switch account'
+                  : _stepTitle(),
               style: const TextStyle(
                 color: Color(0xFF0E9B90),
                 fontSize: 13,
@@ -844,7 +870,9 @@ class _RegisterInstitutionScreenState
             ),
             const SizedBox(height: 10),
             Text(
-              _stepDescription(),
+              isLoggedIn
+                  ? 'You are signed in already. Finish this request or log out to start a different account.'
+                  : _stepDescription(),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: const Color(0xFF516784),
                 height: 1.35,
