@@ -3087,6 +3087,9 @@ class InstitutionRepository {
     );
 
     String? createdBy;
+    String institutionName = '';
+    String institutionCatalogId = '';
+    String normalizedName = '';
     if (kUseWindowsRestAuth) {
       final snapshot = await _windowsRest.getDocument(
         'institutions/$institutionId',
@@ -3099,10 +3102,10 @@ class InstitutionRepository {
       if (status == 'approved') {
         throw Exception('Institution is already approved.');
       }
-      final institutionName = ((data['name'] as String?) ?? '').trim();
-      final institutionCatalogId =
-          ((data['institutionCatalogId'] as String?) ?? '').trim();
-      final normalizedName = _normalizeInstitutionName(
+      institutionName = ((data['name'] as String?) ?? '').trim();
+      institutionCatalogId = ((data['institutionCatalogId'] as String?) ?? '')
+          .trim();
+      normalizedName = _normalizeInstitutionName(
         ((data['nameNormalized'] as String?) ?? institutionName).trim(),
       );
       createdBy = data['createdBy'] as String?;
@@ -3164,10 +3167,10 @@ class InstitutionRepository {
         if (status == 'approved') {
           throw Exception('Institution is already approved.');
         }
-        final institutionName = ((data['name'] as String?) ?? '').trim();
-        final institutionCatalogId =
-            ((data['institutionCatalogId'] as String?) ?? '').trim();
-        final normalizedName = _normalizeInstitutionName(
+        institutionName = ((data['name'] as String?) ?? '').trim();
+        institutionCatalogId = ((data['institutionCatalogId'] as String?) ?? '')
+            .trim();
+        normalizedName = _normalizeInstitutionName(
           ((data['nameNormalized'] as String?) ?? institutionName).trim(),
         );
         createdBy = data['createdBy'] as String?;
@@ -3220,7 +3223,7 @@ class InstitutionRepository {
         action: 'approved',
         status: 'approved',
         actorUid: owner.uid,
-        actorRole: UserRole.owner.name,
+        actorRole: 'owner',
         source: 'owner_review',
         createdBy: createdBy!,
         reviewedBy: owner.uid,
@@ -3260,10 +3263,13 @@ class InstitutionRepository {
       throw Exception('Institution request not found.');
     }
     final createdBy = data['createdBy'] as String?;
-    final institutionName = ((data['name'] as String?) ?? '').trim();
-    final institutionCatalogId =
-        ((data['institutionCatalogId'] as String?) ?? '').trim();
-    final normalizedName = _normalizeInstitutionName(
+    String institutionName = '';
+    String institutionCatalogId = '';
+    String normalizedName = '';
+    institutionName = ((data['name'] as String?) ?? '').trim();
+    institutionCatalogId = ((data['institutionCatalogId'] as String?) ?? '')
+        .trim();
+    normalizedName = _normalizeInstitutionName(
       ((data['nameNormalized'] as String?) ?? institutionName).trim(),
     );
 
@@ -3350,7 +3356,7 @@ class InstitutionRepository {
         action: 'declined',
         status: 'declined',
         actorUid: owner.uid,
-        actorRole: UserRole.owner.name,
+        actorRole: 'owner',
         source: 'owner_review',
         createdBy: createdBy,
         reviewedBy: owner.uid,
@@ -3846,7 +3852,8 @@ class InstitutionRepository {
       actorUid: currentUser.uid,
       actorRole: UserRole.individual.name,
       source: 'admin_reset',
-      createdBy: (existingInstitution['createdBy'] as String?) ?? currentUser.uid,
+      createdBy:
+          (existingInstitution['createdBy'] as String?) ?? currentUser.uid,
     );
   }
 
@@ -4095,6 +4102,7 @@ class InstitutionRepository {
       'institution_membership_audit',
       'institution_members',
       'institution_name_registry',
+      'institution_request_history',
       'institutions',
       'live_sessions',
       'mood_entries',
@@ -5552,9 +5560,7 @@ class InstitutionRepository {
           payload,
         );
       } else {
-        await _firestore
-            .collection('institution_request_history')
-            .add(payload);
+        await _firestore.collection('institution_request_history').add(payload);
       }
     } catch (_) {
       // History logging should not break user-facing operations.

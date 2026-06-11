@@ -608,6 +608,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     return AuthBackgroundScaffold(
       fallingSnow: true,
+      maxWidth: double.infinity,
       child: _buildFormContent(context, showBrand: true),
     );
   }

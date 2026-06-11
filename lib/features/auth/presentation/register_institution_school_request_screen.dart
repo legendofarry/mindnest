@@ -176,7 +176,7 @@ class _RegisterInstitutionSchoolRequestScreenState
 
     return AuthBackgroundScaffold(
       fallingSnow: true,
-      maxWidth: 680,
+      maxWidth: double.infinity,
       child: content,
     );
   }

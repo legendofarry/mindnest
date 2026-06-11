@@ -58,20 +58,10 @@ class _WindowsWebSetupRequiredScreenState
   @override
   Widget build(BuildContext context) {
     return AuthBackgroundScaffold(
-      maxWidth: 560,
+      maxWidth: double.infinity,
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
-        decoration: BoxDecoration(
-          color: const Color(0xFCFFFFFF),
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x140F172A),
-              blurRadius: 24,
-              offset: Offset(0, 12),
-            ),
-          ],
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

@@ -330,6 +330,7 @@ class _RegisterInstitutionScreenState
 
     return AuthBackgroundScaffold(
       fallingSnow: true,
+      maxWidth: double.infinity,
       child: _buildFormCard(context),
     );
   }
@@ -1010,21 +1011,7 @@ class _RegisterInstitutionScreenState
   }
 
   Widget _buildFormCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
-      decoration: BoxDecoration(
-        color: const Color(0xFCFFFFFF),
-        borderRadius: BorderRadius.circular(34),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x140F172A),
-            blurRadius: 24,
-            offset: Offset(0, 12),
-          ),
-        ],
-      ),
-      child: _buildFormContent(context),
-    );
+    return SizedBox(width: double.infinity, child: _buildFormContent(context));
   }
 }
 

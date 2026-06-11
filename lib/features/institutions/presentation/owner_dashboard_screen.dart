@@ -534,12 +534,8 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       for (final record in institutionHistory) {
         final name = (record['institutionName'] as String? ?? 'Institution')
             .trim();
-        final action = (record['action'] as String? ?? '')
-            .trim()
-            .toLowerCase();
-        final status = (record['status'] as String? ?? '')
-            .trim()
-            .toLowerCase();
+        final action = (record['action'] as String? ?? '').trim().toLowerCase();
+        final status = (record['status'] as String? ?? '').trim().toLowerCase();
         final reason = (record['reviewReason'] as String? ?? '').trim();
         final previousStatus = (record['previousStatus'] as String? ?? '')
             .trim()
@@ -548,26 +544,32 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
 
         String subtitle;
         IconData icon;
+        String titleAction;
         Color tone = _statusForeground(status.isEmpty ? action : status);
         switch (action) {
           case 'submitted':
             icon = Icons.apartment_rounded;
+            titleAction = 'submitted';
             subtitle =
                 'The request entered the owner review queue${previousStatus.isEmpty ? '' : ' from $previousStatus'}.';
             tone = _statusForeground('pending');
             break;
           case 'resubmitted':
             icon = Icons.update_rounded;
-            subtitle = 'The admin updated the request and sent it back for review.';
+            titleAction = 'updated';
+            subtitle =
+                'The admin updated the request and sent it back for review.';
             tone = _statusForeground('pending');
             break;
           case 'approved':
             icon = Icons.verified_rounded;
+            titleAction = 'approved';
             subtitle = 'The institution is approved and ready for onboarding.';
             tone = _statusForeground('approved');
             break;
           case 'declined':
             icon = Icons.block_rounded;
+            titleAction = 'declined';
             subtitle = reason.isEmpty
                 ? 'The owner declined the institution request.'
                 : 'The owner declined the institution request: $reason';
@@ -575,12 +577,14 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
             break;
           case 'cancelled':
             icon = Icons.undo_rounded;
+            titleAction = 'cancelled';
             subtitle =
                 'The admin cancelled the request and reset the registration flow.';
             tone = _statusForeground('cancelled');
             break;
           default:
             icon = _statusIcon(status);
+            titleAction = _statusLabel(status).toLowerCase();
             subtitle =
                 'Lifecycle update${status.isEmpty ? '' : ' • ${_statusLabel(status)}'}';
         }
@@ -588,7 +592,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
         items.add(
           _OwnerActivityItem(
             icon: icon,
-            title: '$name ${_statusLabel(action.isEmpty ? status : action).toLowerCase()}',
+            title: '$name $titleAction',
             subtitle: subtitle,
             occurredAt: occurredAt,
             tone: tone,
@@ -671,6 +675,166 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
 
     items.sort((a, b) => b.sortDate.compareTo(a.sortDate));
     return items.take(8).toList(growable: false);
+  }
+
+  List<_OwnerActivityItem> _institutionHistoryItemsFor(String institutionId) {
+    final filteredHistory = _ownerInstitutionHistory
+        .where(
+          (item) =>
+              (item['institutionId'] as String? ?? '').trim() == institutionId,
+        )
+        .toList(growable: false);
+    return _buildRecentActivities(
+      institutions: const [],
+      schoolRequests: const [],
+      institutionHistory: filteredHistory,
+    );
+  }
+
+  Future<void> _showInstitutionDetails(Map<String, dynamic> institution) async {
+    final institutionId = (institution['id'] as String? ?? '').trim();
+    if (institutionId.isEmpty) {
+      return;
+    }
+    final name = (institution['name'] as String? ?? 'Institution').trim();
+    final catalogId = (institution['institutionCatalogId'] as String? ?? '')
+        .trim();
+    final status = (institution['status'] as String? ?? '')
+        .trim()
+        .toLowerCase();
+    final adminContact = _institutionAdminContact(institution);
+    final review = institution['review'] as Map<String, dynamic>?;
+    final historyItems = _institutionHistoryItemsFor(institutionId);
+
+    if (!mounted) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.apartment_rounded, color: Color(0xFF0F6D96)),
+              const SizedBox(width: 10),
+              Expanded(child: Text(name)),
+            ],
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 740),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _OwnerStatChip(
+                        icon: _statusIcon(status),
+                        label: _statusLabel(status),
+                        background: _statusBackground(status),
+                        foreground: _statusForeground(status),
+                      ),
+                      if (catalogId.isNotEmpty)
+                        _OwnerStatChip(
+                          icon: Icons.badge_outlined,
+                          label: catalogId,
+                          background: const Color(0xFFEAF2FF),
+                          foreground: const Color(0xFF365176),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  _OwnerDetailRow(
+                    label: 'Institution ID',
+                    value: institutionId,
+                  ),
+                  _OwnerDetailRow(label: 'Admin contact', value: adminContact),
+                  _OwnerDetailRow(
+                    label: 'Created',
+                    value: _formatShortDate(institution['createdAt']),
+                  ),
+                  _OwnerDetailRow(
+                    label: 'Updated',
+                    value: _formatShortDate(institution['updatedAt']),
+                  ),
+                  if (review != null) ...[
+                    _OwnerDetailRow(
+                      label: 'Reviewed by',
+                      value: (review['reviewedBy'] as String? ?? '--').trim(),
+                    ),
+                    _OwnerDetailRow(
+                      label: 'Review decision',
+                      value: (review['decision'] as String? ?? '--').trim(),
+                    ),
+                    if ((review['declineReason'] as String? ?? '')
+                        .trim()
+                        .isNotEmpty)
+                      _OwnerDetailRow(
+                        label: 'Review note',
+                        value: (review['declineReason'] as String).trim(),
+                      ),
+                  ],
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Request timeline',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (historyItems.isEmpty)
+                    const Text(
+                      'No lifecycle events were recorded yet for this institution.',
+                      style: TextStyle(color: Color(0xFF5D7291)),
+                    )
+                  else
+                    Column(
+                      children: [
+                        for (final item in historyItems)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _OwnerActivityTile(
+                              item: item,
+                              formatDate: _formatDate,
+                            ),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+            if (status == 'pending')
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  _approveInstitution(institutionId);
+                },
+                child: const Text('Approve'),
+              ),
+            if (status == 'pending')
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  _declineInstitution(institutionId);
+                },
+                child: const Text('Decline'),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _confirmAndClearDatabase() async {
@@ -1192,6 +1356,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                       statusBackground: _statusBackground,
                                       statusForeground: _statusForeground,
                                       statusIcon: _statusIcon,
+                                      onRowTap: _showInstitutionDetails,
                                     ),
                                 ],
                               ),
@@ -1205,7 +1370,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              'Recent activity',
+                              'Request history',
                               style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 18,
@@ -1213,7 +1378,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                             ),
                             const SizedBox(height: 6),
                             const Text(
-                              'Live feed of governance actions.',
+                              'A running archive of institution lifecycle changes.',
                               style: TextStyle(color: Color(0xFF5D7291)),
                             ),
                             const SizedBox(height: 10),
@@ -1225,7 +1390,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                   : activities.isEmpty
                                   ? const Center(
                                       child: Text(
-                                        'Activity will appear here as institutions and school requests move.',
+                                        'History will appear here as institutions are submitted, updated, approved, declined, or cancelled.',
                                         style: TextStyle(
                                           color: Color(0xFF5D7291),
                                         ),
@@ -2211,6 +2376,7 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
     required this.statusBackground,
     required this.statusForeground,
     required this.statusIcon,
+    this.onRowTap,
   });
 
   final List<Map<String, dynamic>> rows;
@@ -2220,6 +2386,7 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
   final Color Function(String status) statusBackground;
   final Color Function(String status) statusForeground;
   final IconData Function(String status) statusIcon;
+  final ValueChanged<Map<String, dynamic>>? onRowTap;
 
   @override
   Widget build(BuildContext context) {
@@ -2273,7 +2440,7 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
                 ...rows.map((row) {
                   final status = (row['status'] as String? ?? '').trim();
                   final contact = contactText(row);
-                  return Container(
+                  final rowContent = Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
@@ -2387,6 +2554,14 @@ class _OwnerInstitutionRecordsTable extends StatelessWidget {
                       ],
                     ),
                   );
+                  if (onRowTap == null) {
+                    return rowContent;
+                  }
+                  return InkWell(
+                    onTap: () => onRowTap!(row),
+                    borderRadius: BorderRadius.circular(14),
+                    child: rowContent,
+                  );
                 }),
               ],
             ),
@@ -2409,6 +2584,44 @@ class _OwnerHeader extends StatelessWidget {
       style: const TextStyle(
         fontWeight: FontWeight.w800,
         color: Color(0xFF5D7391),
+      ),
+    );
+  }
+}
+
+class _OwnerDetailRow extends StatelessWidget {
+  const _OwnerDetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 128,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF7B92AF),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value.isEmpty ? '--' : value,
+              style: const TextStyle(
+                color: Color(0xFF0F172A),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

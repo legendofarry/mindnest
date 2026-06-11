@@ -137,27 +137,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     }
 
     return AuthBackgroundScaffold(
+      maxWidth: double.infinity,
       fallingSnow: true,
       child: _buildFormCard(context),
     );
   }
 
   Widget _buildFormCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
-      decoration: BoxDecoration(
-        color: const Color(0xFCFFFFFF),
-        borderRadius: BorderRadius.circular(34),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x140F172A),
-            blurRadius: 24,
-            offset: Offset(0, 12),
-          ),
-        ],
-      ),
-      child: _buildFormContent(context),
-    );
+    return SizedBox(width: double.infinity, child: _buildFormContent(context));
   }
 
   Widget _buildFormContent(BuildContext context) {

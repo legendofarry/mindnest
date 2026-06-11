@@ -255,7 +255,10 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
       );
     }
 
-    return AuthBackgroundScaffold(maxWidth: 430, child: formContent);
+    return AuthBackgroundScaffold(
+      maxWidth: double.infinity,
+      child: formContent,
+    );
   }
 
   Widget _buildRegisterDetailsForm({
