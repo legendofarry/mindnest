@@ -475,13 +475,16 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     return ((thread.last['body'] as String?) ?? '').trim();
   }
 
-  Future<void> _sendOwnerSupportReply({
-    required String requesterId,
-    required String requesterEmail,
-    required String requesterName,
-    required String institutionId,
-    required String institutionName,
-  }) async {
+  Future<void> _sendOwnerSupportReply(List<Map<String, dynamic>> thread) async {
+    if (thread.isEmpty) {
+      return;
+    }
+    final latest = thread.last;
+    final requesterId = (latest['requesterId'] as String? ?? '').trim();
+    final requesterEmail = (latest['requesterEmail'] as String? ?? '').trim();
+    final requesterName = (latest['requesterName'] as String? ?? '').trim();
+    final institutionId = (latest['institutionId'] as String? ?? '').trim();
+    final institutionName = (latest['institutionName'] as String? ?? '').trim();
     final body = _ownerSupportReplyController.text.trim();
     if (body.isEmpty || _isSendingOwnerSupportReply) {
       return;
@@ -1525,12 +1528,12 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                               Row(
                                 children: [
                                   const Icon(
-                                    Icons.chat_bubble_rounded,
+                                    Icons.support_agent_rounded,
                                     color: Color(0xFF0A8A78),
                                   ),
                                   const SizedBox(width: 10),
                                   const Text(
-                                    'Support messages',
+                                    'Support inbox',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w800,
                                       fontSize: 18,
@@ -1559,35 +1562,130 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                               const SizedBox(height: 12),
                               const Divider(height: 1),
                               const SizedBox(height: 18),
-                              Column(
-                                children: [
-                                  Container(
-                                    width: 56,
-                                    height: 56,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF3FBF9),
-                                      borderRadius: BorderRadius.circular(999),
+                              if (orderedSupportThreadKeys.isEmpty)
+                                Column(
+                                  children: [
+                                    Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF3FBF9),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: const Icon(
+                                        Icons.chat_bubble_outline,
+                                        color: Color(0xFF0A8A78),
+                                      ),
                                     ),
-                                    child: const Icon(
-                                      Icons.chat_bubble_outline,
-                                      color: Color(0xFF0A8A78),
+                                    const SizedBox(height: 16),
+                                    const Text(
+                                      'No support messages',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                    'No support messages',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      "Inbox is clear. We'll ping you when a thread arrives.",
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Color(0xFF5D7291),
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    "Inbox is clear. We'll ping you when a thread arrives.",
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(color: Color(0xFF5D7291)),
-                                  ),
-                                ],
-                              ),
+                                  ],
+                                )
+                              else
+                                LayoutBuilder(
+                                  builder: (context, supportConstraints) {
+                                    final supportUseSplit =
+                                        supportConstraints.maxWidth >= 980;
+                                    final selectedThread =
+                                        selectedSupportThread;
+                                    final threadList = _OwnerSupportThreadList(
+                                      threadEntries: orderedSupportThreadKeys,
+                                      selectedThreadKey:
+                                          _selectedSupportThreadKey,
+                                      formatDate: _formatShortDate,
+                                      threadTitle: _supportThreadTitle,
+                                      threadSubtitle: _supportThreadSubtitle,
+                                      previewText: _supportPreview,
+                                      onSelect: (threadKey) {
+                                        setState(() {
+                                          _selectedSupportThreadKey = threadKey;
+                                        });
+                                      },
+                                    );
+                                    final conversation = selectedThread == null
+                                        ? Container(
+                                            padding: const EdgeInsets.all(18),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF8FBFF),
+                                              borderRadius:
+                                                  BorderRadius.circular(24),
+                                              border: Border.all(
+                                                color: const Color(0xFFDCE8F5),
+                                              ),
+                                            ),
+                                            child: const Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Select a thread',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 18,
+                                                  ),
+                                                ),
+                                                SizedBox(height: 8),
+                                                Text(
+                                                  'Choose a support conversation to read the messages and reply.',
+                                                  style: TextStyle(
+                                                    color: Color(0xFF5D7291),
+                                                    height: 1.45,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          )
+                                        : _OwnerSupportConversation(
+                                            thread: selectedThread,
+                                            formatDate: _formatShortDate,
+                                            controller:
+                                                _ownerSupportReplyController,
+                                            isSending:
+                                                _isSendingOwnerSupportReply,
+                                            onSend: _sendOwnerSupportReply,
+                                          );
+
+                                    if (supportUseSplit) {
+                                      return Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(flex: 4, child: threadList),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            flex: 6,
+                                            child: conversation,
+                                          ),
+                                        ],
+                                      );
+                                    }
+
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        threadList,
+                                        const SizedBox(height: 12),
+                                        conversation,
+                                      ],
+                                    );
+                                  },
+                                ),
                             ],
                           ),
                         ),

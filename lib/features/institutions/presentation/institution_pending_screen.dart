@@ -7,8 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
-import 'package:mindnest/core/config/school_catalog.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart' show GlassCard;
+import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/core/ui/modern_banner.dart';
@@ -24,11 +25,7 @@ class InstitutionPendingScreen extends ConsumerStatefulWidget {
 class _InstitutionPendingScreenState
     extends ConsumerState<InstitutionPendingScreen>
     with SingleTickerProviderStateMixin {
-  bool _isResubmitting = false;
   bool _isCancellingRequest = false;
-  bool _schoolFieldError = false;
-  String? _selectedSchoolId;
-  String? _syncedInstitutionSnapshotKey;
   late final AnimationController _pulseController;
 
   @override
@@ -46,166 +43,8 @@ class _InstitutionPendingScreenState
     super.dispose();
   }
 
-  Future<void> _resubmit() async {
-    final schoolId = _selectedSchoolId?.trim() ?? '';
-    final selectedSchool = catalogSchoolById(schoolId);
-    if (selectedSchool == null) {
-      setState(() => _schoolFieldError = true);
-      showModernBannerFromSnackBar(
-        context,
-        const SnackBar(content: Text('Select your school to resubmit.')),
-      );
-      return;
-    }
-    setState(() {
-      _isResubmitting = true;
-      _schoolFieldError = false;
-    });
-    try {
-      await ref
-          .read(institutionRepositoryProvider)
-          .resubmitCurrentAdminInstitutionRequest(
-            institutionCatalogId: selectedSchool.id,
-            institutionName: selectedSchool.name,
-          );
-      ref.invalidate(currentAdminInstitutionRequestProvider);
-      if (!mounted) {
-        return;
-      }
-      showModernBannerFromSnackBar(
-        context,
-        const SnackBar(
-          content: Text(
-            'Request updated. The same approval request is back in review.',
-          ),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      showModernBannerFromSnackBar(
-        context,
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isResubmitting = false);
-      }
-    }
-  }
-
-  Future<void> _openCatalogSchoolPicker({
-    required String currentInstitutionId,
-  }) async {
-    if (_isResubmitting) {
-      return;
-    }
-    Map<String, String> claimedInstitutionIdsBySchoolId =
-        const <String, String>{};
-    try {
-      claimedInstitutionIdsBySchoolId = await ref
-          .read(institutionRepositoryProvider)
-          .getInstitutionCatalogClaims();
-      claimedInstitutionIdsBySchoolId.removeWhere(
-        (_, institutionId) => institutionId.trim() == currentInstitutionId,
-      );
-    } catch (_) {
-      claimedInstitutionIdsBySchoolId = const <String, String>{};
-    }
-
-    if (!mounted) {
-      return;
-    }
-
-    final useFloatingDialog =
-        kIsWeb || defaultTargetPlatform == TargetPlatform.windows;
-    String? selectedId;
-    if (useFloatingDialog) {
-      selectedId = await showDialog<String>(
-        context: context,
-        barrierDismissible: true,
-        barrierColor: const Color(0x73071A33),
-        builder: (dialogContext) {
-          final size = MediaQuery.sizeOf(dialogContext);
-          final maxWidth = size.width >= 1280 ? 820.0 : 760.0;
-          final maxHeight = (size.height - 72).clamp(480.0, 760.0);
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                  child: const ColoredBox(color: Colors.transparent),
-                ),
-              ),
-              Center(
-                child: SizedBox(
-                  width: maxWidth,
-                  height: maxHeight.toDouble(),
-                  child: _ResubmitCatalogSchoolPickerSheet(
-                    schools: kCatalogSchools,
-                    selectedSchoolId: _selectedSchoolId,
-                    claimedInstitutionIdsBySchoolId:
-                        claimedInstitutionIdsBySchoolId,
-                    desktopMode: true,
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      );
-    } else {
-      selectedId = await showModalBottomSheet<String>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (sheetContext) => _ResubmitCatalogSchoolPickerSheet(
-          schools: kCatalogSchools,
-          selectedSchoolId: _selectedSchoolId,
-          claimedInstitutionIdsBySchoolId: claimedInstitutionIdsBySchoolId,
-          desktopMode: false,
-        ),
-      );
-    }
-    if (!mounted || selectedId == null) {
-      return;
-    }
-    setState(() {
-      _selectedSchoolId = selectedId;
-      _schoolFieldError = false;
-    });
-  }
-
-  void _syncSelectedSchoolIdFromInstitution({
-    required String institutionId,
-    required String status,
-    required String? schoolId,
-  }) {
-    final snapshotKey = [
-      institutionId.trim(),
-      status.trim(),
-      (schoolId ?? '').trim(),
-    ].join('|');
-    if (_syncedInstitutionSnapshotKey == snapshotKey) {
-      return;
-    }
-    _syncedInstitutionSnapshotKey = snapshotKey;
-    final normalized = schoolId?.trim() ?? '';
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _selectedSchoolId = normalized;
-      });
-    });
-  }
-
   Future<void> _cancelRequest() async {
-    if (_isResubmitting || _isCancellingRequest) {
+    if (_isCancellingRequest) {
       return;
     }
 
@@ -242,6 +81,7 @@ class _InstitutionPendingScreenState
       await ref
           .read(institutionRepositoryProvider)
           .cancelCurrentAdminInstitutionRequest();
+      await syncAuthSessionState(ref);
       ref.invalidate(currentAdminInstitutionRequestProvider);
       if (!mounted) {
         return;
@@ -253,9 +93,7 @@ class _InstitutionPendingScreenState
       }
       showModernBannerFromSnackBar(
         context,
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
+        SnackBar(content: Text(_formatUserFacingError(error))),
       );
     } finally {
       if (mounted) {
@@ -309,6 +147,33 @@ class _InstitutionPendingScreenState
       backgroundColor: Colors.transparent,
       builder: (_) => dialog,
     );
+  }
+
+  String _formatUserFacingError(Object error) {
+    final raw = error.toString().replaceFirst('Exception: ', '').trim();
+    if (raw.isEmpty) {
+      return 'Something went wrong. Please try again.';
+    }
+    if (!raw.contains('Dart exception thrown from converted Future')) {
+      return raw;
+    }
+
+    try {
+      final dynamic wrapped = error;
+      final innerError = wrapped.error;
+      final innerMessage = innerError?.toString().trim();
+      if (innerMessage != null && innerMessage.isNotEmpty) {
+        return innerMessage.replaceFirst('Exception: ', '');
+      }
+      final innerStack = wrapped.stack?.toString().trim();
+      if (innerStack != null && innerStack.isNotEmpty) {
+        return innerStack;
+      }
+    } catch (_) {
+      // Fall through to the generic message below.
+    }
+
+    return 'This request could not be processed right now. Please try again.';
   }
 
   String _statusTitle(String status) {
@@ -373,8 +238,7 @@ class _InstitutionPendingScreenState
     final isCancelled = status == 'cancelled';
     final isApproved = status == 'approved';
     final supportingCopy = isDeclined
-        ? 'Your institution request needs an update before it can move '
-              'forward. Fix the issue below and resubmit from this screen.'
+        ? 'Your institution request was declined. Cancel and reset to start fresh from the registration screen.'
         : isCancelled
         ? 'This request has been pulled out of the approval queue. You can '
               'start a fresh institution request, switch to another institution, '
@@ -517,7 +381,7 @@ class _InstitutionPendingScreenState
             ),
             _StatusStepChip(
               title: isDeclined
-                  ? 'Needs Update'
+                  ? 'Needs reset'
                   : isCancelled
                   ? 'Cancelled'
                   : 'Approved',
@@ -537,7 +401,7 @@ class _InstitutionPendingScreenState
   Widget _buildPendingWorkspace({
     required String status,
     required String institutionName,
-    required String currentInstitutionId,
+    required bool canContactSupport,
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -547,24 +411,20 @@ class _InstitutionPendingScreenState
           icon: Icons.timeline_rounded,
           title: 'What happens next',
           description: isCancelled
-              ? 'This request is no longer in the review queue. You can now start fresh with another institution or open support if something feels off.'
+              ? 'This request is no longer in the review queue. You can now start fresh with another institution or contact support if something feels off.'
               : 'Your request is under review by our team. Once the review completes, access updates automatically.',
           accent: const Color(0xFF2563EB),
         );
-        final selectedSchool = catalogSchoolById(_selectedSchoolId);
         final cardB = _RequestManagementCard(
-          isBusy: _isResubmitting || _isCancellingRequest,
           isCancelling: _isCancellingRequest,
           isCancelled: isCancelled,
-          selectedSchoolName: selectedSchool?.name,
-          hasError: _schoolFieldError,
-          onPickInstitution: () => _openCatalogSchoolPicker(
-            currentInstitutionId: currentInstitutionId,
-          ),
-          onUpdate: _isCancellingRequest ? null : _resubmit,
-          onCancel: _isResubmitting ? null : _cancelRequest,
-          onContactSupport: () =>
-              _contactSupport(institutionName: institutionName, status: status),
+          onCancel: _cancelRequest,
+          onContactSupport: canContactSupport
+              ? () => _contactSupport(
+                  institutionName: institutionName,
+                  status: status,
+                )
+              : null,
         );
 
         if (useRow) {
@@ -600,16 +460,16 @@ class _InstitutionPendingScreenState
         : const Color(0xFF7FB3FF);
 
     final title = isDeclined
-        ? 'Resubmission lane open'
+        ? 'Declined request'
         : isCancelled
         ? 'Request paused'
         : isApproved
         ? 'Approval complete'
         : 'Review console active';
     final body = isDeclined
-        ? 'Correct the institution selection and send the request again from this same workspace.'
+        ? 'The request was declined. Cancel and reset to start a fresh institution setup, or contact support if you need help understanding the decision.'
         : isCancelled
-        ? 'The request is gone from review. Start fresh from institution setup whenever you are ready, or open support if you need a hand.'
+        ? 'The request is gone from review. Start fresh from institution setup whenever you are ready, or contact support if you need a hand.'
         : isApproved
         ? 'Your institution is approved. The dashboard will unlock the full admin workflow automatically.'
         : 'Approval is still in progress. You will get access once your institution is approved.';
@@ -711,10 +571,9 @@ class _InstitutionPendingScreenState
 
   Widget _buildDeclinedWorkspace(
     String? declineReason, {
-    required String currentInstitutionId,
     required String institutionName,
+    required bool canContactSupport,
   }) {
-    final selectedSchool = catalogSchoolById(_selectedSchoolId);
     return GlassCard(
       child: Padding(
         padding: const EdgeInsets.all(22),
@@ -722,12 +581,12 @@ class _InstitutionPendingScreenState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Fix and Resubmit',
+              'Declined request',
               style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Search the approved catalog, pick the correct institution, and resubmit from this same workspace.',
+              'Cancel the current request to reset your admin setup, then start fresh from the institution registration screen.',
               style: TextStyle(
                 color: Color(0xFF516784),
                 height: 1.4,
@@ -753,54 +612,32 @@ class _InstitutionPendingScreenState
                 ),
               ),
             ],
-            const SizedBox(height: 16),
-            _ResubmitCatalogSchoolPickerField(
-              hasError: _schoolFieldError,
-              isBusy: _isResubmitting,
-              selectedSchoolName: selectedSchool?.name,
-              onTap: () => _openCatalogSchoolPicker(
-                currentInstitutionId: currentInstitutionId,
-              ),
-            ),
-            const SizedBox(height: 14),
             Wrap(
               spacing: 10,
               runSpacing: 10,
               children: [
                 FilledButton.icon(
-                  onPressed: _isResubmitting || _isCancellingRequest
-                      ? null
-                      : _resubmit,
-                  icon: Icon(
-                    _isResubmitting
-                        ? Icons.hourglass_top_rounded
-                        : Icons.refresh_rounded,
-                  ),
-                  label: Text(
-                    _isResubmitting ? 'Resubmitting...' : 'Resubmit Request',
-                  ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _isResubmitting ? null : _cancelRequest,
+                  onPressed: _isCancellingRequest ? null : _cancelRequest,
                   icon: Icon(
                     _isCancellingRequest
                         ? Icons.hourglass_top_rounded
                         : Icons.close_rounded,
                   ),
                   label: Text(
-                    _isCancellingRequest ? 'Cancelling...' : 'Cancel Request',
+                    _isCancellingRequest ? 'Resetting...' : 'Cancel and reset',
                   ),
                 ),
-                OutlinedButton.icon(
-                  onPressed: _isResubmitting || _isCancellingRequest
-                      ? null
-                      : () => _contactSupport(
-                          institutionName: institutionName,
-                          status: 'declined',
-                        ),
-                  icon: const Icon(Icons.support_agent_rounded),
-                  label: const Text('Contact Support'),
-                ),
+                if (canContactSupport)
+                  OutlinedButton.icon(
+                    onPressed: _isCancellingRequest
+                        ? null
+                        : () => _contactSupport(
+                            institutionName: institutionName,
+                            status: 'declined',
+                          ),
+                    icon: const Icon(Icons.support_agent_rounded),
+                    label: const Text('Contact Support'),
+                  ),
               ],
             ),
           ],
@@ -812,6 +649,8 @@ class _InstitutionPendingScreenState
   @override
   Widget build(BuildContext context) {
     final institutionAsync = ref.watch(currentAdminInstitutionRequestProvider);
+    final currentProfile = ref.watch(currentUserProfileProvider).valueOrNull;
+    final canContactSupport = currentProfile?.role == UserRole.institutionAdmin;
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       body: _InstitutionPendingBackdrop(
@@ -859,18 +698,6 @@ class _InstitutionPendingScreenState
                               final status =
                                   (institution?['status'] as String?) ??
                                   'pending';
-                              final currentInstitutionId =
-                                  (institution?['id'] as String? ?? '').trim();
-                              final currentCatalogId =
-                                  (institution?['institutionCatalogId']
-                                              as String? ??
-                                          '')
-                                      .trim();
-                              _syncSelectedSchoolIdFromInstitution(
-                                institutionId: currentInstitutionId,
-                                status: status,
-                                schoolId: currentCatalogId,
-                              );
                               final isDeclined = status == 'declined';
                               final isApproved = status == 'approved';
                               final review = institution?['review'];
@@ -905,10 +732,10 @@ class _InstitutionPendingScreenState
                                         child: isDeclined
                                             ? _buildDeclinedWorkspace(
                                                 declineReason,
-                                                currentInstitutionId:
-                                                    currentInstitutionId,
                                                 institutionName:
                                                     institutionName,
+                                                canContactSupport:
+                                                    canContactSupport,
                                               )
                                             : isApproved
                                             ? _buildApprovedWorkspace(
@@ -918,8 +745,8 @@ class _InstitutionPendingScreenState
                                                 status: status,
                                                 institutionName:
                                                     institutionName,
-                                                currentInstitutionId:
-                                                    currentInstitutionId,
+                                                canContactSupport:
+                                                    canContactSupport,
                                               ),
                                       ),
                                     ],
@@ -982,413 +809,6 @@ class _InstitutionPendingScreenState
                 ),
               );
             },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ResubmitCatalogSchoolPickerField extends StatelessWidget {
-  const _ResubmitCatalogSchoolPickerField({
-    required this.hasError,
-    required this.isBusy,
-    required this.selectedSchoolName,
-    required this.onTap,
-  });
-
-  final bool hasError;
-  final bool isBusy;
-  final String? selectedSchoolName;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final borderColor = hasError
-        ? const Color(0xFFE11D48)
-        : const Color(0xFF0E9B90);
-    final placeholder = (selectedSchoolName ?? '').trim().isEmpty
-        ? 'Select school from approved list'
-        : selectedSchoolName!.trim();
-
-    return InkWell(
-      onTap: isBusy ? null : onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: borderColor, width: hasError ? 1.4 : 1.1),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x120F172A),
-              blurRadius: 14,
-              offset: Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.apartment_rounded,
-              color: hasError
-                  ? const Color(0xFFE11D48)
-                  : const Color(0xFF475569),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Approved catalog',
-                    style: TextStyle(
-                      color: Color(0xFF9AAAC0),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    placeholder,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: selectedSchoolName == null
-                          ? const Color(0xFF7B8CA4)
-                          : const Color(0xFF071937),
-                      fontSize: 17,
-                      fontWeight: selectedSchoolName == null
-                          ? FontWeight.w500
-                          : FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFFFFC),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: isBusy
-                  ? const Padding(
-                      padding: EdgeInsets.all(9),
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.2,
-                        color: Color(0xFF0E9B90),
-                      ),
-                    )
-                  : const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: Color(0xFF0E9B90),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ResubmitCatalogSchoolPickerSheet extends StatefulWidget {
-  const _ResubmitCatalogSchoolPickerSheet({
-    required this.schools,
-    required this.selectedSchoolId,
-    required this.claimedInstitutionIdsBySchoolId,
-    this.desktopMode = false,
-  });
-
-  final List<CatalogSchool> schools;
-  final String? selectedSchoolId;
-  final Map<String, String> claimedInstitutionIdsBySchoolId;
-  final bool desktopMode;
-
-  @override
-  State<_ResubmitCatalogSchoolPickerSheet> createState() =>
-      _ResubmitCatalogSchoolPickerSheetState();
-}
-
-class _ResubmitCatalogSchoolPickerSheetState
-    extends State<_ResubmitCatalogSchoolPickerSheet> {
-  final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final query = _searchController.text.trim().toLowerCase();
-    final filteredSchools = widget.schools
-        .where((school) => school.name.toLowerCase().contains(query))
-        .toList(growable: false);
-
-    return Material(
-      color: Colors.transparent,
-      child: SafeArea(
-        top: !widget.desktopMode,
-        child: Container(
-          height: widget.desktopMode ? double.infinity : 640,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFC),
-            borderRadius: widget.desktopMode
-                ? BorderRadius.circular(30)
-                : const BorderRadius.vertical(top: Radius.circular(30)),
-            border: widget.desktopMode
-                ? Border.all(color: const Color(0xFFDDE6F1))
-                : null,
-            boxShadow: widget.desktopMode
-                ? const [
-                    BoxShadow(
-                      color: Color(0x26071A33),
-                      blurRadius: 34,
-                      offset: Offset(0, 20),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              18,
-              widget.desktopMode ? 18 : 12,
-              18,
-              18,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (!widget.desktopMode)
-                  Center(
-                    child: Container(
-                      width: 54,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD2DCE9),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  )
-                else
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: IconButton(
-                      tooltip: 'Close',
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 18),
-                const Text(
-                  'Select school from approved list',
-                  style: TextStyle(
-                    color: Color(0xFF071937),
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.6,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Search the approved catalog and choose the institution that matches the corrected resubmission.',
-                  style: TextStyle(
-                    color: Color(0xFF516784),
-                    fontWeight: FontWeight.w500,
-                    height: 1.45,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: const Color(0xFFD2DCE9)),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x120F172A),
-                        blurRadius: 12,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      hintText: 'Search institution',
-                      prefixIcon: Icon(Icons.search_rounded),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: const Color(0xFFDDE6F1)),
-                    ),
-                    child: filteredSchools.isEmpty
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Text(
-                                'No institution matches your search.',
-                                style: TextStyle(
-                                  color: Color(0xFF64748B),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          )
-                        : ListView.separated(
-                            padding: const EdgeInsets.all(12),
-                            itemCount: filteredSchools.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(height: 10),
-                            itemBuilder: (context, index) {
-                              final school = filteredSchools[index];
-                              final isSelected =
-                                  school.id == widget.selectedSchoolId;
-                              final isClaimed = widget
-                                  .claimedInstitutionIdsBySchoolId
-                                  .containsKey(school.id);
-                              return InkWell(
-                                onTap: isClaimed
-                                    ? null
-                                    : () =>
-                                          Navigator.of(context).pop(school.id),
-                                borderRadius: BorderRadius.circular(18),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 14,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isClaimed
-                                        ? const Color(0xFFF3F4F6)
-                                        : isSelected
-                                        ? const Color(0xFFEFFFFC)
-                                        : const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(
-                                      color: isClaimed
-                                          ? const Color(0xFFE2E8F0)
-                                          : isSelected
-                                          ? const Color(0xFF0E9B90)
-                                          : const Color(0xFFDCE6F0),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 42,
-                                        height: 42,
-                                        decoration: BoxDecoration(
-                                          color: isClaimed
-                                              ? const Color(0xFFE5E7EB)
-                                              : isSelected
-                                              ? const Color(
-                                                  0xFF0E9B90,
-                                                ).withValues(alpha: 0.14)
-                                              : const Color(0xFFE2E8F0),
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.account_balance_rounded,
-                                          color: isClaimed
-                                              ? const Color(0xFF94A3B8)
-                                              : isSelected
-                                              ? const Color(0xFF0E9B90)
-                                              : const Color(0xFF64748B),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              school.name,
-                                              style: TextStyle(
-                                                color: isClaimed
-                                                    ? const Color(0xFF94A3B8)
-                                                    : const Color(0xFF071937),
-                                                fontWeight: FontWeight.w700,
-                                                height: 1.35,
-                                              ),
-                                            ),
-                                            if (isClaimed) ...[
-                                              const SizedBox(height: 6),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 5,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: const Color(
-                                                    0xFFE5E7EB,
-                                                  ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                        999,
-                                                      ),
-                                                  border: Border.all(
-                                                    color: const Color(
-                                                      0xFFD1D5DB,
-                                                    ),
-                                                  ),
-                                                ),
-                                                child: const Text(
-                                                  'Institution exists',
-                                                  style: TextStyle(
-                                                    color: Color(0xFF475569),
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w800,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Icon(
-                                        isClaimed
-                                            ? Icons.block_rounded
-                                            : isSelected
-                                            ? Icons.check_circle_rounded
-                                            : Icons.arrow_outward_rounded,
-                                        color: isClaimed
-                                            ? const Color(0xFF94A3B8)
-                                            : isSelected
-                                            ? const Color(0xFF0E9B90)
-                                            : const Color(0xFF94A3B8),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
@@ -1469,24 +889,14 @@ class _HeroPill extends StatelessWidget {
 
 class _RequestManagementCard extends StatelessWidget {
   const _RequestManagementCard({
-    required this.isBusy,
     required this.isCancelling,
     required this.isCancelled,
-    required this.selectedSchoolName,
-    required this.hasError,
-    required this.onPickInstitution,
-    required this.onUpdate,
     required this.onCancel,
     required this.onContactSupport,
   });
 
-  final bool isBusy;
   final bool isCancelling;
   final bool isCancelled;
-  final String? selectedSchoolName;
-  final bool hasError;
-  final VoidCallback onPickInstitution;
-  final VoidCallback? onUpdate;
   final VoidCallback? onCancel;
   final VoidCallback? onContactSupport;
 
@@ -1519,7 +929,7 @@ class _RequestManagementCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Update request',
+                        'Request controls',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 17,
@@ -1527,7 +937,7 @@ class _RequestManagementCard extends StatelessWidget {
                       ),
                       SizedBox(height: 6),
                       Text(
-                        'Pick another institution, update the live request while it is still in review, or cancel and start fresh if you want to reset the flow.',
+                        'Cancel the current request to reset the flow, or contact support if you need a human to review the situation.',
                         style: TextStyle(
                           color: Color(0xFF516784),
                           height: 1.4,
@@ -1539,27 +949,10 @@ class _RequestManagementCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            _ResubmitCatalogSchoolPickerField(
-              hasError: hasError,
-              isBusy: isBusy,
-              selectedSchoolName: selectedSchoolName,
-              onTap: onPickInstitution,
-            ),
-            const SizedBox(height: 14),
             Wrap(
               spacing: 10,
               runSpacing: 10,
               children: [
-                FilledButton.icon(
-                  onPressed: onUpdate,
-                  icon: Icon(
-                    isCancelled ? Icons.send_rounded : Icons.refresh_rounded,
-                  ),
-                  label: Text(
-                    isCancelled ? 'Send Back To Review' : 'Update Request',
-                  ),
-                ),
                 OutlinedButton.icon(
                   onPressed: onCancel,
                   icon: Icon(
@@ -1568,14 +961,15 @@ class _RequestManagementCard extends StatelessWidget {
                         : Icons.close_rounded,
                   ),
                   label: Text(
-                    isCancelling ? 'Cancelling...' : 'Cancel Request',
+                    isCancelling ? 'Resetting...' : 'Cancel and reset',
                   ),
                 ),
-                OutlinedButton.icon(
-                  onPressed: onContactSupport,
-                  icon: const Icon(Icons.support_agent_rounded),
-                  label: const Text('Contact Support'),
-                ),
+                if (onContactSupport != null)
+                  OutlinedButton.icon(
+                    onPressed: onContactSupport,
+                    icon: const Icon(Icons.support_agent_rounded),
+                    label: const Text('Contact Support'),
+                  ),
               ],
             ),
           ],

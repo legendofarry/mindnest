@@ -431,12 +431,14 @@ service cloud.firestore {
           'institutionName',
           'institutionCatalogId',
           'institutionWelcomePending',
+          'registrationIntent',
           'updatedAt'
         ]) &&
         request.resource.data.institutionId == null &&
         request.resource.data.institutionName == null &&
         request.resource.data.institutionCatalogId == null &&
-        request.resource.data.institutionWelcomePending == false;
+        request.resource.data.institutionWelcomePending == false &&
+        request.resource.data.registrationIntent == null;
     }
 
     function canAdminUpdateMembershipLifecycle() {
