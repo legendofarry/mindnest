@@ -498,6 +498,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ).toString();
         }
 
+        final profile = profileAsync.valueOrNull;
+        final role = profile?.role ?? UserRole.other;
+        final alreadyInInstitution =
+            (profileAsync.valueOrNull?.institutionId ?? '').trim().isNotEmpty;
+
         if (isWindowsLoginOnlyMode) {
           if (profileAsync.isLoading ||
               currentAdminInstitutionAsync.isLoading ||
@@ -505,8 +510,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return null;
           }
 
-          final profile = profileAsync.valueOrNull;
-          final role = profile?.role ?? UserRole.other;
           final roleResolved = role != UserRole.other;
           final hasCounselorRegistrationIntent =
               profile?.isCounselorRegistrationIntentPending ?? false;
@@ -651,6 +654,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
 
           if (role == UserRole.institutionAdmin && isAuthRoute) {
+            if (!alreadyInInstitution) {
+              final canStayInAuthSetupRoute =
+                  location == AppRoute.register ||
+                  location == AppRoute.registerDetails ||
+                  location == AppRoute.verifyEmail;
+              if (canStayInAuthSetupRoute) {
+                return null;
+              }
+              return AppRoute.registerInstitution;
+            }
             return AppRoute.institutionAdmin;
           }
 
@@ -688,10 +701,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return AppRoute.withInviteQuery(AppRoute.inviteAccept, inviteQuery);
         }
 
-        final profile = profileAsync.valueOrNull;
         final pendingInvite = pendingInviteAsync.valueOrNull;
         final pendingInviteRole = pendingInvite?.intendedRole ?? UserRole.other;
-        final role = profile?.role ?? UserRole.other;
         final roleResolved = role != UserRole.other;
         final hasCounselorRegistrationIntent =
             profile?.isCounselorRegistrationIntentPending ?? false;
@@ -707,9 +718,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             role == UserRole.counselor &&
             counselorAccessStatus == CounselorInstitutionAccessStatus.suspended;
         final institutionRequest = currentAdminInstitutionAsync.valueOrNull;
-        final alreadyInInstitution = (profile?.institutionId ?? '')
-            .trim()
-            .isNotEmpty;
         final canRemainInCounselorRecoveryRoutes =
             isCounselorInviteWaitingRoute ||
             location == AppRoute.notifications ||
@@ -974,6 +982,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         if (role == UserRole.institutionAdmin &&
             (isAuthRoute || location == AppRoute.verifyEmail)) {
           if (!alreadyInInstitution) {
+            final canStayInAuthSetupRoute =
+                location == AppRoute.register ||
+                location == AppRoute.registerDetails ||
+                location == AppRoute.verifyEmail;
+            if (canStayInAuthSetupRoute) {
+              return null;
+            }
             return AppRoute.registerInstitution;
           }
 

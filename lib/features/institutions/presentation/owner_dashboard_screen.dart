@@ -26,6 +26,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   final _clearDbConfirmationController = TextEditingController();
   final _institutionSearchController = TextEditingController();
   final _ownerSupportReplyController = TextEditingController();
+  final _ownerActivityScrollController = ScrollController();
   List<Map<String, dynamic>> _ownerInstitutions = const [];
   List<Map<String, dynamic>> _ownerSchoolRequests = const [];
   List<Map<String, dynamic>> _ownerInstitutionHistory = const [];
@@ -51,6 +52,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     _clearDbConfirmationController.dispose();
     _institutionSearchController.dispose();
     _ownerSupportReplyController.dispose();
+    _ownerActivityScrollController.dispose();
     super.dispose();
   }
 
@@ -1228,6 +1230,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final useSplit = constraints.maxWidth >= 980;
+                    final activityPanelHeight = useSplit ? 560.0 : 420.0;
 
                     final leftCard = GlassCard(
                       child: Padding(
@@ -1382,7 +1385,8 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                               style: TextStyle(color: Color(0xFF5D7291)),
                             ),
                             const SizedBox(height: 10),
-                            Flexible(
+                            SizedBox(
+                              height: activityPanelHeight,
                               child: _isOwnerDataLoading && activities.isEmpty
                                   ? const Center(
                                       child: CircularProgressIndicator(),
@@ -1397,8 +1401,12 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                       ),
                                     )
                                   : Scrollbar(
+                                      controller:
+                                          _ownerActivityScrollController,
                                       thumbVisibility: true,
                                       child: ListView.separated(
+                                        controller:
+                                            _ownerActivityScrollController,
                                         padding: EdgeInsets.zero,
                                         itemCount: activities.length,
                                         separatorBuilder: (context, index) =>
@@ -1474,21 +1482,19 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                     );
 
                     if (useSplit) {
-                      return IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(flex: 3, child: leftCard),
-                            const SizedBox(width: 14),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 380),
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: rightCard,
-                              ),
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(flex: 3, child: leftCard),
+                          const SizedBox(width: 14),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 380),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: rightCard,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       );
                     }
 

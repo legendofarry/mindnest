@@ -3772,7 +3772,7 @@ class InstitutionRepository {
       });
       await _windowsRest.setDocument(userPath, {
         ...userData,
-        'role': UserRole.individual.name,
+        'role': UserRole.institutionAdmin.name,
         'institutionId': null,
         'institutionName': null,
         'institutionCatalogId': null,
@@ -3831,7 +3831,7 @@ class InstitutionRepository {
         },
       });
       batch.update(userRef, {
-        'role': UserRole.individual.name,
+        'role': UserRole.institutionAdmin.name,
         'institutionId': null,
         'institutionName': null,
         'institutionCatalogId': null,
@@ -3850,7 +3850,7 @@ class InstitutionRepository {
       status: 'cancelled',
       previousStatus: currentStatus,
       actorUid: currentUser.uid,
-      actorRole: UserRole.individual.name,
+      actorRole: UserRole.institutionAdmin.name,
       source: 'admin_reset',
       createdBy:
           (existingInstitution['createdBy'] as String?) ?? currentUser.uid,
