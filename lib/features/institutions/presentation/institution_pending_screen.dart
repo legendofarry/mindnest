@@ -28,6 +28,7 @@ class _InstitutionPendingScreenState
   bool _isCancellingRequest = false;
   bool _schoolFieldError = false;
   String? _selectedSchoolId;
+  String? _syncedInstitutionSnapshotKey;
   late final AnimationController _pulseController;
 
   @override
@@ -67,6 +68,7 @@ class _InstitutionPendingScreenState
             institutionCatalogId: selectedSchool.id,
             institutionName: selectedSchool.name,
           );
+      ref.invalidate(currentAdminInstitutionRequestProvider);
       if (!mounted) {
         return;
       }
@@ -177,13 +179,23 @@ class _InstitutionPendingScreenState
     });
   }
 
-  void _syncSelectedSchoolIdFromInstitution(String? schoolId) {
-    final normalized = schoolId?.trim() ?? '';
-    if (normalized.isEmpty || _selectedSchoolId != null) {
+  void _syncSelectedSchoolIdFromInstitution({
+    required String institutionId,
+    required String status,
+    required String? schoolId,
+  }) {
+    final snapshotKey = [
+      institutionId.trim(),
+      status.trim(),
+      (schoolId ?? '').trim(),
+    ].join('|');
+    if (_syncedInstitutionSnapshotKey == snapshotKey) {
       return;
     }
+    _syncedInstitutionSnapshotKey = snapshotKey;
+    final normalized = schoolId?.trim() ?? '';
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _selectedSchoolId != null) {
+      if (!mounted) {
         return;
       }
       setState(() {
@@ -230,6 +242,7 @@ class _InstitutionPendingScreenState
       await ref
           .read(institutionRepositoryProvider)
           .cancelCurrentAdminInstitutionRequest();
+      ref.invalidate(currentAdminInstitutionRequestProvider);
       if (!mounted) {
         return;
       }
@@ -854,7 +867,9 @@ class _InstitutionPendingScreenState
                                           '')
                                       .trim();
                               _syncSelectedSchoolIdFromInstitution(
-                                currentCatalogId,
+                                institutionId: currentInstitutionId,
+                                status: status,
+                                schoolId: currentCatalogId,
                               );
                               final isDeclined = status == 'declined';
                               final isApproved = status == 'approved';

@@ -14,7 +14,8 @@ import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/core/ui/auth_desktop_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
-import 'package:mindnest/features/institutions/data/institution_providers.dart';
+import 'package:mindnest/features/institutions/data/institution_providers.dart'
+    show institutionRepositoryProvider, currentAdminInstitutionRequestProvider;
 
 class RegisterInstitutionScreen extends ConsumerStatefulWidget {
   const RegisterInstitutionScreen({super.key});
@@ -215,6 +216,7 @@ class _RegisterInstitutionScreenState
             institutionCatalogId: selectedSchool.id,
             institutionName: selectedSchool.name,
           );
+      ref.invalidate(currentAdminInstitutionRequestProvider);
       await syncAuthSessionState(ref);
       if (mounted) {
         context.go(
