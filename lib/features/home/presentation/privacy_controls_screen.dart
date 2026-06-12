@@ -15,10 +15,12 @@ class PrivacyControlsScreen extends ConsumerStatefulWidget {
     super.key,
     this.embeddedInDesktopShell = false,
     this.embeddedInAdminShell = false,
+    this.embeddedInCounselorShell = false,
   });
 
   final bool embeddedInDesktopShell;
   final bool embeddedInAdminShell;
+  final bool embeddedInCounselorShell;
 
   @override
   ConsumerState<PrivacyControlsScreen> createState() =>
@@ -37,19 +39,23 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
             profile.role == UserRole.staff ||
             profile.role == UserRole.individual);
     final role = profile?.role ?? UserRole.other;
+    final counselorEmbedded =
+        widget.embeddedInCounselorShell && role == UserRole.counselor;
     final usesFloatingDesktopHeader =
         isDesktop &&
         !isPrimaryUser &&
         !widget.embeddedInDesktopShell &&
-        !widget.embeddedInAdminShell;
+        !widget.embeddedInAdminShell &&
+        !widget.embeddedInCounselorShell;
     final adminEmbedded =
         widget.embeddedInAdminShell && role == UserRole.institutionAdmin;
     final maxContentWidth = adminEmbedded
         ? double.infinity
-        : role == UserRole.counselor
+        : counselorEmbedded || role == UserRole.counselor
         ? 1220.0
         : 900.0;
-    final contentAlignment = adminEmbedded || role == UserRole.counselor
+    final contentAlignment =
+        adminEmbedded || counselorEmbedded || role == UserRole.counselor
         ? Alignment.topLeft
         : Alignment.topCenter;
     Future<void> onExport() => showAccountExportSheet(
@@ -116,7 +122,9 @@ class _PrivacyControlsScreenState extends ConsumerState<PrivacyControlsScreen> {
       ),
     );
 
-    if (widget.embeddedInDesktopShell || widget.embeddedInAdminShell) {
+    if (widget.embeddedInDesktopShell ||
+        widget.embeddedInAdminShell ||
+        widget.embeddedInCounselorShell) {
       return content;
     }
 
@@ -471,6 +479,34 @@ class _CounselorPrivacyContent extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _PrivacyModuleCard(
+                title: 'Need to edit your profile?',
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  alignment: WrapAlignment.spaceBetween,
+                  children: [
+                    const SizedBox(
+                      width: 520,
+                      child: Text(
+                        'Privacy and data controls live here, while profile details and booking rules stay in Profile Settings.',
+                        style: TextStyle(
+                          color: Color(0xFF5A6E87),
+                          fontWeight: FontWeight.w500,
+                          height: 1.45,
+                        ),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: onOpenProfile,
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      label: const Text('Back to Profile Settings'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
               _PrivacyBreadcrumb(
                 items: const ['Profile', 'Privacy & Data Controls'],
                 onTapLeading: onOpenProfile,

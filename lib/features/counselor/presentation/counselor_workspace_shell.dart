@@ -66,7 +66,9 @@ class CounselorWorkspaceRouteShell extends ConsumerWidget {
         _normalizedCounselorWorkspaceRoute(
           state.uri.queryParameters[AppRoute.returnToQuery],
         ) ??
-        AppRoute.counselorDashboard;
+        (state.matchedLocation == AppRoute.counselorPrivacyControls
+            ? AppRoute.counselorSettings
+            : AppRoute.counselorDashboard);
     final overlayAnchorRoute = switch (state.matchedLocation) {
       AppRoute.counselorNotifications => notificationsReturnTo,
       AppRoute.counselorSettings => profileReturnTo,
@@ -105,6 +107,14 @@ class CounselorWorkspaceRouteShell extends ConsumerWidget {
         );
       },
       onProfile: () {
+        if (state.matchedLocation == AppRoute.counselorPrivacyControls) {
+          context.go(
+            profileReturnTo == AppRoute.counselorSettings
+                ? AppRoute.counselorSettings
+                : profileReturnTo,
+          );
+          return;
+        }
         if (state.matchedLocation == AppRoute.counselorSettings) {
           context.go(profileReturnTo);
           return;
@@ -171,6 +181,16 @@ _CounselorRouteShellConfig _routeShellForState(GoRouterState state) {
       profileHighlighted: true,
     );
   }
+  if (state.matchedLocation == AppRoute.counselorPrivacyControls) {
+    return const _CounselorRouteShellConfig(
+      section: CounselorWorkspaceNavSection.dashboard,
+      title: 'Privacy & Data Controls',
+      subtitle:
+          'Manage passkeys and export your counselor account data from the same workspace frame.',
+      profileHighlighted: true,
+      childHandlesOwnScroll: true,
+    );
+  }
   return _routeShellForLocation(state.matchedLocation);
 }
 
@@ -182,6 +202,7 @@ String? _normalizedCounselorWorkspaceRoute(String? rawRoute) {
     case AppRoute.counselorAvailability:
     case AppRoute.counselorLiveHub:
     case AppRoute.counselorDirectory:
+    case AppRoute.counselorSettings:
       return normalized;
     default:
       return null;

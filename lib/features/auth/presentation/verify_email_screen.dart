@@ -134,8 +134,8 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
 
     if (isDesktop) {
       return AuthDesktopShell(
-        heroHighlightText: 'Verify',
-        heroBaseText: 'your email',
+        heroHighlightText: '',
+        heroBaseText: '',
         heroDescription:
             'We sent a verification link to your inbox. Confirm it to continue into the right workspace with the right role.',
         heroSupplement: const _VerifyEmailDesktopSupplement(),

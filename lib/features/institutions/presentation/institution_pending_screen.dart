@@ -949,6 +949,8 @@ class _RequestManagementCard extends StatelessWidget {
                 ),
               ],
             ),
+
+            const SizedBox(height: 16),
             Wrap(
               spacing: 10,
               runSpacing: 10,

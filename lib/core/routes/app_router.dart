@@ -76,6 +76,7 @@ class AppRoute {
   static const counselorAppointments = '/counselor-appointments';
   static const counselorNotifications = '/counselor-notifications';
   static const counselorSettings = '/counselor-settings';
+  static const counselorPrivacyControls = '/counselor-privacy-controls';
   static const counselorDirectory = '/counselors';
   static const counselorProfile = '/counselor-profile';
   static const studentAppointments = '/student-appointments';
@@ -263,6 +264,10 @@ class AppRoute {
           ? null
           : <String, String>{returnToQuery: normalizedReturnTo},
     ).toString();
+  }
+
+  static String counselorPrivacyControlsRoute() {
+    return counselorPrivacyControls;
   }
 }
 
@@ -488,6 +493,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               AppRoute.adminPanelQuery: 'privacy',
             },
           ).toString();
+        }
+        if (location == AppRoute.privacyControls &&
+            profileAsync.valueOrNull?.role == UserRole.counselor) {
+          return AppRoute.counselorPrivacyControlsRoute();
         }
         if (location == AppRoute.institutionAdminProfile) {
           return Uri(
@@ -1174,6 +1183,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const CounselorProfileSettingsScreen(
               embeddedInCounselorShell: true,
             ),
+          ),
+          GoRoute(
+            path: AppRoute.counselorPrivacyControls,
+            builder: (context, state) =>
+                const PrivacyControlsScreen(embeddedInCounselorShell: true),
           ),
         ],
       ),

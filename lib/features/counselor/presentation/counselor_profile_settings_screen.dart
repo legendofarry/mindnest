@@ -339,8 +339,9 @@ class _CounselorProfileSettingsScreenState
                                   title: 'Privacy & Data Controls',
                                   subtitle:
                                       'Open privacy controls and account data settings.',
-                                  onTap: () =>
-                                      context.go(AppRoute.privacyControls),
+                                  onTap: () => context.go(
+                                    AppRoute.counselorPrivacyControlsRoute(),
+                                  ),
                                 ),
                               ],
                             ),

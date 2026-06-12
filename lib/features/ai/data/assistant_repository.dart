@@ -32,7 +32,8 @@ const _groqModelSource = 'llama-3.1-8b-instant';
 const _groqChatPathSource = '/chat/completions';
 
 // OpenRouter (OpenAI-compatible) config
-const _openRouterApiKeySource = '';
+const _openRouterApiKeySource =
+    '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';
 const _openRouterBaseUrlSource = 'https://openrouter.ai/api/v1';
 const _openRouterModelSource = 'nvidia/nemotron-3-nano-30b-a3b:free';
 const _openRouterChatPathSource = '/chat/completions';
