@@ -1,10 +1,17 @@
+// ignore_for_file: unnecessary_string_interpolations, deprecated_member_use
+
+import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
+import 'package:mindnest/features/auth/presentation/account_export_sheet.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
+import 'package:mindnest/features/auth/presentation/passkey_management_dialog.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
@@ -13,12 +20,45 @@ import 'package:mindnest/features/counselor/presentation/counselor_workspace_she
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/core/ui/modern_banner.dart';
 
+enum CounselorProfileSettingsSection {
+  identity,
+  professionalDetails,
+  specializations,
+  languages,
+  bio,
+  sessionRhythm,
+  passwordSignIn,
+  privacyData,
+}
+
+class _ProfileSettingsNavItem {
+  const _ProfileSettingsNavItem({
+    required this.section,
+    required this.group,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.accent,
+  });
+
+  final CounselorProfileSettingsSection section;
+  final String group;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color accent;
+}
+
 class CounselorProfileSettingsScreen extends ConsumerStatefulWidget {
   const CounselorProfileSettingsScreen({
     super.key,
+    this.returnToRoute,
+    this.initialSection = CounselorProfileSettingsSection.identity,
     this.embeddedInCounselorShell = false,
   });
 
+  final String? returnToRoute;
+  final CounselorProfileSettingsSection initialSection;
   final bool embeddedInCounselorShell;
 
   @override
@@ -48,6 +88,10 @@ class _CounselorProfileSettingsScreenState
 
   bool _savingProfile = false;
   bool _sendingReset = false;
+  String _settingsSearchQuery = '';
+  CounselorProfileSettingsSection _selectedSection =
+      CounselorProfileSettingsSection.identity;
+  bool _settingsDetailOpen = false;
 
   static const _specs = <String>[
     'Academic Stress',
@@ -82,6 +126,14 @@ class _CounselorProfileSettingsScreenState
     _years.dispose();
     _bio.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedSection = widget.initialSection;
+    _settingsDetailOpen =
+        widget.initialSection != CounselorProfileSettingsSection.identity;
   }
 
   void _seed(UserProfile profile, CounselorProfile? cp) {
@@ -220,7 +272,266 @@ class _CounselorProfileSettingsScreenState
   }
 
   @override
+  void didUpdateWidget(covariant CounselorProfileSettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialSection != widget.initialSection) {
+      _selectedSection = widget.initialSection;
+      _settingsDetailOpen =
+          widget.initialSection != CounselorProfileSettingsSection.identity;
+    }
+  }
+
+  void _selectSection(CounselorProfileSettingsSection section) {
+    setState(() {
+      _selectedSection = section;
+      _settingsDetailOpen = true;
+    });
+  }
+
+  void _collapseSectionDetails() {
+    if (!_settingsDetailOpen) {
+      return;
+    }
+    setState(() => _settingsDetailOpen = false);
+  }
+
+  String _defaultCloseRoute() {
+    if (widget.returnToRoute != null &&
+        widget.returnToRoute!.trim().isNotEmpty) {
+      return widget.returnToRoute!.trim();
+    }
+    return AppRoute.counselorDashboard;
+  }
+
+  void _closeOverlay(BuildContext context) {
+    context.go(_defaultCloseRoute());
+  }
+
+  List<_ProfileSettingsNavItem> _navItems(UserProfile profile) {
+    final institution = profile.institutionName?.trim().isNotEmpty == true
+        ? profile.institutionName!.trim()
+        : 'Counselor workspace';
+    final displayName = profile.name.trim().isNotEmpty
+        ? profile.name.trim()
+        : 'Counselor';
+    final visibleSummary = _active ? 'Visible to students' : 'Hidden';
+    final specialized = _specializations.isEmpty
+        ? 'No specialties set'
+        : _specializations.join(' · ');
+    final languageSummary = (_languages ?? {counselorLanguageOptions.first})
+        .join(' · ');
+    return <_ProfileSettingsNavItem>[
+      _ProfileSettingsNavItem(
+        section: CounselorProfileSettingsSection.identity,
+        group: 'PROFILE',
+        title: 'Identity',
+        subtitle: '$displayName · $institution',
+        icon: Icons.person_rounded,
+        accent: const Color(0xFF14B8A6),
+      ),
+      _ProfileSettingsNavItem(
+        section: CounselorProfileSettingsSection.professionalDetails,
+        group: 'PROFILE',
+        title: 'Professional details',
+        subtitle:
+            '${_title.text.trim().isEmpty ? 'Licensed Counselor' : _title.text.trim()} · ${_years.text.trim().isEmpty ? '${_years.text.trim()}' : '${_years.text.trim()} yrs'} · $_mode',
+        icon: Icons.work_history_rounded,
+        accent: const Color(0xFF10B981),
+      ),
+      _ProfileSettingsNavItem(
+        section: CounselorProfileSettingsSection.specializations,
+        group: 'PROFILE',
+        title: 'Specializations',
+        subtitle: specialized,
+        icon: Icons.shield_rounded,
+        accent: const Color(0xFF8B5CF6),
+      ),
+      _ProfileSettingsNavItem(
+        section: CounselorProfileSettingsSection.languages,
+        group: 'PROFILE',
+        title: 'Languages',
+        subtitle: languageSummary,
+        icon: Icons.translate_rounded,
+        accent: const Color(0xFFEC4899),
+      ),
+      _ProfileSettingsNavItem(
+        section: CounselorProfileSettingsSection.bio,
+        group: 'PROFILE',
+        title: 'Bio',
+        subtitle: _bio.text.trim().isEmpty ? 'Not set yet' : _bio.text.trim(),
+        icon: Icons.description_rounded,
+        accent: const Color(0xFFF59E0B),
+      ),
+      _ProfileSettingsNavItem(
+        section: CounselorProfileSettingsSection.sessionRhythm,
+        group: 'PRACTICE',
+        title: 'Session rhythm',
+        subtitle: '$_duration min · $_breakMins min break',
+        icon: Icons.schedule_rounded,
+        accent: const Color(0xFF06B6D4),
+      ),
+      _ProfileSettingsNavItem(
+        section: CounselorProfileSettingsSection.passwordSignIn,
+        group: 'ACCOUNT',
+        title: 'Password & sign-in',
+        subtitle: profile.email,
+        icon: Icons.vpn_key_rounded,
+        accent: const Color(0xFF0E9B90),
+      ),
+      _ProfileSettingsNavItem(
+        section: CounselorProfileSettingsSection.privacyData,
+        group: 'ACCOUNT',
+        title: 'Privacy & data',
+        subtitle: visibleSummary,
+        icon: Icons.public_rounded,
+        accent: const Color(0xFF7C3AED),
+      ),
+    ];
+  }
+
+  bool _matchesNavSearch(_ProfileSettingsNavItem item) {
+    final query = _settingsSearchQuery.trim().toLowerCase();
+    if (query.isEmpty) {
+      return true;
+    }
+    return [
+      item.group,
+      item.title,
+      item.subtitle,
+      item.section.name,
+    ].join(' ').toLowerCase().contains(query);
+  }
+
+  String _sectionTitle(CounselorProfileSettingsSection section) {
+    return switch (section) {
+      CounselorProfileSettingsSection.identity => 'Identity',
+      CounselorProfileSettingsSection.professionalDetails =>
+        'Professional details',
+      CounselorProfileSettingsSection.specializations => 'Specializations',
+      CounselorProfileSettingsSection.languages => 'Languages',
+      CounselorProfileSettingsSection.bio => 'Bio',
+      CounselorProfileSettingsSection.sessionRhythm => 'Session rhythm',
+      CounselorProfileSettingsSection.passwordSignIn => 'Password & sign-in',
+      CounselorProfileSettingsSection.privacyData => 'Privacy & data',
+    };
+  }
+
+  String _sectionDescription(CounselorProfileSettingsSection section) {
+    return switch (section) {
+      CounselorProfileSettingsSection.identity =>
+        'Display name, avatar, and how students see your counselor identity.',
+      CounselorProfileSettingsSection.professionalDetails =>
+        'Title, years of practice, mode, and timezone.',
+      CounselorProfileSettingsSection.specializations =>
+        'The areas students can book you for.',
+      CounselorProfileSettingsSection.languages =>
+        'Languages you provide sessions in.',
+      CounselorProfileSettingsSection.bio =>
+        'A calm, human summary that helps students know what to expect.',
+      CounselorProfileSettingsSection.sessionRhythm =>
+        'Set your default rhythm, breaks, and booking preferences.',
+      CounselorProfileSettingsSection.passwordSignIn =>
+        'Send yourself a password reset link.',
+      CounselorProfileSettingsSection.privacyData =>
+        'Visibility, exports, and account data controls.',
+    };
+  }
+
+  IconData _sectionIcon(CounselorProfileSettingsSection section) {
+    return switch (section) {
+      CounselorProfileSettingsSection.identity => Icons.person_rounded,
+      CounselorProfileSettingsSection.professionalDetails =>
+        Icons.work_history_rounded,
+      CounselorProfileSettingsSection.specializations => Icons.shield_rounded,
+      CounselorProfileSettingsSection.languages => Icons.translate_rounded,
+      CounselorProfileSettingsSection.bio => Icons.description_rounded,
+      CounselorProfileSettingsSection.sessionRhythm => Icons.schedule_rounded,
+      CounselorProfileSettingsSection.passwordSignIn => Icons.vpn_key_rounded,
+      CounselorProfileSettingsSection.privacyData => Icons.public_rounded,
+    };
+  }
+
+  Color _sectionAccent(CounselorProfileSettingsSection section) {
+    return switch (section) {
+      CounselorProfileSettingsSection.identity => const Color(0xFF14B8A6),
+      CounselorProfileSettingsSection.professionalDetails => const Color(
+        0xFF10B981,
+      ),
+      CounselorProfileSettingsSection.specializations => const Color(
+        0xFF8B5CF6,
+      ),
+      CounselorProfileSettingsSection.languages => const Color(0xFFEC4899),
+      CounselorProfileSettingsSection.bio => const Color(0xFFF59E0B),
+      CounselorProfileSettingsSection.sessionRhythm => const Color(0xFF06B6D4),
+      CounselorProfileSettingsSection.passwordSignIn => const Color(0xFF0E9B90),
+      CounselorProfileSettingsSection.privacyData => const Color(0xFF7C3AED),
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final profileAsync = ref.watch(currentUserProfileProvider);
+    return profileAsync.when(
+      data: (profile) {
+        if (profile == null || profile.role != UserRole.counselor) {
+          return const Scaffold(
+            body: Center(child: Text('Only counselors can access this page.')),
+          );
+        }
+        final unreadCount =
+            ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
+        final showCounselorDirectory =
+            ref
+                .watch(
+                  counselorWorkflowSettingsProvider(
+                    profile.institutionId ?? '',
+                  ),
+                )
+                .valueOrNull
+                ?.directoryEnabled ??
+            false;
+        final settingsBody = StreamBuilder<CounselorProfile?>(
+          stream: ref
+              .read(careRepositoryProvider)
+              .watchCounselorProfile(profile.id),
+          builder: (context, cpSnap) {
+            _seed(profile, cpSnap.data);
+            return _buildOverlayWorkspace(
+              context,
+              profile,
+              unreadCount,
+              showCounselorDirectory,
+            );
+          },
+        );
+        if (widget.embeddedInCounselorShell) {
+          return settingsBody;
+        }
+        return CounselorWorkspaceScaffold(
+          profile: profile,
+          activeSection: CounselorWorkspaceNavSection.dashboard,
+          showCounselorDirectory: showCounselorDirectory,
+          unreadNotifications: unreadCount,
+          profileHighlighted: true,
+          title: 'Profile Settings',
+          subtitle:
+              'Manage the professional profile students see, tune booking rules, and update counselor account controls from one workspace.',
+          onSelectSection: (section) => _navigateSection(context, section),
+          onNotifications: () => context.go(AppRoute.notifications),
+          onProfile: () {},
+          onLogout: () => confirmAndLogout(context: context, ref: ref),
+          child: settingsBody,
+        );
+      },
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (error, _) =>
+          Scaffold(body: Center(child: Text(error.toString()))),
+    );
+  }
+
+  // ignore: unused_element
+  Widget _buildLegacyBuild(BuildContext context) {
     final profileAsync = ref.watch(currentUserProfileProvider);
     return profileAsync.when(
       data: (profile) {
@@ -543,6 +854,1318 @@ class _CounselorProfileSettingsScreenState
       error: (error, _) =>
           Scaffold(body: Center(child: Text(error.toString()))),
     );
+  }
+
+  Widget _buildOverlayWorkspace(
+    BuildContext context,
+    UserProfile profile,
+    int unreadCount,
+    bool showCounselorDirectory,
+  ) {
+    final navItems = _navItems(profile);
+    final visibleItems = navItems
+        .where(_matchesNavSearch)
+        .toList(growable: false);
+    final selectedItem = navItems.firstWhere(
+      (item) => item.section == _selectedSection,
+      orElse: () => navItems.first,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 1080;
+        final panelWidth = _settingsDetailOpen
+            ? math.min(constraints.maxWidth, 1360.0)
+            : math.min(constraints.maxWidth, 460.0);
+        final railWidth = math.min(390.0, panelWidth);
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF07111D), Color(0xFF0B1626)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+                child: Container(color: const Color(0xB308111D)),
+              ),
+            ),
+            SafeArea(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeInOutCubic,
+                  width: panelWidth,
+                  height: constraints.maxHeight,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(isWide ? 16 : 10, 12, 12, 12),
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(
+                            0xFF0B1220,
+                          ).withValues(alpha: 0.97),
+                          borderRadius: BorderRadius.circular(isWide ? 34 : 28),
+                          border: Border.all(color: const Color(0x1FFFFFFF)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x40101828),
+                              blurRadius: 40,
+                              offset: Offset(-10, 18),
+                            ),
+                          ],
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 240),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          layoutBuilder: (currentChild, previousChildren) {
+                            return Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ...previousChildren,
+                                if (currentChild != null) ...[currentChild],
+                              ],
+                            );
+                          },
+                          transitionBuilder: (child, animation) {
+                            final slide = Tween<Offset>(
+                              begin: const Offset(0.06, 0),
+                              end: Offset.zero,
+                            ).animate(animation);
+                            return FadeTransition(
+                              opacity: animation,
+                              child: SlideTransition(
+                                position: slide,
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: _settingsDetailOpen
+                              ? Row(
+                                  key: const ValueKey('settings-split'),
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    SizedBox(
+                                      width: railWidth,
+                                      child: _buildSettingsRail(
+                                        context,
+                                        profile,
+                                        navItems,
+                                        visibleItems,
+                                        unreadCount,
+                                        showCounselorDirectory,
+                                      ),
+                                    ),
+                                    VerticalDivider(
+                                      width: 1,
+                                      color: Colors.white.withValues(
+                                        alpha: 0.07,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: _buildSettingsPane(
+                                        context,
+                                        profile,
+                                        showCounselorDirectory,
+                                        selectedItem,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : SizedBox.expand(
+                                  key: const ValueKey('settings-rail'),
+                                  child: _buildSettingsRail(
+                                    context,
+                                    profile,
+                                    navItems,
+                                    visibleItems,
+                                    unreadCount,
+                                    showCounselorDirectory,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSettingsRail(
+    BuildContext context,
+    UserProfile profile,
+    List<_ProfileSettingsNavItem> allItems,
+    List<_ProfileSettingsNavItem> visibleItems,
+    int unreadCount,
+    bool showCounselorDirectory,
+  ) {
+    final visibleSet = visibleItems.toSet();
+    final grouped = <String, List<_ProfileSettingsNavItem>>{};
+    for (final item in allItems) {
+      if (!visibleSet.contains(item)) {
+        continue;
+      }
+      grouped
+          .putIfAbsent(item.group, () => <_ProfileSettingsNavItem>[])
+          .add(item);
+    }
+
+    final displayName = profile.name.trim().isNotEmpty
+        ? profile.name.trim()
+        : 'Counselor';
+    final institution = profile.institutionName?.trim().isNotEmpty == true
+        ? profile.institutionName!.trim()
+        : 'Institution workspace';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 18, 16, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF13D0C7), Color(0xFF0E9B90)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  displayName.trim().isNotEmpty
+                      ? displayName.trim()[0].toUpperCase()
+                      : 'C',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Profile settings',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Tune what students see and how you work.',
+                      style: TextStyle(
+                        color: Color(0xFF8EA0B8),
+                        fontSize: 13.5,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => _closeOverlay(context),
+                icon: const Icon(Icons.close_rounded),
+                color: Colors.white,
+                tooltip: 'Close',
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111B2B),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0x1FFFFFFF)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0E9B90).withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0x220E9B90)),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    displayName.isNotEmpty
+                        ? displayName
+                              .trim()
+                              .split(RegExp(r'\s+'))
+                              .take(2)
+                              .map((part) => part.isNotEmpty ? part[0] : '')
+                              .join()
+                              .toUpperCase()
+                        : 'LW',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _active
+                                  ? const Color(0x1A10B981)
+                                  : const Color(0x1AF97316),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: _active
+                                    ? const Color(0x3310B981)
+                                    : const Color(0x33F97316),
+                              ),
+                            ),
+                            child: Text(
+                              _active ? 'Visible' : 'Hidden',
+                              style: TextStyle(
+                                color: _active
+                                    ? const Color(0xFF10E3B0)
+                                    : const Color(0xFFF59E0B),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.9,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        institution,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF93A5BC),
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            onChanged: (value) => setState(() => _settingsSearchQuery = value),
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Search settings',
+              hintStyle: const TextStyle(color: Color(0xFF6D7F97)),
+              prefixIcon: const Icon(Icons.search_rounded, size: 20),
+              filled: true,
+              fillColor: const Color(0xFF121D2F),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: Color(0xFF0E9B90)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                ...['PROFILE', 'PRACTICE', 'ACCOUNT'].expand((group) {
+                  final groupItems = grouped[group];
+                  if (groupItems == null || groupItems.isEmpty) {
+                    return const <Widget>[];
+                  }
+                  return <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8, top: 4),
+                      child: Text(
+                        group,
+                        style: const TextStyle(
+                          color: Color(0xFF6C7E95),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                    ...groupItems.map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _buildNavTile(
+                          context,
+                          item,
+                          item.section == _selectedSection,
+                        ),
+                      ),
+                    ),
+                  ];
+                }),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111B2B),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0x1FFFFFFF)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.notifications_active_outlined,
+                      color: Color(0xFF57D6C8),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Workspace status',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      unreadCount > 0 ? '$unreadCount unread' : 'All read',
+                      style: const TextStyle(
+                        color: Color(0xFF8EA0B8),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  showCounselorDirectory
+                      ? 'Counselor directory is live for this institution.'
+                      : 'Counselor directory visibility is currently off.',
+                  style: const TextStyle(
+                    color: Color(0xFF8EA0B8),
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavTile(
+    BuildContext context,
+    _ProfileSettingsNavItem item,
+    bool selected,
+  ) {
+    return InkWell(
+      onTap: () => _selectSection(item.section),
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF1A2434)
+              : const Color(0xFF121D2F).withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? const Color(0xFF24344B) : const Color(0x1FFFFFFF),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: item.accent.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: item.accent.withValues(alpha: 0.26)),
+              ),
+              child: Icon(item.icon, color: item.accent, size: 21),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    item.subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF8EA0B8),
+                      fontSize: 12.5,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: selected
+                  ? const Color(0xFFBBD0DC)
+                  : const Color(0xFF586C82),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsPane(
+    BuildContext context,
+    UserProfile profile,
+    bool showCounselorDirectory,
+    _ProfileSettingsNavItem selectedItem,
+  ) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 18, 18, 0),
+            child: Row(
+              children: [
+                TextButton.icon(
+                  onPressed: _collapseSectionDetails,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  label: const Text('All settings'),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => _closeOverlay(context),
+                  icon: const Icon(Icons.close_rounded),
+                  tooltip: 'Close',
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              child: SingleChildScrollView(
+                key: ValueKey(selectedItem.section),
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: _sectionAccent(
+                              selectedItem.section,
+                            ).withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(
+                              color: _sectionAccent(
+                                selectedItem.section,
+                              ).withValues(alpha: 0.24),
+                            ),
+                          ),
+                          child: Icon(
+                            _sectionIcon(selectedItem.section),
+                            color: _sectionAccent(selectedItem.section),
+                            size: 21,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _sectionTitle(selectedItem.section).toUpperCase(),
+                              style: const TextStyle(
+                                color: Color(0xFF57D6C8),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _sectionTitle(selectedItem.section),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _sectionDescription(selectedItem.section),
+                      style: const TextStyle(
+                        color: Color(0xFF9FB0C5),
+                        fontSize: 15,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    _buildSectionContent(
+                      context,
+                      profile,
+                      showCounselorDirectory,
+                      selectedItem.section,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionContent(
+    BuildContext context,
+    UserProfile profile,
+    bool showCounselorDirectory,
+    CounselorProfileSettingsSection section,
+  ) {
+    final darkFieldBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
+    );
+    final darkFieldDecoration = InputDecoration(
+      filled: true,
+      fillColor: const Color(0xFF111B2B),
+      border: darkFieldBorder,
+      enabledBorder: darkFieldBorder,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Color(0xFF0E9B90), width: 1.4),
+      ),
+      labelStyle: const TextStyle(color: Color(0xFF8EA0B8)),
+      floatingLabelStyle: const TextStyle(color: Color(0xFF57D6C8)),
+      hintStyle: const TextStyle(color: Color(0xFF63748A)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+    );
+
+    Widget sectionCard({
+      required String title,
+      required String description,
+      required Widget child,
+      Widget? trailing,
+    }) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: const Color(0xFF101A2A),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0x1FFFFFFF)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: const TextStyle(
+                          color: Color(0xFF8EA0B8),
+                          fontSize: 13.5,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...[const SizedBox(width: 12), trailing],
+              ],
+            ),
+            const SizedBox(height: 16),
+            child,
+          ],
+        ),
+      );
+    }
+
+    Widget actionBar({
+      required String label,
+      required VoidCallback? onPressed,
+      bool primary = true,
+      IconData icon = Icons.save_rounded,
+    }) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: FilledButton.icon(
+          onPressed: onPressed,
+          style: primary
+              ? null
+              : FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF111B2B),
+                  foregroundColor: Colors.white,
+                ),
+          icon: Icon(icon),
+          label: Text(label),
+        ),
+      );
+    }
+
+    switch (section) {
+      case CounselorProfileSettingsSection.identity:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            sectionCard(
+              title: 'Profile snapshot',
+              description:
+                  'A calm identity card that mirrors the screenshot style and keeps your public presence easy to scan.',
+              child: Row(
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0E9B90), Color(0xFF1D4ED8)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      border: Border.all(color: const Color(0x3310E3B0)),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      profile.name.trim().isNotEmpty
+                          ? profile.name
+                                .trim()
+                                .split(RegExp(r'\s+'))
+                                .take(2)
+                                .map((part) => part.isNotEmpty ? part[0] : '')
+                                .join()
+                                .toUpperCase()
+                          : 'LW',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          profile.name.trim().isNotEmpty
+                              ? profile.name.trim()
+                              : 'Counselor',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          profile.institutionName ?? 'Institution workspace',
+                          style: const TextStyle(
+                            color: Color(0xFF9FB0C5),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _active
+                          ? const Color(0x1A10B981)
+                          : const Color(0x1AF97316),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: _active
+                            ? const Color(0x3310B981)
+                            : const Color(0x33F97316),
+                      ),
+                    ),
+                    child: Text(
+                      _active ? 'Visible' : 'Hidden',
+                      style: TextStyle(
+                        color: _active
+                            ? const Color(0xFF10E3B0)
+                            : const Color(0xFFF59E0B),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            sectionCard(
+              title: 'Identity details',
+              description: 'Display name and institution name.',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextFormField(
+                    controller: _name,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: darkFieldDecoration.copyWith(
+                      labelText: 'Display name',
+                      prefixIcon: const Icon(Icons.person_rounded),
+                    ),
+                    validator: (value) => (value ?? '').trim().length < 2
+                        ? 'Enter at least 2 characters.'
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    initialValue: profile.institutionName ?? '',
+                    readOnly: true,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: darkFieldDecoration.copyWith(
+                      labelText: 'Institution',
+                      prefixIcon: const Icon(Icons.apartment_rounded),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actionBar(
+              label: _savingProfile ? 'Saving...' : 'Save changes',
+              onPressed: _savingProfile ? null : () => _save(profile),
+            ),
+          ],
+        );
+      case CounselorProfileSettingsSection.professionalDetails:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            sectionCard(
+              title: 'Professional details',
+              description: 'Title, years of practice, mode, and timezone.',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextFormField(
+                    controller: _title,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: darkFieldDecoration.copyWith(
+                      labelText: 'Professional title',
+                      prefixIcon: const Icon(Icons.badge_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _years,
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: darkFieldDecoration.copyWith(
+                            labelText: 'Years of practice',
+                            prefixIcon: const Icon(Icons.timeline_rounded),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _mode,
+                          dropdownColor: const Color(0xFF111B2B),
+                          style: const TextStyle(color: Colors.white),
+                          decoration: darkFieldDecoration.copyWith(
+                            labelText: 'Mode',
+                            prefixIcon: const Icon(Icons.video_call_rounded),
+                          ),
+                          items: _modes
+                              .map(
+                                (e) =>
+                                    DropdownMenuItem(value: e, child: Text(e)),
+                              )
+                              .toList(growable: false),
+                          onChanged: (value) =>
+                              setState(() => _mode = value ?? _mode),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _timezone,
+                    dropdownColor: const Color(0xFF111B2B),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: darkFieldDecoration.copyWith(
+                      labelText: 'Timezone',
+                      prefixIcon: const Icon(Icons.public_rounded),
+                    ),
+                    items: _zones
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(growable: false),
+                    onChanged: (value) =>
+                        setState(() => _timezone = value ?? _timezone),
+                  ),
+                ],
+              ),
+            ),
+            actionBar(
+              label: _savingProfile ? 'Saving...' : 'Save changes',
+              onPressed: _savingProfile ? null : () => _save(profile),
+            ),
+          ],
+        );
+      case CounselorProfileSettingsSection.specializations:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            sectionCard(
+              title: 'Specializations',
+              description: 'The areas students can book you for.',
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: _specs
+                    .map((item) {
+                      final selected = _specializations.contains(item);
+                      return FilterChip(
+                        label: Text(item),
+                        selected: selected,
+                        onSelected: (value) => setState(() {
+                          final next = Set<String>.from(_specializations);
+                          if (value) {
+                            next.add(item);
+                          } else {
+                            next.remove(item);
+                          }
+                          _specializations = next.isEmpty
+                              ? {_specs.first}
+                              : next;
+                          _specialization = _specializations.first;
+                        }),
+                        selectedColor: const Color(0xFF17385B),
+                        backgroundColor: const Color(0xFF111B2B),
+                        labelStyle: TextStyle(
+                          color: selected
+                              ? Colors.white
+                              : const Color(0xFF9FB0C5),
+                          fontWeight: FontWeight.w700,
+                        ),
+                        side: BorderSide(
+                          color: selected
+                              ? const Color(0xFF0E9B90)
+                              : const Color(0x1FFFFFFF),
+                        ),
+                        checkmarkColor: Colors.white,
+                      );
+                    })
+                    .toList(growable: false),
+              ),
+            ),
+            actionBar(
+              label: _savingProfile ? 'Saving...' : 'Save changes',
+              onPressed: _savingProfile ? null : () => _save(profile),
+            ),
+          ],
+        );
+      case CounselorProfileSettingsSection.languages:
+        final selectedLanguages =
+            _languages ?? {counselorLanguageOptions.first};
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            sectionCard(
+              title: 'Languages',
+              description: 'Languages you provide sessions in.',
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: counselorLanguageOptions
+                    .map((lang) {
+                      final selected = selectedLanguages.contains(lang);
+                      return FilterChip(
+                        label: Text(lang),
+                        selected: selected,
+                        onSelected: (value) {
+                          setState(() {
+                            _languages ??= {counselorLanguageOptions.first};
+                            if (value) {
+                              _languages!.add(lang);
+                            } else {
+                              _languages!.remove(lang);
+                            }
+                          });
+                        },
+                        selectedColor: const Color(0xFF17385B),
+                        backgroundColor: const Color(0xFF111B2B),
+                        labelStyle: TextStyle(
+                          color: selected
+                              ? Colors.white
+                              : const Color(0xFF9FB0C5),
+                          fontWeight: FontWeight.w700,
+                        ),
+                        side: BorderSide(
+                          color: selected
+                              ? const Color(0xFF0E9B90)
+                              : const Color(0x1FFFFFFF),
+                        ),
+                        checkmarkColor: Colors.white,
+                      );
+                    })
+                    .toList(growable: false),
+              ),
+            ),
+            actionBar(
+              label: _savingProfile ? 'Saving...' : 'Save changes',
+              onPressed: _savingProfile ? null : () => _save(profile),
+            ),
+          ],
+        );
+      case CounselorProfileSettingsSection.bio:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            sectionCard(
+              title: 'Bio',
+              description:
+                  'A calm, human summary that helps students know what to expect.',
+              child: TextFormField(
+                controller: _bio,
+                minLines: 5,
+                maxLines: 8,
+                style: const TextStyle(color: Colors.white),
+                decoration: darkFieldDecoration.copyWith(
+                  labelText: 'Bio',
+                  alignLabelWithHint: true,
+                  prefixIcon: const Icon(Icons.notes_rounded),
+                ),
+              ),
+            ),
+            actionBar(
+              label: _savingProfile ? 'Saving...' : 'Save changes',
+              onPressed: _savingProfile ? null : () => _save(profile),
+            ),
+          ],
+        );
+      case CounselorProfileSettingsSection.sessionRhythm:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            sectionCard(
+              title: 'Session rhythm',
+              description:
+                  'Set your default rhythm, breaks, and booking preferences.',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<int>(
+                    initialValue: _duration,
+                    dropdownColor: const Color(0xFF111B2B),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: darkFieldDecoration.copyWith(
+                      labelText: 'Default session duration',
+                      prefixIcon: const Icon(Icons.timer_outlined),
+                    ),
+                    items: _durations
+                        .map(
+                          (e) =>
+                              DropdownMenuItem(value: e, child: Text('$e min')),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) =>
+                        setState(() => _duration = value ?? _duration),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Break between sessions',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '$_breakMins min',
+                        style: const TextStyle(color: Color(0xFF9FB0C5)),
+                      ),
+                    ],
+                  ),
+                  Slider(
+                    value: _breakMins.toDouble(),
+                    min: 0,
+                    max: 30,
+                    divisions: 6,
+                    activeColor: const Color(0xFF0E9B90),
+                    inactiveColor: const Color(0xFF24344B),
+                    onChanged: (value) =>
+                        setState(() => _breakMins = value.round()),
+                  ),
+                  SwitchListTile.adaptive(
+                    value: _direct,
+                    onChanged: (value) => setState(() => _direct = value),
+                    title: const Text(
+                      'Allow direct booking',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'Let students book without a manual approval step.',
+                      style: TextStyle(color: Color(0xFF9FB0C5)),
+                    ),
+                    activeColor: const Color(0xFF0E9B90),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  SwitchListTile.adaptive(
+                    value: _followUps,
+                    onChanged: (value) => setState(() => _followUps = value),
+                    title: const Text(
+                      'Auto-approve follow ups',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'Keep repeat sessions moving without extra admin.',
+                      style: TextStyle(color: Color(0xFF9FB0C5)),
+                    ),
+                    activeColor: const Color(0xFF0E9B90),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ),
+            actionBar(
+              label: _savingProfile ? 'Saving...' : 'Save changes',
+              onPressed: _savingProfile ? null : () => _save(profile),
+            ),
+          ],
+        );
+      case CounselorProfileSettingsSection.passwordSignIn:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            sectionCard(
+              title: 'Password & sign-in',
+              description: 'Send yourself a password reset link.',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'We will email a secure reset link to ${profile.email}.',
+                    style: const TextStyle(
+                      color: Color(0xFF9FB0C5),
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  FilledButton.icon(
+                    onPressed: _sendingReset ? null : () => _sendReset(profile),
+                    icon: const Icon(Icons.lock_reset_rounded),
+                    label: Text(
+                      _sendingReset ? 'Sending...' : 'Send reset link',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        showPasskeyManagementDialog(context: context),
+                    icon: const Icon(Icons.fingerprint_rounded),
+                    label: const Text('Manage passkeys'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      case CounselorProfileSettingsSection.privacyData:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            sectionCard(
+              title: 'Privacy & data',
+              description: 'Visibility, exports, and account data controls.',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF111B2B),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0x1FFFFFFF)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Visible to students',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                showCounselorDirectory
+                                    ? 'Appear in the counselor directory.'
+                                    : 'Keep your counselor listing hidden from students.',
+                                style: const TextStyle(
+                                  color: Color(0xFF9FB0C5),
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Switch.adaptive(
+                          value: _active,
+                          onChanged: (value) => setState(() => _active = value),
+                          activeColor: const Color(0xFF0E9B90),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  OutlinedButton.icon(
+                    onPressed: () => showAccountExportSheet(
+                      context: context,
+                      ref: ref,
+                      title: 'Download your counselor data',
+                      subtitle:
+                          'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON.',
+                    ),
+                    icon: const Icon(Icons.download_rounded),
+                    label: const Text('Export my data'),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        showPasskeyManagementDialog(context: context),
+                    icon: const Icon(Icons.security_rounded),
+                    label: const Text('Manage passkeys'),
+                  ),
+                ],
+              ),
+            ),
+            actionBar(
+              label: _savingProfile ? 'Saving...' : 'Save visibility',
+              onPressed: _savingProfile ? null : () => _save(profile),
+            ),
+          ],
+        );
+    }
   }
 }
 

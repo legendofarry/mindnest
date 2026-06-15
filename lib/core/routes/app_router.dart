@@ -266,8 +266,14 @@ class AppRoute {
     ).toString();
   }
 
-  static String counselorPrivacyControlsRoute() {
-    return counselorPrivacyControls;
+  static String counselorPrivacyControlsRoute({String? returnTo}) {
+    final normalizedReturnTo = (returnTo ?? '').trim();
+    return Uri(
+      path: counselorPrivacyControls,
+      queryParameters: normalizedReturnTo.isEmpty
+          ? null
+          : <String, String>{returnToQuery: normalizedReturnTo},
+    ).toString();
   }
 }
 
@@ -1172,22 +1178,39 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoute.counselorNotifications,
-            builder: (context, state) => NotificationCenterScreen(
-              initialSelectedNotificationId:
-                  state.uri.queryParameters[AppRoute.notificationIdQuery],
-              embeddedInCounselorShell: true,
+            pageBuilder: (context, state) => NoTransitionPage(
+              key: state.pageKey,
+              child: NotificationCenterScreen(
+                initialSelectedNotificationId:
+                    state.uri.queryParameters[AppRoute.notificationIdQuery],
+                returnToRoute:
+                    state.uri.queryParameters[AppRoute.returnToQuery],
+                embeddedInCounselorShell: true,
+              ),
             ),
           ),
           GoRoute(
             path: AppRoute.counselorSettings,
-            builder: (context, state) => const CounselorProfileSettingsScreen(
-              embeddedInCounselorShell: true,
+            pageBuilder: (context, state) => NoTransitionPage(
+              key: state.pageKey,
+              child: CounselorProfileSettingsScreen(
+                embeddedInCounselorShell: true,
+                returnToRoute:
+                    state.uri.queryParameters[AppRoute.returnToQuery],
+              ),
             ),
           ),
           GoRoute(
             path: AppRoute.counselorPrivacyControls,
-            builder: (context, state) =>
-                const PrivacyControlsScreen(embeddedInCounselorShell: true),
+            pageBuilder: (context, state) => NoTransitionPage(
+              key: state.pageKey,
+              child: CounselorProfileSettingsScreen(
+                embeddedInCounselorShell: true,
+                returnToRoute:
+                    state.uri.queryParameters[AppRoute.returnToQuery],
+                initialSection: CounselorProfileSettingsSection.privacyData,
+              ),
+            ),
           ),
         ],
       ),
@@ -1227,6 +1250,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => NotificationCenterScreen(
               initialSelectedNotificationId:
                   state.uri.queryParameters[AppRoute.notificationIdQuery],
+              returnToRoute: state.uri.queryParameters[AppRoute.returnToQuery],
               embeddedInDesktopShell: true,
             ),
           ),

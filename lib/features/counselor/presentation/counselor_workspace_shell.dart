@@ -179,6 +179,7 @@ _CounselorRouteShellConfig _routeShellForState(GoRouterState state) {
       subtitle:
           'Manage the professional profile students see, tune booking rules, and update counselor account controls from one workspace.',
       profileHighlighted: true,
+      childHandlesOwnScroll: true,
     );
   }
   if (state.matchedLocation == AppRoute.counselorPrivacyControls) {
@@ -279,7 +280,8 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final overlayMode = notificationsHighlighted || profileHighlighted;
+    final shellScaffold = Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       body: _WorkspaceBackdrop(
         child: SafeArea(
@@ -341,7 +343,9 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
                                 profileHighlighted: profileHighlighted,
                               ),
                               Expanded(
-                                child: childHandlesOwnScroll
+                                child: overlayMode
+                                    ? const SizedBox.shrink()
+                                    : childHandlesOwnScroll
                                     ? Padding(
                                         padding: const EdgeInsets.fromLTRB(
                                           28,
@@ -410,7 +414,9 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     Expanded(
-                      child: childHandlesOwnScroll
+                      child: overlayMode
+                          ? const SizedBox.shrink()
+                          : childHandlesOwnScroll
                           ? child
                           : SingleChildScrollView(child: child),
                     ),
@@ -422,6 +428,18 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
         ),
       ),
     );
+
+    if (overlayMode) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          shellScaffold,
+          Positioned.fill(child: child),
+        ],
+      );
+    }
+
+    return shellScaffold;
   }
 }
 

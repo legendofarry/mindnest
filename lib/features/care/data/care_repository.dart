@@ -2989,6 +2989,30 @@ class CareRepository {
     });
   }
 
+  Future<void> markNotificationUnread(String notificationId) async {
+    if (kUseWindowsRestAuth) {
+      final existing = await _windowsRest.getDocument(
+        'notifications/$notificationId',
+      );
+      if (existing == null) {
+        return;
+      }
+      final now = DateTime.now().toUtc();
+      await _windowsRest.setDocument('notifications/$notificationId', {
+        ...existing.data,
+        'isRead': false,
+        'readAt': null,
+        'updatedAt': now,
+      });
+      return;
+    }
+    await _firestore.collection('notifications').doc(notificationId).update({
+      'isRead': false,
+      'readAt': null,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<SessionReassignmentRequest?> getAppointmentReassignmentRequest(
     String appointmentId,
   ) async {
