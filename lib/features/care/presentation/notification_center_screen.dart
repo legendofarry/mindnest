@@ -1658,6 +1658,328 @@ class _NotificationCenterScreenState
     );
   }
 
+  Widget _buildMobileNotificationWorkspace(
+    BuildContext context, {
+    required String userId,
+    required ThemeData panelTheme,
+    required List<AppNotification> notifications,
+    required bool showRefresh,
+    required bool refreshing,
+    required VoidCallback? onRefresh,
+    required VoidCallback? onClose,
+  }) {
+    final filtered = _filteredNotifications(notifications);
+    final selectedNotificationId = _effectiveSelectedNotificationId(
+      notifications,
+      filtered,
+      _notificationDetailOpen,
+    );
+    final selectedNotification = _notificationById(
+      filtered,
+      selectedNotificationId,
+    );
+    final unreadCount = notifications
+        .where((entry) => !entry.isRead && !entry.isArchived)
+        .length;
+    final canMarkAllRead =
+        userId.isNotEmpty &&
+        notifications.any((entry) => !entry.isRead && !entry.isArchived);
+    final canClearAll =
+        !_clearingAll && userId.isNotEmpty && notifications.isNotEmpty;
+
+    Widget buildListPage() {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF07111D), Color(0xFF0B1626)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: const Color(0x1DFFFFFF)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33101828),
+              blurRadius: 34,
+              offset: Offset(0, 18),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _compactDrawerHeader(
+                context: context,
+                userId: userId,
+                unreadCount: unreadCount,
+                notifications: notifications,
+                canMarkAllRead: canMarkAllRead,
+                canClearAll: canClearAll,
+                showRefresh: showRefresh,
+                refreshing: refreshing,
+                onRefresh: onRefresh,
+                onClose: onClose,
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                onChanged: (value) => setState(() => _searchQuery = value),
+                style: panelTheme.textTheme.titleSmall?.copyWith(
+                  color: panelTheme.colorScheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
+                cursorColor: panelTheme.colorScheme.primary,
+                decoration: InputDecoration(
+                  hintText: 'Search updates',
+                  hintStyle: panelTheme.textTheme.titleSmall?.copyWith(
+                    color: panelTheme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.72,
+                    ),
+                    fontWeight: FontWeight.w500,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: panelTheme.colorScheme.onSurfaceVariant,
+                  ),
+                  suffixIcon: _searchQuery.trim().isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          onPressed: () => setState(() => _searchQuery = ''),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: panelTheme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                  filled: true,
+                  fillColor: panelTheme.colorScheme.surface.withValues(
+                    alpha: 0.35,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 16,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide(
+                      color: panelTheme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.38,
+                      ),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide(
+                      color: panelTheme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.34,
+                      ),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide(
+                      color: panelTheme.colorScheme.primary.withValues(
+                        alpha: 0.55,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _compactFilterChip(
+                    context: context,
+                    label: 'All',
+                    active: _activeFilter == _NotificationFilter.all,
+                    onTap: () =>
+                        setState(() => _activeFilter = _NotificationFilter.all),
+                  ),
+                  _compactFilterChip(
+                    context: context,
+                    label: 'Unread',
+                    active: _activeFilter == _NotificationFilter.unread,
+                    onTap: () => setState(
+                      () => _activeFilter = _NotificationFilter.unread,
+                    ),
+                  ),
+                  _compactFilterChip(
+                    context: context,
+                    label: 'Archived',
+                    active: _activeFilter == _NotificationFilter.archived,
+                    onTap: () => setState(
+                      () => _activeFilter = _NotificationFilter.archived,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Expanded(
+                child: _compactNotificationListPane(
+                  context: context,
+                  notifications: filtered,
+                  selectedNotificationId: selectedNotificationId,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Widget buildDetailPage() {
+      final selected = selectedNotification;
+      final selectedId = selected?.id ?? '';
+      final showDetail = selectedId.isNotEmpty;
+      final canToggleRead = selected != null;
+
+      return Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF07111D), Color(0xFF0B1626)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: const Color(0x1DFFFFFF)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33101828),
+              blurRadius: 34,
+              offset: Offset(0, 18),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: () => setState(() {
+                      _selectedNotificationId = null;
+                      _notificationDetailOpen = false;
+                    }),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFC2CAD4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 10,
+                      ),
+                    ),
+                    icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                    label: const Text('Back'),
+                  ),
+                  const Spacer(),
+                  if (canToggleRead)
+                    TextButton.icon(
+                      onPressed: () =>
+                          _toggleSelectedNotificationRead(selected),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFF7FAFC),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 10,
+                        ),
+                      ),
+                      icon: Icon(
+                        selected.isRead
+                            ? Icons.mark_email_unread_outlined
+                            : Icons.mark_email_read_outlined,
+                        size: 18,
+                      ),
+                      label: Text(
+                        selected.isRead ? 'Mark unread' : 'Mark read',
+                      ),
+                    ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: onClose,
+                    tooltip: 'Close notifications',
+                    style: IconButton.styleFrom(
+                      foregroundColor: const Color(0xFFF7FAFC),
+                      backgroundColor: const Color(0xFF111B2B),
+                      side: const BorderSide(color: Color(0x22384E63)),
+                    ),
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 240),
+                  child: !showDetail
+                      ? _emptyDetailsState(context)
+                      : SingleChildScrollView(
+                          key: ValueKey(selectedId),
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: NotificationDetailsScreen(
+                            notificationId: selectedId,
+                            embedded: true,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Theme(
+      data: panelTheme,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF07111D),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: ClipRect(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      ignoring: _notificationDetailOpen,
+                      child: AnimatedSlide(
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.easeInOutCubic,
+                        offset: _notificationDetailOpen
+                            ? const Offset(-1, 0)
+                            : Offset.zero,
+                        child: buildListPage(),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      ignoring: !_notificationDetailOpen,
+                      child: AnimatedSlide(
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.easeInOutCubic,
+                        offset: _notificationDetailOpen
+                            ? Offset.zero
+                            : const Offset(1, 0),
+                        child: buildDetailPage(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _compactNotificationListPane({
     required BuildContext context,
     required List<AppNotification> notifications,
@@ -2408,6 +2730,9 @@ class _NotificationCenterScreenState
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final userId = profile?.id ?? '';
     final theme = Theme.of(context);
+    final isMobileEmbedded =
+        widget.embeddedInCounselorShell &&
+        MediaQuery.sizeOf(context).width < 760;
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
     final isPrimaryUser =
         profile != null &&
@@ -2420,6 +2745,7 @@ class _NotificationCenterScreenState
       profile: profile,
       embeddedInCounselorShell: widget.embeddedInCounselorShell,
       embeddedInDesktopShell: widget.embeddedInDesktopShell,
+      mobileFullScreenMode: isMobileEmbedded,
     );
 
     if (widget.embeddedInCounselorShell || widget.embeddedInDesktopShell) {
@@ -2446,9 +2772,10 @@ class _NotificationCenterScreenState
     required UserProfile? profile,
     required bool embeddedInCounselorShell,
     required bool embeddedInDesktopShell,
+    required bool mobileFullScreenMode,
   }) {
-    final isDesktop = MediaQuery.sizeOf(context).width >= 900;
     final viewport = MediaQuery.sizeOf(context);
+    final isDesktop = viewport.width >= 900;
     final isCompactPanelStyle = _useCompactDrawerStyle;
     final usesFloatingHeader =
         !isCompactPanelStyle &&
@@ -2576,6 +2903,25 @@ class _NotificationCenterScreenState
                                     );
                                   }
 
+                                  if (mobileFullScreenMode) {
+                                    return _buildMobileNotificationWorkspace(
+                                      context,
+                                      userId: userId,
+                                      panelTheme: panelTheme,
+                                      notifications: _cachedNotifications,
+                                      showRefresh: true,
+                                      refreshing: _refreshingNotifications,
+                                      onRefresh: _refreshingNotifications
+                                          ? null
+                                          : () => _refreshNotifications(
+                                              userId: userId,
+                                            ),
+                                      onClose: () => context.go(
+                                        _notificationExitRoute(profile),
+                                      ),
+                                    );
+                                  }
+
                                   return _buildNotificationResults(
                                     context: context,
                                     userId: userId,
@@ -2616,6 +2962,21 @@ class _NotificationCenterScreenState
                                     return const Center(
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2.6,
+                                      ),
+                                    );
+                                  }
+
+                                  if (mobileFullScreenMode) {
+                                    return _buildMobileNotificationWorkspace(
+                                      context,
+                                      userId: userId,
+                                      panelTheme: panelTheme,
+                                      notifications: notifications,
+                                      showRefresh: false,
+                                      refreshing: false,
+                                      onRefresh: null,
+                                      onClose: () => context.go(
+                                        _notificationExitRoute(profile),
                                       ),
                                     );
                                   }

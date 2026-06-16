@@ -873,6 +873,17 @@ class _CounselorProfileSettingsScreenState
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (constraints.maxWidth < 760) {
+          return _buildMobileOverlayWorkspace(
+            context,
+            profile,
+            unreadCount,
+            showCounselorDirectory,
+            navItems,
+            visibleItems,
+            selectedItem,
+          );
+        }
         final isWide = constraints.maxWidth >= 1080;
         final panelWidth = _settingsDetailOpen
             ? math.min(constraints.maxWidth, 1360.0)
@@ -1004,6 +1015,105 @@ class _CounselorProfileSettingsScreenState
           ],
         );
       },
+    );
+  }
+
+  Widget _buildMobileOverlayWorkspace(
+    BuildContext context,
+    UserProfile profile,
+    int unreadCount,
+    bool showCounselorDirectory,
+    List<_ProfileSettingsNavItem> allItems,
+    List<_ProfileSettingsNavItem> visibleItems,
+    _ProfileSettingsNavItem selectedItem,
+  ) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF07111D),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: ClipRect(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: IgnorePointer(
+                    ignoring: _settingsDetailOpen,
+                    child: AnimatedSlide(
+                      duration: const Duration(milliseconds: 280),
+                      curve: Curves.easeInOutCubic,
+                      offset: _settingsDetailOpen
+                          ? const Offset(-1, 0)
+                          : Offset.zero,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF07111D), Color(0xFF0B1626)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(26),
+                          border: Border.all(color: const Color(0x1DFFFFFF)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x33101828),
+                              blurRadius: 34,
+                              offset: Offset(0, 18),
+                            ),
+                          ],
+                        ),
+                        child: _buildSettingsRail(
+                          context,
+                          profile,
+                          allItems,
+                          visibleItems,
+                          unreadCount,
+                          showCounselorDirectory,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    ignoring: !_settingsDetailOpen,
+                    child: AnimatedSlide(
+                      duration: const Duration(milliseconds: 280),
+                      curve: Curves.easeInOutCubic,
+                      offset: _settingsDetailOpen
+                          ? Offset.zero
+                          : const Offset(1, 0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF07111D), Color(0xFF0B1626)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(26),
+                          border: Border.all(color: const Color(0x1DFFFFFF)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x33101828),
+                              blurRadius: 34,
+                              offset: Offset(0, 18),
+                            ),
+                          ],
+                        ),
+                        child: _buildSettingsPane(
+                          context,
+                          profile,
+                          showCounselorDirectory,
+                          selectedItem,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
