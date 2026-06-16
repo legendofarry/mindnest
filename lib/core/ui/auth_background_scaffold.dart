@@ -11,12 +11,16 @@ class AuthBackgroundScaffold extends StatefulWidget {
     this.maxWidth = 430,
     this.fallingSnow = false,
     this.scrollable = true,
+    this.alignTop = false,
+    this.showWindowControls = true,
   });
 
   final Widget child;
   final double maxWidth;
   final bool fallingSnow;
   final bool scrollable;
+  final bool alignTop;
+  final bool showWindowControls;
 
   @override
   State<AuthBackgroundScaffold> createState() => _AuthBackgroundScaffoldState();
@@ -69,22 +73,30 @@ class _AuthBackgroundScaffoldState extends State<AuthBackgroundScaffold>
                       horizontal: 24,
                       vertical: 20,
                     ),
-                    child: Center(
-                      child: widget.scrollable
-                          ? SingleChildScrollView(child: constrainedChild)
-                          : constrainedChild,
-                    ),
+                    child: widget.alignTop
+                        ? Align(
+                            alignment: Alignment.topCenter,
+                            child: widget.scrollable
+                                ? SingleChildScrollView(child: constrainedChild)
+                                : constrainedChild,
+                          )
+                        : Center(
+                            child: widget.scrollable
+                                ? SingleChildScrollView(child: constrainedChild)
+                                : constrainedChild,
+                          ),
                   ),
                 ),
-                SafeArea(
-                  child: Align(
-                    alignment: Alignment.topRight,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                      child: WindowsDesktopWindowControls(),
+                if (widget.showWindowControls)
+                  SafeArea(
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                        child: WindowsDesktopWindowControls(),
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           );

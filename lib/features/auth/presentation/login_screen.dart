@@ -608,8 +608,515 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     return AuthBackgroundScaffold(
       fallingSnow: true,
-      maxWidth: double.infinity,
-      child: _buildFormContent(context, showBrand: true),
+      maxWidth: 520,
+      alignTop: true,
+      showWindowControls: false,
+      child: _buildMobileLoginContent(context),
+    );
+  }
+
+  Widget _buildMobileLoginContent(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _shakeController,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(_shakeOffset.value, 0),
+          child: child,
+        );
+      },
+      child: Form(
+        key: const ValueKey('login-form-mobile'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF11A7A3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.favorite_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'MindNest',
+                  style: TextStyle(
+                    color: Color(0xFF071937),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: _isEntryLocked ? null : _goToSignup,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: RichText(
+                      text: TextSpan(
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF4A607C),
+                        ),
+                        children: [
+                          const TextSpan(text: 'New here? '),
+                          TextSpan(
+                            text: 'Create account',
+                            style: const TextStyle(
+                              color: Color(0xFF0E9B90),
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 26),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Welcome back',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF071937),
+                  letterSpacing: -0.6,
+                  height: 1.05,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Sign in to continue your wellness journey.',
+              style: TextStyle(
+                color: Color(0xFF5B6B84),
+                fontSize: 16,
+                height: 1.35,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (_hasInviteContext) ...[
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFFFFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFB3ECDD)),
+                ),
+                child: Text(
+                  'Invite detected${(widget.institutionName ?? '').trim().isNotEmpty ? ' for ${widget.institutionName!.trim()}' : ''}. Log in with the invited email to continue.',
+                  style: const TextStyle(
+                    color: Color(0xFF0D6F69),
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 18),
+            Container(
+              height: 58,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: const Color(0xFFD6E2EF)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x0F0F172A),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: FilledButton.icon(
+                onPressed: _isEntryLocked ? null : _signInWithGoogle,
+                icon: _isGoogleSubmitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFFEA4335),
+                        ),
+                      )
+                    : SvgPicture.asset(
+                        'assets/google.svg',
+                        width: 20,
+                        height: 20,
+                      ),
+                label: Text(
+                  _isGoogleSubmitting
+                      ? 'Connecting...'
+                      : 'Continue with Google',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF071937),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  elevation: 0,
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: const Color(0xFF071937),
+                  disabledBackgroundColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: Divider(color: const Color(0xFFD8E3EE), thickness: 1),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'OR WITH YOUR INSTITUTION EMAIL',
+                    style: TextStyle(
+                      color: const Color(0xFF6C7D96),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Divider(color: const Color(0xFFD8E3EE), thickness: 1),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: (_formError == null || _formError!.trim().isEmpty)
+                  ? const SizedBox.shrink()
+                  : Container(
+                      key: ValueKey(_formError),
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1F2),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFFECDD3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: Color(0xFFBE123C),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _formError!,
+                              style: const TextStyle(
+                                color: Color(0xFF9F1239),
+                                fontWeight: FontWeight.w600,
+                                height: 1.25,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+            const _FieldLabel(text: 'EMAIL ADDRESS'),
+            const SizedBox(height: 8),
+            _RoundedInput(
+              hasError: _emailFieldError,
+              child: TextFormField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                onChanged: (_) {
+                  if (_emailFieldError || _formError != null) {
+                    setState(() {
+                      _emailFieldError = false;
+                      _formError = null;
+                    });
+                  }
+                },
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: 'alex@example.com',
+                  prefixIcon: Icon(Icons.mail_outline_rounded),
+                  hintStyle: TextStyle(color: Color(0xFF94A3B8)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _RoundedInput(
+              hasError: _passwordFieldError,
+              child: TextFormField(
+                controller: _passwordController,
+                obscureText: !_isPasswordVisible,
+                onChanged: (_) {
+                  if (_passwordFieldError || _formError != null) {
+                    setState(() {
+                      _passwordFieldError = false;
+                      _formError = null;
+                    });
+                  }
+                },
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  hintText: 'Password',
+                  prefixIcon: const Icon(Icons.lock_outline_rounded),
+                  suffixIcon: IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _isPasswordVisible = !_isPasswordVisible;
+                      });
+                    },
+                    icon: Icon(
+                      _isPasswordVisible
+                          ? Icons.visibility_off_rounded
+                          : Icons.visibility_rounded,
+                    ),
+                  ),
+                  hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Transform.translate(
+                        offset: const Offset(-6, 0),
+                        child: Checkbox(
+                          value: _rememberMe,
+                          shape: const CircleBorder(),
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                          onChanged: _isBusy
+                              ? null
+                              : (value) {
+                                  setState(() => _rememberMe = value ?? false);
+                                },
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Expanded(
+                        child: Text(
+                          'Remember me for 30 days',
+                          style: TextStyle(
+                            color: Color(0xFF334155),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: _isBusy
+                      ? null
+                      : () => context.go(
+                          AppRoute.withInviteQuery(
+                            AppRoute.forgotPassword,
+                            _inviteQuery,
+                          ),
+                        ),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: const Color(0xFF0E9B90),
+                  ),
+                  child: const Text(
+                    'Forgot?',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Container(
+              height: 60,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0EA5A0), Color(0xFF0B9C93)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x2A18A89D),
+                    blurRadius: 22,
+                    offset: Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
+                onPressed: _isBusy ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  shadowColor: Colors.transparent,
+                  backgroundColor: Colors.transparent,
+                  disabledBackgroundColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: _isSubmitting
+                      ? const Text(
+                          'Signing in...',
+                          key: ValueKey('mobile-login-busy'),
+                          style: TextStyle(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        )
+                      : _isGoogleSubmitting
+                      ? const Text(
+                          'Please wait...',
+                          key: ValueKey('mobile-login-google'),
+                          style: TextStyle(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Row(
+                          key: const ValueKey('mobile-login-ready'),
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Text(
+                              'Sign in securely',
+                              style: TextStyle(
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                            SizedBox(width: 10),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Center(
+              child: Text(
+                'OR USE BIOMETRICS',
+                style: TextStyle(
+                  color: Color(0xFF6C7D96),
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                  fontSize: 11.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: GestureDetector(
+                onTap: _isEntryLocked ? null : _startPasskeySignIn,
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  width: 78,
+                  height: 78,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFD6E2EF)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x0F0F172A),
+                        blurRadius: 16,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: _isBiometricScanning
+                          ? const SizedBox(
+                              key: ValueKey('mobile-bio-busy'),
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                                color: Color(0xFF0E9B90),
+                              ),
+                            )
+                          : const Icon(
+                              Icons.fingerprint_rounded,
+                              key: ValueKey('mobile-bio-idle'),
+                              size: 38,
+                              color: Color(0xFF0E9B90),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Center(
+              child: Text(
+                'Touch sensor to authenticate',
+                style: TextStyle(
+                  color: Color(0xFF5B6B84),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13.5,
+                ),
+              ),
+            ),
+            if (_biometricNotice != null &&
+                _biometricNotice!.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Center(
+                child: Text(
+                  _biometricNotice!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF0E9B90),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
