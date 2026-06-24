@@ -306,6 +306,24 @@ class _InstitutionAdminScreenState
     setState(() => _inlineError = message);
   }
 
+  String _formatInviteError(Object error) {
+    const fallback =
+        'We could not reach that counselor account from this workspace. If they already have a pending invite, ask them to accept or decline it first. Otherwise, make sure this admin account is linked to the institution.';
+
+    if (error is FirebaseException) {
+      final code = error.code.toLowerCase();
+      if (code == 'permission-denied' || code == 'unauthenticated') {
+        return fallback;
+      }
+    }
+
+    final message = error.toString().replaceFirst('Exception: ', '');
+    if (message.toLowerCase().contains('permission')) {
+      return fallback;
+    }
+    return message;
+  }
+
   String _panelRoute(String panel) {
     return Uri(
       path: AppRoute.institutionAdmin,
@@ -442,7 +460,7 @@ class _InstitutionAdminScreenState
       if (!mounted) {
         return;
       }
-      _showInlineError(error.toString().replaceFirst('Exception: ', ''));
+      _showInlineError(_formatInviteError(error));
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);

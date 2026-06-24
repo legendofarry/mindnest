@@ -5,8 +5,6 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart' show GlassCard;
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -25,7 +23,6 @@ class InstitutionPendingScreen extends ConsumerStatefulWidget {
 class _InstitutionPendingScreenState
     extends ConsumerState<InstitutionPendingScreen>
     with SingleTickerProviderStateMixin {
-  bool _isCancellingRequest = false;
   late final AnimationController _pulseController;
 
   @override
@@ -41,65 +38,6 @@ class _InstitutionPendingScreenState
   void dispose() {
     _pulseController.dispose();
     super.dispose();
-  }
-
-  Future<void> _cancelRequest() async {
-    if (_isCancellingRequest) {
-      return;
-    }
-
-    final shouldCancel = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Cancel institution request?'),
-        content: const Text(
-          'This removes the current request from review, clears the linked '
-          'institution setup, and sends you back to start a fresh request.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Keep request'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFBE123C),
-            ),
-            child: const Text('Cancel and reset'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldCancel != true) {
-      return;
-    }
-
-    setState(() => _isCancellingRequest = true);
-    try {
-      await ref
-          .read(institutionRepositoryProvider)
-          .cancelCurrentAdminInstitutionRequest();
-      await syncAuthSessionState(ref);
-      ref.invalidate(currentAdminInstitutionRequestProvider);
-      if (!mounted) {
-        return;
-      }
-      context.go(AppRoute.registerInstitution);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      showModernBannerFromSnackBar(
-        context,
-        SnackBar(content: Text(_formatUserFacingError(error))),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isCancellingRequest = false);
-      }
-    }
   }
 
   Future<void> _contactSupport({
@@ -181,7 +119,7 @@ class _InstitutionPendingScreenState
       return 'Action Needed';
     }
     if (status == 'cancelled') {
-      return 'Request Cancelled';
+      return 'Request Closed';
     }
     if (status == 'approved') {
       return 'Approved';
@@ -194,7 +132,7 @@ class _InstitutionPendingScreenState
       return 'Institution request declined';
     }
     if (status == 'cancelled') {
-      return 'Institution request cancelled';
+      return 'Institution request closed';
     }
     if (status == 'approved') {
       return 'Institution approved';
@@ -238,11 +176,9 @@ class _InstitutionPendingScreenState
     final isCancelled = status == 'cancelled';
     final isApproved = status == 'approved';
     final supportingCopy = isDeclined
-        ? 'Your institution request was declined. Cancel and reset to start fresh from the registration screen.'
+        ? 'Your institution request was declined. Contact support if you need clarification.'
         : isCancelled
-        ? 'This request has been pulled out of the approval queue. You can '
-              'start a fresh institution request, switch to another institution, '
-              'or contact support from this screen.'
+        ? 'This request is no longer in the approval queue. Contact support if you need clarification.'
         : isApproved
         ? 'Approval is complete. Your institution workspace is ready and '
               'remaining access controls will unlock automatically.'
@@ -375,15 +311,15 @@ class _InstitutionPendingScreenState
               active: true,
             ),
             _StatusStepChip(
-              title: isCancelled ? 'Paused' : 'In Review',
+              title: isCancelled ? 'Closed' : 'In Review',
               icon: Icons.hourglass_top_rounded,
               active: status != 'approved' && status != 'declined',
             ),
             _StatusStepChip(
               title: isDeclined
-                  ? 'Needs reset'
+                  ? 'Needs attention'
                   : isCancelled
-                  ? 'Cancelled'
+                  ? 'Closed'
                   : 'Approved',
               icon: isDeclined
                   ? Icons.refresh_rounded
@@ -411,14 +347,11 @@ class _InstitutionPendingScreenState
           icon: Icons.timeline_rounded,
           title: 'What happens next',
           description: isCancelled
-              ? 'This request is no longer in the review queue. You can now start fresh with another institution or contact support if something feels off.'
+              ? 'This request is no longer in the review queue. Contact support if something feels off.'
               : 'Your request is under review by our team. Once the review completes, access updates automatically.',
           accent: const Color(0xFF2563EB),
         );
         final cardB = _RequestManagementCard(
-          isCancelling: _isCancellingRequest,
-          isCancelled: isCancelled,
-          onCancel: _cancelRequest,
           onContactSupport: canContactSupport
               ? () => _contactSupport(
                   institutionName: institutionName,
@@ -462,14 +395,14 @@ class _InstitutionPendingScreenState
     final title = isDeclined
         ? 'Declined request'
         : isCancelled
-        ? 'Request paused'
+        ? 'Request closed'
         : isApproved
         ? 'Approval complete'
         : 'Review console active';
     final body = isDeclined
-        ? 'The request was declined. Cancel and reset to start a fresh institution setup, or contact support if you need help understanding the decision.'
+        ? 'The request was declined. Contact support if you need help understanding the decision.'
         : isCancelled
-        ? 'The request is gone from review. Start fresh from institution setup whenever you are ready, or contact support if you need a hand.'
+        ? 'The request is no longer in review. Contact support if you need a hand.'
         : isApproved
         ? 'Your institution is approved. The dashboard will unlock the full admin workflow automatically.'
         : 'Approval is still in progress. You will get access once your institution is approved.';
@@ -586,7 +519,7 @@ class _InstitutionPendingScreenState
             ),
             const SizedBox(height: 8),
             const Text(
-              'Cancel the current request to reset your admin setup, then start fresh from the institution registration screen.',
+              'Your request was declined. Contact support if you need clarification or help with the next step.',
               style: TextStyle(
                 color: Color(0xFF516784),
                 height: 1.4,
@@ -616,25 +549,12 @@ class _InstitutionPendingScreenState
               spacing: 10,
               runSpacing: 10,
               children: [
-                FilledButton.icon(
-                  onPressed: _isCancellingRequest ? null : _cancelRequest,
-                  icon: Icon(
-                    _isCancellingRequest
-                        ? Icons.hourglass_top_rounded
-                        : Icons.close_rounded,
-                  ),
-                  label: Text(
-                    _isCancellingRequest ? 'Resetting...' : 'Cancel and reset',
-                  ),
-                ),
                 if (canContactSupport)
-                  OutlinedButton.icon(
-                    onPressed: _isCancellingRequest
-                        ? null
-                        : () => _contactSupport(
-                            institutionName: institutionName,
-                            status: 'declined',
-                          ),
+                  FilledButton.icon(
+                    onPressed: () => _contactSupport(
+                      institutionName: institutionName,
+                      status: 'declined',
+                    ),
                     icon: const Icon(Icons.support_agent_rounded),
                     label: const Text('Contact Support'),
                   ),
@@ -888,16 +808,8 @@ class _HeroPill extends StatelessWidget {
 }
 
 class _RequestManagementCard extends StatelessWidget {
-  const _RequestManagementCard({
-    required this.isCancelling,
-    required this.isCancelled,
-    required this.onCancel,
-    required this.onContactSupport,
-  });
+  const _RequestManagementCard({required this.onContactSupport});
 
-  final bool isCancelling;
-  final bool isCancelled;
-  final VoidCallback? onCancel;
   final VoidCallback? onContactSupport;
 
   @override
@@ -929,7 +841,7 @@ class _RequestManagementCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Request controls',
+                        'Need help?',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: 17,
@@ -937,7 +849,7 @@ class _RequestManagementCard extends StatelessWidget {
                       ),
                       SizedBox(height: 6),
                       Text(
-                        'Cancel the current request to reset the flow, or contact support if you need a human to review the situation.',
+                        'If the request needs a human review, contact support from here.',
                         style: TextStyle(
                           color: Color(0xFF516784),
                           height: 1.4,
@@ -955,19 +867,8 @@ class _RequestManagementCard extends StatelessWidget {
               spacing: 10,
               runSpacing: 10,
               children: [
-                OutlinedButton.icon(
-                  onPressed: onCancel,
-                  icon: Icon(
-                    isCancelling
-                        ? Icons.hourglass_top_rounded
-                        : Icons.close_rounded,
-                  ),
-                  label: Text(
-                    isCancelling ? 'Resetting...' : 'Cancel and reset',
-                  ),
-                ),
                 if (onContactSupport != null)
-                  OutlinedButton.icon(
+                  FilledButton.icon(
                     onPressed: onContactSupport,
                     icon: const Icon(Icons.support_agent_rounded),
                     label: const Text('Contact Support'),

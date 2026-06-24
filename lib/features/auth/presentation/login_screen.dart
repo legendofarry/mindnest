@@ -2902,7 +2902,7 @@ class _BiometricHeroState extends State<_BiometricHero>
             right: 0,
             child: Center(
               child: Text(
-                'END-TO-END ENCRYPTED - PRIVATE BY DESIGN',
+                '',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.23),
                   fontSize: 12,

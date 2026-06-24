@@ -898,7 +898,11 @@ service cloud.firestore {
       allow read: if isSignedIn() &&
         (
           isOwnerAccount() ||
-          request.auth.uid == resource.data.requesterId
+          request.auth.uid == resource.data.requesterId ||
+          (
+            isCurrentInstitutionAdmin() &&
+            resource.data.institutionId == currentInstitutionId()
+          )
         );
 
       allow create: if isSignedIn() &&

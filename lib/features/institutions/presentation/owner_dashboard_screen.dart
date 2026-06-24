@@ -83,7 +83,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       final historyItems = results[2];
       final supportMessages = results[3];
       final availableThreadKeys = supportMessages
-          .map((message) => (message['threadKey'] as String? ?? '').trim())
+          .map(_supportConversationKey)
           .where((key) => key.isNotEmpty)
           .toSet();
       final selectedThreadKey =
@@ -424,10 +424,22 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     return 'Email unavailable';
   }
 
+  String _supportConversationKey(Map<String, dynamic> message) {
+    final institutionId = (message['institutionId'] as String? ?? '').trim();
+    if (institutionId.isNotEmpty) {
+      return institutionId;
+    }
+    final threadKey = (message['threadKey'] as String? ?? '').trim();
+    if (threadKey.isNotEmpty) {
+      return threadKey;
+    }
+    return (message['requesterId'] as String? ?? '').trim();
+  }
+
   Map<String, List<Map<String, dynamic>>> _groupSupportThreads() {
     final grouped = <String, List<Map<String, dynamic>>>{};
     for (final message in _ownerSupportMessages) {
-      final key = (message['threadKey'] as String? ?? '').trim();
+      final key = _supportConversationKey(message);
       if (key.isEmpty) {
         continue;
       }
@@ -441,7 +453,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       return 'Support thread';
     }
     final latest = thread.last;
+    final institutionName = (latest['institutionName'] as String? ?? '').trim();
     final requesterName = (latest['requesterName'] as String? ?? '').trim();
+    if (institutionName.isNotEmpty) {
+      return institutionName;
+    }
     if (requesterName.isNotEmpty) {
       return requesterName;
     }
@@ -458,9 +474,19 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     }
     final latest = thread.last;
     final institutionName = (latest['institutionName'] as String? ?? '').trim();
+    final requesterName = (latest['requesterName'] as String? ?? '').trim();
     final requesterEmail = (latest['requesterEmail'] as String? ?? '').trim();
     if (institutionName.isNotEmpty) {
-      return institutionName;
+      if (requesterName.isNotEmpty) {
+        return requesterName;
+      }
+      if (requesterEmail.isNotEmpty) {
+        return requesterEmail;
+      }
+      return 'Support request';
+    }
+    if (requesterName.isNotEmpty) {
+      return requesterName;
     }
     if (requesterEmail.isNotEmpty) {
       return requesterEmail;
