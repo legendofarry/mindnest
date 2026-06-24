@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -7,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/core/config/owner_config.dart';
 import 'package:mindnest/core/ui/mindnest_shell.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
+import 'package:mindnest/features/auth/data/account_export_storage.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/core/ui/modern_banner.dart';
@@ -37,6 +40,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   String? _ownerDataError;
   DateTime? _ownerLastRefreshedAt;
   bool _isClearingDatabase = false;
+  bool _isDownloadingDatabaseSnapshot = false;
   String _institutionStatusFilter = 'all';
   String? _selectedSupportThreadKey;
 
@@ -975,6 +979,51 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     } finally {
       if (mounted) {
         setState(() => _isClearingDatabase = false);
+      }
+    }
+  }
+
+  Future<void> _downloadDatabaseSnapshot() async {
+    if (!kIsWeb || _isDownloadingDatabaseSnapshot) {
+      return;
+    }
+
+    setState(() => _isDownloadingDatabaseSnapshot = true);
+    try {
+      final snapshot = await ref
+          .read(institutionRepositoryProvider)
+          .exportOwnerDatabaseSnapshot();
+      final prettyJson = const JsonEncoder.withIndent('  ').convert(snapshot);
+      final result = await saveExportArtifacts(
+        folderName: 'mindnest_owner_database_snapshot',
+        artifacts: <AccountExportArtifact>[
+          AccountExportArtifact(
+            fileName: 'mindnest_owner_database_snapshot.json',
+            bytes: Uint8List.fromList(utf8.encode(prettyJson)),
+            mimeType: 'application/json',
+          ),
+        ],
+      );
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(content: Text(result.message)),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isDownloadingDatabaseSnapshot = false);
       }
     }
   }
@@ -1954,6 +2003,40 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                     crossAxisAlignment:
                                         WrapCrossAlignment.center,
                                     children: [
+                                      FilledButton.icon(
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: const Color(
+                                            0xFF0F766E,
+                                          ),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 18,
+                                            vertical: 14,
+                                          ),
+                                        ),
+                                        onPressed:
+                                            _isDownloadingDatabaseSnapshot
+                                            ? null
+                                            : _downloadDatabaseSnapshot,
+                                        icon: _isDownloadingDatabaseSnapshot
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2.2,
+                                                      color: Colors.white,
+                                                    ),
+                                              )
+                                            : const Icon(
+                                                Icons.download_rounded,
+                                              ),
+                                        label: Text(
+                                          _isDownloadingDatabaseSnapshot
+                                              ? 'Preparing Snapshot...'
+                                              : 'Download DB Snapshot',
+                                        ),
+                                      ),
                                       FilledButton.icon(
                                         style: FilledButton.styleFrom(
                                           backgroundColor: const Color(

@@ -79,6 +79,41 @@ class InstitutionRepository {
       _pushDispatchEndpointFromDefine.isNotEmpty
       ? _pushDispatchEndpointFromDefine
       : _pushDispatchEndpointFromSource;
+  static const List<String> _ownerDataCollectionPaths = <String>[
+    'admin_counselor_messages',
+    'appointments',
+    'care_goals',
+    'counselor_availability',
+    'counselor_profiles',
+    'counselor_public_ratings',
+    'counselor_ratings',
+    'institution_catalog_registry',
+    'institution_membership_audit',
+    'institution_members',
+    'institution_name_registry',
+    'institution_request_history',
+    'institutions',
+    'mood_entries',
+    'mood_events',
+    'notifications',
+    'onboarding_responses',
+    'owner_support_messages',
+    'phone_number_registry',
+    'school_requests',
+    'session_reassignment_requests',
+    'user_invites',
+    'user_notification_settings',
+    'user_privacy_settings',
+    'user_push_tokens',
+    'users',
+  ];
+  static const List<String> _liveSessionSubcollections = <String>[
+    'participants',
+    'mic_requests',
+    'comments',
+    'reactions',
+    'comment_reports',
+  ];
 
   final FirebaseFirestore Function()? _firestoreFactory;
   FirebaseFirestore? _cachedFirestore;
@@ -2948,6 +2983,47 @@ class InstitutionRepository {
     return items;
   }
 
+  Future<Map<String, dynamic>> exportOwnerDatabaseSnapshot() async {
+    _ensureOwnerAccount();
+    if (!kIsWeb) {
+      throw Exception('Owner database snapshot export is enabled on web only.');
+    }
+
+    final generatedAt = DateTime.now().toUtc();
+    final collectionSnapshots = <String, dynamic>{};
+    final collectionCounts = <String, int>{};
+
+    for (final collectionPath in _ownerDataCollectionPaths) {
+      final docs = await _snapshotCollection(collectionPath);
+      collectionSnapshots[collectionPath] = docs;
+      collectionCounts[collectionPath] = docs.length;
+    }
+
+    final liveSessionSnapshots = await _snapshotLiveSessions();
+    collectionSnapshots['live_sessions'] = liveSessionSnapshots;
+    collectionCounts['live_sessions'] = liveSessionSnapshots.length;
+
+    return <String, dynamic>{
+      'exportType': 'owner_database_snapshot',
+      'appName': 'MindNest',
+      'appVersion': '1.0.1',
+      'generatedAt': generatedAt.toIso8601String(),
+      'generatedBy': <String, dynamic>{
+        'uid': _auth.currentUser?.uid,
+        'email': _auth.currentUser?.email,
+      },
+      'summary': <String, dynamic>{
+        'collectionCounts': collectionCounts,
+        'totalCollections': collectionSnapshots.length,
+        'totalRecords': collectionCounts.values.fold<int>(
+          0,
+          (total, count) => total + count,
+        ),
+      },
+      'collections': collectionSnapshots,
+    };
+  }
+
   Future<void> dismissInstitutionWelcome() async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -3614,44 +3690,14 @@ class InstitutionRepository {
         .collection('live_sessions')
         .get();
     for (final sessionDoc in liveSessionsSnapshot.docs) {
-      for (final sub in const <String>[
-        'participants',
-        'mic_requests',
-        'comments',
-        'reactions',
-        'comment_reports',
-      ]) {
+      for (final sub in _liveSessionSubcollections) {
         await _deleteCollectionPath('live_sessions/${sessionDoc.id}/$sub');
       }
     }
 
-    for (final collectionPath in const <String>[
-      'admin_counselor_messages',
-      'appointments',
-      'care_goals',
-      'counselor_availability',
-      'counselor_profiles',
-      'counselor_public_ratings',
-      'counselor_ratings',
-      'institution_catalog_registry',
-      'institution_membership_audit',
-      'institution_members',
-      'institution_name_registry',
-      'institution_request_history',
-      'institutions',
+    for (final collectionPath in <String>[
+      ..._ownerDataCollectionPaths,
       'live_sessions',
-      'mood_entries',
-      'mood_events',
-      'notifications',
-      'onboarding_responses',
-      'phone_number_registry',
-      'school_requests',
-      'session_reassignment_requests',
-      'user_invites',
-      'user_notification_settings',
-      'user_privacy_settings',
-      'user_push_tokens',
-      'users',
     ]) {
       await _deleteCollectionPath(collectionPath);
     }
@@ -3767,6 +3813,93 @@ class InstitutionRepository {
       return raw.toUtc();
     }
     return null;
+  }
+
+  Future<List<Map<String, dynamic>>> _snapshotCollection(
+    String collectionPath,
+  ) async {
+    final snapshot = await _firestore.collection(collectionPath).get();
+    final docs = snapshot.docs.toList(growable: false);
+    docs.sort((a, b) {
+      final aData = a.data();
+      final bData = b.data();
+      final aDate =
+          _asUtcDate(aData['updatedAt']) ??
+          _asUtcDate(aData['createdAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate =
+          _asUtcDate(bData['updatedAt']) ??
+          _asUtcDate(bData['createdAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final comparison = bDate.compareTo(aDate);
+      if (comparison != 0) {
+        return comparison;
+      }
+      return a.id.compareTo(b.id);
+    });
+    return docs
+        .map(
+          (doc) => <String, dynamic>{'id': doc.id, ..._jsonReady(doc.data())},
+        )
+        .toList(growable: false);
+  }
+
+  Future<List<Map<String, dynamic>>> _snapshotLiveSessions() async {
+    final snapshot = await _firestore.collection('live_sessions').get();
+    final docs = snapshot.docs.toList(growable: false);
+    docs.sort((a, b) {
+      final aData = a.data();
+      final bData = b.data();
+      final aDate =
+          _asUtcDate(aData['updatedAt']) ??
+          _asUtcDate(aData['createdAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate =
+          _asUtcDate(bData['updatedAt']) ??
+          _asUtcDate(bData['createdAt']) ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final comparison = bDate.compareTo(aDate);
+      if (comparison != 0) {
+        return comparison;
+      }
+      return a.id.compareTo(b.id);
+    });
+
+    final sessions = <Map<String, dynamic>>[];
+    for (final sessionDoc in docs) {
+      final sessionData = <String, dynamic>{
+        'id': sessionDoc.id,
+        ..._jsonReady(sessionDoc.data()),
+        'subcollections': <String, dynamic>{},
+      };
+      final subcollections =
+          sessionData['subcollections'] as Map<String, dynamic>;
+      for (final subcollectionName in _liveSessionSubcollections) {
+        subcollections[subcollectionName] = await _snapshotCollection(
+          'live_sessions/${sessionDoc.id}/$subcollectionName',
+        );
+      }
+      sessions.add(sessionData);
+    }
+    return sessions;
+  }
+
+  dynamic _jsonReady(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate().toUtc().toIso8601String();
+    }
+    if (value is DateTime) {
+      return value.toUtc().toIso8601String();
+    }
+    if (value is Map) {
+      return value.map(
+        (key, nested) => MapEntry(key.toString(), _jsonReady(nested)),
+      );
+    }
+    if (value is Iterable) {
+      return value.map(_jsonReady).toList(growable: false);
+    }
+    return value;
   }
 
   Future<void> _assertNoActivePendingInvite({
