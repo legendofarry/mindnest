@@ -3002,6 +3002,21 @@ class InstitutionRepository {
     final liveSessionSnapshots = await _snapshotLiveSessions();
     collectionSnapshots['live_sessions'] = liveSessionSnapshots;
     collectionCounts['live_sessions'] = liveSessionSnapshots.length;
+    final nestedLiveSessionRecordCount = liveSessionSnapshots.fold<int>(0, (
+      total,
+      session,
+    ) {
+      final subcollections =
+          session['subcollections'] as Map<String, dynamic>? ??
+          const <String, dynamic>{};
+      return total +
+          subcollections.values.fold<int>(0, (subTotal, raw) {
+            if (raw is List) {
+              return subTotal + raw.length;
+            }
+            return subTotal;
+          });
+    });
 
     return <String, dynamic>{
       'exportType': 'owner_database_snapshot',
@@ -3016,9 +3031,10 @@ class InstitutionRepository {
         'collectionCounts': collectionCounts,
         'totalCollections': collectionSnapshots.length,
         'totalRecords': collectionCounts.values.fold<int>(
-          0,
-          (total, count) => total + count,
+          nestedLiveSessionRecordCount,
+          (total, docCount) => total + docCount,
         ),
+        'liveSessionNestedRecords': nestedLiveSessionRecordCount,
       },
       'collections': collectionSnapshots,
     };
