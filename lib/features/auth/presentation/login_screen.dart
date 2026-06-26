@@ -632,16 +632,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           children: [
             Row(
               children: [
-                const SizedBox(width: 12),
-                const Text(
-                  'MindNest',
-                  style: TextStyle(
-                    color: Color(0xFF071937),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                  ),
-                ),
                 const Spacer(),
                 GestureDetector(
                   onTap: _isEntryLocked ? null : _goToSignup,
