@@ -632,19 +632,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           children: [
             Row(
               children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF11A7A3),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.favorite_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                ),
                 const SizedBox(width: 12),
                 const Text(
                   'MindNest',
@@ -663,19 +650,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: RichText(
                       text: TextSpan(
-                        style: const TextStyle(
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF4A607C),
+                          color: const Color(0xFF4A607C),
                         ),
                         children: [
-                          const TextSpan(text: 'New here? '),
                           TextSpan(
                             text: 'Create account',
-                            style: const TextStyle(
-                              color: Color(0xFF0E9B90),
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF0E9B90),
+                                ),
                           ),
                         ],
                       ),
