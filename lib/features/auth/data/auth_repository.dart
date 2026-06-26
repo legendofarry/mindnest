@@ -811,7 +811,10 @@ class AuthRepository {
       return UserProfile.fromMap(document!.id, data);
     }
 
-    final snapshot = await _firestore.collection('users').doc(userId).get();
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(userId)
+        .get(const GetOptions(source: Source.server));
     final data = snapshot.data();
     if (!snapshot.exists || data == null) {
       return null;

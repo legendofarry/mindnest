@@ -417,7 +417,10 @@ class InstitutionRepository {
     final normalizedUid = uid.trim();
     final data = kUseWindowsRestAuth
         ? (await _windowsRest.getDocument('user_invites/$inviteId'))?.data
-        : (await _firestore.collection('user_invites').doc(inviteId).get())
+        : (await _firestore
+                  .collection('user_invites')
+                  .doc(inviteId)
+                  .get(const GetOptions(source: Source.server)))
               .data();
     if (data == null) {
       return null;
@@ -439,7 +442,10 @@ class InstitutionRepository {
   Future<UserInvite?> getInviteById(String inviteId) async {
     final data = kUseWindowsRestAuth
         ? (await _windowsRest.getDocument('user_invites/$inviteId'))?.data
-        : (await _firestore.collection('user_invites').doc(inviteId).get())
+        : (await _firestore
+                  .collection('user_invites')
+                  .doc(inviteId)
+                  .get(const GetOptions(source: Source.server)))
               .data();
     if (data == null) {
       return null;
@@ -1000,7 +1006,10 @@ class InstitutionRepository {
 
     final profile = kUseWindowsRestAuth
         ? (await _windowsRest.getDocument('users/${currentUser.uid}'))?.data
-        : (await _firestore.collection('users').doc(currentUser.uid).get())
+        : (await _firestore
+                  .collection('users')
+                  .doc(currentUser.uid)
+                  .get(const GetOptions(source: Source.server)))
               .data();
     if (profile == null ||
         (profile['role'] as String?) != UserRole.institutionAdmin.name) {
@@ -1069,7 +1078,10 @@ class InstitutionRepository {
 
     final institutionData = kUseWindowsRestAuth
         ? (await _windowsRest.getDocument('institutions/$institutionId'))?.data
-        : (await _firestore.collection('institutions').doc(institutionId).get())
+        : (await _firestore
+                  .collection('institutions')
+                  .doc(institutionId)
+                  .get(const GetOptions(source: Source.server)))
               .data();
     final activeJoinCode = (institutionData?['joinCode'] as String? ?? '')
         .trim()
@@ -1324,7 +1336,7 @@ class InstitutionRepository {
           .where('userId', isEqualTo: inviteeUid)
           .where('status', whereIn: ['active', 'pending'])
           .limit(1)
-          .get();
+          .get(const GetOptions(source: Source.server));
       if (existingMembership.docs.isNotEmpty) {
         final data = existingMembership.docs.first.data();
         blockingInstitutionId = (data['institutionId'] as String?) ?? '';
@@ -1345,7 +1357,7 @@ class InstitutionRepository {
           : (await _firestore
                     .collection('institutions')
                     .doc(blockingInstitutionId)
-                    .get())
+                    .get(const GetOptions(source: Source.server)))
                 .data();
       institutionName =
           (instData?['name'] as String?)?.trim().isNotEmpty == true
@@ -1393,7 +1405,10 @@ class InstitutionRepository {
     }
     final data = kUseWindowsRestAuth
         ? (await _windowsRest.getDocument('user_invites/${invite.id}'))?.data
-        : (await _firestore.collection('user_invites').doc(invite.id).get())
+        : (await _firestore
+                  .collection('user_invites')
+                  .doc(invite.id)
+                  .get(const GetOptions(source: Source.server)))
               .data();
     if (data == null ||
         (data['status'] as String?) != UserInviteStatus.pending.name) {
@@ -1445,7 +1460,7 @@ class InstitutionRepository {
           .where('type', isEqualTo: 'institution_invite')
           .where('relatedId', isEqualTo: invite.id)
           .limit(20)
-          .get();
+          .get(const GetOptions(source: Source.server));
 
       final batch = _firestore.batch();
       batch.update(inviteRef, {
@@ -1717,7 +1732,7 @@ class InstitutionRepository {
         .where('type', isEqualTo: 'institution_invite')
         .where('relatedId', isEqualTo: invite.id)
         .limit(20)
-        .get();
+        .get(const GetOptions(source: Source.server));
     final notificationRefs = notificationSnapshot.docs
         .map((doc) => doc.reference)
         .toList(growable: false);
@@ -1921,7 +1936,10 @@ class InstitutionRepository {
 
     final data = kUseWindowsRestAuth
         ? (await _windowsRest.getDocument('user_invites/$inviteId'))?.data
-        : (await _firestore.collection('user_invites').doc(inviteId).get())
+        : (await _firestore
+                  .collection('user_invites')
+                  .doc(inviteId)
+                  .get(const GetOptions(source: Source.server)))
               .data();
     if (data == null) {
       throw Exception('Invite was not found.');
@@ -2489,7 +2507,10 @@ class InstitutionRepository {
     }
     final institutionData = kUseWindowsRestAuth
         ? (await _windowsRest.getDocument('institutions/$institutionId'))?.data
-        : (await _firestore.collection('institutions').doc(institutionId).get())
+        : (await _firestore
+                  .collection('institutions')
+                  .doc(institutionId)
+                  .get(const GetOptions(source: Source.server)))
               .data();
     final status = (institutionData?['status'] as String?) ?? 'approved';
     if (status != 'approved') {
@@ -3349,7 +3370,10 @@ class InstitutionRepository {
 
     final data = kUseWindowsRestAuth
         ? (await _windowsRest.getDocument('institutions/$institutionId'))?.data
-        : (await _firestore.collection('institutions').doc(institutionId).get())
+        : (await _firestore
+                  .collection('institutions')
+                  .doc(institutionId)
+                  .get(const GetOptions(source: Source.server)))
               .data();
     if (data == null) {
       throw Exception('Institution request not found.');
@@ -3961,7 +3985,7 @@ class InstitutionRepository {
         .where('intendedRole', isEqualTo: role.name)
         .where('status', isEqualTo: UserInviteStatus.pending.name)
         .limit(8)
-        .get();
+        .get(const GetOptions(source: Source.server));
     for (final doc in snapshot.docs) {
       final data = doc.data();
       final expiresAt = _asUtcDate(data['expiresAt']);
@@ -4591,7 +4615,7 @@ class InstitutionRepository {
         .collection('users')
         .where('emailLower', isEqualTo: normalizedEmail)
         .limit(1)
-        .get();
+        .get(const GetOptions(source: Source.server));
     if (indexedSnapshot.docs.isNotEmpty) {
       found = indexedSnapshot.docs.first;
     } else {
@@ -4599,7 +4623,7 @@ class InstitutionRepository {
           .collection('users')
           .where('email', isEqualTo: normalizedEmail)
           .limit(1)
-          .get();
+          .get(const GetOptions(source: Source.server));
       if (legacySnapshot.docs.isNotEmpty) {
         found = legacySnapshot.docs.first;
       }
