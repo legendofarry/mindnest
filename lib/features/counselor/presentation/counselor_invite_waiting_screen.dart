@@ -1306,17 +1306,6 @@ class _CounselorInviteWaitingScreenState
             letterSpacing: -0.7,
           ),
         ),
-        const SizedBox(height: 14),
-        Text(
-          'Your counselor registration has reached the live institution approval handoff. Review the code from the admin and respond here immediately.',
-          textAlign: isDesktop ? TextAlign.left : TextAlign.center,
-          style: theme.textTheme.titleMedium?.copyWith(
-            color: const Color(0xFFE5F0FF),
-            fontSize: isDesktop ? 17 : 14.5,
-            fontWeight: FontWeight.w600,
-            height: 1.5,
-          ),
-        ),
       ],
     );
   }
@@ -1474,8 +1463,10 @@ class _CounselorInviteWaitingScreenState
 
   String _formatExpiry(DateTime? value) {
     if (value == null) return 'Not specified';
-    final local = value.toLocal();
-    final months = [
+
+    final date = value.toLocal();
+
+    const months = [
       'Jan',
       'Feb',
       'Mar',
@@ -1489,11 +1480,17 @@ class _CounselorInviteWaitingScreenState
       'Nov',
       'Dec',
     ];
-    final hour = local.hour == 0
+
+    final hour = date.hour > 12
+        ? date.hour - 12
+        : date.hour == 0
         ? 12
-        : (local.hour > 12 ? local.hour - 12 : local.hour);
-    final suffix = local.hour >= 12 ? 'PM' : 'AM';
-    return '${months[local.month - 1]} $local.day, $local.year $hour:${local.minute.toString().padLeft(2, '0')} $suffix';
+        : date.hour;
+
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+
+    return '${months[date.month - 1]} ${date.day}, ${date.year} '
+        '$hour:${date.minute.toString().padLeft(2, '0')} $period';
   }
 }
 
