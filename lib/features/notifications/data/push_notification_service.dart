@@ -61,8 +61,6 @@ class PushNotificationService {
       await _initLocalNotifications();
     }
 
-    await _requestPermission();
-
     await FirebaseMessaging.instance.setAutoInitEnabled(true);
 
     if (!kIsWeb) {
@@ -112,16 +110,37 @@ class PushNotificationService {
     _bootstrapped = false;
   }
 
-  static Future<void> _requestPermission() async {
+  static Future<bool> hasPermission() async {
     try {
-      await FirebaseMessaging.instance.requestPermission(
+      final settings = await FirebaseMessaging.instance
+          .getNotificationSettings();
+      return settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> requestPermission() async {
+    try {
+      final settings = await FirebaseMessaging.instance.requestPermission(
         alert: true,
         badge: true,
         sound: true,
         provisional: false,
       );
+      final granted =
+          settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+      if (granted) {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null && uid.isNotEmpty) {
+          await _registerCurrentDeviceToken(uid);
+        }
+      }
+      return granted;
     } catch (_) {
-      // Keep app startup resilient if notification permission APIs fail.
+      return false;
     }
   }
 
