@@ -145,58 +145,71 @@ class TermsAndPrivacyScreen extends StatelessWidget {
                 alignment: Alignment.topCenter,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 940),
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(
-                      horizontalPadding,
-                      kIsWeb ? 24 : 14,
-                      horizontalPadding,
-                      28,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _HeroCard(
-                          title: _title,
-                          subtitle: _subtitle,
-                          icon: _heroIcon,
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _highlights
-                              .map((item) => _HighlightChip(label: item))
-                              .toList(growable: false),
-                        ),
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton.icon(
-                            onPressed: () =>
-                                Navigator.of(context).pushReplacement(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => TermsAndPrivacyScreen(
-                                      documentType: otherDoc,
+                  child: SizedBox(
+                    height: constraints.maxHeight,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        horizontalPadding,
+                        kIsWeb ? 24 : 14,
+                        horizontalPadding,
+                        0,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _HeroCard(
+                            title: _title,
+                            subtitle: _subtitle,
+                            icon: _heroIcon,
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _highlights
+                                .map((item) => _HighlightChip(label: item))
+                                .toList(growable: false),
+                          ),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: () =>
+                                  Navigator.of(context).pushReplacement(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => TermsAndPrivacyScreen(
+                                        documentType: otherDoc,
+                                      ),
                                     ),
                                   ),
-                                ),
-                            icon: const Icon(Icons.swap_horiz_rounded),
-                            label: Text(otherLabel),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        ...List<Widget>.generate(_sections.length, (index) {
-                          final section = _sections[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _LegalSectionCard(
-                              section: section,
-                              index: index + 1,
+                              icon: const Icon(Icons.swap_horiz_rounded),
+                              label: Text(otherLabel),
                             ),
-                          );
-                        }),
-                        _EndCard(text: _footerText),
-                      ],
+                          ),
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.only(bottom: 28),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  ...List<Widget>.generate(_sections.length, (index) {
+                                    final section = _sections[index];
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 12),
+                                      child: _LegalSectionCard(
+                                        section: section,
+                                        index: index + 1,
+                                      ),
+                                    );
+                                  }),
+                                  _EndCard(text: _footerText),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -276,14 +276,12 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (isDesktop) ...[
-            _RegisterDetailsBackLink(
-              label: _hasInviteContext ? 'Back to invite' : 'Back',
-              onTap: () =>
-                  context.go(_routeWithCurrentContext(AppRoute.register)),
-            ),
-            SizedBox(height: isCompactDesktopHeight ? 14 : 18),
-          ],
+          _RegisterDetailsBackLink(
+            label: _hasInviteContext ? 'Back to invite' : 'Back',
+            onTap: () =>
+                context.go(_routeWithCurrentContext(AppRoute.register)),
+          ),
+          SizedBox(height: isDesktop ? (isCompactDesktopHeight ? 14 : 18) : 12),
           _buildFormHeader(context: context, isDesktop: isDesktop),
           _buildFormErrorBanner(isDesktop: isDesktop),
           if (_hasInviteContext) ...[
