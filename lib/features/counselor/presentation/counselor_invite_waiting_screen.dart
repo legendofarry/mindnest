@@ -849,19 +849,6 @@ class _CounselorInviteWaitingScreenState
             letterSpacing: -0.8,
           ),
         ),
-        const SizedBox(height: 14),
-        Text(
-          hasInvite
-              ? 'Enter the institution code from the admin and accept or reject right here. Notifications still remains available as the secondary path.'
-              : 'Your account is ready, but counselor tools stay locked until an institution admin sends your invite.',
-          textAlign: isDesktop ? TextAlign.left : TextAlign.center,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontSize: isDesktop ? 18 : 16,
-            color: const Color(0xFF4E627A),
-            fontWeight: FontWeight.w500,
-            height: 1.55,
-          ),
-        ),
       ],
     );
   }
