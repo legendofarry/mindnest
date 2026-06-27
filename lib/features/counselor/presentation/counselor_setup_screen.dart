@@ -46,7 +46,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       <AssistantConversationMessage>[];
 
   String _sessionMode = 'Hybrid';
-  String _timezone = 'UTC';
+  static const String _defaultTimezone = 'Africa/Nairobi';
+  String _timezone = _defaultTimezone;
   String? _selectedGender;
   bool _specializationsExpanded = false;
   bool _genderExpanded = false;
@@ -61,9 +62,8 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
   Timer? _errorTicker;
   bool _isAiWorking = false;
   _AiAssistTarget? _activeAiTarget;
-  String? _aiReply;
-  String? _aiReplyLabel;
   String? _aiError;
+  bool _showAiAssistantPanel = false;
   bool _showingRemovedAccessDialog = false;
   bool _redirectingToInviteWaiting = false;
 
@@ -122,6 +122,14 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       accent: Color(0xFFF59E0B),
     ),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_timezones.contains(_timezone)) {
+      _timezone = _defaultTimezone;
+    }
+  }
 
   @override
   void dispose() {
@@ -233,8 +241,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
       _isAiWorking = true;
       _activeAiTarget = target;
       _aiError = null;
-      _aiReply = null;
-      _aiReplyLabel = null;
       _formErrors.clear();
       _formErrorIndex = 0;
       _stopErrorTicker();
@@ -264,14 +270,11 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         _aiHistory.add(
           AssistantConversationMessage(role: 'assistant', text: cleaned),
         );
-        if (target == _AiAssistTarget.custom) {
-          _aiReply = cleaned;
-          _aiReplyLabel = 'AI setup guidance';
-        } else {
-          _aiReply = null;
-          _aiReplyLabel = null;
-        }
       });
+
+      if (target == _AiAssistTarget.custom) {
+        _aiPromptController.clear();
+      }
 
       switch (target) {
         case _AiAssistTarget.title:
@@ -536,324 +539,783 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
     return AuthBackgroundScaffold(
       maxWidth: isWide ? 760 : 560,
       fallingSnow: true,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: const Color(0xFFBEE9E4), width: 1.1),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x140F172A),
-              blurRadius: 36,
-              offset: Offset(0, 18),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: const Color(0xFFBEE9E4), width: 1.1),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x140F172A),
+                  blurRadius: 36,
+                  offset: Offset(0, 18),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            isWide ? 34 : 24,
-            isWide ? 30 : 24,
-            isWide ? 34 : 24,
-            isWide ? 28 : 24,
-          ),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: SizedBox(
-                    height: 200,
-                    width: 200,
-                    child: const FittedBox(
-                      fit: BoxFit.contain,
-                      child: BrandMark(
-                        compact: true,
-                        showText: false,
-                        withBlob: true,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(),
-                Text(
-                  'Counselor Setup',
-                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF071937),
-                    letterSpacing: -0.6,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                if (isWide)
-                  Text(
-                    'Build your counselor profile before the workspace opens. Pick every specialization you actually handle and finish the last access details here.',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: const Color(0xFF5E728D),
-                      fontWeight: FontWeight.w500,
-                      height: 1.45,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                const SizedBox(height: 18),
-                _buildAiAssistantCard(),
-                if (isWide) ...[
-                  const SizedBox(height: 18),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5FAFF),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: const Color(0xFFD8E8F8)),
-                    ),
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: _steps
-                          .map((step) => _SetupStepCard(step: step, wide: true))
-                          .toList(growable: false),
-                    ),
-                  ),
-                ],
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  child: _formErrors.isEmpty
-                      ? const SizedBox(height: 24)
-                      : Container(
-                          key: ValueKey(
-                            'form-error-$_formErrorIndex-${_formErrors[_formErrorIndex]}',
-                          ),
-                          margin: const EdgeInsets.only(top: 16, bottom: 8),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF1F2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFFECDD3)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.error_outline_rounded,
-                                color: Color(0xFFBE123C),
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _formErrors[_formErrorIndex],
-                                  style: const TextStyle(
-                                    color: Color(0xFF9F1239),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                isWide ? 34 : 24,
+                isWide ? 30 : 24,
+                isWide ? 34 : 24,
+                isWide ? 28 : 24,
+              ),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: SizedBox(
+                        height: 200,
+                        width: 200,
+                        child: const FittedBox(
+                          fit: BoxFit.contain,
+                          child: BrandMark(
+                            compact: true,
+                            showText: false,
+                            withBlob: true,
                           ),
                         ),
-                ),
-                Container(
-                  key: _titleFieldKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const _FieldLabel(text: 'PROFESSIONAL TITLE'),
-                      const SizedBox(height: 8),
-                      _RoundedInput(
-                        hasError: _titleError,
-                        child: TextFormField(
-                          controller: _titleController,
-                          focusNode: _titleFocusNode,
-                          onChanged: (_) {
-                            setState(() {
-                              _titleError = false;
-                              _formErrors.clear();
-                              _formErrorIndex = 0;
-                              _stopErrorTicker();
-                            });
-                          },
-                          decoration: InputDecoration(
-                            border: InputBorder.none,
-                            hintText: 'Licensed Professional Counselor',
-                            hintStyle: _setupHintStyle,
-                            prefixIcon: const Icon(Icons.badge_outlined),
-                            suffixIcon: _InlineAiIconButton(
-                              busy:
-                                  _isAiWorking &&
-                                  _activeAiTarget == _AiAssistTarget.title,
-                              enabled: !_isAiWorking,
-                              tooltip: 'Generate title',
-                              onTap: () =>
-                                  _runAiAssist(target: _AiAssistTarget.title),
+                      ),
+                    ),
+                    const SizedBox(),
+                    Text(
+                      'Counselor Setup',
+                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF071937),
+                        letterSpacing: -0.6,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    if (isWide)
+                      Text(
+                        'Build your counselor profile before the workspace opens. Pick every specialization you actually handle and finish the last access details here.',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: const Color(0xFF5E728D),
+                              fontWeight: FontWeight.w500,
+                              height: 1.45,
                             ),
-                          ),
-                          validator: (_) => null,
+                        textAlign: TextAlign.center,
+                      ),
+                    const SizedBox(height: 18),
+                    if (isWide) ...[
+                      const SizedBox(height: 18),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5FAFF),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(color: const Color(0xFFD8E8F8)),
+                        ),
+                        child: Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: _steps
+                              .map(
+                                (step) =>
+                                    _SetupStepCard(step: step, wide: true),
+                              )
+                              .toList(growable: false),
                         ),
                       ),
                     ],
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: _formErrors.isEmpty
+                          ? const SizedBox(height: 24)
+                          : Container(
+                              key: ValueKey(
+                                'form-error-$_formErrorIndex-${_formErrors[_formErrorIndex]}',
+                              ),
+                              margin: const EdgeInsets.only(top: 16, bottom: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF1F2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFFFECDD3),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.error_outline_rounded,
+                                    color: Color(0xFFBE123C),
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _formErrors[_formErrorIndex],
+                                      style: const TextStyle(
+                                        color: Color(0xFF9F1239),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                    Container(
+                      key: _titleFieldKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const _FieldLabel(text: 'PROFESSIONAL TITLE'),
+                          const SizedBox(height: 8),
+                          _RoundedInput(
+                            hasError: _titleError,
+                            child: TextFormField(
+                              controller: _titleController,
+                              focusNode: _titleFocusNode,
+                              onChanged: (_) {
+                                setState(() {
+                                  _titleError = false;
+                                  _formErrors.clear();
+                                  _formErrorIndex = 0;
+                                  _stopErrorTicker();
+                                });
+                              },
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                hintText: 'Licensed Professional Counselor',
+                                hintStyle: _setupHintStyle,
+                                prefixIcon: const Icon(Icons.badge_outlined),
+                                suffixIcon: _InlineAiIconButton(
+                                  busy:
+                                      _isAiWorking &&
+                                      _activeAiTarget == _AiAssistTarget.title,
+                                  enabled: !_isAiWorking,
+                                  tooltip: 'Generate title',
+                                  onTap: () => _runAiAssist(
+                                    target: _AiAssistTarget.title,
+                                  ),
+                                ),
+                              ),
+                              validator: (_) => null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      key: _specializationsFieldKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const _FieldLabel(text: 'SPECIALIZATIONS'),
+                          const SizedBox(height: 6),
+                          if (isWide)
+                            const Text(
+                              'Choose every focus area you actively support.',
+                              style: TextStyle(
+                                color: Color(0xFF7A8CA4),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          if (!isWide)
+                            InkWell(
+                              onTap: () => setState(
+                                () => _specializationsExpanded =
+                                    !_specializationsExpanded,
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      _specializationsExpanded
+                                          ? 'Hide specializations'
+                                          : 'Show specializations',
+                                      style: const TextStyle(
+                                        color: Color(0xFF0E9B90),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Icon(
+                                      _specializationsExpanded
+                                          ? Icons.keyboard_arrow_up_rounded
+                                          : Icons.keyboard_arrow_down_rounded,
+                                      color: const Color(0xFF0E9B90),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          if (isWide || _specializationsExpanded) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: _specializationsError
+                                    ? const Color(0xFFFFF7F7)
+                                    : const Color(0xFFF7FBFF),
+                                borderRadius: BorderRadius.circular(22),
+                                border: Border.all(
+                                  color: _specializationsError
+                                      ? const Color(0xFFFCA5A5)
+                                      : const Color(0xFFD7E4F1),
+                                ),
+                              ),
+                              child: Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: _specializations
+                                    .asMap()
+                                    .entries
+                                    .map(
+                                      (entry) => _SpecializationPill(
+                                        label: entry.value,
+                                        selected: _selectedSpecializations
+                                            .contains(entry.value),
+                                        index: entry.key,
+                                        onTap: () =>
+                                            _toggleSpecialization(entry.value),
+                                      ),
+                                    )
+                                    .toList(growable: false),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    _buildGenderField(),
+                    const SizedBox(height: 18),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _buildYearsField()),
+                        const SizedBox(width: 14),
+                        Expanded(child: _buildSessionModeField()),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    if (isWide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: _buildTimezoneField()),
+                          const SizedBox(width: 14),
+                          Expanded(child: _buildLanguagesField()),
+                        ],
+                      )
+                    else ...[
+                      _buildTimezoneField(),
+                      const SizedBox(height: 18),
+                      _buildLanguagesField(),
+                    ],
+                    const SizedBox(height: 18),
+                    const SizedBox(height: 24),
+                    Container(
+                      height: 62,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(17),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF0E9B90), Color(0xFF18A89D)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x4D72ECDC),
+                            blurRadius: 28,
+                            offset: Offset(0, 14),
+                          ),
+                        ],
+                      ),
+                      child: ElevatedButton(
+                        onPressed: _isSubmitting ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          shadowColor: Colors.transparent,
+                          backgroundColor: Colors.transparent,
+                          disabledBackgroundColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(17),
+                          ),
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: Text(
+                            _isSubmitting
+                                ? 'Saving setup...'
+                                : 'Complete Setup  ->',
+                            key: ValueKey(_isSubmitting),
+                            style: const TextStyle(
+                              fontSize: 17.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (_showAiAssistantPanel)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _toggleAiAssistantPanel,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  color: Colors.black.withValues(alpha: 0.05),
+                ),
+              ),
+            ),
+          Positioned(
+            right: isWide ? 24 : 16,
+            bottom: isWide ? 24 : 16,
+            child: _buildAiFloatingToggle(isWide),
+          ),
+          Positioned(
+            right: isWide ? 24 : 16,
+            bottom: isWide ? 88 : 80,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                final fade = CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOut,
+                );
+                final slide = Tween<Offset>(
+                  begin: const Offset(0, 0.08),
+                  end: Offset.zero,
+                ).animate(fade);
+                final scale = Tween<double>(begin: 0.96, end: 1).animate(fade);
+                return FadeTransition(
+                  opacity: fade,
+                  child: SlideTransition(
+                    position: slide,
+                    child: ScaleTransition(scale: scale, child: child),
+                  ),
+                );
+              },
+              child: _showAiAssistantPanel
+                  ? _buildAiAssistantOverlay(isWide)
+                  : const SizedBox.shrink(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toggleAiAssistantPanel() {
+    setState(() {
+      _showAiAssistantPanel = !_showAiAssistantPanel;
+    });
+  }
+
+  Widget _buildAiFloatingToggle(bool isWide) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(isWide ? 28 : 999),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0E9B90), Color(0xFF1D4ED8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x30155EEF),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(isWide ? 28 : 999),
+          onTap: _toggleAiAssistantPanel,
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            padding: EdgeInsets.symmetric(
+              horizontal: isWide ? 18 : 16,
+              vertical: isWide ? 14 : 16,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(
+                    _showAiAssistantPanel
+                        ? Icons.forum_rounded
+                        : Icons.auto_awesome_rounded,
+                    key: ValueKey<bool>(_showAiAssistantPanel),
+                    color: Colors.white,
+                    size: 20,
                   ),
                 ),
-                const SizedBox(height: 18),
-                Container(
-                  key: _specializationsFieldKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const _FieldLabel(text: 'SPECIALIZATIONS'),
-                      const SizedBox(height: 6),
-                      if (isWide)
+                if (isWide) ...[
+                  const SizedBox(width: 10),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: Text(
+                      _showAiAssistantPanel ? 'Close chat' : 'AI chat',
+                      key: ValueKey<bool>(_showAiAssistantPanel),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 8),
+                Icon(
+                  _showAiAssistantPanel
+                      ? Icons.keyboard_arrow_down_rounded
+                      : Icons.keyboard_arrow_up_rounded,
+                  color: Colors.white.withValues(alpha: 0.92),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiAssistantOverlay(bool isWide) {
+    final size = MediaQuery.sizeOf(context);
+    final panelWidth = isWide
+        ? 420.0
+        : (size.width - 32).clamp(290.0, 360.0).toDouble();
+    final panelHeight = isWide
+        ? 540.0
+        : (size.height * 0.68).clamp(390.0, 500.0).toDouble();
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      width: panelWidth,
+      height: panelHeight,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        color: const Color(0xFCFFFFFF),
+        border: Border.all(color: const Color(0xFFE1EEF8)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x220F172A),
+            blurRadius: 34,
+            offset: Offset(0, 18),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFFEAFBF8), Color(0xFFF4F8FF)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0E9B90), Color(0xFF2563EB)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                      size: 21,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'MindNest AI Setup Chat',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: const Color(0xFF071937),
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.2,
+                              ),
+                        ),
+                        const SizedBox(height: 2),
                         const Text(
-                          'Choose every focus area you actively support.',
+                          'A calm sidekick for titles, prompts, and setup decisions.',
                           style: TextStyle(
-                            color: Color(0xFF7A8CA4),
-                            fontSize: 13,
+                            color: Color(0xFF5E728D),
+                            fontSize: 12,
                             fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      if (!isWide)
-                        InkWell(
-                          onTap: () => setState(
-                            () => _specializationsExpanded =
-                                !_specializationsExpanded,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              children: [
-                                Text(
-                                  _specializationsExpanded
-                                      ? 'Hide specializations'
-                                      : 'Show specializations',
-                                  style: const TextStyle(
-                                    color: Color(0xFF0E9B90),
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const Spacer(),
-                                Icon(
-                                  _specializationsExpanded
-                                      ? Icons.keyboard_arrow_up_rounded
-                                      : Icons.keyboard_arrow_down_rounded,
-                                  color: const Color(0xFF0E9B90),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      if (isWide || _specializationsExpanded) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: _specializationsError
-                                ? const Color(0xFFFFF7F7)
-                                : const Color(0xFFF7FBFF),
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(
-                              color: _specializationsError
-                                  ? const Color(0xFFFCA5A5)
-                                  : const Color(0xFFD7E4F1),
-                            ),
-                          ),
-                          child: Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: _specializations
-                                .asMap()
-                                .entries
-                                .map(
-                                  (entry) => _SpecializationPill(
-                                    label: entry.value,
-                                    selected: _selectedSpecializations.contains(
-                                      entry.value,
-                                    ),
-                                    index: entry.key,
-                                    onTap: () =>
-                                        _toggleSpecialization(entry.value),
-                                  ),
-                                )
-                                .toList(growable: false),
+                            height: 1.35,
                           ),
                         ),
                       ],
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 18),
-                _buildGenderField(),
-                const SizedBox(height: 18),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _buildYearsField()),
-                    const SizedBox(width: 14),
-                    Expanded(child: _buildSessionModeField()),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                if (isWide)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildTimezoneField()),
-                      const SizedBox(width: 14),
-                      Expanded(child: _buildLanguagesField()),
-                    ],
-                  )
-                else ...[
-                  _buildTimezoneField(),
-                  const SizedBox(height: 18),
-                  _buildLanguagesField(),
+                  IconButton(
+                    onPressed: _toggleAiAssistantPanel,
+                    icon: const Icon(Icons.close_rounded),
+                    color: const Color(0xFF0B2442),
+                    splashRadius: 18,
+                  ),
                 ],
-                const SizedBox(height: 18),
-                const SizedBox(height: 24),
-                Container(
-                  height: 62,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(17),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF0E9B90), Color(0xFF18A89D)],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
+              ),
+            ),
+            Expanded(
+              child: Column(
+                children: [
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                      children: [
+                        if (_aiHistory.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF7FBFF),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFD7E4F1),
+                              ),
+                            ),
+                            child: const Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Try one of these:',
+                                  style: TextStyle(
+                                    color: Color(0xFF071937),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Ask for a professional title, a polished bio starter, or what to fill in next.',
+                                  style: TextStyle(
+                                    color: Color(0xFF5E728D),
+                                    height: 1.45,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          ..._aiHistory.asMap().entries.map(
+                            (entry) => _buildAiMessageBubble(
+                              message: entry.value,
+                              index: entry.key,
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                      ],
                     ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x4D72ECDC),
-                        blurRadius: 28,
-                        offset: Offset(0, 14),
-                      ),
-                    ],
                   ),
-                  child: ElevatedButton(
-                    onPressed: _isSubmitting ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                      shadowColor: Colors.transparent,
-                      backgroundColor: Colors.transparent,
-                      disabledBackgroundColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(17),
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _AiPromptChip(
+                          label: 'Suggest a title',
+                          icon: Icons.badge_outlined,
+                          onTap: () => _sendAiPrompt(
+                            'Suggest one professional counselor title based on my current setup.',
+                          ),
+                        ),
+                        _AiPromptChip(
+                          label: 'Refine my bio',
+                          icon: Icons.notes_rounded,
+                          onTap: () => _sendAiPrompt(
+                            'Help me write a short calm counselor bio for this setup.',
+                          ),
+                        ),
+                        _AiPromptChip(
+                          label: 'What next?',
+                          icon: Icons.route_rounded,
+                          onTap: () => _sendAiPrompt(
+                            'Tell me what I should complete next in this counselor setup form.',
+                          ),
+                        ),
+                      ],
                     ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Text(
-                        _isSubmitting
-                            ? 'Saving setup...'
-                            : 'Complete Setup  ->',
-                        key: ValueKey(_isSubmitting),
-                        style: const TextStyle(
-                          fontSize: 17.5,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                    child: _RoundedInput(
+                      child: TextField(
+                        controller: _aiPromptController,
+                        autofocus: _showAiAssistantPanel,
+                        minLines: 1,
+                        maxLines: 3,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: _isAiWorking
+                            ? null
+                            : (_) => _sendAiPrompt(_aiPromptController.text),
+                        onChanged: (_) {
+                          setState(() {
+                            _aiError = null;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          hintText: 'Ask the setup chat...',
+                          hintStyle: _setupHintStyle,
+                          prefixIcon: const Icon(
+                            Icons.chat_bubble_outline_rounded,
+                          ),
+                          suffixIcon: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: FilledButton(
+                              onPressed:
+                                  _isAiWorking ||
+                                      _aiPromptController.text.trim().isEmpty
+                                  ? null
+                                  : () =>
+                                        _sendAiPrompt(_aiPromptController.text),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF0E9B90),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                              ),
+                              child:
+                                  _isAiWorking &&
+                                      _activeAiTarget == _AiAssistTarget.custom
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Send',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
+                  if ((_aiError ?? '').trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      child: Text(
+                        _aiError!,
+                        style: const TextStyle(
+                          color: Color(0xFFB91C1C),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _sendAiPrompt(String prompt) {
+    final trimmed = prompt.trim();
+    if (trimmed.isEmpty || _isAiWorking) {
+      return;
+    }
+
+    unawaited(
+      _runAiAssist(target: _AiAssistTarget.custom, customPrompt: trimmed),
+    );
+  }
+
+  Widget _buildAiMessageBubble({
+    required AssistantConversationMessage message,
+    required int index,
+  }) {
+    final isAssistant = message.role == 'assistant';
+    final bubbleColor = isAssistant
+        ? const Color(0xFFF6FAFF)
+        : const Color(0xFFE9FBF8);
+    final borderColor = isAssistant
+        ? const Color(0xFFD8E7F3)
+        : const Color(0xFFBFE6E0);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: index == _aiHistory.length - 1 ? 0 : 10),
+      child: Align(
+        alignment: isAssistant ? Alignment.centerLeft : Alignment.centerRight,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 300),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: bubbleColor,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: borderColor),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x080F172A),
+                  blurRadius: 12,
+                  offset: Offset(0, 6),
                 ),
               ],
+            ),
+            child: Text(
+              message.text,
+              style: const TextStyle(
+                color: Color(0xFF0B2442),
+                fontSize: 13.2,
+                height: 1.45,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ),
@@ -1136,164 +1598,6 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
           ),
         ],
       ],
-    );
-  }
-
-  Widget _buildAiAssistantCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: <Color>[Color(0xFFE9FBF8), Color(0xFFF3F8FF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFBFE6E0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: <Color>[Color(0xFF0EA5A0), Color(0xFF0B7C9E)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.auto_awesome_rounded,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'MindNest AI Setup Assist',
-                      style: TextStyle(
-                        color: Color(0xFF071937),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _RoundedInput(
-            child: TextField(
-              controller: _aiPromptController,
-              minLines: 1,
-              maxLines: 3,
-              onChanged: (_) {
-                setState(() {
-                  _aiError = null;
-                });
-              },
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Ask AI',
-                hintStyle: _setupHintStyle,
-                prefixIcon: const Icon(Icons.smart_toy_outlined),
-                suffixIcon: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: FilledButton(
-                    onPressed:
-                        _isAiWorking || _aiPromptController.text.trim().isEmpty
-                        ? null
-                        : () => _runAiAssist(
-                            target: _AiAssistTarget.custom,
-                            customPrompt: _aiPromptController.text,
-                          ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF0E9B90),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                    ),
-                    child:
-                        _isAiWorking &&
-                            _activeAiTarget == _AiAssistTarget.custom
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            'Ask',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          if ((_aiError ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              _aiError!,
-              style: const TextStyle(
-                color: Color(0xFFB91C1C),
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-          if ((_aiReply ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFFD6E7F3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _aiReplyLabel ?? 'AI response',
-                    style: const TextStyle(
-                      color: Color(0xFF0E9B90),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _aiReply!,
-                    style: const TextStyle(
-                      color: Color(0xFF0B2442),
-                      fontSize: 13.4,
-                      fontWeight: FontWeight.w500,
-                      height: 1.45,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }
@@ -1604,6 +1908,52 @@ class _RoundedInput extends StatelessWidget {
         ],
       ),
       child: child,
+    );
+  }
+}
+
+class _AiPromptChip extends StatelessWidget {
+  const _AiPromptChip({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7FBFF),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: const Color(0xFFD6E7F3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: const Color(0xFF0E9B90)),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF0B2442),
+                  fontSize: 12.2,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
