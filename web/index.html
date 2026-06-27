@@ -1,20 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
@@ -36,7 +23,6 @@
   <meta name="twitter:image" content="https://mindnestke.netlify.app/icons/Icon-512.png">
   <link rel="canonical" href="https://mindnestke.netlify.app/">
 
-  <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -44,123 +30,74 @@
   <meta name="apple-mobile-web-app-title" content="MindNest">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png" />
 
   <title>MindNest | Mental Wellness Support for Institutions</title>
   <link rel="manifest" href="manifest.json">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+
   <style>
     :root {
       color-scheme: light;
-      --mindnest-ink: #0f172a;
-      --mindnest-muted: #48637b;
-      --mindnest-brand: #0e9b90;
-      --mindnest-brand-soft: #7cf4e8;
-      --mindnest-bg: #f7fbfc;
-      --mindnest-panel: rgba(255, 255, 255, 0.9);
-      --mindnest-border: rgba(190, 233, 228, 0.95);
+      --ink: #0b1f2a;
+      --muted: #5a7587;
+      --brand: #0e9b90;
+      --brand-deep: #0a6f6a;
+      --brand-soft: #b8f0e8;
+      --bg-0: #f4faf9;
+      --bg-1: #eaf6f4;
+    }
+
+    * {
+      box-sizing: border-box;
     }
 
     html,
     body {
       margin: 0;
       min-height: 100%;
-      background:
-        radial-gradient(circle at top left, rgba(130, 233, 224, 0.36), transparent 36%),
-        radial-gradient(circle at right 22%, rgba(184, 244, 239, 0.32), transparent 28%),
-        linear-gradient(135deg, #f8fcfd 0%, #f5fafc 100%);
-      font-family: "Montserrat", "Segoe UI", sans-serif;
+      font-family: "Outfit", "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--bg-0);
+      -webkit-font-smoothing: antialiased;
     }
 
     body {
       overflow: hidden;
     }
 
+    /* ---------- Ambient calm background ---------- */
     #mindnest-loader {
       position: fixed;
       inset: 0;
       z-index: 9999;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-      transition: opacity 280ms ease, transform 280ms ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      overflow: hidden;
+      background:
+        radial-gradient(1200px 700px at 15% 10%, rgba(124, 244, 232, 0.28), transparent 60%),
+        radial-gradient(900px 600px at 85% 90%, rgba(14, 155, 144, 0.18), transparent 60%),
+        linear-gradient(180deg, #f7fcfb 0%, #eef7f5 100%);
+      transition: opacity 600ms ease, transform 600ms ease;
     }
 
     #mindnest-loader.loader-hidden {
       opacity: 0;
-      transform: translateY(10px) scale(0.985);
+      transform: scale(1.02);
       pointer-events: none;
-    }
-
-    .mindnest-loader-card {
-      width: fit-content;
-      padding: 28px;
-      border-radius: 30px;
-      background: var(--mindnest-panel);
-      border: 1px solid var(--mindnest-border);
-      box-shadow: 0 24px 48px rgba(15, 23, 42, 0.12);
-      backdrop-filter: blur(18px);
-    }
-
-    .mindnest-loader-brand {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 20px;
-    }
-
-    .mindnest-loader-brand img {
-      width: 68px;
-      height: 68px;
-      object-fit: contain;
-    }
-
-    .mindnest-loader-brand span {
-      color: var(--mindnest-ink);
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-    }
-
-    .mindnest-loader-eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 14px;
-      border-radius: 999px;
-      background: #062e43;
-      color: #f4fffe;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.01em;
-    }
-
-    .mindnest-loader-title {
-      margin: 18px 0 12px;
-      color: var(--mindnest-ink);
-      font-size: clamp(34px, 5vw, 46px);
-      line-height: 0.97;
-      letter-spacing: -0.05em;
-      font-weight: 800;
-    }
-
-    .mindnest-loader-title strong {
-      color: var(--mindnest-brand);
-      font-weight: 800;
-    }
-
-    .mindnest-loader-copy {
-      margin: 0;
-      color: var(--mindnest-muted);
-      font-size: 16px;
-      line-height: 1.55;
-      font-weight: 500;
     }
 
     .mindnest-loader-tags {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
+      justify-content: center;
       margin: 18px 0 20px;
     }
 
@@ -174,58 +111,305 @@
       font-weight: 700;
     }
 
-    .mindnest-loader-footer {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      margin-top: 8px;
+    /* Floating ambient blobs */
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: 0.55;
+      pointer-events: none;
+      will-change: transform;
     }
 
-    .mindnest-loader-status {
+    .blob.b1 {
+      width: 420px;
+      height: 420px;
+      left: -120px;
+      top: -120px;
+      background: radial-gradient(circle, #7cf4e8, transparent 70%);
+      animation: drift1 18s ease-in-out infinite;
+    }
+
+    .blob.b2 {
+      width: 520px;
+      height: 520px;
+      right: -160px;
+      bottom: -160px;
+      background: radial-gradient(circle, #a8ecd8, transparent 70%);
+      animation: drift2 22s ease-in-out infinite;
+    }
+
+    .blob.b3 {
+      width: 320px;
+      height: 320px;
+      left: 55%;
+      top: 10%;
+      background: radial-gradient(circle, #cdeff7, transparent 70%);
+      animation: drift3 26s ease-in-out infinite;
+    }
+
+    @keyframes drift1 {
+
+      0%,
+      100% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      50% {
+        transform: translate(60px, 40px) scale(1.08);
+      }
+    }
+
+    @keyframes drift2 {
+
+      0%,
+      100% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      50% {
+        transform: translate(-50px, -30px) scale(1.06);
+      }
+    }
+
+    @keyframes drift3 {
+
+      0%,
+      100% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      50% {
+        transform: translate(-30px, 50px) scale(1.1);
+      }
+    }
+
+    /* ---------- Card ---------- */
+    .card {
+      position: relative;
+      width: min(560px, 100%);
+      padding: 56px 44px;
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.9) inset,
+        0 30px 80px -30px rgba(10, 111, 106, 0.25),
+        0 8px 24px -12px rgba(10, 111, 106, 0.15);
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      text-align: center;
+      animation: cardIn 900ms cubic-bezier(.2, .8, .2, 1) both;
+    }
+
+    @keyframes cardIn {
+      0% {
+        opacity: 0;
+        transform: translateY(16px) scale(.98);
+      }
+
+      100% {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    /* ---------- Breathing orb ---------- */
+    .orb-wrap {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      margin: 0 auto 28px;
+      display: grid;
+      place-items: center;
+    }
+
+    .orb-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1px solid rgba(14, 155, 144, 0.25);
+      animation: breathe 4.5s ease-in-out infinite;
+    }
+
+    .orb-ring.r2 {
+      animation-delay: -1.5s;
+      opacity: 0.6;
+    }
+
+    .orb-ring.r3 {
+      animation-delay: -3s;
+      opacity: 0.35;
+    }
+
+    @keyframes breathe {
+
+      0%,
+      100% {
+        transform: scale(0.72);
+        opacity: 0.0;
+      }
+
+      40% {
+        opacity: 0.9;
+      }
+
+      50% {
+        transform: scale(1.0);
+      }
+
+      100% {
+        transform: scale(1.4);
+        opacity: 0;
+      }
+    }
+
+    .orb {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
       display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .orb-logo {
+      width: 150px;
+      height: 150px;
+      object-fit: contain;
+      z-index: 2;
+      filter: drop-shadow(0 4px 12px rgba(14, 155, 144, 0.25));
+    }
+
+    @keyframes logoFloat {
+
+      0%,
+      100% {
+        transform: translateY(0) scale(1);
+      }
+
+      50% {
+        transform: translateY(-4px) scale(1.04);
+      }
+    }
+
+    @keyframes orbPulse {
+
+      0%,
+      100% {
+        transform: scale(0.96);
+      }
+
+      50% {
+        transform: scale(1.04);
+      }
+    }
+
+    /* ---------- Brand ---------- */
+    .brand {
+      display: inline-flex;
       align-items: center;
       gap: 10px;
-      color: #0d6f69;
-      font-size: 14px;
-      font-weight: 700;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+      font-size: 15px;
+      margin-bottom: 8px;
+      opacity: 0;
+      animation: fadeUp .8s .15s ease-out forwards;
     }
 
-    .mindnest-loader-dots {
+    .brand-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--brand);
+      box-shadow: 0 0 0 4px rgba(14, 155, 144, .15);
+    }
+
+    h1.title {
+      font-family: "Outfit", "Segoe UI", system-ui, sans-serif;
+      font-weight: 400;
+      font-size: clamp(30px, 4.4vw, 42px);
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+      margin: 4px 0 14px;
+      color: var(--ink);
+      opacity: 0;
+      animation: fadeUp .9s .25s ease-out forwards;
+    }
+
+    h1.title em {
+      font-style: italic;
+      font-weight: 300;
+      color: var(--brand-deep);
+    }
+
+    p.copy {
+      margin: 0 auto 28px;
+      max-width: 380px;
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--muted);
+      opacity: 0;
+      animation: fadeUp .9s .35s ease-out forwards;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+
+    /* ---------- Status ---------- */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--brand-deep);
+      opacity: 0;
+      animation: fadeUp .9s .55s ease-out forwards;
+    }
+
+    .loader-dots {
       display: inline-flex;
       gap: 5px;
     }
 
-    .mindnest-loader-dots span {
+    .loader-dots span {
       width: 8px;
       height: 8px;
       border-radius: 999px;
-      background: var(--mindnest-brand);
-      animation: mindnest-loader-bounce 1s infinite ease-in-out;
+      background: var(--brand);
+      animation: loaderBounce 1s infinite ease-in-out;
     }
 
-    .mindnest-loader-dots span:nth-child(2) {
-      animation-delay: 0.14s;
+    .loader-dots span:nth-child(2) {
+      animation-delay: .14s;
     }
 
-    .mindnest-loader-dots span:nth-child(3) {
-      animation-delay: 0.28s;
+    .loader-dots span:nth-child(3) {
+      animation-delay: .28s;
     }
 
-    .mindnest-loader-note {
-      color: #48637b;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    @keyframes mindnest-loader-bounce {
+    @keyframes loaderBounce {
 
       0%,
       80%,
       100% {
         transform: translateY(0);
-        opacity: 0.38;
+        opacity: .38;
       }
 
       40% {
@@ -234,73 +418,94 @@
       }
     }
 
-    @media (max-width: 640px) {
-      .mindnest-loader-card {
-        padding: 22px;
+    /* ---------- Reduced motion ---------- */
+    @media (prefers-reduced-motion: reduce) {
+
+      .blob,
+      .orb,
+      .orb-ring,
+      .status .dot,
+      .card,
+      .brand,
+      .title,
+      .copy,
+      .status {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .card {
+        padding: 40px 24px;
         border-radius: 24px;
       }
 
-      .mindnest-loader-brand span {
-        font-size: 24px;
+      .orb-wrap {
+        width: 120px;
+        height: 120px;
+        margin-bottom: 20px;
       }
 
-      .mindnest-loader-title {
-        margin-top: 16px;
+      .orb {
+        width: 60px;
+        height: 60px;
       }
     }
   </style>
+
   <script>
     window.addEventListener("flutter-first-frame", function () {
       var loader = document.getElementById("mindnest-loader");
-      if (!loader) {
-        return;
-      }
-
+      if (!loader) return;
       window.setTimeout(function () {
         loader.classList.add("loader-hidden");
-        window.setTimeout(function () {
-          loader.remove();
-        }, 320);
-      }, 120);
+        window.setTimeout(function () { loader.remove(); }, 600);
+      }, 150);
     });
   </script>
 </head>
 
 <body>
-  <div id="mindnest-loader" aria-live="polite">
-    <div class="mindnest-loader-card">
-      <div class="mindnest-loader-brand">
-        <img src="assets/assets/MindNest-Logo.svg" alt="MindNest logo">
+  <div id="mindnest-loader" aria-live="polite" aria-label="Loading MindNest workspace">
+    <div class="blob b1"></div>
+    <div class="blob b2"></div>
+    <div class="blob b3"></div>
+
+    <div class="card">
+      <div class="orb-wrap" aria-hidden="true">
+        <div class="orb-ring r1"></div>
+        <div class="orb-ring r2"></div>
+        <div class="orb-ring r3"></div>
+        <div class="orb">
+          <img class="orb-logo" src="assets/assets/MindNest-Logo.svg" alt="MindNest logo">
+        </div>
+      </div>
+
+      <div class="brand">
+        <span class="brand-dot"></span>
         <span>MindNest</span>
       </div>
-      <div class="mindnest-loader-eyebrow">Web-first workspace for mental wellness teams</div>
-      <h1 class="mindnest-loader-title">Workspace <strong>is loading.</strong></h1>
+
+      <h1 class="title">A calm space, <b style="color:rgb(14, 155, 143)">preparing for you.</b></h1>
       <div class="mindnest-loader-tags" aria-hidden="true">
         <span>Students</span>
         <span>Staff</span>
         <span>Counselors</span>
-        <span>Admins</span>
       </div>
-      <div class="mindnest-loader-footer">
-        <div class="mindnest-loader-status">
-          <span>Opening your workspace</span>
-          <span class="mindnest-loader-dots">
-            <span></span>
-            <span></span>
-            <span></span>
-          </span>
-        </div>
+
+      <div class="status">
+        <span>Opening your workspace</span>
+        <span class="loader-dots">
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
       </div>
     </div>
   </div>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
   <script src="passkeys_bundle.js" type="application/javascript"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
