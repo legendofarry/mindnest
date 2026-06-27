@@ -7,6 +7,7 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindnest/app/mindnest_app.dart';
+import 'package:mindnest/app/theme.dart';
 import 'package:mindnest/core/firebase/firebase_initializer.dart';
 import 'package:mindnest/features/auth/data/app_auth_client.dart';
 import 'package:mindnest/features/auth/data/auth_session_manager.dart';
@@ -37,6 +38,9 @@ Future<void> main() async {
     runApp(
       ProviderScope(
         child: MaterialApp(
+          theme: MindNestTheme.light(),
+          darkTheme: MindNestTheme.dark(),
+          themeMode: ThemeMode.system,
           home: Scaffold(
             body: SafeArea(
               child: Padding(
