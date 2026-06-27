@@ -193,10 +193,14 @@ class TermsAndPrivacyScreen extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  ...List<Widget>.generate(_sections.length, (index) {
+                                  ...List<Widget>.generate(_sections.length, (
+                                    index,
+                                  ) {
                                     final section = _sections[index];
                                     return Padding(
-                                      padding: const EdgeInsets.only(bottom: 12),
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
                                       child: _LegalSectionCard(
                                         section: section,
                                         index: index + 1,
