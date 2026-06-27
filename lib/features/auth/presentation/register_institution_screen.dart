@@ -1,5 +1,6 @@
 // features/auth/presentation/register_institution_screen.dart
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -133,8 +134,8 @@ class _RegisterInstitutionScreenState
       return;
     }
 
-    final useFloatingDialog =
-        kIsWeb || defaultTargetPlatform == TargetPlatform.windows;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final useFloatingDialog = screenWidth >= _desktopBreakpoint;
     String? selectedId;
     if (useFloatingDialog) {
       selectedId = await showDialog<String>(
@@ -352,6 +353,7 @@ class _RegisterInstitutionScreenState
     return AuthBackgroundScaffold(
       fallingSnow: true,
       maxWidth: double.infinity,
+      alignTop: true,
       child: _buildFormCard(context),
     );
   }
@@ -1240,7 +1242,9 @@ class _CatalogSchoolPickerSheetState extends State<_CatalogSchoolPickerSheet> {
       child: SafeArea(
         top: !widget.desktopMode,
         child: Container(
-          height: widget.desktopMode ? double.infinity : 640,
+          height: widget.desktopMode
+              ? double.infinity
+              : math.min(MediaQuery.sizeOf(context).height * 0.75, 760),
           decoration: BoxDecoration(
             color: const Color(0xFFF8FAFC),
             borderRadius: widget.desktopMode

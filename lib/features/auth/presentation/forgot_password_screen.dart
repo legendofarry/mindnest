@@ -139,6 +139,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     return AuthBackgroundScaffold(
       maxWidth: double.infinity,
       fallingSnow: true,
+      alignTop: true,
       child: _buildFormCard(context),
     );
   }
