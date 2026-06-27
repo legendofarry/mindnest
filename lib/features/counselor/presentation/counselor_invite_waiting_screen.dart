@@ -971,16 +971,6 @@ class _CounselorInviteWaitingScreenState
             ],
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          'This is no longer a waiting page. Review the invite, enter the institution code, and decide from this panel.',
-          style: TextStyle(
-            color: const Color(0xFF60748F),
-            fontSize: isDesktop ? 15 : 13,
-            fontWeight: FontWeight.w500,
-            height: 1.5,
-          ),
-        ),
         const SizedBox(height: 18),
         _detailTile(
           isDesktop,
@@ -1068,16 +1058,6 @@ class _CounselorInviteWaitingScreenState
                 width: 1.6,
               ),
             ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          'Accepting or rejecting here marks the original invite notification as read automatically, then sends a fresh decision notification to you and the admin.',
-          style: TextStyle(
-            color: const Color(0xFF64748B),
-            fontSize: isDesktop ? 14.5 : 12.5,
-            fontWeight: FontWeight.w500,
-            height: 1.45,
           ),
         ),
         const SizedBox(height: 18),
