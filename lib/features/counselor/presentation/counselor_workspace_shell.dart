@@ -979,36 +979,166 @@ class _FloatingBottomNav extends StatelessWidget {
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 6),
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            color: const Color(0xF8FFFFFF),
-            border: Border.all(color: const Color(0xFFDDE7F0)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1A0F172A),
-                blurRadius: 28,
-                offset: Offset(0, 14),
-              ),
-            ],
-          ),
-          child: Row(
-            children: visibleItems
-                .map(
-                  (item) => Expanded(
-                    child: _FloatingNavItem(
-                      item: item,
-                      active: item.section == activeSection,
-                      badgeCount: 0,
-                      onTap: () => onSelectSection(item.section),
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final count = visibleItems.length;
+            final activeIndex = visibleItems.indexWhere(
+              (item) => item.section == activeSection,
+            );
+            final selectedIndex = activeIndex < 0 ? 0 : activeIndex;
+            const outerInset = 6.0;
+            const innerPadding = 6.0;
+            const indicatorGap = 4.0;
+            final innerWidth =
+                constraints.maxWidth - (outerInset * 2) - (innerPadding * 2);
+            final slotWidth = innerWidth / count;
+            final indicatorWidth = slotWidth - indicatorGap;
+
+            return SizedBox(
+              height: 82,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      height: 74,
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: outerInset,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(28),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xF8FFFFFF), Color(0xEDF8FBFF)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        border: Border.all(color: const Color(0xFFDCE6EF)),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x1A0F172A),
+                            blurRadius: 30,
+                            offset: Offset(0, 16),
+                          ),
+                          BoxShadow(
+                            color: Color(0x160E9B90),
+                            blurRadius: 24,
+                            offset: Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(innerPadding),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: LayoutBuilder(
+                            builder: (context, innerConstraints) {
+                              final usableWidth = innerConstraints.maxWidth;
+                              final localSlotWidth = usableWidth / count;
+                              return Stack(
+                                children: [
+                                  Positioned(
+                                    top: -30,
+                                    left: usableWidth * 0.18,
+                                    right: usableWidth * 0.18,
+                                    child: IgnorePointer(
+                                      child: Container(
+                                        height: 64,
+                                        decoration: const BoxDecoration(
+                                          gradient: RadialGradient(
+                                            colors: [
+                                              Color(0x3314B8A6),
+                                              Color(0x0014B8A6),
+                                            ],
+                                            radius: 1.25,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  AnimatedPositioned(
+                                    duration: const Duration(milliseconds: 260),
+                                    curve: Curves.easeOutCubic,
+                                    left:
+                                        localSlotWidth * selectedIndex +
+                                        indicatorGap / 2,
+                                    top: 4,
+                                    width: indicatorWidth,
+                                    height: 58,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [
+                                            Color(0xFF0E9B90),
+                                            Color(0xFF0C7E9C),
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(20),
+                                        boxShadow: const [
+                                          BoxShadow(
+                                            color: Color(0x3314B8A6),
+                                            blurRadius: 18,
+                                            offset: Offset(0, 8),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  Row(
+                                    children: visibleItems
+                                        .map(
+                                          (item) => SizedBox(
+                                            width: localSlotWidth,
+                                            child: _FloatingNavItem(
+                                              item: item,
+                                              active:
+                                                  item.section == activeSection,
+                                              badgeCount: 0,
+                                              onTap: () =>
+                                                  onSelectSection(item.section),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(growable: false),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                )
-                .toList(growable: false),
-          ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    child: Center(
+                      child: Container(
+                        width: 88,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          borderRadius: BorderRadius.all(Radius.circular(999)),
+                          gradient: LinearGradient(
+                            colors: [
+                              Color(0x0014B8A6),
+                              Color(0x6614B8A6),
+                              Color(0x0014B8A6),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1030,68 +1160,62 @@ class _FloatingNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = active ? Colors.white : const Color(0xFF5D7287);
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(22),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          decoration: BoxDecoration(
-            color: active ? const Color(0xFF0E9B90) : Colors.transparent,
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Icon(
-                    item.icon,
-                    size: 22,
-                    color: active ? Colors.white : const Color(0xFF5B7287),
-                  ),
-                  if (badgeCount > 0)
-                    Positioned(
-                      right: -10,
-                      top: -9,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF59E0B),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          '$badgeCount',
-                          style: const TextStyle(
-                            color: Color(0xFF0C2233),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
+        child: SizedBox.expand(
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.only(top: active ? 1 : 3),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  width: active ? 30 : 28,
+                  height: active ? 30 : 28,
+                  decoration: BoxDecoration(
+                    color: active
+                        ? Colors.white.withValues(alpha: 0.18)
+                        : const Color(0xFFF0F5FA),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: active
+                          ? Colors.white.withValues(alpha: 0.26)
+                          : const Color(0xFFD9E3EC),
                     ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                item.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: active ? Colors.white : const Color(0xFF27384A),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 11.2,
+                  ),
+                  child: Icon(
+                    item.icon,
+                    size: active ? 16.5 : 16,
+                    color: color,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    fontSize: active ? 10.0 : 9.6,
+                    height: 1.0,
+                    letterSpacing: active ? 0.0 : 0.1,
+                  ),
+                  child: Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
