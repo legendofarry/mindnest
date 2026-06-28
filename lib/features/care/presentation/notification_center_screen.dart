@@ -77,8 +77,7 @@ class _NotificationCenterScreenState
   bool get _useManualRefreshMode =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
-  bool get _useCompactDrawerStyle =>
-      widget.embeddedInCounselorShell || widget.embeddedInDesktopShell;
+  bool get _useCompactDrawerStyle => widget.embeddedInDesktopShell;
 
   Stream<List<AppNotification>> _notificationStreamFor(String userId) {
     if (_notificationsStream == null || _notificationsStreamUserId != userId) {
@@ -2974,57 +2973,97 @@ class _NotificationCenterScreenState
       context.go(_notificationExitRoute(profile));
     }
 
+    final useFullScreenCounselorSurface = embeddedInCounselorShell;
+    final surfaceBorderRadius = useFullScreenCounselorSurface
+        ? BorderRadius.zero
+        : BorderRadius.circular(isCompactPanelStyle ? 28 : 24);
+    final surfaceBorder = useFullScreenCounselorSurface
+        ? BorderSide.none
+        : BorderSide(
+            color: isCompactPanelStyle
+                ? const Color(0xFF38424E)
+                : Theme.of(
+                    context,
+                  ).colorScheme.outlineVariant.withValues(alpha: 0.45),
+          );
+    final surfaceShadow = useFullScreenCounselorSurface
+        ? const <BoxShadow>[]
+        : [
+            BoxShadow(
+              color: Colors.black.withValues(
+                alpha: isCompactPanelStyle ? 0.34 : 0.08,
+              ),
+              blurRadius: isCompactPanelStyle ? 34 : 18,
+              offset: const Offset(0, 18),
+            ),
+          ];
+    final surfacePadding = useFullScreenCounselorSurface
+        ? EdgeInsets.zero
+        : EdgeInsets.fromLTRB(
+            isCompactPanelStyle ? 0 : 16,
+            topPadding,
+            isCompactPanelStyle ? 0 : 16,
+            18,
+          );
+
     final panel = Theme(
-      data: isCompactPanelStyle ? panelTheme : Theme.of(context),
+      data: (isCompactPanelStyle || useFullScreenCounselorSurface)
+          ? panelTheme
+          : Theme.of(context),
       child: Align(
-        alignment: isCompactPanelStyle
+        alignment: useFullScreenCounselorSurface
+            ? Alignment.topLeft
+            : isCompactPanelStyle
             ? Alignment.centerRight
             : Alignment.center,
         child: SizedBox(
           width: isCompactPanelStyle
               ? math.min(maxContentWidth, viewport.width)
+              : useFullScreenCounselorSurface
+              ? viewport.width
               : null,
-          height: isCompactPanelStyle ? viewport.height : null,
+          height: isCompactPanelStyle || useFullScreenCounselorSurface
+              ? viewport.height
+              : null,
           child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              isCompactPanelStyle ? 0 : 16,
-              topPadding,
-              isCompactPanelStyle ? 0 : 16,
-              18,
-            ),
+            padding: surfacePadding,
             child: Material(
               type: MaterialType.transparency,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: isCompactPanelStyle
+                  color: useFullScreenCounselorSurface
+                      ? const Color(0xFF07111D)
+                      : isCompactPanelStyle
                       ? const Color(0xFF1F252D).withValues(alpha: 0.98)
                       : Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(
-                    isCompactPanelStyle ? 28 : 24,
-                  ),
-                  border: Border.all(
-                    color: isCompactPanelStyle
-                        ? const Color(0xFF38424E)
-                        : Theme.of(
-                            context,
-                          ).colorScheme.outlineVariant.withValues(alpha: 0.45),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: isCompactPanelStyle ? 0.34 : 0.08,
-                      ),
-                      blurRadius: isCompactPanelStyle ? 34 : 18,
-                      offset: const Offset(0, 18),
-                    ),
-                  ],
+                  borderRadius: surfaceBorderRadius,
+                  border: surfaceBorder == BorderSide.none
+                      ? null
+                      : Border.all(color: surfaceBorder.color),
+                  boxShadow: surfaceShadow,
                 ),
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(
-                    isCompactPanelStyle ? 18 : 20,
-                    isCompactPanelStyle ? 18 : 20,
-                    isCompactPanelStyle ? 18 : 20,
-                    isCompactPanelStyle ? 18 : 20,
+                    useFullScreenCounselorSurface
+                        ? 0
+                        : isCompactPanelStyle
+                        ? 18
+                        : 20,
+                    useFullScreenCounselorSurface
+                        ? 0
+                        : isCompactPanelStyle
+                        ? 18
+                        : 20,
+                    useFullScreenCounselorSurface
+                        ? 0
+                        : isCompactPanelStyle
+                        ? 18
+                        : 20,
+                    useFullScreenCounselorSurface
+                        ? 0
+                        : isCompactPanelStyle
+                        ? 18
+                        : 20,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
