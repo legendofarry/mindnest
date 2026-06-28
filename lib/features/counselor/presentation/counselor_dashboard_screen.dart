@@ -713,7 +713,12 @@ class _CounselorDashboardScreenState
                       onOpenLive: () => context.go(AppRoute.counselorLiveHub),
                     ),
                     const SizedBox(height: 16),
-                    _ResponsiveStatRow(stats: stats, minCardWidth: 150),
+                    Center(
+                      child: _ResponsiveStatRow(
+                        stats: stats,
+                        minCardWidth: 150,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -736,7 +741,7 @@ class _CounselorDashboardScreenState
             onOpenLive: () => context.go(AppRoute.counselorLiveHub),
           ),
           const SizedBox(height: 16),
-          _ResponsiveStatRow(stats: stats, minCardWidth: 150),
+          Center(child: _ResponsiveStatRow(stats: stats, minCardWidth: 150)),
         ],
       ],
     );

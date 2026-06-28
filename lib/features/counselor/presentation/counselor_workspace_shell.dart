@@ -1040,25 +1040,6 @@ class _FloatingBottomNav extends StatelessWidget {
                               final localSlotWidth = usableWidth / count;
                               return Stack(
                                 children: [
-                                  Positioned(
-                                    top: -30,
-                                    left: usableWidth * 0.18,
-                                    right: usableWidth * 0.18,
-                                    child: IgnorePointer(
-                                      child: Container(
-                                        height: 64,
-                                        decoration: const BoxDecoration(
-                                          gradient: RadialGradient(
-                                            colors: [
-                                              Color(0x3314B8A6),
-                                              Color(0x0014B8A6),
-                                            ],
-                                            radius: 1.25,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
                                   AnimatedPositioned(
                                     duration: const Duration(milliseconds: 260),
                                     curve: Curves.easeOutCubic,
@@ -1072,8 +1053,8 @@ class _FloatingBottomNav extends StatelessWidget {
                                       decoration: BoxDecoration(
                                         gradient: const LinearGradient(
                                           colors: [
-                                            Color(0xFF0E9B90),
-                                            Color(0xFF0C7E9C),
+                                            Color(0xFF129D93),
+                                            Color(0xFF0E879E),
                                           ],
                                           begin: Alignment.topLeft,
                                           end: Alignment.bottomRight,
@@ -1109,27 +1090,6 @@ class _FloatingBottomNav extends StatelessWidget {
                                 ],
                               );
                             },
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    top: 0,
-                    child: Center(
-                      child: Container(
-                        width: 88,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          borderRadius: BorderRadius.all(Radius.circular(999)),
-                          gradient: LinearGradient(
-                            colors: [
-                              Color(0x0014B8A6),
-                              Color(0x6614B8A6),
-                              Color(0x0014B8A6),
-                            ],
                           ),
                         ),
                       ),
