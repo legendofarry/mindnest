@@ -277,6 +277,37 @@ class AppRoute {
   }
 }
 
+CustomTransitionPage<void> _slidingNotificationsPage({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return CustomTransitionPage<void>(
+    key: key,
+    transitionDuration: const Duration(milliseconds: 280),
+    reverseTransitionDuration: const Duration(milliseconds: 240),
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final slide = Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+          .animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            ),
+          );
+      final fade = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOut,
+        reverseCurve: Curves.easeIn,
+      );
+      return SlideTransition(
+        position: slide,
+        child: FadeTransition(opacity: fade, child: child),
+      );
+    },
+  );
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authStateAsync = ref.watch(authStateChangesProvider);
   final profileAsync = ref.watch(currentUserProfileProvider);
@@ -1178,7 +1209,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoute.counselorNotifications,
-            pageBuilder: (context, state) => NoTransitionPage(
+            pageBuilder: (context, state) => _slidingNotificationsPage(
               key: state.pageKey,
               child: NotificationCenterScreen(
                 initialSelectedNotificationId:
@@ -1247,11 +1278,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoute.notifications,
-            builder: (context, state) => NotificationCenterScreen(
-              initialSelectedNotificationId:
-                  state.uri.queryParameters[AppRoute.notificationIdQuery],
-              returnToRoute: state.uri.queryParameters[AppRoute.returnToQuery],
-              embeddedInDesktopShell: true,
+            pageBuilder: (context, state) => _slidingNotificationsPage(
+              key: state.pageKey,
+              child: NotificationCenterScreen(
+                initialSelectedNotificationId:
+                    state.uri.queryParameters[AppRoute.notificationIdQuery],
+                returnToRoute:
+                    state.uri.queryParameters[AppRoute.returnToQuery],
+                embeddedInDesktopShell: true,
+              ),
             ),
           ),
           GoRoute(
@@ -1290,11 +1325,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoute.notificationDetails,
-        builder: (context, state) {
-          final notificationId =
-              state.uri.queryParameters['notificationId'] ?? '';
-          return NotificationDetailsScreen(notificationId: notificationId);
-        },
+        pageBuilder: (context, state) => _slidingNotificationsPage(
+          key: state.pageKey,
+          child: NotificationDetailsScreen(
+            notificationId: state.uri.queryParameters['notificationId'] ?? '',
+          ),
+        ),
       ),
       GoRoute(
         path: AppRoute.crisisCounselorSupport,

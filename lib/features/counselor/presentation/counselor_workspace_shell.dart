@@ -11,6 +11,7 @@ import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
+import 'package:mindnest/features/care/presentation/notification_center_screen.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 
 enum CounselorWorkspaceNavSection {
@@ -75,6 +76,10 @@ class CounselorWorkspaceRouteShell extends ConsumerWidget {
       _ => state.matchedLocation,
     };
 
+    if (state.matchedLocation == AppRoute.counselorNotifications) {
+      return child;
+    }
+
     return CounselorWorkspaceScaffold(
       profile: profile,
       activeSection: shell.section,
@@ -99,12 +104,14 @@ class CounselorWorkspaceRouteShell extends ConsumerWidget {
       },
       onNotifications: () {
         if (state.matchedLocation == AppRoute.counselorNotifications) {
-          context.go(notificationsReturnTo);
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          } else {
+            context.go(notificationsReturnTo);
+          }
           return;
         }
-        context.go(
-          AppRoute.counselorNotificationsRoute(returnTo: overlayAnchorRoute),
-        );
+        _openCounselorNotificationsOverlay(context);
       },
       onProfile: () {
         if (state.matchedLocation == AppRoute.counselorPrivacyControls) {
@@ -129,6 +136,38 @@ class CounselorWorkspaceRouteShell extends ConsumerWidget {
       child: child,
     );
   }
+}
+
+Future<void> _openCounselorNotificationsOverlay(BuildContext context) async {
+  await Navigator.of(context, rootNavigator: true).push(
+    PageRouteBuilder<void>(
+      settings: const RouteSettings(name: AppRoute.counselorNotifications),
+      transitionDuration: const Duration(milliseconds: 280),
+      reverseTransitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return const NotificationCenterScreen(embeddedInCounselorShell: true);
+      },
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final slide = Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+            .animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+                reverseCurve: Curves.easeInCubic,
+              ),
+            );
+        final fade = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+          reverseCurve: Curves.easeIn,
+        );
+        return SlideTransition(
+          position: slide,
+          child: FadeTransition(opacity: fade, child: child),
+        );
+      },
+    ),
+  );
 }
 
 class _CounselorRouteShellConfig {
@@ -383,45 +422,56 @@ class CounselorWorkspaceScaffold extends StatelessWidget {
                   isTablet ? 20 : 14,
                   20,
                 ),
-                child: Column(
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    _WorkspaceHeader(
-                      title: title,
-                      subtitle: subtitle,
-                      profile: profile,
-                      unreadNotifications: unreadNotifications,
-                      desktop: false,
-                      onNotifications: onNotifications,
-                      onProfile: onProfile,
-                      onLogout: onLogout,
-                      notificationsHighlighted: notificationsHighlighted,
-                      profileHighlighted: profileHighlighted,
+                    Column(
+                      children: [
+                        _WorkspaceHeader(
+                          title: title,
+                          subtitle: subtitle,
+                          profile: profile,
+                          unreadNotifications: unreadNotifications,
+                          desktop: false,
+                          onNotifications: onNotifications,
+                          onProfile: onProfile,
+                          onLogout: onLogout,
+                          notificationsHighlighted: notificationsHighlighted,
+                          profileHighlighted: profileHighlighted,
+                        ),
+                        const SizedBox(height: 14),
+                        Expanded(
+                          child: overlayMode
+                              ? const SizedBox.shrink()
+                              : childHandlesOwnScroll
+                              ? Padding(
+                                  padding: const EdgeInsets.only(bottom: 116),
+                                  child: child,
+                                )
+                              : SingleChildScrollView(
+                                  padding: const EdgeInsets.only(bottom: 116),
+                                  child: child,
+                                ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      height: 54,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: navItems.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 10),
-                        itemBuilder: (context, index) {
-                          final item = navItems[index];
-                          return _MobileSectionChip(
-                            item: item,
-                            active: item.section == activeSection,
-                            onTap: () => onSelectSection(item.section),
-                          );
-                        },
+                    if (!overlayMode)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: SafeArea(
+                          top: false,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(6, 0, 6, 0),
+                            child: _FloatingBottomNav(
+                              items: navItems,
+                              activeSection: activeSection,
+                              onSelectSection: onSelectSection,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    Expanded(
-                      child: overlayMode
-                          ? const SizedBox.shrink()
-                          : childHandlesOwnScroll
-                          ? child
-                          : SingleChildScrollView(child: child),
-                    ),
                   ],
                 ),
               );
@@ -874,15 +924,74 @@ class _SidebarNavItem extends StatelessWidget {
   }
 }
 
-class _MobileSectionChip extends StatelessWidget {
-  const _MobileSectionChip({
+class _FloatingBottomNav extends StatelessWidget {
+  const _FloatingBottomNav({
+    required this.items,
+    required this.activeSection,
+    required this.onSelectSection,
+  });
+
+  final List<_ShellSidebarItem> items;
+  final CounselorWorkspaceNavSection activeSection;
+  final ValueChanged<CounselorWorkspaceNavSection> onSelectSection;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleItems = items
+        .where(
+          (item) => item.section != CounselorWorkspaceNavSection.counselors,
+        )
+        .toList(growable: false);
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 6),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            color: const Color(0xF8FFFFFF),
+            border: Border.all(color: const Color(0xFFDDE7F0)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1A0F172A),
+                blurRadius: 28,
+                offset: Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Row(
+            children: visibleItems
+                .map(
+                  (item) => Expanded(
+                    child: _FloatingNavItem(
+                      item: item,
+                      active: item.section == activeSection,
+                      badgeCount: 0,
+                      onTap: () => onSelectSection(item.section),
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FloatingNavItem extends StatelessWidget {
+  const _FloatingNavItem({
     required this.item,
     required this.active,
+    required this.badgeCount,
     required this.onTap,
   });
 
   final _ShellSidebarItem item;
   final bool active;
+  final int badgeCount;
   final VoidCallback onTap;
 
   @override
@@ -891,31 +1000,61 @@ class _MobileSectionChip extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        borderRadius: BorderRadius.circular(22),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           decoration: BoxDecoration(
-            color: active
-                ? const Color(0xFF0E9B90)
-                : Colors.white.withValues(alpha: 0.9),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: active ? const Color(0xFF0E9B90) : const Color(0xFFD8E3EC),
-            ),
+            color: active ? const Color(0xFF0E9B90) : Colors.transparent,
+            borderRadius: BorderRadius.circular(22),
           ),
-          child: Row(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                item.icon,
-                color: active ? Colors.white : const Color(0xFF4D647B),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    item.icon,
+                    size: 22,
+                    color: active ? Colors.white : const Color(0xFF5B7287),
+                  ),
+                  if (badgeCount > 0)
+                    Positioned(
+                      right: -10,
+                      top: -9,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '$badgeCount',
+                          style: const TextStyle(
+                            color: Color(0xFF0C2233),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              const SizedBox(width: 8),
+              const SizedBox(height: 4),
               Text(
                 item.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: active ? Colors.white : const Color(0xFF0C2233),
+                  color: active ? Colors.white : const Color(0xFF27384A),
                   fontWeight: FontWeight.w700,
+                  fontSize: 11.2,
                 ),
               ),
             ],

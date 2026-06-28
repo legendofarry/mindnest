@@ -386,21 +386,8 @@ class NotificationDetailsScreen extends ConsumerWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.55),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: scheme.shadow.withValues(alpha: 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 18),
+      decoration: const BoxDecoration(color: Colors.transparent),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -802,7 +789,8 @@ class NotificationDetailsScreen extends ConsumerWidget {
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
-          child: Center(
+          child: Align(
+            alignment: Alignment.topCenter,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 780),
               child: Column(
@@ -1424,13 +1412,10 @@ class _CounselorInviteNotificationActionCardState
       if (!mounted) {
         return;
       }
-      final refreshedProfile = ref.read(currentUserProfileProvider).valueOrNull;
-      if (refreshedProfile?.role == UserRole.counselor &&
-          refreshedProfile?.counselorSetupCompleted == true) {
-        context.go(AppRoute.counselorDashboard);
-        return;
-      }
-      context.go(AppRoute.counselorSetup);
+      _setFeedback(
+        'Invite accepted. You can keep reviewing this notification here.',
+        isError: false,
+      );
     } catch (error) {
       _setFeedback(
         error.toString().replaceFirst('Exception: ', ''),

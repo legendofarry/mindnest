@@ -11,6 +11,7 @@ import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
+import 'package:mindnest/features/care/presentation/notification_center_screen.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/session_reassignment_request.dart';
@@ -29,6 +30,38 @@ class CounselorDashboardScreen extends ConsumerStatefulWidget {
   @override
   ConsumerState<CounselorDashboardScreen> createState() =>
       _CounselorDashboardScreenState();
+}
+
+Future<void> _openCounselorNotificationsOverlay(BuildContext context) async {
+  await Navigator.of(context, rootNavigator: true).push(
+    PageRouteBuilder<void>(
+      settings: const RouteSettings(name: AppRoute.counselorNotifications),
+      transitionDuration: const Duration(milliseconds: 280),
+      reverseTransitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return NotificationCenterScreen(embeddedInCounselorShell: true);
+      },
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final slide = Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+            .animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+                reverseCurve: Curves.easeInCubic,
+              ),
+            );
+        final fade = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+          reverseCurve: Curves.easeIn,
+        );
+        return SlideTransition(
+          position: slide,
+          child: FadeTransition(opacity: fade, child: child),
+        );
+      },
+    ),
+  );
 }
 
 enum _CounselorWorkspaceSection {
@@ -357,9 +390,8 @@ class _CounselorDashboardScreenState
                     profile: profile,
                     unreadNotifications: summary.unreadNotifications,
                     desktop: true,
-                    onNotifications: () => setState(() {
-                      _activeSection = _CounselorWorkspaceSection.notifications;
-                    }),
+                    onNotifications: () =>
+                        _openCounselorNotificationsOverlay(context),
                     onProfile: () => setState(() {
                       _activeSection = _CounselorWorkspaceSection.profile;
                     }),
@@ -418,9 +450,7 @@ class _CounselorDashboardScreenState
             profile: profile,
             unreadNotifications: summary.unreadNotifications,
             desktop: false,
-            onNotifications: () => setState(() {
-              _activeSection = _CounselorWorkspaceSection.notifications;
-            }),
+            onNotifications: () => _openCounselorNotificationsOverlay(context),
             onProfile: () => setState(() {
               _activeSection = _CounselorWorkspaceSection.profile;
             }),
@@ -500,7 +530,8 @@ class _CounselorDashboardScreenState
           summary: summary,
           isDesktop: isDesktop,
           onOpenAppointments: () => context.go(AppRoute.counselorAppointments),
-          onOpenNotifications: () => context.go(AppRoute.notifications),
+          onOpenNotifications: () =>
+              _openCounselorNotificationsOverlay(context),
         );
       case _CounselorWorkspaceSection.availability:
         return _buildAvailabilitySection(
@@ -519,7 +550,8 @@ class _CounselorDashboardScreenState
         return _buildNotificationsSection(
           summary: summary,
           isDesktop: isDesktop,
-          onOpenNotifications: () => context.go(AppRoute.notifications),
+          onOpenNotifications: () =>
+              _openCounselorNotificationsOverlay(context),
         );
       case _CounselorWorkspaceSection.profile:
         return _buildProfileSection(

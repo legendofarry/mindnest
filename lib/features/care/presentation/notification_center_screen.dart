@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'dart:ui' show ImageFilter;
+import 'package:flutter/services.dart';
 
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
@@ -554,6 +555,211 @@ class _NotificationCenterScreenState
     }
   }
 
+  Future<void> _showNotificationQuickActions(
+    AppNotification notification,
+  ) async {
+    if (_actionNotificationIds.contains(notification.id) ||
+        _openingNotificationIds.contains(notification.id)) {
+      return;
+    }
+
+    final action = await showModalBottomSheet<_NotificationQuickAction>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        final textTheme = Theme.of(sheetContext).textTheme;
+        final title = notification.title.trim().isEmpty
+            ? 'Notification'
+            : notification.title.trim();
+
+        Widget buildActionTile({
+          required IconData icon,
+          required String label,
+          required String subtitle,
+          required _NotificationQuickAction action,
+          Color? accent,
+        }) {
+          final tint = accent ?? scheme.primary;
+          return ListTile(
+            onTap: () => Navigator.of(sheetContext).pop(action),
+            leading: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: tint.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: tint, size: 20),
+            ),
+            title: Text(
+              label,
+              style: textTheme.titleSmall?.copyWith(
+                color: scheme.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            subtitle: Text(
+              subtitle,
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                height: 1.25,
+              ),
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+          child: Material(
+            color: Colors.transparent,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                gradient: LinearGradient(
+                  colors: [
+                    scheme.surface.withValues(alpha: 0.98),
+                    scheme.surfaceContainerHighest.withValues(alpha: 0.96),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(
+                  color: scheme.outlineVariant.withValues(alpha: 0.45),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.22),
+                    blurRadius: 28,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                  child: SafeArea(
+                    top: false,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Quick actions',
+                                style: textTheme.titleMedium?.copyWith(
+                                  color: scheme.onSurface,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: textTheme.bodyMedium?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: scheme.outlineVariant.withValues(alpha: 0.45),
+                        ),
+                        buildActionTile(
+                          icon: Icons.open_in_new_rounded,
+                          label: 'Open details',
+                          subtitle:
+                              'Jump into the notification detail view on this page.',
+                          action: _NotificationQuickAction.openDetails,
+                          accent: const Color(0xFF0E9B90),
+                        ),
+                        buildActionTile(
+                          icon: Icons.copy_rounded,
+                          label: 'Copy title',
+                          subtitle: 'Copy just the notification title.',
+                          action: _NotificationQuickAction.copyTitle,
+                        ),
+                        buildActionTile(
+                          icon: Icons.notes_rounded,
+                          label: 'Copy body',
+                          subtitle: 'Copy the message text only.',
+                          action: _NotificationQuickAction.copyBody,
+                        ),
+                        buildActionTile(
+                          icon: Icons.copy_all_rounded,
+                          label: 'Copy full text',
+                          subtitle: 'Copy the title and body together.',
+                          action: _NotificationQuickAction.copyAll,
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted || action == null) {
+      return;
+    }
+
+    if (action == _NotificationQuickAction.openDetails) {
+      await _selectNotification(notification);
+      return;
+    }
+
+    if (action == _NotificationQuickAction.copyTitle) {
+      await Clipboard.setData(ClipboardData(text: notification.title));
+      if (!mounted) return;
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(content: Text('Notification title copied.')),
+      );
+      return;
+    }
+
+    if (action == _NotificationQuickAction.copyBody) {
+      await Clipboard.setData(ClipboardData(text: notification.body));
+      if (!mounted) return;
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(content: Text('Notification body copied.')),
+      );
+      return;
+    }
+
+    final buffer = StringBuffer(notification.title.trim());
+    if (notification.body.trim().isNotEmpty) {
+      if (buffer.isNotEmpty) {
+        buffer.writeln();
+        buffer.writeln();
+      }
+      buffer.write(notification.body.trim());
+    }
+    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    if (!mounted) return;
+    showModernBannerFromSnackBar(
+      context,
+      const SnackBar(content: Text('Notification text copied.')),
+    );
+  }
+
   Future<void> _confirmAndClearAllNotifications({
     required String userId,
     required int totalCount,
@@ -969,6 +1175,7 @@ class _NotificationCenterScreenState
     required bool isBusy,
     required bool selected,
     required VoidCallback onTap,
+    required VoidCallback onLongPress,
     required ValueChanged<_NotificationContextAction> onMenuSelected,
     required List<PopupMenuEntry<_NotificationContextAction>> menuEntries,
   }) {
@@ -995,6 +1202,7 @@ class _NotificationCenterScreenState
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
         onTap: isBusy ? null : onTap,
+        onLongPress: isBusy ? null : onLongPress,
         child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
@@ -1242,6 +1450,8 @@ class _NotificationCenterScreenState
                                   isBusy: isBusy,
                                   selected: selectedNotificationId == entry.id,
                                   onTap: () => _selectNotification(entry),
+                                  onLongPress: () =>
+                                      _showNotificationQuickActions(entry),
                                   onMenuSelected: (action) {
                                     _runNotificationAction(
                                       notification: entry,
@@ -1296,6 +1506,7 @@ class _NotificationCenterScreenState
                       isBusy: isBusy,
                       selected: false,
                       onTap: () => _selectNotification(entry),
+                      onLongPress: () => _showNotificationQuickActions(entry),
                       onMenuSelected: (action) {
                         _runNotificationAction(
                           notification: entry,
@@ -1689,22 +1900,7 @@ class _NotificationCenterScreenState
 
     Widget buildListPage() {
       return Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF07111D), Color(0xFF0B1626)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: const Color(0x1DFFFFFF)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x33101828),
-              blurRadius: 34,
-              offset: Offset(0, 18),
-            ),
-          ],
-        ),
+        decoration: const BoxDecoration(color: Colors.transparent),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
           child: Column(
@@ -1839,22 +2035,7 @@ class _NotificationCenterScreenState
       final canToggleRead = selected != null;
 
       return Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF07111D), Color(0xFF0B1626)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: const Color(0x1DFFFFFF)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x33101828),
-              blurRadius: 34,
-              offset: Offset(0, 18),
-            ),
-          ],
-        ),
+        decoration: const BoxDecoration(color: Colors.transparent),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
           child: Column(
@@ -1941,7 +2122,7 @@ class _NotificationCenterScreenState
         backgroundColor: const Color(0xFF07111D),
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
             child: ClipRect(
               child: Stack(
                 children: [
@@ -1988,25 +2169,19 @@ class _NotificationCenterScreenState
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surface.withValues(alpha: 0.28),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.32),
-        ),
-      ),
+    return DecoratedBox(
+      decoration: const BoxDecoration(color: Colors.transparent),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
+            padding: const EdgeInsets.fromLTRB(4, 6, 4, 10),
             child: Row(
               children: [
                 Text(
                   notifications.isEmpty
                       ? 'Inbox'
-                      : 'Inbox • ${notifications.length}',
+                      : 'Inbox - ${notifications.length}',
                   style: textTheme.titleMedium?.copyWith(
                     color: scheme.onSurface,
                     fontWeight: FontWeight.w800,
@@ -2052,9 +2227,14 @@ class _NotificationCenterScreenState
                     thumbVisibility: true,
                     child: ListView.separated(
                       physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
                       itemCount: notifications.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      separatorBuilder: (_, _) => Divider(
+                        height: 1,
+                        thickness: 1,
+                        indent: 70,
+                        color: scheme.outlineVariant.withValues(alpha: 0.18),
+                      ),
                       itemBuilder: (context, index) {
                         final entry = notifications[index];
                         final isBusy =
@@ -2066,6 +2246,8 @@ class _NotificationCenterScreenState
                           isBusy: isBusy,
                           selected: selectedNotificationId == entry.id,
                           onTap: () => _selectNotification(entry),
+                          onLongPress: () =>
+                              _showNotificationQuickActions(entry),
                           onMenuSelected: (action) {
                             _runNotificationAction(
                               notification: entry,
@@ -2089,6 +2271,7 @@ class _NotificationCenterScreenState
     required bool isBusy,
     required bool selected,
     required VoidCallback onTap,
+    required VoidCallback onLongPress,
     required ValueChanged<_NotificationContextAction> onMenuSelected,
     required List<PopupMenuEntry<_NotificationContextAction>> menuEntries,
   }) {
@@ -2102,30 +2285,17 @@ class _NotificationCenterScreenState
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(8),
         onTap: isBusy ? null : onTap,
+        onLongPress: isBusy ? null : onLongPress,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 16),
           decoration: BoxDecoration(
             color: selected
-                ? scheme.surfaceContainerHighest.withValues(alpha: 0.62)
-                : scheme.surface.withValues(alpha: 0.24),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: selected
-                  ? scheme.primary.withValues(alpha: 0.44)
-                  : entry.isRead
-                  ? scheme.outlineVariant.withValues(alpha: 0.26)
-                  : accent.withValues(alpha: 0.30),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: selected ? 0.22 : 0.12),
-                blurRadius: selected ? 18 : 12,
-                offset: const Offset(0, 8),
-              ),
-            ],
+                ? scheme.primary.withValues(alpha: 0.08)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2482,31 +2652,6 @@ class _NotificationCenterScreenState
         spacing: 12,
         runSpacing: 12,
         children: [
-          if ((notification.route ?? '').trim().isNotEmpty ||
-              (notification.relatedAppointmentId ?? '').trim().isNotEmpty)
-            FilledButton.icon(
-              onPressed: () {
-                final route = (notification.route ?? '').trim();
-                if (route.isNotEmpty) {
-                  context.go(route);
-                  return;
-                }
-                final appointmentId = (notification.relatedAppointmentId ?? '')
-                    .trim();
-                if (appointmentId.isNotEmpty) {
-                  context.go(
-                    Uri(
-                      path: AppRoute.sessionDetails,
-                      queryParameters: <String, String>{
-                        'appointmentId': appointmentId,
-                      },
-                    ).toString(),
-                  );
-                }
-              },
-              icon: const Icon(Icons.open_in_new_rounded, size: 18),
-              label: const Text('Open linked view'),
-            ),
           OutlinedButton.icon(
             onPressed: () => _runNotificationAction(
               notification: notification,
@@ -2821,6 +2966,14 @@ class _NotificationCenterScreenState
       ).iconTheme.copyWith(color: const Color(0xFFF7FAFC)),
     );
 
+    void closeNotifications() {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+        return;
+      }
+      context.go(_notificationExitRoute(profile));
+    }
+
     final panel = Theme(
       data: isCompactPanelStyle ? panelTheme : Theme.of(context),
       child: Align(
@@ -2916,9 +3069,7 @@ class _NotificationCenterScreenState
                                           : () => _refreshNotifications(
                                               userId: userId,
                                             ),
-                                      onClose: () => context.go(
-                                        _notificationExitRoute(profile),
-                                      ),
+                                      onClose: closeNotifications,
                                     );
                                   }
 
@@ -2930,9 +3081,7 @@ class _NotificationCenterScreenState
                                     useCompactDrawerStyle: isCompactPanelStyle,
                                     showRefresh: true,
                                     refreshing: _refreshingNotifications,
-                                    onClose: () => context.go(
-                                      _notificationExitRoute(profile),
-                                    ),
+                                    onClose: closeNotifications,
                                     onRefresh: _refreshingNotifications
                                         ? null
                                         : () => _refreshNotifications(
@@ -2975,9 +3124,7 @@ class _NotificationCenterScreenState
                                       showRefresh: false,
                                       refreshing: false,
                                       onRefresh: null,
-                                      onClose: () => context.go(
-                                        _notificationExitRoute(profile),
-                                      ),
+                                      onClose: closeNotifications,
                                     );
                                   }
 
@@ -2989,9 +3136,7 @@ class _NotificationCenterScreenState
                                     useCompactDrawerStyle: isCompactPanelStyle,
                                     showRefresh: false,
                                     refreshing: false,
-                                    onClose: () => context.go(
-                                      _notificationExitRoute(profile),
-                                    ),
+                                    onClose: closeNotifications,
                                     onRefresh: null,
                                   );
                                 },
@@ -3180,5 +3325,7 @@ enum _NotificationContextAction {
   unarchive,
   delete,
 }
+
+enum _NotificationQuickAction { openDetails, copyTitle, copyBody, copyAll }
 
 enum _NotificationFilter { all, unread, archived }
