@@ -817,6 +817,7 @@ class _CounselorSessionsWorkbenchState
     return LayoutBuilder(
       builder: (context, constraints) {
         final filtered = _applyFilters();
+        final isDesktop = constraints.maxWidth >= 760;
         final totalRows = filtered.length;
         final totalPages = totalRows == 0
             ? 1
@@ -898,24 +899,26 @@ class _CounselorSessionsWorkbenchState
                   ),
                 ),
                 const SizedBox(height: 16),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: _CounselorSessionTab.values
-                      .map(
-                        (tab) => _SessionTabChip(
-                          label: _sessionTabLabel(tab),
-                          count: _countForTab(tab),
-                          selected: _activeTab == tab,
-                          onTap: () => setState(() {
-                            _activeTab = tab;
-                            _page = 0;
-                          }),
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
-                const SizedBox(height: 16),
+                if (isDesktop) ...[
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: _CounselorSessionTab.values
+                        .map(
+                          (tab) => _SessionTabChip(
+                            label: _sessionTabLabel(tab),
+                            count: _countForTab(tab),
+                            selected: _activeTab == tab,
+                            onTap: () => setState(() {
+                              _activeTab = tab;
+                              _page = 0;
+                            }),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,

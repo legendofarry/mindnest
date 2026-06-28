@@ -12,6 +12,7 @@ import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
+import 'package:mindnest/features/care/models/counselor_profile.dart';
 import 'package:mindnest/features/care/presentation/notification_center_screen.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
@@ -283,66 +284,75 @@ class _CounselorDashboardScreenState
                   ),
               builder: (context, slotsSnapshot) {
                 final slots = slotsSnapshot.data ?? const [];
-                final summary = _WorkspaceSummary.build(
-                  profile: profile,
-                  appointments: appointments,
-                  slots: slots,
-                  unreadNotifications: unreadCount,
-                );
+                return StreamBuilder<CounselorProfile?>(
+                  stream: ref
+                      .read(careRepositoryProvider)
+                      .watchCounselorProfile(profile.id),
+                  builder: (context, counselorProfileSnapshot) {
+                    final counselorProfile = counselorProfileSnapshot.data;
+                    final summary = _WorkspaceSummary.build(
+                      profile: profile,
+                      counselorProfile: counselorProfile,
+                      appointments: appointments,
+                      slots: slots,
+                      unreadNotifications: unreadCount,
+                    );
 
-                if (widget.embeddedInCounselorShell) {
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isDesktop = constraints.maxWidth >= 1120;
-                      final overviewContent = _buildOverviewSection(
-                        profile: profile,
-                        summary: summary,
-                        workflowSettings: workflowSettings,
-                        reassignmentRequests: reassignmentRequests,
-                        isDesktop: isDesktop,
-                        onOpenAppointments: () =>
-                            context.go(AppRoute.counselorAppointments),
-                        onOpenAvailability: () =>
-                            context.go(AppRoute.counselorAvailability),
-                      );
-                      if (!constraints.hasBoundedHeight) {
-                        return overviewContent;
-                      }
-                      return SingleChildScrollView(
-                        primary: false,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: constraints.maxHeight,
-                          ),
-                          child: overviewContent,
-                        ),
-                      );
-                    },
-                  );
-                }
-
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isDesktop = constraints.maxWidth >= 1120;
-                    final isTablet = constraints.maxWidth >= 760;
-                    return isDesktop
-                        ? _buildDesktopWorkspace(
-                            context: context,
+                    if (widget.embeddedInCounselorShell) {
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isDesktop = constraints.maxWidth >= 1120;
+                          final overviewContent = _buildOverviewSection(
                             profile: profile,
                             summary: summary,
                             workflowSettings: workflowSettings,
                             reassignmentRequests: reassignmentRequests,
-                            sidebarItems: sidebarItems,
-                          )
-                        : _buildMobileWorkspace(
-                            context: context,
-                            profile: profile,
-                            summary: summary,
-                            workflowSettings: workflowSettings,
-                            reassignmentRequests: reassignmentRequests,
-                            isTablet: isTablet,
-                            sidebarItems: sidebarItems,
+                            isDesktop: isDesktop,
+                            onOpenAppointments: () =>
+                                context.go(AppRoute.counselorAppointments),
+                            onOpenAvailability: () =>
+                                context.go(AppRoute.counselorAvailability),
                           );
+                          if (!constraints.hasBoundedHeight) {
+                            return overviewContent;
+                          }
+                          return SingleChildScrollView(
+                            primary: false,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: constraints.maxHeight,
+                              ),
+                              child: overviewContent,
+                            ),
+                          );
+                        },
+                      );
+                    }
+
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isDesktop = constraints.maxWidth >= 1120;
+                        final isTablet = constraints.maxWidth >= 760;
+                        return isDesktop
+                            ? _buildDesktopWorkspace(
+                                context: context,
+                                profile: profile,
+                                summary: summary,
+                                workflowSettings: workflowSettings,
+                                reassignmentRequests: reassignmentRequests,
+                                sidebarItems: sidebarItems,
+                              )
+                            : _buildMobileWorkspace(
+                                context: context,
+                                profile: profile,
+                                summary: summary,
+                                workflowSettings: workflowSettings,
+                                reassignmentRequests: reassignmentRequests,
+                                isTablet: isTablet,
+                                sidebarItems: sidebarItems,
+                              );
+                      },
+                    );
                   },
                 );
               },
@@ -629,6 +639,24 @@ class _CounselorDashboardScreenState
     final myActiveRequests = activeRequests
         .where((entry) => entry.originalCounselorId == profile.id)
         .toList(growable: false);
+    final stats = [
+      _StatCardData(
+        'This week',
+        '${summary.completedThisWeek}',
+        'sessions held',
+        const Color(0xFF0E9B90),
+      ),
+      _StatCardData(
+        'Avg rating',
+        summary.ratingCount == 0
+            ? '-'
+            : summary.ratingAverage.toStringAsFixed(1),
+        summary.ratingCount == 0
+            ? 'awaiting reviews'
+            : '${summary.ratingCount} reviews',
+        const Color(0xFF8B5CF6),
+      ),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -676,9 +704,17 @@ class _CounselorDashboardScreenState
               const SizedBox(width: 18),
               Expanded(
                 flex: 5,
-                child: _QuickActionsCard(
-                  onOpenAppointments: onOpenAppointments,
-                  onOpenAvailability: onOpenAvailability,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _QuickActionsCard(
+                      onOpenAppointments: onOpenAppointments,
+                      onOpenAvailability: onOpenAvailability,
+                      onOpenLive: () => context.go(AppRoute.counselorLiveHub),
+                    ),
+                    const SizedBox(height: 16),
+                    _ResponsiveStatRow(stats: stats, minCardWidth: 150),
+                  ],
                 ),
               ),
             ],
@@ -697,7 +733,10 @@ class _CounselorDashboardScreenState
           _QuickActionsCard(
             onOpenAppointments: onOpenAppointments,
             onOpenAvailability: onOpenAvailability,
+            onOpenLive: () => context.go(AppRoute.counselorLiveHub),
           ),
+          const SizedBox(height: 16),
+          _ResponsiveStatRow(stats: stats, minCardWidth: 150),
         ],
       ],
     );
@@ -950,10 +989,13 @@ class _WorkspaceSummary {
     required this.nextSession,
     required this.nextOpenSlot,
     required this.todayQueue,
+    required this.ratingAverage,
+    required this.ratingCount,
   });
 
   factory _WorkspaceSummary.build({
     required UserProfile profile,
+    required CounselorProfile? counselorProfile,
     required List<AppointmentRecord> appointments,
     required List<AvailabilitySlot> slots,
     required int unreadNotifications,
@@ -1056,6 +1098,8 @@ class _WorkspaceSummary {
       nextSession: upcoming.isEmpty ? null : upcoming.first,
       nextOpenSlot: availableSlots.isEmpty ? null : availableSlots.first,
       todayQueue: todayAppointments.take(4).toList(growable: false),
+      ratingAverage: counselorProfile?.ratingAverage ?? 0.0,
+      ratingCount: counselorProfile?.ratingCount ?? 0,
     );
   }
 
@@ -1079,6 +1123,8 @@ class _WorkspaceSummary {
   final AppointmentRecord? nextSession;
   final AvailabilitySlot? nextOpenSlot;
   final List<AppointmentRecord> todayQueue;
+  final double ratingAverage;
+  final int ratingCount;
 }
 
 class _DashboardBackdrop extends StatelessWidget {
@@ -2084,36 +2130,50 @@ class _TodayQueueCard extends StatelessWidget {
 class _QuickActionsCard extends StatelessWidget {
   const _QuickActionsCard({
     required this.onOpenAppointments,
+    required this.onOpenLive,
     required this.onOpenAvailability,
   });
 
   final VoidCallback onOpenAppointments;
+  final VoidCallback onOpenLive;
   final VoidCallback onOpenAvailability;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0D1B2A),
+        color: const Color(0xFF002D37),
         borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF002D37), Color(0xFF073845)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const _Eyebrow(text: 'QUICK ROUTES', color: Color(0xFF17CFC1)),
+          const SizedBox(height: 12),
           const Text(
-            'Quick routes',
+            'Jump where you\'re needed',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 24,
+              fontSize: 28,
               fontWeight: FontWeight.w800,
-              letterSpacing: -0.7,
+              letterSpacing: -1.0,
+              height: 1.0,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           const Text(
-            'Keep the dashboard as command center, then jump into the deeper workflow only when needed.',
-            style: TextStyle(color: Color(0xFFB7C7D4), height: 1.45),
+            'Keep the dashboard as command center, then jump into deeper workflow only when needed.',
+            style: TextStyle(
+              color: Color(0xFFC1D2DA),
+              height: 1.35,
+              fontSize: 15.5,
+            ),
           ),
           const SizedBox(height: 18),
           _ActionTile(
@@ -2121,6 +2181,13 @@ class _QuickActionsCard extends StatelessWidget {
             title: 'Open appointments',
             subtitle: 'Approve, complete, cancel, and review session records.',
             onTap: onOpenAppointments,
+          ),
+          const SizedBox(height: 12),
+          _ActionTile(
+            icon: Icons.wifi_tethering_rounded,
+            title: 'Enter the live hub',
+            subtitle: 'Discover live institution conversations or host one.',
+            onTap: onOpenLive,
           ),
           const SizedBox(height: 12),
           _ActionTile(
