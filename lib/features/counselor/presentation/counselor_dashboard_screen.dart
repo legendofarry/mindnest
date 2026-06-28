@@ -696,8 +696,7 @@ class _CounselorDashboardScreenState
                   nextSession: summary.nextSession,
                   onOpenAppointments: onOpenAppointments,
                   title: 'Today\'s queue',
-                  description:
-                      'This fixed frame stays stable while the center content changes. Keep today\'s counseling queue moving here.',
+                  description: '',
                   isDesktop: true,
                 ),
               ),
@@ -730,8 +729,7 @@ class _CounselorDashboardScreenState
             nextSession: summary.nextSession,
             onOpenAppointments: onOpenAppointments,
             title: 'Today\'s queue',
-            description:
-                'This fixed frame stays stable while the center content changes. Keep today\'s counseling queue moving here.',
+            description: '',
             isDesktop: false,
           ),
           const SizedBox(height: 16),
