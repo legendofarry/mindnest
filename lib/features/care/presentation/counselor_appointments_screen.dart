@@ -485,41 +485,44 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
               _matchesSessionTab(entry, _CounselorSessionTab.history, nowLocal),
         )
         .length;
+    final isDesktop = MediaQuery.sizeOf(context).width >= 760;
 
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          spacing: 16,
-          runSpacing: 16,
-          children: [
-            _SessionStatCard(
-              label: 'Needs Action',
-              value: '$needsAction',
-              hint: 'urgent queue',
-              accent: const Color(0xFFF59E0B),
-            ),
-            _SessionStatCard(
-              label: 'Today',
-              value: '$todayCount',
-              hint: 'scheduled sessions',
-              accent: const Color(0xFF0E9B90),
-            ),
-            _SessionStatCard(
-              label: 'Upcoming',
-              value: '$upcoming',
-              hint: 'later sessions',
-              accent: const Color(0xFF2563EB),
-            ),
-            _SessionStatCard(
-              label: 'History',
-              value: '$history',
-              hint: 'closed sessions',
-              accent: const Color(0xFF7C3AED),
-            ),
-          ].map((card) => SizedBox(width: 190, child: card)).toList(),
-        ),
-        const SizedBox(height: 20),
+        if (isDesktop) ...[
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: [
+              _SessionStatCard(
+                label: 'Needs Action',
+                value: '$needsAction',
+                hint: 'urgent queue',
+                accent: const Color(0xFFF59E0B),
+              ),
+              _SessionStatCard(
+                label: 'Today',
+                value: '$todayCount',
+                hint: 'scheduled sessions',
+                accent: const Color(0xFF0E9B90),
+              ),
+              _SessionStatCard(
+                label: 'Upcoming',
+                value: '$upcoming',
+                hint: 'later sessions',
+                accent: const Color(0xFF2563EB),
+              ),
+              _SessionStatCard(
+                label: 'History',
+                value: '$history',
+                hint: 'closed sessions',
+                accent: const Color(0xFF7C3AED),
+              ),
+            ].map((card) => SizedBox(width: 190, child: card)).toList(),
+          ),
+          const SizedBox(height: 20),
+        ],
         _CounselorSessionsWorkbench(
           appointments: sorted,
           loading: loading,
