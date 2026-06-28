@@ -1,7 +1,6 @@
 // ignore_for_file: unnecessary_string_interpolations, deprecated_member_use
 
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +13,7 @@ import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/auth/presentation/passkey_management_dialog.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
+import 'package:mindnest/features/care/presentation/notification_center_screen.dart';
 import 'package:mindnest/features/counselor/data/counselor_providers.dart';
 import 'package:mindnest/features/counselor/models/counselor_language_catalog.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
@@ -79,7 +79,7 @@ class _CounselorProfileSettingsScreenState
   String _specialization = _specs.first;
   Set<String> _specializations = {_specs.first};
   String _mode = 'Hybrid';
-  String _timezone = 'UTC';
+  String _timezone = 'Africa/Nairobi';
   bool _active = true;
   int _duration = 50;
   int _breakMins = 10;
@@ -304,7 +304,46 @@ class _CounselorProfileSettingsScreenState
   }
 
   void _closeOverlay(BuildContext context) {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
     context.go(_defaultCloseRoute());
+  }
+
+  Future<void> _openCounselorNotificationsOverlay(BuildContext context) async {
+    await Navigator.of(context, rootNavigator: true).push(
+      PageRouteBuilder<void>(
+        settings: const RouteSettings(name: AppRoute.counselorNotifications),
+        transitionDuration: const Duration(milliseconds: 280),
+        reverseTransitionDuration: const Duration(milliseconds: 240),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return const NotificationCenterScreen(embeddedInCounselorShell: true);
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final slide =
+              Tween<Offset>(
+                begin: const Offset(1, 0),
+                end: Offset.zero,
+              ).animate(
+                CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                  reverseCurve: Curves.easeInCubic,
+                ),
+              );
+          final fade = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOut,
+            reverseCurve: Curves.easeIn,
+          );
+          return SlideTransition(
+            position: slide,
+            child: FadeTransition(opacity: fade, child: child),
+          );
+        },
+      ),
+    );
   }
 
   List<_ProfileSettingsNavItem> _navItems(UserProfile profile) {
@@ -517,7 +556,7 @@ class _CounselorProfileSettingsScreenState
           subtitle:
               'Manage the professional profile students see, tune booking rules, and update counselor account controls from one workspace.',
           onSelectSection: (section) => _navigateSection(context, section),
-          onNotifications: () => context.go(AppRoute.notifications),
+          onNotifications: () => _openCounselorNotificationsOverlay(context),
           onProfile: () {},
           onLogout: () => confirmAndLogout(context: context, ref: ref),
           child: settingsBody,
@@ -843,7 +882,7 @@ class _CounselorProfileSettingsScreenState
           subtitle:
               'Manage the professional profile students see, tune booking rules, and update counselor account controls from one workspace.',
           onSelectSection: (section) => _navigateSection(context, section),
-          onNotifications: () => context.go(AppRoute.notifications),
+          onNotifications: () => _openCounselorNotificationsOverlay(context),
           onProfile: () {},
           onLogout: () => confirmAndLogout(context: context, ref: ref),
           child: settingsBody,
@@ -890,129 +929,78 @@ class _CounselorProfileSettingsScreenState
             : math.min(constraints.maxWidth, 460.0);
         final railWidth = math.min(390.0, panelWidth);
 
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF07111D), Color(0xFF0B1626)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-                child: Container(color: const Color(0xB308111D)),
-              ),
-            ),
-            SafeArea(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 260),
-                  curve: Curves.easeInOutCubic,
-                  width: panelWidth,
-                  height: constraints.maxHeight,
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(isWide ? 16 : 10, 12, 12, 12),
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF0B1220,
-                          ).withValues(alpha: 0.97),
-                          borderRadius: BorderRadius.circular(isWide ? 34 : 28),
-                          border: Border.all(color: const Color(0x1FFFFFFF)),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x40101828),
-                              blurRadius: 40,
-                              offset: Offset(-10, 18),
+        return Scaffold(
+          backgroundColor: const Color(0xFF07111D),
+          body: SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(isWide ? 18 : 12, 12, 12, 12),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 240),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                layoutBuilder: (currentChild, previousChildren) {
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ...previousChildren,
+                      currentChild ?? const SizedBox.shrink(),
+                    ],
+                  );
+                },
+                transitionBuilder: (child, animation) {
+                  final slide = Tween<Offset>(
+                    begin: const Offset(0.06, 0),
+                    end: Offset.zero,
+                  ).animate(animation);
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(position: slide, child: child),
+                  );
+                },
+                child: _settingsDetailOpen
+                    ? Row(
+                        key: const ValueKey('settings-split'),
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            width: railWidth,
+                            child: _buildSettingsRail(
+                              context,
+                              profile,
+                              navItems,
+                              visibleItems,
+                              unreadCount,
+                              showCounselorDirectory,
                             ),
-                          ],
-                        ),
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 240),
-                          switchInCurve: Curves.easeOutCubic,
-                          switchOutCurve: Curves.easeInCubic,
-                          layoutBuilder: (currentChild, previousChildren) {
-                            return Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                ...previousChildren,
-                                if (currentChild != null) ...[currentChild],
-                              ],
-                            );
-                          },
-                          transitionBuilder: (child, animation) {
-                            final slide = Tween<Offset>(
-                              begin: const Offset(0.06, 0),
-                              end: Offset.zero,
-                            ).animate(animation);
-                            return FadeTransition(
-                              opacity: animation,
-                              child: SlideTransition(
-                                position: slide,
-                                child: child,
-                              ),
-                            );
-                          },
-                          child: _settingsDetailOpen
-                              ? Row(
-                                  key: const ValueKey('settings-split'),
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    SizedBox(
-                                      width: railWidth,
-                                      child: _buildSettingsRail(
-                                        context,
-                                        profile,
-                                        navItems,
-                                        visibleItems,
-                                        unreadCount,
-                                        showCounselorDirectory,
-                                      ),
-                                    ),
-                                    VerticalDivider(
-                                      width: 1,
-                                      color: Colors.white.withValues(
-                                        alpha: 0.07,
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: _buildSettingsPane(
-                                        context,
-                                        profile,
-                                        showCounselorDirectory,
-                                        selectedItem,
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : SizedBox.expand(
-                                  key: const ValueKey('settings-rail'),
-                                  child: _buildSettingsRail(
-                                    context,
-                                    profile,
-                                    navItems,
-                                    visibleItems,
-                                    unreadCount,
-                                    showCounselorDirectory,
-                                  ),
-                                ),
+                          ),
+                          VerticalDivider(
+                            width: 1,
+                            color: Colors.white.withValues(alpha: 0.07),
+                          ),
+                          Expanded(
+                            child: _buildSettingsPane(
+                              context,
+                              profile,
+                              showCounselorDirectory,
+                              selectedItem,
+                            ),
+                          ),
+                        ],
+                      )
+                    : SizedBox.expand(
+                        key: const ValueKey('settings-rail'),
+                        child: _buildSettingsRail(
+                          context,
+                          profile,
+                          navItems,
+                          visibleItems,
+                          unreadCount,
+                          showCounselorDirectory,
                         ),
                       ),
-                    ),
-                  ),
-                ),
               ),
             ),
-          ],
+          ),
         );
       },
     );
@@ -1030,88 +1018,47 @@ class _CounselorProfileSettingsScreenState
     return Scaffold(
       backgroundColor: const Color(0xFF07111D),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: ClipRect(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: IgnorePointer(
-                    ignoring: _settingsDetailOpen,
-                    child: AnimatedSlide(
-                      duration: const Duration(milliseconds: 280),
-                      curve: Curves.easeInOutCubic,
-                      offset: _settingsDetailOpen
-                          ? const Offset(-1, 0)
-                          : Offset.zero,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF07111D), Color(0xFF0B1626)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(26),
-                          border: Border.all(color: const Color(0x1DFFFFFF)),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x33101828),
-                              blurRadius: 34,
-                              offset: Offset(0, 18),
-                            ),
-                          ],
-                        ),
-                        child: _buildSettingsRail(
-                          context,
-                          profile,
-                          allItems,
-                          visibleItems,
-                          unreadCount,
-                          showCounselorDirectory,
-                        ),
-                      ),
-                    ),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: IgnorePointer(
+                ignoring: _settingsDetailOpen,
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeInOutCubic,
+                  offset: _settingsDetailOpen
+                      ? const Offset(-1, 0)
+                      : Offset.zero,
+                  child: _buildSettingsRail(
+                    context,
+                    profile,
+                    allItems,
+                    visibleItems,
+                    unreadCount,
+                    showCounselorDirectory,
                   ),
                 ),
-                Positioned.fill(
-                  child: IgnorePointer(
-                    ignoring: !_settingsDetailOpen,
-                    child: AnimatedSlide(
-                      duration: const Duration(milliseconds: 280),
-                      curve: Curves.easeInOutCubic,
-                      offset: _settingsDetailOpen
-                          ? Offset.zero
-                          : const Offset(1, 0),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF07111D), Color(0xFF0B1626)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(26),
-                          border: Border.all(color: const Color(0x1DFFFFFF)),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x33101828),
-                              blurRadius: 34,
-                              offset: Offset(0, 18),
-                            ),
-                          ],
-                        ),
-                        child: _buildSettingsPane(
-                          context,
-                          profile,
-                          showCounselorDirectory,
-                          selectedItem,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+            Positioned.fill(
+              child: IgnorePointer(
+                ignoring: !_settingsDetailOpen,
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeInOutCubic,
+                  offset: _settingsDetailOpen
+                      ? Offset.zero
+                      : const Offset(1, 0),
+                  child: _buildSettingsPane(
+                    context,
+                    profile,
+                    showCounselorDirectory,
+                    selectedItem,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -16,6 +16,7 @@ import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/session_reassignment_request.dart';
 import 'package:mindnest/features/counselor/models/counselor_language_catalog.dart';
+import 'package:mindnest/features/counselor/presentation/counselor_profile_settings_screen.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 
@@ -40,6 +41,40 @@ Future<void> _openCounselorNotificationsOverlay(BuildContext context) async {
       reverseTransitionDuration: const Duration(milliseconds: 240),
       pageBuilder: (context, animation, secondaryAnimation) {
         return NotificationCenterScreen(embeddedInCounselorShell: true);
+      },
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final slide = Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+            .animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+                reverseCurve: Curves.easeInCubic,
+              ),
+            );
+        final fade = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+          reverseCurve: Curves.easeIn,
+        );
+        return SlideTransition(
+          position: slide,
+          child: FadeTransition(opacity: fade, child: child),
+        );
+      },
+    ),
+  );
+}
+
+Future<void> _openCounselorProfileOverlay(BuildContext context) async {
+  await Navigator.of(context, rootNavigator: true).push(
+    PageRouteBuilder<void>(
+      settings: const RouteSettings(name: AppRoute.counselorSettings),
+      transitionDuration: const Duration(milliseconds: 280),
+      reverseTransitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return const CounselorProfileSettingsScreen(
+          embeddedInCounselorShell: true,
+        );
       },
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         final slide = Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
@@ -392,9 +427,7 @@ class _CounselorDashboardScreenState
                     desktop: true,
                     onNotifications: () =>
                         _openCounselorNotificationsOverlay(context),
-                    onProfile: () => setState(() {
-                      _activeSection = _CounselorWorkspaceSection.profile;
-                    }),
+                    onProfile: () => _openCounselorProfileOverlay(context),
                     onLogout: () =>
                         confirmAndLogout(context: context, ref: ref),
                   ),
@@ -451,9 +484,7 @@ class _CounselorDashboardScreenState
             unreadNotifications: summary.unreadNotifications,
             desktop: false,
             onNotifications: () => _openCounselorNotificationsOverlay(context),
-            onProfile: () => setState(() {
-              _activeSection = _CounselorWorkspaceSection.profile;
-            }),
+            onProfile: () => _openCounselorProfileOverlay(context),
             onLogout: () => confirmAndLogout(context: context, ref: ref),
           ),
           const SizedBox(height: 14),
@@ -557,7 +588,7 @@ class _CounselorDashboardScreenState
         return _buildProfileSection(
           profile: profile,
           summary: summary,
-          onEditProfile: () => context.go(AppRoute.counselorSettings),
+          onEditProfile: () => _openCounselorProfileOverlay(context),
         );
     }
   }
