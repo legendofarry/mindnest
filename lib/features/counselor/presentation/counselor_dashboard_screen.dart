@@ -787,14 +787,22 @@ class _CounselorDashboardScreenState
         ],
         _SpotlightPanel(
           eyebrow: 'SESSION CONTROL',
-          title: summary.nextSession == null
-              ? 'No upcoming session is queued right now.'
-              : 'Next live session is ${_formatAppointmentHeadline(summary.nextSession!)}.',
+          title: 'Counselor appointments',
           body:
-              'Use the appointments workspace for confirmations, completions, cancellations, and detailed session notes. This dashboard keeps the signal visible while the deeper workflow stays in the appointments screen.',
-          primaryLabel: 'Open Appointments',
-          onPrimaryTap: onOpenAppointments,
-          accent: const [Color(0xFFF97316), Color(0xFFFB923C)],
+              'New booking requests and active appointments will appear here as soon as students create them.',
+          supportTitle: summary.nextSession == null
+              ? 'Your queue is under control.'
+              : 'Next live session is ${_formatAppointmentHeadline(summary.nextSession!)}.',
+          supportBody:
+              'Use timeline or table view when you want a broader scan of the queue.',
+          supportIcon: summary.nextSession == null
+              ? Icons.check_circle_outline_rounded
+              : Icons.event_available_rounded,
+          supportTint: const Color(0xFF0B7C9E),
+          supportBackground: const Color(0xFFF4FCFB),
+          supportBorder: const Color(0xFFB8E7F2),
+          showPrimaryAction: false,
+          accent: const [Color(0xFFF4FCFB), Color(0xFFF4FCFB)],
         ),
         const SizedBox(height: 20),
         _TodayQueueCard(
@@ -2210,17 +2218,31 @@ class _SpotlightPanel extends StatelessWidget {
     required this.eyebrow,
     required this.title,
     required this.body,
-    required this.primaryLabel,
-    required this.onPrimaryTap,
     required this.accent,
+    this.primaryLabel,
+    this.onPrimaryTap,
+    this.showPrimaryAction = true,
+    this.supportTitle,
+    this.supportBody,
+    this.supportIcon,
+    this.supportTint,
+    this.supportBackground,
+    this.supportBorder,
   });
 
   final String eyebrow;
   final String title;
   final String body;
-  final String primaryLabel;
-  final VoidCallback onPrimaryTap;
   final List<Color> accent;
+  final String? primaryLabel;
+  final VoidCallback? onPrimaryTap;
+  final bool showPrimaryAction;
+  final String? supportTitle;
+  final String? supportBody;
+  final IconData? supportIcon;
+  final Color? supportTint;
+  final Color? supportBackground;
+  final Color? supportBorder;
 
   @override
   Widget build(BuildContext context) {
@@ -2228,24 +2250,44 @@ class _SpotlightPanel extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
-        gradient: LinearGradient(
-          colors: accent,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white,
+        border: Border.all(color: accent.first.withValues(alpha: 0.16)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Eyebrow(text: eyebrow, color: const Color(0xFFFDF2F8)),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE6FFFB),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: const Color(0xFFB9F4EC)),
+            ),
+            child: Text(
+              eyebrow,
+              style: const TextStyle(
+                color: Color(0xFF0F766E),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ),
           const SizedBox(height: 14),
           Text(
             title,
             style: const TextStyle(
-              color: Colors.white,
-              fontSize: 30,
+              color: Color(0xFF081A30),
+              fontSize: 26,
               fontWeight: FontWeight.w800,
-              letterSpacing: -1.0,
+              letterSpacing: -0.8,
               height: 1.08,
             ),
           ),
@@ -2253,27 +2295,85 @@ class _SpotlightPanel extends StatelessWidget {
           Text(
             body,
             style: const TextStyle(
-              color: Color(0xFFF8FAFC),
+              color: Color(0xFF6A7C93),
               fontSize: 15,
-              height: 1.5,
+              height: 1.45,
             ),
           ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              FilledButton.icon(
-                onPressed: onPrimaryTap,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF0C2233),
+          if (supportTitle != null &&
+              supportBody != null &&
+              supportIcon != null) ...[
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: supportBackground ?? const Color(0xFFF4FCFB),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: supportBorder ?? const Color(0xFFB8E7F2),
                 ),
-                icon: const Icon(Icons.arrow_outward_rounded),
-                label: Text(primaryLabel),
               ),
-            ],
-          ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: (supportBackground ?? const Color(0xFFE8F8FB))
+                          .withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      supportIcon,
+                      color: supportTint ?? const Color(0xFF0B7C9E),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          supportTitle!,
+                          style: const TextStyle(
+                            color: Color(0xFF0F172A),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          supportBody!,
+                          style: const TextStyle(
+                            color: Color(0xFF64748B),
+                            height: 1.35,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (showPrimaryAction &&
+              primaryLabel != null &&
+              onPrimaryTap != null) ...[
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: onPrimaryTap,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF0E9B90),
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.arrow_outward_rounded),
+              label: Text(primaryLabel!),
+            ),
+          ],
         ],
       ),
     );

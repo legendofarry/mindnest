@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -581,6 +583,7 @@ class CounselorAppointmentsScreen extends ConsumerWidget {
       return const Scaffold(
         body: Center(
           child: _EmptyModuleCard(
+            icon: Icons.event_available_outlined,
             message: 'This page is available only for counselors.',
           ),
         ),
@@ -821,6 +824,7 @@ class _CounselorSessionsWorkbenchState
       builder: (context, constraints) {
         final filtered = _applyFilters();
         final isDesktop = constraints.maxWidth >= 760;
+        final isMobileLayout = !isDesktop;
         final totalRows = filtered.length;
         final totalPages = totalRows == 0
             ? 1
@@ -833,9 +837,13 @@ class _CounselorSessionsWorkbenchState
 
         return Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: const Color(0xFFDDE6EE)),
+            color: Colors.white.withValues(alpha: isMobileLayout ? 0.97 : 0.92),
+            borderRadius: BorderRadius.circular(isMobileLayout ? 26 : 28),
+            border: Border.all(
+              color: isMobileLayout
+                  ? const Color(0xFFEAF1F6)
+                  : const Color(0xFFDDE6EE),
+            ),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x120F172A),
@@ -845,7 +853,7 @@ class _CounselorSessionsWorkbenchState
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(22),
+            padding: EdgeInsets.all(isMobileLayout ? 20 : 22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -856,11 +864,17 @@ class _CounselorSessionsWorkbenchState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const _ModuleEyebrow(
+                          _ModuleEyebrow(
                             label: 'SESSION CONTROL',
-                            color: Color(0xFF2563EB),
-                            background: Color(0xFFEFF6FF),
-                            border: Color(0xFFBFDBFE),
+                            color: isMobileLayout
+                                ? const Color(0xFF2E7F7A)
+                                : const Color(0xFF2563EB),
+                            background: isMobileLayout
+                                ? const Color(0xFFF0FAF8)
+                                : const Color(0xFFEFF6FF),
+                            border: isMobileLayout
+                                ? const Color(0xFFCDE7E4)
+                                : const Color(0xFFBFDBFE),
                           ),
                           const SizedBox(height: 12),
                           Text(
@@ -872,16 +886,17 @@ class _CounselorSessionsWorkbenchState
                                 ),
                           ),
                           const SizedBox(height: 6),
-                          Text(
-                            widget.appointments.isEmpty
-                                ? 'New booking requests and active appointments will appear here as soon as students create them.'
-                                : 'Start in compact mode for fast scanning, then flip to timeline or table when you need broader context.',
-                            style: const TextStyle(
-                              color: Color(0xFF6A7C93),
-                              height: 1.45,
-                              fontWeight: FontWeight.w500,
+                          if (isDesktop)
+                            Text(
+                              widget.appointments.isEmpty
+                                  ? 'New booking requests and active appointments will appear here as soon as students create them.'
+                                  : 'Start in compact mode for fast scanning, then flip to timeline or table when you need broader context.',
+                              style: const TextStyle(
+                                color: Color(0xFF6A7C93),
+                                height: 1.45,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),
@@ -900,6 +915,7 @@ class _CounselorSessionsWorkbenchState
                   needsActionCount: _countForTab(
                     _CounselorSessionTab.needsAction,
                   ),
+                  compact: isMobileLayout,
                 ),
                 const SizedBox(height: 16),
                 if (isDesktop) ...[
@@ -922,117 +938,230 @@ class _CounselorSessionsWorkbenchState
                   ),
                   const SizedBox(height: 16),
                 ],
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: constraints.maxWidth > 1180 ? 290 : 250,
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (_) => setState(() => _page = 0),
-                        decoration: InputDecoration(
-                          hintText: 'Search sessions',
-                          prefixIcon: const Icon(Icons.search_rounded),
-                          suffixIcon: _searchController.text.trim().isEmpty
-                              ? null
-                              : IconButton(
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() => _page = 0);
-                                  },
-                                  icon: const Icon(Icons.close_rounded),
-                                ),
-                        ),
+                if (isMobileLayout) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (_) => setState(() => _page = 0),
+                      decoration: InputDecoration(
+                        hintText: 'Search sessions',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: _searchController.text.trim().isEmpty
+                            ? null
+                            : IconButton(
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _page = 0);
+                                },
+                                icon: const Icon(Icons.close_rounded),
+                              ),
                       ),
                     ),
-                    _WorkbenchMenuButton<_CounselorSessionSort>(
-                      icon: Icons.swap_vert_rounded,
-                      label: 'Sort',
-                      valueLabel: _sessionSortLabel(_sort),
-                      active: _sort != _CounselorSessionSort.smart,
-                      options: _CounselorSessionSort.values
-                          .map(
-                            (sort) => _WorkbenchMenuOption(
-                              value: sort,
-                              label: _sessionSortLabel(sort),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _WorkbenchMenuButton<_CounselorSessionSort>(
+                          icon: Icons.swap_vert_rounded,
+                          label: 'Sort',
+                          valueLabel: _sessionSortLabel(_sort),
+                          active: _sort != _CounselorSessionSort.smart,
+                          options: _CounselorSessionSort.values
+                              .map(
+                                (sort) => _WorkbenchMenuOption(
+                                  value: sort,
+                                  label: _sessionSortLabel(sort),
+                                ),
+                              )
+                              .toList(growable: false),
+                          currentValue: _sort,
+                          onSelected: (value) => setState(() {
+                            _sort = value;
+                            _page = 0;
+                          }),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _WorkbenchMenuButton<AppointmentStatus?>(
+                          icon: Icons.flag_rounded,
+                          label: 'Status',
+                          valueLabel: _statusFilter == null
+                              ? 'All statuses'
+                              : _appointmentStatusLabel(_statusFilter!),
+                          active: _statusFilter != null,
+                          options: <_WorkbenchMenuOption<AppointmentStatus?>>[
+                            const _WorkbenchMenuOption<AppointmentStatus?>(
+                              value: null,
+                              label: 'All statuses',
                             ),
-                          )
-                          .toList(growable: false),
-                      currentValue: _sort,
-                      onSelected: (value) => setState(() {
-                        _sort = value;
-                        _page = 0;
-                      }),
-                    ),
-                    _WorkbenchMenuButton<AppointmentStatus?>(
-                      icon: Icons.flag_rounded,
-                      label: 'Status',
-                      valueLabel: _statusFilter == null
-                          ? 'All statuses'
-                          : _appointmentStatusLabel(_statusFilter!),
-                      active: _statusFilter != null,
-                      options: <_WorkbenchMenuOption<AppointmentStatus?>>[
-                        const _WorkbenchMenuOption<AppointmentStatus?>(
-                          value: null,
-                          label: 'All statuses',
+                            ...AppointmentStatus.values.map(
+                              (status) =>
+                                  _WorkbenchMenuOption<AppointmentStatus?>(
+                                    value: status,
+                                    label: _appointmentStatusLabel(status),
+                                  ),
+                            ),
+                          ],
+                          currentValue: _statusFilter,
+                          onSelected: (value) => setState(() {
+                            _statusFilter = value;
+                            _page = 0;
+                          }),
                         ),
-                        ...AppointmentStatus.values.map(
-                          (status) => _WorkbenchMenuOption<AppointmentStatus?>(
-                            value: status,
-                            label: _appointmentStatusLabel(status),
-                          ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _SessionViewToggle(
+                    selected: _viewMode,
+                    onChanged: (mode) => setState(() {
+                      _viewMode = mode;
+                      _page = 0;
+                    }),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Text(
+                        '$totalRows sessions',
+                        style: const TextStyle(
+                          color: Color(0xFF475569),
+                          fontWeight: FontWeight.w700,
                         ),
-                      ],
-                      currentValue: _statusFilter,
-                      onSelected: (value) => setState(() {
-                        _statusFilter = value;
-                        _page = 0;
-                      }),
-                    ),
-                    _SessionViewToggle(
-                      selected: _viewMode,
-                      onChanged: (mode) => setState(() {
-                        _viewMode = mode;
-                        _page = 0;
-                      }),
-                    ),
-                    _RowsVisibilityButton(
-                      expanded: _showExtendedRows,
-                      enabled:
-                          totalRows > _baseRowsPerPage || _showExtendedRows,
-                      onTap: () => setState(() {
-                        _showExtendedRows = !_showExtendedRows;
-                        _page = 0;
-                      }),
-                    ),
-                    if (_hasActiveFilters)
-                      OutlinedButton.icon(
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
                         onPressed: _resetFilters,
                         icon: const Icon(Icons.restart_alt_rounded, size: 18),
                         label: const Text('Reset'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF0E9B90),
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _SessionResultsMeta(
-                  resultsShown: pageRows.length,
-                  totalResults: totalRows,
-                  page: safePage,
-                  totalPages: totalPages,
-                  tabLabel: _sessionTabLabel(_activeTab),
-                  viewMode: _viewMode,
-                  rowsPerPage: _rowsPerPage,
-                ),
+                    ],
+                  ),
+                ] else ...[
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: constraints.maxWidth > 1180 ? 290 : 250,
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (_) => setState(() => _page = 0),
+                          decoration: InputDecoration(
+                            hintText: 'Search sessions',
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            suffixIcon: _searchController.text.trim().isEmpty
+                                ? null
+                                : IconButton(
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _page = 0);
+                                    },
+                                    icon: const Icon(Icons.close_rounded),
+                                  ),
+                          ),
+                        ),
+                      ),
+                      _WorkbenchMenuButton<_CounselorSessionSort>(
+                        icon: Icons.swap_vert_rounded,
+                        label: 'Sort',
+                        valueLabel: _sessionSortLabel(_sort),
+                        active: _sort != _CounselorSessionSort.smart,
+                        options: _CounselorSessionSort.values
+                            .map(
+                              (sort) => _WorkbenchMenuOption(
+                                value: sort,
+                                label: _sessionSortLabel(sort),
+                              ),
+                            )
+                            .toList(growable: false),
+                        currentValue: _sort,
+                        onSelected: (value) => setState(() {
+                          _sort = value;
+                          _page = 0;
+                        }),
+                      ),
+                      _WorkbenchMenuButton<AppointmentStatus?>(
+                        icon: Icons.flag_rounded,
+                        label: 'Status',
+                        valueLabel: _statusFilter == null
+                            ? 'All statuses'
+                            : _appointmentStatusLabel(_statusFilter!),
+                        active: _statusFilter != null,
+                        options: <_WorkbenchMenuOption<AppointmentStatus?>>[
+                          const _WorkbenchMenuOption<AppointmentStatus?>(
+                            value: null,
+                            label: 'All statuses',
+                          ),
+                          ...AppointmentStatus.values.map(
+                            (status) =>
+                                _WorkbenchMenuOption<AppointmentStatus?>(
+                                  value: status,
+                                  label: _appointmentStatusLabel(status),
+                                ),
+                          ),
+                        ],
+                        currentValue: _statusFilter,
+                        onSelected: (value) => setState(() {
+                          _statusFilter = value;
+                          _page = 0;
+                        }),
+                      ),
+                      _SessionViewToggle(
+                        selected: _viewMode,
+                        onChanged: (mode) => setState(() {
+                          _viewMode = mode;
+                          _page = 0;
+                        }),
+                      ),
+                      _RowsVisibilityButton(
+                        expanded: _showExtendedRows,
+                        enabled:
+                            totalRows > _baseRowsPerPage || _showExtendedRows,
+                        onTap: () => setState(() {
+                          _showExtendedRows = !_showExtendedRows;
+                          _page = 0;
+                        }),
+                      ),
+                      if (_hasActiveFilters)
+                        OutlinedButton.icon(
+                          onPressed: _resetFilters,
+                          icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                          label: const Text('Reset'),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _SessionResultsMeta(
+                    resultsShown: pageRows.length,
+                    totalResults: totalRows,
+                    page: safePage,
+                    totalPages: totalPages,
+                    tabLabel: _sessionTabLabel(_activeTab),
+                    viewMode: _viewMode,
+                    rowsPerPage: _rowsPerPage,
+                  ),
+                ],
                 const SizedBox(height: 14),
                 if (widget.appointments.isEmpty)
                   const _EmptyModuleCard(
+                    icon: Icons.event_available_outlined,
                     message:
                         'No appointments are visible yet. New booking requests will appear here as soon as students create them.',
                   )
                 else if (pageRows.isEmpty)
                   const _EmptyModuleCard(
+                    icon: Icons.event_available_outlined,
                     message:
                         'No sessions match the current search, filter, or queue view.',
                   )
@@ -1153,48 +1282,71 @@ class _SessionStatCard extends StatelessWidget {
 }
 
 class _SessionQueueBanner extends StatelessWidget {
-  const _SessionQueueBanner({required this.needsActionCount});
+  const _SessionQueueBanner({
+    required this.needsActionCount,
+    this.compact = false,
+  });
 
   final int needsActionCount;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final hasUrgentWork = needsActionCount > 0;
+    final gradientColors = hasUrgentWork
+        ? (compact
+              ? const [Color(0xFFF6FCF8), Color(0xFFF4FBFD)]
+              : const [Color(0xFFFFFBEB), Color(0xFFFFF7ED)])
+        : (compact
+              ? const [Color(0xFFF5FCFC), Color(0xFFF7FBFF)]
+              : const [Color(0xFFF0FDF9), Color(0xFFEFF6FF)]);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 16 : 16,
+        vertical: compact ? 14 : 14,
+      ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: hasUrgentWork
-              ? const [Color(0xFFFFFBEB), Color(0xFFFFF7ED)]
-              : const [Color(0xFFF0FDF9), Color(0xFFEFF6FF)],
+          colors: gradientColors,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(compact ? 20 : 20),
         border: Border.all(
           color: hasUrgentWork
-              ? const Color(0xFFFED7AA)
-              : const Color(0xFFBFDBFE),
+              ? (compact ? const Color(0xFFD4E8DD) : const Color(0xFFFED7AA))
+              : (compact ? const Color(0xFFCFE8EE) : const Color(0xFFBFDBFE)),
         ),
       ),
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: compact ? 44 : 42,
+            height: compact ? 44 : 42,
             decoration: BoxDecoration(
               color: hasUrgentWork
-                  ? const Color(0xFFFFEDD5)
-                  : const Color(0xFFE0F2FE),
-              borderRadius: BorderRadius.circular(14),
+                  ? (compact
+                        ? const Color(0xFFEAF4E4)
+                        : const Color(0xFFFFEDD5))
+                  : (compact
+                        ? const Color(0xFFEAF7FA)
+                        : const Color(0xFFE0F2FE)),
+              borderRadius: BorderRadius.circular(compact ? 14 : 16),
             ),
             child: Icon(
               hasUrgentWork
                   ? Icons.priority_high_rounded
-                  : Icons.task_alt_rounded,
+                  : (compact
+                        ? Icons.check_circle_outline_rounded
+                        : Icons.task_alt_rounded),
               color: hasUrgentWork
-                  ? const Color(0xFFD97706)
-                  : const Color(0xFF0369A1),
+                  ? (compact
+                        ? const Color(0xFF2E7F7A)
+                        : const Color(0xFFD97706))
+                  : (compact
+                        ? const Color(0xFF0B7C9E)
+                        : const Color(0xFF0369A1)),
+              size: compact ? 22 : 24,
             ),
           ),
           const SizedBox(width: 12),
@@ -1204,7 +1356,9 @@ class _SessionQueueBanner extends StatelessWidget {
               children: [
                 Text(
                   hasUrgentWork
-                      ? '$needsActionCount sessions need your attention.'
+                      ? (compact
+                            ? '$needsActionCount sessions need your attention'
+                            : '$needsActionCount sessions need your attention.')
                       : 'Your queue is under control.',
                   style: const TextStyle(
                     color: Color(0xFF0F172A),
@@ -1213,16 +1367,17 @@ class _SessionQueueBanner extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  hasUrgentWork
-                      ? 'Pending decisions and same-day follow-up stay grouped together so you do not miss the urgent bits.'
-                      : 'Use timeline or table view when you want a broader scan of the queue.',
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    height: 1.35,
-                    fontWeight: FontWeight.w500,
+                if (!compact)
+                  Text(
+                    hasUrgentWork
+                        ? 'Pending decisions and same-day follow-up stay grouped together so you do not miss the urgent bits.'
+                        : 'Use timeline or table view when you want a broader scan of the queue.',
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      height: 1.35,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -1296,141 +1451,162 @@ class _WorkbenchMenuButton<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final buttonKey = GlobalKey();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final buttonKey = GlobalKey();
+        final isCompact = constraints.maxWidth < 220;
+        final labelMaxWidth = isCompact
+            ? math.max(56.0, constraints.maxWidth - 104)
+            : 168.0;
 
-    Future<void> openMenu() async {
-      final buttonContext = buttonKey.currentContext;
-      if (buttonContext == null) {
-        return;
-      }
-      final renderBox = buttonContext.findRenderObject() as RenderBox?;
-      final overlay =
-          Navigator.of(context).overlay?.context.findRenderObject()
-              as RenderBox?;
-      if (renderBox == null || overlay == null) {
-        return;
-      }
-      final topLeft = renderBox.localToGlobal(Offset.zero, ancestor: overlay);
-      final selected = await showMenu<T>(
-        context: context,
-        elevation: 10,
-        color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        position: RelativeRect.fromLTRB(
-          topLeft.dx,
-          topLeft.dy + renderBox.size.height + 8,
-          overlay.size.width - topLeft.dx - renderBox.size.width,
-          0,
-        ),
-        items: options
-            .map(
-              (option) => PopupMenuItem<T>(
-                value: option.value,
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 18,
-                      child: Icon(
-                        option.value == currentValue
-                            ? Icons.check_rounded
-                            : (option.icon ?? Icons.circle_outlined),
-                        size: option.value == currentValue ? 18 : 16,
-                        color: option.value == currentValue
-                            ? const Color(0xFF0EA5E9)
-                            : const Color(0xFF94A3B8),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        option.label,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: const Color(0xFF0F172A),
-                          fontWeight: option.value == currentValue
-                              ? FontWeight.w700
-                              : FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-            .toList(growable: false),
-      );
-      if (selected != null) {
-        onSelected(selected);
-      }
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        key: buttonKey,
-        onTap: openMenu,
-        borderRadius: BorderRadius.circular(18),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: active ? const Color(0xFFF0F9FF) : const Color(0xFFFFFFFF),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: active ? const Color(0xFF7DD3FC) : const Color(0xFFD7E5F1),
+        Future<void> openMenu() async {
+          final buttonContext = buttonKey.currentContext;
+          if (buttonContext == null) {
+            return;
+          }
+          final renderBox = buttonContext.findRenderObject() as RenderBox?;
+          final overlay =
+              Navigator.of(context).overlay?.context.findRenderObject()
+                  as RenderBox?;
+          if (renderBox == null || overlay == null) {
+            return;
+          }
+          final topLeft = renderBox.localToGlobal(
+            Offset.zero,
+            ancestor: overlay,
+          );
+          final selected = await showMenu<T>(
+            context: context,
+            elevation: 10,
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
             ),
-            boxShadow: active
-                ? const [
-                    BoxShadow(
-                      color: Color(0x120EA5E9),
-                      blurRadius: 16,
-                      offset: Offset(0, 8),
+            position: RelativeRect.fromLTRB(
+              topLeft.dx,
+              topLeft.dy + renderBox.size.height + 8,
+              overlay.size.width - topLeft.dx - renderBox.size.width,
+              0,
+            ),
+            items: options
+                .map(
+                  (option) => PopupMenuItem<T>(
+                    value: option.value,
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          child: Icon(
+                            option.value == currentValue
+                                ? Icons.check_rounded
+                                : (option.icon ?? Icons.circle_outlined),
+                            size: option.value == currentValue ? 18 : 16,
+                            color: option.value == currentValue
+                                ? const Color(0xFF0EA5E9)
+                                : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            option.label,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: const Color(0xFF0F172A),
+                              fontWeight: option.value == currentValue
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ]
-                : const [],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: active
-                      ? const Color(0xFFDFF3FF)
-                      : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  size: 18,
-                  color: active
-                      ? const Color(0xFF0369A1)
-                      : const Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(width: 10),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 168),
-                child: Text(
-                  '$label: $valueLabel',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w700,
                   ),
+                )
+                .toList(growable: false),
+          );
+          if (selected != null) {
+            onSelected(selected);
+          }
+        }
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: buttonKey,
+            onTap: openMenu,
+            borderRadius: BorderRadius.circular(18),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompact ? 10 : 12,
+                vertical: isCompact ? 9 : 10,
+              ),
+              decoration: BoxDecoration(
+                color: active
+                    ? const Color(0xFFF0F9FF)
+                    : const Color(0xFFFFFFFF),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: active
+                      ? const Color(0xFF7DD3FC)
+                      : const Color(0xFFD7E5F1),
                 ),
+                boxShadow: active
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x120EA5E9),
+                          blurRadius: 16,
+                          offset: Offset(0, 8),
+                        ),
+                      ]
+                    : const [],
               ),
-              const SizedBox(width: 10),
-              const Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: Color(0xFF64748B),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: isCompact ? 30 : 34,
+                    height: isCompact ? 30 : 34,
+                    decoration: BoxDecoration(
+                      color: active
+                          ? const Color(0xFFDFF3FF)
+                          : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(isCompact ? 10 : 12),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: isCompact ? 16 : 18,
+                      color: active
+                          ? const Color(0xFF0369A1)
+                          : const Color(0xFF64748B),
+                    ),
+                  ),
+                  SizedBox(width: isCompact ? 8 : 10),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: labelMaxWidth),
+                    child: Text(
+                      '$label: $valueLabel',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: isCompact ? 6 : 10),
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: isCompact ? 18 : 20,
+                    color: const Color(0xFF64748B),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -2274,6 +2450,7 @@ class _ReassignmentBoardModule extends ConsumerWidget {
               const SizedBox(height: 18),
               if (requests.isEmpty)
                 const _EmptyModuleCard(
+                  icon: Icons.event_available_outlined,
                   message:
                       'No reassignment requests are open right now. When a counselor needs replacement coverage, it will appear here.',
                 )
@@ -3161,27 +3338,47 @@ class _ModuleEyebrow extends StatelessWidget {
 }
 
 class _EmptyModuleCard extends StatelessWidget {
-  const _EmptyModuleCard({required this.message});
+  const _EmptyModuleCard({
+    required this.message,
+    this.icon = Icons.event_available_outlined,
+  });
 
   final String message;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(maxWidth: 540),
-      padding: const EdgeInsets.all(22),
+      constraints: const BoxConstraints(maxWidth: 560),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 26),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFE1E8EF)),
       ),
-      child: Text(
-        message,
-        style: const TextStyle(
-          color: Color(0xFF0C2233),
-          fontWeight: FontWeight.w600,
-          height: 1.45,
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(icon, color: const Color(0xFF64748B), size: 28),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF0C2233),
+              fontWeight: FontWeight.w600,
+              height: 1.45,
+            ),
+          ),
+        ],
       ),
     );
   }
