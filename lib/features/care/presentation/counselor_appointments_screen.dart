@@ -911,13 +911,6 @@ class _CounselorSessionsWorkbenchState
                   ],
                 ),
                 const SizedBox(height: 18),
-                _SessionQueueBanner(
-                  needsActionCount: _countForTab(
-                    _CounselorSessionTab.needsAction,
-                  ),
-                  compact: isMobileLayout,
-                ),
-                const SizedBox(height: 16),
                 if (isDesktop) ...[
                   Wrap(
                     spacing: 10,
@@ -1015,13 +1008,24 @@ class _CounselorSessionsWorkbenchState
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _SessionViewToggle(
-                    selected: _viewMode,
-                    onChanged: (mode) => setState(() {
-                      _viewMode = mode;
-                      _page = 0;
-                    }),
-                  ),
+                  if (kIsWeb)
+                    Center(
+                      child: _SessionViewToggle(
+                        selected: _viewMode,
+                        onChanged: (mode) => setState(() {
+                          _viewMode = mode;
+                          _page = 0;
+                        }),
+                      ),
+                    )
+                  else
+                    _SessionViewToggle(
+                      selected: _viewMode,
+                      onChanged: (mode) => setState(() {
+                        _viewMode = mode;
+                        _page = 0;
+                      }),
+                    ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -1273,112 +1277,6 @@ class _SessionStatCard extends StatelessWidget {
               color: Color(0xFF7B8CA4),
               fontSize: 13,
               fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SessionQueueBanner extends StatelessWidget {
-  const _SessionQueueBanner({
-    required this.needsActionCount,
-    this.compact = false,
-  });
-
-  final int needsActionCount;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasUrgentWork = needsActionCount > 0;
-    final gradientColors = hasUrgentWork
-        ? (compact
-              ? const [Color(0xFFF6FCF8), Color(0xFFF4FBFD)]
-              : const [Color(0xFFFFFBEB), Color(0xFFFFF7ED)])
-        : (compact
-              ? const [Color(0xFFF5FCFC), Color(0xFFF7FBFF)]
-              : const [Color(0xFFF0FDF9), Color(0xFFEFF6FF)]);
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 16 : 16,
-        vertical: compact ? 14 : 14,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: gradientColors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(compact ? 20 : 20),
-        border: Border.all(
-          color: hasUrgentWork
-              ? (compact ? const Color(0xFFD4E8DD) : const Color(0xFFFED7AA))
-              : (compact ? const Color(0xFFCFE8EE) : const Color(0xFFBFDBFE)),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: compact ? 44 : 42,
-            height: compact ? 44 : 42,
-            decoration: BoxDecoration(
-              color: hasUrgentWork
-                  ? (compact
-                        ? const Color(0xFFEAF4E4)
-                        : const Color(0xFFFFEDD5))
-                  : (compact
-                        ? const Color(0xFFEAF7FA)
-                        : const Color(0xFFE0F2FE)),
-              borderRadius: BorderRadius.circular(compact ? 14 : 16),
-            ),
-            child: Icon(
-              hasUrgentWork
-                  ? Icons.priority_high_rounded
-                  : (compact
-                        ? Icons.check_circle_outline_rounded
-                        : Icons.task_alt_rounded),
-              color: hasUrgentWork
-                  ? (compact
-                        ? const Color(0xFF2E7F7A)
-                        : const Color(0xFFD97706))
-                  : (compact
-                        ? const Color(0xFF0B7C9E)
-                        : const Color(0xFF0369A1)),
-              size: compact ? 22 : 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  hasUrgentWork
-                      ? (compact
-                            ? '$needsActionCount sessions need your attention'
-                            : '$needsActionCount sessions need your attention.')
-                      : 'Your queue is under control.',
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                if (!compact)
-                  Text(
-                    hasUrgentWork
-                        ? 'Pending decisions and same-day follow-up stay grouped together so you do not miss the urgent bits.'
-                        : 'Use timeline or table view when you want a broader scan of the queue.',
-                    style: const TextStyle(
-                      color: Color(0xFF64748B),
-                      height: 1.35,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-              ],
             ),
           ),
         ],
@@ -1690,33 +1588,30 @@ class _SessionViewToggle extends StatelessWidget {
       required IconData icon,
     }) {
       final active = selected == mode;
-      return ChoiceChip(
-        label: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: active ? const Color(0xFF0C4A6E) : const Color(0xFF64748B),
-            ),
-            const SizedBox(width: 6),
-            Text(label),
-          ],
-        ),
-        selected: active,
-        onSelected: (_) => onChanged(mode),
-        selectedColor: const Color(0xFFE0F2FE),
-        side: BorderSide(
-          color: active ? const Color(0xFF0EA5E9) : const Color(0xFFD3E0EE),
-        ),
-        labelStyle: TextStyle(
-          fontWeight: FontWeight.w700,
-          color: active ? const Color(0xFF0C4A6E) : const Color(0xFF475569),
+      return Tooltip(
+        message: label,
+        child: ChoiceChip(
+          label: Icon(
+            icon,
+            size: 18,
+            color: active ? const Color(0xFF0C4A6E) : const Color(0xFF64748B),
+          ),
+          selected: active,
+          onSelected: (_) => onChanged(mode),
+          selectedColor: const Color(0xFFE0F2FE),
+          side: BorderSide(
+            color: active ? const Color(0xFF0EA5E9) : const Color(0xFFD3E0EE),
+          ),
+          labelStyle: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: active ? const Color(0xFF0C4A6E) : const Color(0xFF475569),
+          ),
         ),
       );
     }
 
     return Wrap(
+      alignment: WrapAlignment.center,
       spacing: 8,
       runSpacing: 8,
       children: [
