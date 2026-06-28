@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/no_scrollbar_scroll_behavior.dart';
 import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -357,13 +358,18 @@ class _CounselorDashboardScreenState
       ),
     );
 
+    final noScrollbarDashboard = ScrollConfiguration(
+      behavior: const NoScrollbarScrollBehavior(),
+      child: dashboardContent,
+    );
+
     if (widget.embeddedInCounselorShell) {
-      return dashboardContent;
+      return noScrollbarDashboard;
     }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
-      body: _DashboardBackdrop(child: SafeArea(child: dashboardContent)),
+      body: _DashboardBackdrop(child: SafeArea(child: noScrollbarDashboard)),
     );
   }
 

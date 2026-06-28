@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/no_scrollbar_scroll_behavior.dart';
 import 'package:mindnest/core/ui/desktop_primary_shell.dart';
 import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
@@ -2222,41 +2223,37 @@ class _NotificationCenterScreenState
                           : 'No notifications yet. Booking updates and reminders will appear here.',
                     ),
                   )
-                : Scrollbar(
-                    thumbVisibility: true,
-                    child: ListView.separated(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
-                      itemCount: notifications.length,
-                      separatorBuilder: (_, _) => Divider(
-                        height: 1,
-                        thickness: 1,
-                        indent: 70,
-                        color: scheme.outlineVariant.withValues(alpha: 0.18),
-                      ),
-                      itemBuilder: (context, index) {
-                        final entry = notifications[index];
-                        final isBusy =
-                            _openingNotificationIds.contains(entry.id) ||
-                            _actionNotificationIds.contains(entry.id);
-                        return _compactNotificationCard(
-                          context: context,
-                          entry: entry,
-                          isBusy: isBusy,
-                          selected: selectedNotificationId == entry.id,
-                          onTap: () => _selectNotification(entry),
-                          onLongPress: () =>
-                              _showNotificationQuickActions(entry),
-                          onMenuSelected: (action) {
-                            _runNotificationAction(
-                              notification: entry,
-                              action: action,
-                            );
-                          },
-                          menuEntries: _notificationMenuEntries(entry),
-                        );
-                      },
+                : ListView.separated(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
+                    itemCount: notifications.length,
+                    separatorBuilder: (_, _) => Divider(
+                      height: 1,
+                      thickness: 1,
+                      indent: 70,
+                      color: scheme.outlineVariant.withValues(alpha: 0.18),
                     ),
+                    itemBuilder: (context, index) {
+                      final entry = notifications[index];
+                      final isBusy =
+                          _openingNotificationIds.contains(entry.id) ||
+                          _actionNotificationIds.contains(entry.id);
+                      return _compactNotificationCard(
+                        context: context,
+                        entry: entry,
+                        isBusy: isBusy,
+                        selected: selectedNotificationId == entry.id,
+                        onTap: () => _selectNotification(entry),
+                        onLongPress: () => _showNotificationQuickActions(entry),
+                        onMenuSelected: (action) {
+                          _runNotificationAction(
+                            notification: entry,
+                            action: action,
+                          );
+                        },
+                        menuEntries: _notificationMenuEntries(entry),
+                      );
+                    },
                   ),
           ),
         ],
@@ -2724,15 +2721,12 @@ class _NotificationCenterScreenState
           color: scheme.outlineVariant.withValues(alpha: 0.32),
         ),
       ),
-      child: Scrollbar(
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: details,
-          ),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: details,
         ),
       ),
     );
@@ -2891,21 +2885,25 @@ class _NotificationCenterScreenState
       embeddedInDesktopShell: widget.embeddedInDesktopShell,
       mobileFullScreenMode: isMobileEmbedded,
     );
+    final noScrollbarContent = ScrollConfiguration(
+      behavior: const NoScrollbarScrollBehavior(),
+      child: content,
+    );
 
     if (widget.embeddedInCounselorShell || widget.embeddedInDesktopShell) {
-      return content;
+      return noScrollbarContent;
     }
 
     if (isDesktop && isPrimaryUser) {
       return DesktopPrimaryShell(
         matchedLocation: AppRoute.notifications,
-        child: content,
+        child: noScrollbarContent,
       );
     }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: content,
+      body: noScrollbarContent,
       bottomNavigationBar: null,
     );
   }

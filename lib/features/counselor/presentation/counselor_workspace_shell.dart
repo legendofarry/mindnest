@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/no_scrollbar_scroll_behavior.dart';
 import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
@@ -83,49 +84,52 @@ class CounselorWorkspaceRouteShell extends ConsumerWidget {
       return child;
     }
 
-    return CounselorWorkspaceScaffold(
-      profile: profile,
-      activeSection: shell.section,
-      showCounselorDirectory: showCounselorDirectory,
-      unreadNotifications: unreadCount,
-      title: shell.title,
-      subtitle: shell.subtitle,
-      childHandlesOwnScroll: shell.childHandlesOwnScroll,
-      onSelectSection: (section) {
-        switch (section) {
-          case CounselorWorkspaceNavSection.dashboard:
-            context.go(AppRoute.counselorDashboard);
-          case CounselorWorkspaceNavSection.sessions:
-            context.go(AppRoute.counselorAppointments);
-          case CounselorWorkspaceNavSection.live:
-            context.go(AppRoute.counselorLiveHub);
-          case CounselorWorkspaceNavSection.availability:
-            context.go(AppRoute.counselorAvailability);
-          case CounselorWorkspaceNavSection.counselors:
-            context.go(AppRoute.counselorDirectory);
-        }
-      },
-      onNotifications: () {
-        if (state.matchedLocation == AppRoute.counselorNotifications) {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          } else {
-            context.go(notificationsReturnTo);
+    return ScrollConfiguration(
+      behavior: const NoScrollbarScrollBehavior(),
+      child: CounselorWorkspaceScaffold(
+        profile: profile,
+        activeSection: shell.section,
+        showCounselorDirectory: showCounselorDirectory,
+        unreadNotifications: unreadCount,
+        title: shell.title,
+        subtitle: shell.subtitle,
+        childHandlesOwnScroll: shell.childHandlesOwnScroll,
+        onSelectSection: (section) {
+          switch (section) {
+            case CounselorWorkspaceNavSection.dashboard:
+              context.go(AppRoute.counselorDashboard);
+            case CounselorWorkspaceNavSection.sessions:
+              context.go(AppRoute.counselorAppointments);
+            case CounselorWorkspaceNavSection.live:
+              context.go(AppRoute.counselorLiveHub);
+            case CounselorWorkspaceNavSection.availability:
+              context.go(AppRoute.counselorAvailability);
+            case CounselorWorkspaceNavSection.counselors:
+              context.go(AppRoute.counselorDirectory);
           }
-          return;
-        }
-        _openCounselorNotificationsOverlay(context);
-      },
-      onProfile: () {
-        _openCounselorProfileOverlay(
-          context,
-          returnToRoute: overlayAnchorRoute,
-        );
-      },
-      onLogout: () => confirmAndLogout(context: context, ref: ref),
-      notificationsHighlighted: shell.notificationsHighlighted,
-      profileHighlighted: shell.profileHighlighted,
-      child: child,
+        },
+        onNotifications: () {
+          if (state.matchedLocation == AppRoute.counselorNotifications) {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go(notificationsReturnTo);
+            }
+            return;
+          }
+          _openCounselorNotificationsOverlay(context);
+        },
+        onProfile: () {
+          _openCounselorProfileOverlay(
+            context,
+            returnToRoute: overlayAnchorRoute,
+          );
+        },
+        onLogout: () => confirmAndLogout(context: context, ref: ref),
+        notificationsHighlighted: shell.notificationsHighlighted,
+        profileHighlighted: shell.profileHighlighted,
+        child: child,
+      ),
     );
   }
 }

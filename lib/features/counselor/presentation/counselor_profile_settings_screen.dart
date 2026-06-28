@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
+import 'package:mindnest/core/ui/no_scrollbar_scroll_behavior.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/account_export_sheet.dart';
@@ -543,8 +544,12 @@ class _CounselorProfileSettingsScreenState
             );
           },
         );
+        final noScrollbarSettingsBody = ScrollConfiguration(
+          behavior: const NoScrollbarScrollBehavior(),
+          child: settingsBody,
+        );
         if (widget.embeddedInCounselorShell) {
-          return settingsBody;
+          return noScrollbarSettingsBody;
         }
         return CounselorWorkspaceScaffold(
           profile: profile,
@@ -559,7 +564,7 @@ class _CounselorProfileSettingsScreenState
           onNotifications: () => _openCounselorNotificationsOverlay(context),
           onProfile: () {},
           onLogout: () => confirmAndLogout(context: context, ref: ref),
-          child: settingsBody,
+          child: noScrollbarSettingsBody,
         );
       },
       loading: () =>
