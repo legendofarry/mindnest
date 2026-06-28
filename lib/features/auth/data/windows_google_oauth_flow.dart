@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:mindnest/core/config/app_brand.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class WindowsGoogleOAuthFlow {
@@ -211,12 +212,13 @@ class WindowsGoogleOAuthTokens {
   final String? accessToken;
 }
 
-const String _successPageHtml = '''
+const String _successPageHtml =
+    '''
 <!doctype html>
 <html>
   <head>
     <meta charset="utf-8">
-    <title>MindNest Sign-In</title>
+    <title>${AppBrand.name} Sign-In</title>
     <style>
       body { font-family: Arial, sans-serif; background: #f7fbfc; color: #0f172a; display: grid; place-items: center; min-height: 100vh; margin: 0; }
       .card { background: #ffffff; border: 1px solid #bee9e4; border-radius: 20px; padding: 28px 32px; max-width: 460px; box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08); }
@@ -227,18 +229,19 @@ const String _successPageHtml = '''
   <body>
     <div class="card">
       <h1>Google sign-in complete</h1>
-      <p>You can close this browser window and return to MindNest.</p>
+      <p>You can close this browser window and return to ${AppBrand.name}.</p>
     </div>
   </body>
 </html>
 ''';
 
-const String _errorPageHtml = '''
+const String _errorPageHtml =
+    '''
 <!doctype html>
 <html>
   <head>
     <meta charset="utf-8">
-    <title>MindNest Sign-In</title>
+    <title>${AppBrand.name} Sign-In</title>
     <style>
       body { font-family: Arial, sans-serif; background: #fff7f7; color: #7f1d1d; display: grid; place-items: center; min-height: 100vh; margin: 0; }
       .card { background: #ffffff; border: 1px solid #fecaca; border-radius: 20px; padding: 28px 32px; max-width: 460px; box-shadow: 0 18px 36px rgba(127, 29, 29, 0.08); }
@@ -249,7 +252,7 @@ const String _errorPageHtml = '''
   <body>
     <div class="card">
       <h1>Google sign-in was not completed</h1>
-      <p>You can close this browser window and return to MindNest.</p>
+      <p>You can close this browser window and return to ${AppBrand.name}.</p>
     </div>
   </body>
 </html>

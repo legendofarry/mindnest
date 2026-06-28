@@ -19,7 +19,7 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   const title =
-    payload?.notification?.title || payload?.data?.title || 'MindNest';
+    payload?.notification?.title || payload?.data?.title || 'Teraji';
   const body =
     payload?.notification?.body ||
     payload?.data?.body ||

@@ -402,7 +402,7 @@ class _OnboardingQuestionnaireScreenState
                             _isSubmitting
                                 ? 'Saving...'
                                 : (isLastStep
-                                      ? 'Enter MindNest  ->'
+                                      ? 'Enter Teraji ->'
                                       : 'Continue  ->'),
                             style: const TextStyle(
                               fontSize: 17,

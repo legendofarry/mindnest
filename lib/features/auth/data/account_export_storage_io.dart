@@ -10,7 +10,7 @@ Future<AccountExportSaveResult> saveExportArtifactsImpl({
 }) async {
   final writableBase = await _resolveWritableBaseDirectory();
   final exportRoot = Directory(
-    '${writableBase.path}${Platform.pathSeparator}MindNest Exports',
+    '${writableBase.path}${Platform.pathSeparator}Teraji Exports',
   );
   await exportRoot.create(recursive: true);
 

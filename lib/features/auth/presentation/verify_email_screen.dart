@@ -346,7 +346,7 @@ class _VerifyEmailDesktopSupplement extends StatelessWidget {
           _DesktopStepRow(
             number: '2',
             title: 'Confirm ownership',
-            description: 'Click the link so MindNest can trust the account.',
+            description: 'Click the link so Teraji can trust the account.',
           ),
           SizedBox(height: 14),
           _DesktopStepRow(

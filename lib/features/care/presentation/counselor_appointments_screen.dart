@@ -3345,7 +3345,7 @@ class _CompletionDetailsDialogState extends State<_CompletionDetailsDialog> {
           return AlertDialog(
             title: const Text('Enable Microphone'),
             content: const Text(
-              'To auto-fill text while you speak, allow microphone access for MindNest.',
+              'To auto-fill text while you speak, allow microphone access for Teraji.',
             ),
             actions: [
               TextButton(

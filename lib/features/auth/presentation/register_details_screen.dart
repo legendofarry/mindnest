@@ -600,7 +600,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
                   ),
                 ),
                 const Text(
-                  '. MindNest is not a substitute for professional medical advice.',
+                  '. Teraji is not a substitute for professional medical advice.',
                   style: TextStyle(
                     color: Color(0xFF0D6F69),
                     fontWeight: FontWeight.w600,

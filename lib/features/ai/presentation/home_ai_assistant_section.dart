@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindnest/core/config/app_brand.dart';
 import 'package:mindnest/features/ai/data/assistant_providers.dart';
 import 'package:mindnest/features/ai/data/local_assistant_chat_store.dart';
 import 'package:mindnest/features/ai/models/assistant_models.dart';
@@ -58,7 +59,7 @@ class HomeAiAssistantSection extends ConsumerWidget {
               const SizedBox(width: 12),
               const Expanded(
                 child: Text(
-                  'MindNest AI Assistant',
+                  '${AppBrand.name} AI Assistant',
                   style: TextStyle(
                     color: Color(0xFF071937),
                     fontWeight: FontWeight.w800,
@@ -80,7 +81,7 @@ class HomeAiAssistantSection extends ConsumerWidget {
                 );
               },
               icon: const Icon(Icons.chat_bubble_outline_rounded),
-              label: const Text('Ask MindNest AI'),
+              label: Text('Ask ${AppBrand.name} AI'),
             ),
           ),
         ],
@@ -98,7 +99,7 @@ Future<void> showMindNestAssistantSheet({
   if (isDesktop) {
     await showGeneralDialog<void>(
       context: context,
-      barrierLabel: 'Close MindNest AI',
+      barrierLabel: 'Close ${AppBrand.name} AI',
       barrierDismissible: true,
       barrierColor: Colors.transparent,
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
@@ -206,7 +207,7 @@ class AssistantChatSheet extends ConsumerStatefulWidget {
 
 class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
   static const _defaultAssistantGreeting =
-      'Hi, I am MindNest AI. Ask me to open app sections, find counselor slots, or chat for support.';
+      'Hi, I am ${AppBrand.name} AI. Ask me to open app sections, find counselor slots, or chat for support.';
   static const _maxConversations = 24;
   static const _maxMessagesPerConversation = 180;
   static const _maxMemoryEntries = 10;
@@ -1018,7 +1019,7 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'MindNest AI',
+                        '${AppBrand.name} AI',
                         style: TextStyle(
                           color: Color(0xFF151B28),
                           fontSize: 18,
@@ -1129,7 +1130,7 @@ class _AssistantChatSheetState extends ConsumerState<AssistantChatSheet> {
               children: [
                 const Expanded(
                   child: Text(
-                    'Ask MindNest AI',
+                    'Ask ${AppBrand.name} AI',
                     style: TextStyle(
                       color: Color(0xFF071937),
                       fontSize: 18,

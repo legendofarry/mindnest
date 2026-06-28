@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindnest/core/config/app_brand.dart';
 import 'package:mindnest/app/theme.dart';
 import 'package:mindnest/app/theme_mode_controller.dart';
 import 'package:mindnest/core/routes/app_router.dart';
@@ -13,7 +14,7 @@ class MindNestApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeControllerProvider);
 
     return MaterialApp.router(
-      title: 'MindNest',
+      title: AppBrand.appTitle,
       theme: MindNestTheme.light(),
       darkTheme: MindNestTheme.dark(),
       themeMode: themeMode,

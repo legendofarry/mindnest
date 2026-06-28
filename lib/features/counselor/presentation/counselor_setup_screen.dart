@@ -314,7 +314,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
         'Substance Abuse, Bullying, Grief & Loss, General Counseling';
     final context = _setupContext();
     final base =
-        'You are helping a MindNest counselor complete a profile setup form. '
+        'You are helping a Teraji counselor complete a profile setup form. '
         'Keep the response concrete and professional. '
         'User role: ${profile.role.name}. '
         'Allowed specialization names: $specializationList.\n'
@@ -1069,7 +1069,7 @@ class _CounselorSetupScreenState extends ConsumerState<CounselorSetupScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'MindNest AI Setup Chat',
+                          'Teraji AI Setup Chat',
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
                                 color: const Color(0xFF071937),

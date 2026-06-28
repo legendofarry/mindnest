@@ -46,7 +46,7 @@ export function registerPasskeyRoutes({ app, db, admin, authenticate }) {
         userEmail;
 
       const options = await generateRegistrationOptions({
-        rpName: 'MindNest',
+        rpName: 'Teraji',
         rpID: rpId,
         userID: isoUint8Array.fromUTF8String(userId),
         userName: userLabel,

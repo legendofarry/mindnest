@@ -350,7 +350,7 @@ class _RegisterDesktopSupportPanel extends StatelessWidget {
                   number: '3',
                   title: 'Verify your email',
                   description:
-                      'Open the verification email we send you, then continue into MindNest.',
+                      'Open the verification email we send you, then continue into Teraji.',
                 ),
               ],
       ),

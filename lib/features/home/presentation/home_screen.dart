@@ -565,7 +565,7 @@ class HomeScreen extends ConsumerWidget {
             ],
           ),
           content: const Text(
-            'If your school/organization uses MindNest, ask your institution admin or counselor for the join code.\n\n'
+            'If your school/organization uses Teraji, ask your institution admin or counselor for the join code.\n\n'
             'If you already have the join code, tap "Enter Join Code" on this screen to connect your account.',
           ),
           actions: [

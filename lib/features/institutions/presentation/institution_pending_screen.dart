@@ -87,33 +87,6 @@ class _InstitutionPendingScreenState
     );
   }
 
-  String _formatUserFacingError(Object error) {
-    final raw = error.toString().replaceFirst('Exception: ', '').trim();
-    if (raw.isEmpty) {
-      return 'Something went wrong. Please try again.';
-    }
-    if (!raw.contains('Dart exception thrown from converted Future')) {
-      return raw;
-    }
-
-    try {
-      final dynamic wrapped = error;
-      final innerError = wrapped.error;
-      final innerMessage = innerError?.toString().trim();
-      if (innerMessage != null && innerMessage.isNotEmpty) {
-        return innerMessage.replaceFirst('Exception: ', '');
-      }
-      final innerStack = wrapped.stack?.toString().trim();
-      if (innerStack != null && innerStack.isNotEmpty) {
-        return innerStack;
-      }
-    } catch (_) {
-      // Fall through to the generic message below.
-    }
-
-    return 'This request could not be processed right now. Please try again.';
-  }
-
   String _statusTitle(String status) {
     if (status == 'declined') {
       return 'Action Needed';
@@ -1066,7 +1039,7 @@ class _OwnerSupportChatSheetState
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'MindNest Support',
+                                      'Teraji Support',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w800,
                                         fontSize: 22,
@@ -1229,7 +1202,7 @@ class _OwnerSupportChatSheetState
                                                       children: [
                                                         Text(
                                                           isOwner
-                                                              ? 'MindNest team'
+                                                              ? 'Teraji team'
                                                               : 'You',
                                                           style: TextStyle(
                                                             fontWeight:

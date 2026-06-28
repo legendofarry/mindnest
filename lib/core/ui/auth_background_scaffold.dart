@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:mindnest/core/config/app_brand.dart';
 import 'package:mindnest/core/ui/mindnest_logo.dart';
 import 'package:mindnest/core/ui/windows_desktop_window_controls.dart';
 
@@ -126,7 +127,7 @@ class BrandMark extends StatelessWidget {
         if (showText) ...[
           const SizedBox(),
           Text(
-            'MindNest',
+            AppBrand.name,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.w800,
               color: const Color(0xFF071937),

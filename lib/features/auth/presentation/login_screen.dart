@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mindnest/core/config/app_brand.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/core/ui/mindnest_logo.dart';
@@ -44,7 +45,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     with SingleTickerProviderStateMixin {
   static const _lastEmailKey = 'auth.last_email';
   static const _desktopBreakpoint = 1100.0;
-  static final Uri _webAppBaseUri = Uri.parse('https://mindnestke.netlify.app');
+  static final Uri _webAppBaseUri = Uri.parse(AppBrand.webBaseUrlWithSlash);
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -444,7 +445,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
     setState(() {
       _formError =
-          'We could not open the web sign-up page. Visit mindnestke.netlify.app in your browser.';
+          'We could not open the web sign-up page. Visit ${AppBrand.webBaseUrl} in your browser.';
     });
     _showStageBanner(_formError!, isError: true);
     await _triggerShake();
@@ -1668,7 +1669,7 @@ class _DesktopMarketingPanelState extends State<_DesktopMarketingPanel> {
     text:
         'Did you know? Tiny daily habits, repeated consistently, often create the biggest wellness gains over time.',
     topic: 'Wellness',
-    source: 'MindNest pick',
+    source: '${AppBrand.name} pick',
   );
 
   final math.Random _random = math.Random();
@@ -1736,7 +1737,7 @@ class _DesktopMarketingPanelState extends State<_DesktopMarketingPanel> {
             id: _stableFactId(text),
             text: text,
             topic: entry.key,
-            source: 'MindNest pick',
+            source: '${AppBrand.name} pick',
           ),
         );
       }
@@ -1789,7 +1790,7 @@ class _DesktopMarketingPanelState extends State<_DesktopMarketingPanel> {
               _DesktopBrandIcon(),
               SizedBox(width: 6),
               Text(
-                'MindNest',
+                AppBrand.name,
                 style: TextStyle(
                   color: Color(0xFF0F172A),
                   fontSize: 41,
@@ -1858,7 +1859,7 @@ class _DesktopMarketingPanelState extends State<_DesktopMarketingPanel> {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: Text(
-              'MindNest brings invites, onboarding, booking workflows, notifications, live support rooms, and privacy-aware role journeys into one polished web experience for students, staff, counselors, admins, owners, and individual members.',
+              '${AppBrand.name} brings invites, onboarding, booking workflows, notifications, live support rooms, and privacy-aware role journeys into one polished web experience for students, staff, counselors, admins, owners, and individual members.',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: const Color(0xFF4B617B),
                 height: 1.42,
@@ -1980,7 +1981,7 @@ class _DesktopMarketingPanelState extends State<_DesktopMarketingPanel> {
                 icon: Icons.graphic_eq_rounded,
                 title: 'Live support moments',
                 description:
-                    'MindNest already supports live audio rooms and follow-up flows, which makes demos feel like a product, not a mockup.',
+                    '${AppBrand.name} already supports live audio rooms and follow-up flows, which makes demos feel like a product, not a mockup.',
               ),
             ],
           ),
@@ -2051,7 +2052,7 @@ class _DesktopMarketingPanelState extends State<_DesktopMarketingPanel> {
               ),
               const SizedBox(width: 10),
               Text(
-                'MindNest welcome note',
+                '${AppBrand.name} welcome note',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: const Color(0xFF315A74),
                   fontWeight: FontWeight.w700,
@@ -2130,7 +2131,7 @@ class _DesktopMarketingPanelState extends State<_DesktopMarketingPanel> {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  fact?.source ?? 'MindNest pick',
+                  fact?.source ?? '${AppBrand.name} pick',
                   style: const TextStyle(
                     color: Color(0xFF315A74),
                     fontWeight: FontWeight.w700,

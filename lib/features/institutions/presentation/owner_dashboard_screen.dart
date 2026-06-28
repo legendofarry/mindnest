@@ -468,7 +468,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     if (requesterEmail.isNotEmpty) {
       return requesterEmail;
     }
-    return 'MindNest user';
+    return 'Teraji user';
   }
 
   String _supportThreadSubtitle(List<Map<String, dynamic>> thread) {
@@ -895,7 +895,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'This web-only development action deletes MindNest app data from Firestore, including users, invites, sessions, notifications, live session content, and institution records.',
+                  'This web-only development action deletes Teraji app data from Firestore, including users, invites, sessions, notifications, live session content, and institution records.',
                 ),
                 const SizedBox(height: 10),
                 const Text(
@@ -994,10 +994,10 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
           .exportOwnerDatabaseSnapshot();
       final prettyJson = const JsonEncoder.withIndent('  ').convert(snapshot);
       final result = await saveExportArtifacts(
-        folderName: 'mindnest_owner_database_snapshot',
+        folderName: 'teraji_owner_database_snapshot',
         artifacts: <AccountExportArtifact>[
           AccountExportArtifact(
-            fileName: 'mindnest_owner_database_snapshot.json',
+            fileName: 'teraji_owner_database_snapshot.json',
             bytes: Uint8List.fromList(utf8.encode(prettyJson)),
             mimeType: 'application/json',
           ),
@@ -2229,7 +2229,7 @@ class _OwnerSupportConversation extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            (latest['requesterName'] as String? ?? 'MindNest user').trim(),
+            (latest['requesterName'] as String? ?? 'Teraji user').trim(),
             style: const TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 18,

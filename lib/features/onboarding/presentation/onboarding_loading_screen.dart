@@ -290,7 +290,7 @@ class _LoadingHero extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 560),
           child: Text(
             showPrompt
-                ? 'We can keep you updated with a calm in-app notification layer. Choose whether MindNest can send alerts in this browser or device.'
+                ? 'We can keep you updated with a calm in-app notification layer. Choose whether Teraji can send alerts in this browser or device.'
                 : 'We are preparing your dashboard, reminders, and workspace context so the next screen lands cleanly.',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: const Color(0xFF5E728D),
@@ -481,7 +481,7 @@ class _NotificationPermissionPanel extends StatelessWidget {
                               ),
                               SizedBox(height: 4),
                               Text(
-                                'Let MindNest send calm, useful alerts for invitations, reminders, and important updates.',
+                                'Let Teraji send calm, useful alerts for invitations, reminders, and important updates.',
                                 style: TextStyle(
                                   color: Color(0xE6EFFFFC),
                                   fontWeight: FontWeight.w500,

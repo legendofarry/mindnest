@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindnest/core/config/app_brand.dart';
 import 'package:mindnest/core/ui/auth_background_scaffold.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,7 +17,7 @@ class WindowsWebSetupRequiredScreen extends ConsumerStatefulWidget {
 
 class _WindowsWebSetupRequiredScreenState
     extends ConsumerState<WindowsWebSetupRequiredScreen> {
-  static final Uri _webAppUri = Uri.parse('https://mindnestke.netlify.app/');
+  static final Uri _webAppUri = Uri.parse(AppBrand.webBaseUrlWithSlash);
 
   bool _isOpeningWeb = false;
   String? _error;
@@ -41,7 +42,7 @@ class _WindowsWebSetupRequiredScreenState
       }
       setState(() {
         _error =
-            'We could not open MindNest on the web. Visit mindnestke.netlify.app in your browser.';
+            'We could not open ${AppBrand.name} on the web. Visit ${AppBrand.webBaseUrl} in your browser.';
       });
     } finally {
       if (mounted) {
@@ -283,7 +284,7 @@ class _WindowsSetupCopy {
           title: 'Finish Account Setup on the Web',
           description: 'This account still needs setup in the browser.',
           supportingNote: 'Windows opens after account setup is complete.',
-          primaryActionLabel: 'Open MindNest on the Web',
+          primaryActionLabel: 'Open ${AppBrand.name} on the Web',
         );
     }
   }

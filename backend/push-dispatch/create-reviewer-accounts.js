@@ -438,7 +438,7 @@ async function upsertUserProfile({
             timezone: account.timezone ?? 'Africa/Nairobi',
             bio:
               account.bio ??
-              'Microsoft Store review counselor account for MindNest.',
+              'Microsoft Store review counselor account for Teraji.',
             languages: Array.isArray(account.languages)
               ? account.languages
               : ['English', 'Swahili'],
@@ -488,7 +488,7 @@ async function upsertUserProfile({
         timezone: account.timezone ?? 'Africa/Nairobi',
         bio:
           account.bio ??
-          'Microsoft Store review counselor account for MindNest.',
+          'Microsoft Store review counselor account for Teraji.',
         languages: Array.isArray(account.languages)
           ? account.languages
           : ['English', 'Swahili'],
@@ -624,14 +624,14 @@ Email: ${accounts.staff.email}
 Password: ${accounts.staff.password}
 
 Review steps:
-1. Launch MindNest and sign in with the Institution Admin account first.
+1. Launch Teraji and sign in with the Institution Admin account first.
 2. Review the institution admin workspace, member list, and invite composer.
 3. Sign out and sign in with the Counselor account to review the counselor workspace.
 4. Sign out and sign in with the Student account to review the student dashboard, appointments, and counselor directory.
 5. Sign out and sign in with the Staff account to review the staff role experience.
 
 Notes:
-- MindNest is role-based, so four dedicated accounts are provided instead of one shared account.
+- Teraji is role-based, so four dedicated accounts are provided instead of one shared account.
 - All review accounts belong to the same approved institution for end-to-end testing.
 - The counselor, student, and staff accounts are already linked to the institution through accepted invite data.`;
 }
@@ -797,7 +797,7 @@ async function main() {
   );
 
   console.log('');
-  console.log('MindNest reviewer accounts are ready.');
+  console.log('Teraji reviewer accounts are ready.');
   console.log(`Institution ID: ${institutionId}`);
   console.log(`Institution name: ${institutionName}`);
   console.log(`Join code: ${joinCode}`);
@@ -813,7 +813,7 @@ async function main() {
 
 main().catch((error) => {
   console.error('');
-  console.error('Failed to prepare MindNest reviewer accounts.');
+  console.error('Failed to prepare Teraji reviewer accounts.');
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
 });

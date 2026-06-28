@@ -26,7 +26,7 @@ class PushNotificationService {
       'BK46VBT7inkm_eG6YTSWhm7f9VOe0yNZ5rK688eBMOX4uppJO-SQH_gY5XsPk9XXm2mJO5QKF1rPVu8yhJJ4Krk';
 
   static const String _androidChannelId = 'mindnest_alerts';
-  static const String _androidChannelName = 'MindNest Alerts';
+  static const String _androidChannelName = 'Teraji Alerts';
   static const String _androidChannelDescription =
       'Appointments, live updates, and reminders.';
 
@@ -238,7 +238,7 @@ class PushNotificationService {
     final title =
         message.notification?.title ??
         (message.data['title'] as String?)?.trim() ??
-        'MindNest';
+        'Teraji';
     final body =
         message.notification?.body ??
         (message.data['body'] as String?)?.trim() ??

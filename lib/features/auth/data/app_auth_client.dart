@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:mindnest/core/config/app_brand.dart';
 import 'package:mindnest/features/auth/data/auth_session_manager.dart';
 import 'package:mindnest/features/auth/data/windows_google_oauth_flow.dart';
 import 'package:mindnest/features/auth/models/app_auth_user.dart';
@@ -341,7 +342,7 @@ class WindowsRestAppAuthClient implements AppAuthClient {
       final signInMethods = await _fetchSignInMethodsForEmail(googleEmail);
       if (signInMethods.isEmpty) {
         throw Exception(
-          'This Google account does not have a MindNest account on Windows yet. Create your account on the web first.',
+          'This Google account does not have a ${AppBrand.name} account on Windows yet. Create your account on the web first.',
         );
       }
     }
@@ -366,11 +367,10 @@ class WindowsRestAppAuthClient implements AppAuthClient {
 
   @override
   Future<AppAuthSignInResult> signInWithCustomToken(String customToken) async {
-    final response =
-        await _postIdentityToolkit('accounts:signInWithCustomToken', <String, dynamic>{
-          'token': customToken.trim(),
-          'returnSecureToken': true,
-        });
+    final response = await _postIdentityToolkit(
+      'accounts:signInWithCustomToken',
+      <String, dynamic>{'token': customToken.trim(), 'returnSecureToken': true},
+    );
     final session = await _sessionFromAuthPayload(response);
     await _setSession(session);
     return AppAuthSignInResult(user: session.user);

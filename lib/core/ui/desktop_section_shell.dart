@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mindnest/core/config/app_brand.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/mindnest_logo.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
@@ -456,7 +457,7 @@ String _displayName(UserProfile? profile) {
   if (email.isNotEmpty) {
     return email;
   }
-  return 'MindNest User';
+  return '${AppBrand.name} User';
 }
 
 String _roleLabel(UserProfile? profile) {

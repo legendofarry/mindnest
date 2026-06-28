@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
+import 'package:mindnest/core/config/app_brand.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -15,9 +16,9 @@ class AccountExportService {
     final normalized = _jsonReady(export) as Map<String, dynamic>;
     final user = _map(normalized['user']);
     final document = pw.Document(
-      title: 'MindNest data export',
-      author: 'MindNest',
-      creator: 'MindNest 1.0.1',
+      title: '${AppBrand.name} data export',
+      author: AppBrand.name,
+      creator: '${AppBrand.name} 1.0.1',
     );
 
     final summaryRows = <List<String>>[
@@ -68,7 +69,7 @@ class AccountExportService {
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
-                  'MindNest Data Export',
+                  '${AppBrand.name} Data Export',
                   style: pw.TextStyle(
                     color: PdfColors.white,
                     fontSize: 22,
@@ -189,7 +190,7 @@ class AccountExportService {
       folderName: _folderName(),
       artifacts: <AccountExportArtifact>[
         AccountExportArtifact(
-          fileName: 'mindnest_export_summary.pdf',
+          fileName: 'teraji_export_summary.pdf',
           bytes: Uint8List.fromList(await document.save()),
           mimeType: 'application/pdf',
         ),
@@ -235,7 +236,7 @@ class AccountExportService {
       folderName: _folderName(),
       artifacts: <AccountExportArtifact>[
         AccountExportArtifact(
-          fileName: 'mindnest_export_raw.json',
+          fileName: 'teraji_export_raw.json',
           bytes: Uint8List.fromList(utf8.encode(pretty)),
           mimeType: 'application/json',
         ),
@@ -349,7 +350,7 @@ class AccountExportService {
   String _folderName() {
     final now = DateTime.now();
     String twoDigits(int value) => value.toString().padLeft(2, '0');
-    return 'mindnest_export_${now.year}-${twoDigits(now.month)}-${twoDigits(now.day)}_${twoDigits(now.hour)}-${twoDigits(now.minute)}-${twoDigits(now.second)}';
+    return 'teraji_export_${now.year}-${twoDigits(now.month)}-${twoDigits(now.day)}_${twoDigits(now.hour)}-${twoDigits(now.minute)}-${twoDigits(now.second)}';
   }
 
   dynamic _jsonReady(dynamic value) {

@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
+import 'package:mindnest/core/config/app_brand.dart';
 import 'package:mindnest/core/data/windows_firestore_rest_client.dart';
 import 'package:mindnest/features/ai/models/assistant_models.dart';
 import 'package:mindnest/features/auth/data/app_auth_client.dart';
@@ -37,8 +38,8 @@ const _openRouterApiKeySource =
 const _openRouterBaseUrlSource = 'https://openrouter.ai/api/v1';
 const _openRouterModelSource = 'nvidia/nemotron-3-nano-30b-a3b:free';
 const _openRouterChatPathSource = '/chat/completions';
-const _openRouterHttpRefererSource = 'https://mindnestke.netlify.app';
-const _openRouterTitleSource = 'MindNest';
+const _openRouterHttpRefererSource = AppBrand.webBaseUrlWithSlash;
+const _openRouterTitleSource = AppBrand.name;
 
 class AssistantRepository {
   AssistantRepository({
@@ -428,6 +429,7 @@ class AssistantRepository {
   bool _isInAppRequest(String text) {
     const appKeywords = <String>[
       'app',
+      'teraji',
       'mindnest',
       'my name',
       'my email',
@@ -833,6 +835,7 @@ class AssistantRepository {
       'when did i create',
       'when did i sign up',
       'account created',
+      'teraji account',
       'mindnest account',
     ])) {
       if (createdAt == null) {
@@ -841,7 +844,8 @@ class AssistantRepository {
         );
       }
       return AssistantReply(
-        text: 'Your MindNest account was created on ${_formatDate(createdAt)}.',
+        text:
+            'Your ${AppBrand.name} account was created on ${_formatDate(createdAt)}.',
       );
     }
     if (_containsAny(normalizedPrompt, const [
@@ -1984,7 +1988,7 @@ class AssistantRepository {
     final aiContext = aiEnabled
         ? ' AI preference: enabled=true, style=$aiStyle, checkInCadence=$aiCadence.'
         : ' AI preference: enabled=false or not configured.';
-    return 'You are MindNest assistant. Provide supportive, calm responses. '
+    return 'You are ${AppBrand.name} assistant. Provide supportive, calm responses. '
         'For emergency self-harm/violence risk, advise immediate local emergency/crisis support. '
         'Do not claim to be a licensed therapist. '
         'User context: role=${profile.role.name}, institutionId=${profile.institutionId ?? ''}.$aiContext$summaryText';

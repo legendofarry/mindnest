@@ -327,7 +327,7 @@ class _HeroPanel extends StatelessWidget {
           SizedBox(height: compact ? 18 : 24),
           Text(
             hasInstitution
-                ? '$institutionName is now live in MindNest.'
+                ? '$institutionName is now live in Teraji.'
                 : 'Your institution workspace is live.',
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
               fontSize: compact ? 32 : 48,

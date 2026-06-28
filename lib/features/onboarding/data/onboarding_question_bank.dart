@@ -89,7 +89,7 @@ class OnboardingQuestionBank {
 
   static const OnboardingQuestion _focusAreasQuestion = OnboardingQuestion(
     id: 'focus_areas',
-    title: 'What brings you to MindNest?',
+    title: 'What brings you to Teraji?',
     subtitle: 'Select the areas you want help with first.',
     type: OnboardingQuestionType.multiSelect,
     minSelections: 1,

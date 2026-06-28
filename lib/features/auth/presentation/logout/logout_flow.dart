@@ -96,7 +96,7 @@ class _LogoutConfirmDialog extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'You will be signed out of your MindNest session. You can log in again anytime.',
+                    'You will be signed out of your Teraji session. You can log in again anytime.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: const Color(0xFF5E728D),
                       height: 1.35,
@@ -255,7 +255,7 @@ class _LogoutLoadingOverlay extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Please wait while MindNest closes your session safely.',
+                        'Please wait while Teraji closes your session safely.',
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               color: const Color(0xFFD6E3F5),

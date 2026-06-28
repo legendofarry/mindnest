@@ -1,5 +1,6 @@
 // features/ai/presentation/assistant_fab.dart
 import 'package:flutter/material.dart';
+import 'package:mindnest/core/config/app_brand.dart';
 
 class AssistantFab extends StatelessWidget {
   const AssistantFab({
@@ -46,7 +47,7 @@ class AssistantFab extends StatelessWidget {
                 Icon(Icons.smart_toy_outlined, size: 18, color: Colors.white),
                 SizedBox(width: 8),
                 Text(
-                  'MindNest AI',
+                  '${AppBrand.name} AI',
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,

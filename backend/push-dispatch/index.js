@@ -84,7 +84,7 @@ function _isAllowedOrigin(origin) {
       return true;
     }
 
-    return hostname === 'mindnestke.netlify.app';
+    return hostname === 'teraji.netlify.app' || hostname === 'mindnestke.netlify.app';
   } catch (_) {
     return false;
   }

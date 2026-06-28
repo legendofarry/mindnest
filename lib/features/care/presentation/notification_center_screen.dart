@@ -2624,7 +2624,7 @@ class _NotificationCenterScreenState
               left: 18,
               bottom: 16,
               child: Text(
-                'MindNest notification detail',
+                'Teraji notification detail',
                 style: textTheme.titleMedium?.copyWith(
                   color: scheme.onSurface.withValues(alpha: 0.92),
                   fontWeight: FontWeight.w800,

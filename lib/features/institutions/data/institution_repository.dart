@@ -1060,7 +1060,7 @@ class InstitutionRepository {
     final invitedName =
         ((inviteeData['name'] as String?) ?? '').trim().isNotEmpty
         ? ((inviteeData['name'] as String?) ?? '').trim()
-        : 'MindNest user';
+        : 'Teraji user';
     final invitedEmail = ((inviteeData['email'] as String?) ?? normalizedEmail)
         .trim()
         .toLowerCase();
@@ -3041,7 +3041,7 @@ class InstitutionRepository {
 
     return <String, dynamic>{
       'exportType': 'owner_database_snapshot',
-      'appName': 'MindNest',
+      'appName': 'Teraji',
       'appVersion': '1.0.1',
       'generatedAt': generatedAt.toIso8601String(),
       'generatedBy': <String, dynamic>{
@@ -3598,7 +3598,7 @@ class InstitutionRepository {
       'threadKey': currentUser.uid,
       'requesterId': currentUser.uid,
       'requesterEmail': requesterEmail,
-      'requesterName': requesterName.isEmpty ? 'MindNest user' : requesterName,
+      'requesterName': requesterName.isEmpty ? 'Teraji user' : requesterName,
       'institutionId':
           (institutionId ?? (userData?['institutionId'] as String?) ?? '')
               .trim(),
@@ -3648,7 +3648,7 @@ class InstitutionRepository {
       'requesterId': requesterId.trim(),
       'requesterEmail': requesterEmail.trim().toLowerCase(),
       'requesterName': requesterName.trim().isEmpty
-          ? 'MindNest user'
+          ? 'Teraji user'
           : requesterName.trim(),
       'institutionId': (institutionId ?? '').trim(),
       'institutionName': (institutionName ?? '').trim(),

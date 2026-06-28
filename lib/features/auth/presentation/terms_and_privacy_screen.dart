@@ -11,7 +11,7 @@ class TermsAndPrivacyScreen extends StatelessWidget {
   bool get _isTerms => documentType == LegalDocumentType.termsOfService;
   String get _title => _isTerms ? 'Terms of Service' : 'Privacy Policy';
   String get _subtitle => _isTerms
-      ? 'Clear, friendly rules for using MindNest confidently.'
+      ? 'Clear, friendly rules for using Teraji confidently.'
       : 'A simple explanation of what we collect and why.';
   IconData get _heroIcon =>
       _isTerms ? Icons.gavel_rounded : Icons.privacy_tip_rounded;
@@ -24,9 +24,9 @@ class TermsAndPrivacyScreen extends StatelessWidget {
       ? const [
           _LegalSection(
             icon: Icons.waving_hand_rounded,
-            title: 'Using MindNest',
+            title: 'Using Teraji',
             points: [
-              'Use MindNest for check-ins, wellness support, and guided tools.',
+              'Use Teraji for check-ins, wellness support, and guided tools.',
               'Provide accurate account details so your experience is reliable.',
               'Keep your login secure and do not share your password.',
             ],
@@ -35,7 +35,7 @@ class TermsAndPrivacyScreen extends StatelessWidget {
             icon: Icons.health_and_safety_rounded,
             title: 'Health And Safety',
             points: [
-              'MindNest supports wellbeing but is not emergency medical care.',
+              'Teraji supports wellbeing but is not emergency medical care.',
               'For urgent danger or crisis, contact local emergency services immediately.',
             ],
           ),
@@ -60,7 +60,7 @@ class TermsAndPrivacyScreen extends StatelessWidget {
             icon: Icons.update_rounded,
             title: 'Service Updates',
             points: [
-              'MindNest features may evolve over time as we improve the product.',
+              'Teraji features may evolve over time as we improve the product.',
               'Any important legal or policy updates will be reflected here.',
             ],
           ),
@@ -90,7 +90,7 @@ class TermsAndPrivacyScreen extends StatelessWidget {
             points: [
               'You can always access your own personal data.',
               'Institution visibility depends on role, permissions, and settings.',
-              'MindNest does not sell your personal data.',
+              'Teraji does not sell your personal data.',
             ],
           ),
           _LegalSection(
@@ -106,15 +106,15 @@ class TermsAndPrivacyScreen extends StatelessWidget {
             icon: Icons.lock_rounded,
             title: 'Security',
             points: [
-              'MindNest uses platform security controls and access rules.',
+              'Teraji uses platform security controls and access rules.',
               'No system is perfect, but protections are continuously improved.',
             ],
           ),
         ];
 
   String get _footerText => _isTerms
-      ? 'By using MindNest, you agree to these terms. If you do not agree, you can stop using the app at any time.'
-      : 'Using MindNest means you understand this policy and how data supports your experience.';
+      ? 'By using Teraji, you agree to these terms. If you do not agree, you can stop using the app at any time.'
+      : 'Using Teraji means you understand this policy and how data supports your experience.';
 
   @override
   Widget build(BuildContext context) {

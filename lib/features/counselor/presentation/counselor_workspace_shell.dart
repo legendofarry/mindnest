@@ -655,7 +655,7 @@ class _DesktopSidebar extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'MindNest',
+                        'Teraji',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 25,
