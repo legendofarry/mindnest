@@ -464,8 +464,10 @@ class _LiveHubScreenState extends ConsumerState<LiveHubScreen> {
         : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _LiveHubHeroCard(profile: profile, showChips: useWideShell),
-              const SizedBox(height: 14),
+              if (!kIsWeb) ...[
+                _LiveHubHeroCard(profile: profile, showChips: useWideShell),
+                const SizedBox(height: 14),
+              ],
               Align(
                 alignment: Alignment.topRight,
                 child: FilledButton.icon(

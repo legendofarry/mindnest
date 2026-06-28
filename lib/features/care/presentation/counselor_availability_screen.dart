@@ -1192,49 +1192,73 @@ class _CounselorAvailabilityScreenState
                   ),
                 ),
                 const SizedBox(height: 16),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _pickDate,
-                      icon: const Icon(Icons.calendar_today_rounded),
-                      label: Text(
-                        _date == null
-                            ? 'Date'
-                            : '${_date!.year}-${_date!.month.toString().padLeft(2, '0')}-${_date!.day.toString().padLeft(2, '0')}',
-                      ),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _pickStartTime,
-                      icon: const Icon(Icons.schedule_rounded),
-                      label: Text(
-                        _startTime == null
-                            ? 'Start'
-                            : _startTime!.format(context),
-                      ),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _pickEndTime,
-                      icon: const Icon(Icons.schedule_send_rounded),
-                      label: Text(
-                        _endTime == null ? 'End' : _endTime!.format(context),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton.icon(
-                    onPressed: _isSaving ? null : () => _saveSlot(profile),
-                    icon: Icon(
-                      _isSaving
-                          ? Icons.hourglass_top_rounded
-                          : Icons.add_circle_outline_rounded,
-                    ),
-                    label: Text(_isSaving ? 'Saving...' : 'Publish'),
-                  ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 48),
+                            ),
+                            onPressed: _pickDate,
+                            icon: const Icon(Icons.calendar_today_rounded),
+                            label: Text(
+                              _date == null
+                                  ? 'Date'
+                                  : '${_date!.year}-${_date!.month.toString().padLeft(2, '0')}-${_date!.day.toString().padLeft(2, '0')}',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 48),
+                            ),
+                            onPressed: _pickStartTime,
+                            icon: const Icon(Icons.schedule_rounded),
+                            label: Text(
+                              _startTime == null
+                                  ? 'Start'
+                                  : _startTime!.format(context),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 48),
+                            ),
+                            onPressed: _pickEndTime,
+                            icon: const Icon(Icons.schedule_send_rounded),
+                            label: Text(
+                              _endTime == null ? 'End' : _endTime!.format(context),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          height: 48,
+                          child: FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(0, 48),
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                            ),
+                            onPressed: _isSaving ? null : () => _saveSlot(profile),
+                            icon: Icon(
+                              _isSaving
+                                  ? Icons.hourglass_top_rounded
+                                  : Icons.add_circle_outline_rounded,
+                            ),
+                            label: Text(_isSaving ? 'Saving...' : 'Publish'),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
