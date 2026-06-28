@@ -1201,7 +1201,7 @@ class _CounselorAvailabilityScreenState
                       icon: const Icon(Icons.calendar_today_rounded),
                       label: Text(
                         _date == null
-                            ? 'Pick date'
+                            ? 'Date'
                             : '${_date!.year}-${_date!.month.toString().padLeft(2, '0')}-${_date!.day.toString().padLeft(2, '0')}',
                       ),
                     ),
@@ -1210,7 +1210,7 @@ class _CounselorAvailabilityScreenState
                       icon: const Icon(Icons.schedule_rounded),
                       label: Text(
                         _startTime == null
-                            ? 'Start time'
+                            ? 'Start'
                             : _startTime!.format(context),
                       ),
                     ),
@@ -1218,9 +1218,7 @@ class _CounselorAvailabilityScreenState
                       onPressed: _pickEndTime,
                       icon: const Icon(Icons.schedule_send_rounded),
                       label: Text(
-                        _endTime == null
-                            ? 'End time'
-                            : _endTime!.format(context),
+                        _endTime == null ? 'End' : _endTime!.format(context),
                       ),
                     ),
                   ],
@@ -1235,7 +1233,7 @@ class _CounselorAvailabilityScreenState
                           ? Icons.hourglass_top_rounded
                           : Icons.add_circle_outline_rounded,
                     ),
-                    label: Text(_isSaving ? 'Saving...' : 'Publish slot'),
+                    label: Text(_isSaving ? 'Saving...' : 'Publish'),
                   ),
                 ),
               ],
