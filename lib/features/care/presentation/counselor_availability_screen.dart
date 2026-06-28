@@ -1194,68 +1194,257 @@ class _CounselorAvailabilityScreenState
                 const SizedBox(height: 16),
                 LayoutBuilder(
                   builder: (context, constraints) {
+                    final isCompact = constraints.maxWidth < 720;
+                    final hasPicked =
+                        _date != null && _startTime != null && _endTime != null;
+
+                    Widget valuePill({
+                      required String value,
+                      required IconData icon,
+                      required Color accent,
+                    }) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: accent.withValues(alpha: 0.22),
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x080F172A),
+                              blurRadius: 12,
+                              offset: Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: accent.withValues(alpha: 0.12),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(icon, color: accent, size: 18),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              value,
+                              style: const TextStyle(
+                                color: Color(0xFF0C2233),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    Widget fieldButton({
+                      required VoidCallback? onPressed,
+                      required IconData icon,
+                      required String label,
+                    }) {
+                      return OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        onPressed: onPressed,
+                        icon: Icon(icon, size: 18),
+                        label: Text(label),
+                      );
+                    }
+
+                    Widget publishButton() {
+                      final enabled = hasPicked && !_isSaving;
+                      return SizedBox(
+                        height: 44,
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(108, 44),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: enabled ? () => _saveSlot(profile) : null,
+                          icon: Icon(
+                            _isSaving
+                                ? Icons.hourglass_top_rounded
+                                : Icons.add_circle_outline_rounded,
+                            size: 18,
+                          ),
+                          label: Text(_isSaving ? 'Saving...' : 'Publish'),
+                        ),
+                      );
+                    }
+
+                    if (hasPicked) {
+                      final dateLabel =
+                          '${_date!.year}-${_date!.month.toString().padLeft(2, '0')}-${_date!.day.toString().padLeft(2, '0')}';
+                      final startLabel = _startTime!.format(context);
+                      final endLabel = _endTime!.format(context);
+
+                      if (isCompact) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: valuePill(
+                                    value: dateLabel,
+                                    icon: Icons.calendar_today_rounded,
+                                    accent: const Color(0xFF0E9B90),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: valuePill(
+                                    value: startLabel,
+                                    icon: Icons.schedule_rounded,
+                                    accent: const Color(0xFFF59E0B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: valuePill(
+                                    value: endLabel,
+                                    icon: Icons.schedule_send_rounded,
+                                    accent: const Color(0xFF7C3AED),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(child: publishButton()),
+                              ],
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          valuePill(
+                            value: dateLabel,
+                            icon: Icons.calendar_today_rounded,
+                            accent: const Color(0xFF0E9B90),
+                          ),
+                          const SizedBox(width: 12),
+                          valuePill(
+                            value: startLabel,
+                            icon: Icons.schedule_rounded,
+                            accent: const Color(0xFFF59E0B),
+                          ),
+                          const SizedBox(width: 12),
+                          valuePill(
+                            value: endLabel,
+                            icon: Icons.schedule_send_rounded,
+                            accent: const Color(0xFF7C3AED),
+                          ),
+                          const SizedBox(width: 18),
+                          publishButton(),
+                        ],
+                      );
+                    }
+
+                    if (isCompact) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: fieldButton(
+                                  onPressed: _pickDate,
+                                  icon: Icons.calendar_today_rounded,
+                                  label: _date == null
+                                      ? 'Date'
+                                      : '${_date!.year}-${_date!.month.toString().padLeft(2, '0')}-${_date!.day.toString().padLeft(2, '0')}',
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: fieldButton(
+                                  onPressed: _pickStartTime,
+                                  icon: Icons.schedule_rounded,
+                                  label: _startTime == null
+                                      ? 'Start'
+                                      : _startTime!.format(context),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: fieldButton(
+                                  onPressed: _pickEndTime,
+                                  icon: Icons.schedule_send_rounded,
+                                  label: _endTime == null
+                                      ? 'End'
+                                      : _endTime!.format(context),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(child: publishButton()),
+                            ],
+                          ),
+                        ],
+                      );
+                    }
+
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 48),
-                            ),
+                          child: fieldButton(
                             onPressed: _pickDate,
-                            icon: const Icon(Icons.calendar_today_rounded),
-                            label: Text(
-                              _date == null
-                                  ? 'Date'
-                                  : '${_date!.year}-${_date!.month.toString().padLeft(2, '0')}-${_date!.day.toString().padLeft(2, '0')}',
-                            ),
+                            icon: Icons.calendar_today_rounded,
+                            label: _date == null
+                                ? 'Date'
+                                : '${_date!.year}-${_date!.month.toString().padLeft(2, '0')}-${_date!.day.toString().padLeft(2, '0')}',
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Expanded(
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 48),
-                            ),
+                          child: fieldButton(
                             onPressed: _pickStartTime,
-                            icon: const Icon(Icons.schedule_rounded),
-                            label: Text(
-                              _startTime == null
-                                  ? 'Start'
-                                  : _startTime!.format(context),
-                            ),
+                            icon: Icons.schedule_rounded,
+                            label: _startTime == null
+                                ? 'Start'
+                                : _startTime!.format(context),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Expanded(
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 48),
-                            ),
+                          child: fieldButton(
                             onPressed: _pickEndTime,
-                            icon: const Icon(Icons.schedule_send_rounded),
-                            label: Text(
-                              _endTime == null ? 'End' : _endTime!.format(context),
-                            ),
+                            icon: Icons.schedule_send_rounded,
+                            label: _endTime == null
+                                ? 'End'
+                                : _endTime!.format(context),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        SizedBox(
-                          height: 48,
-                          child: FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size(0, 48),
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                            ),
-                            onPressed: _isSaving ? null : () => _saveSlot(profile),
-                            icon: Icon(
-                              _isSaving
-                                  ? Icons.hourglass_top_rounded
-                                  : Icons.add_circle_outline_rounded,
-                            ),
-                            label: Text(_isSaving ? 'Saving...' : 'Publish'),
-                          ),
-                        ),
+                        const SizedBox(width: 8),
+                        publishButton(),
                       ],
                     );
                   },
