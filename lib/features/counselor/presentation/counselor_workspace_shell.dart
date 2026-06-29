@@ -803,102 +803,36 @@ class _WorkspaceHeader extends StatelessWidget {
           color: desktop ? Colors.transparent : const Color(0xFFDDE6EE),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: const Color(0xFF081A30),
-                        fontSize: desktop ? 31 : 26,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: desktop ? -1.2 : -0.9,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      maxLines: desktop ? 1 : 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF6A7C93),
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w500,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: const Color(0xFF081A30),
+                fontSize: desktop ? 31 : 26,
+                fontWeight: FontWeight.w800,
+                letterSpacing: desktop ? -1.2 : -0.9,
               ),
-              const SizedBox(width: 12),
-              _HeaderIconButton(
-                icon: Icons.notifications_none_rounded,
-                badgeCount: unreadNotifications,
-                onTap: onNotifications,
-                active: notificationsHighlighted,
-              ),
-              const SizedBox(width: 8),
-              _HeaderIconButton(
-                icon: Icons.manage_accounts_rounded,
-                onTap: onProfile,
-                active: profileHighlighted,
-              ),
-              if (desktop) ...[
-                const SizedBox(width: 10),
-                const WindowsDesktopWindowControls(),
-              ],
-            ],
+            ),
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              CircleAvatar(
-                radius: desktop ? 20 : 18,
-                backgroundColor: const Color(0xFF0E9B90),
-                child: Text(
-                  _initials(
-                    profile.name.isNotEmpty ? profile.name : profile.email,
-                  ),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      profile.name.trim().isNotEmpty
-                          ? profile.name.trim()
-                          : 'Counselor',
-                      style: const TextStyle(
-                        color: Color(0xFF081A30),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      profile.institutionName ?? 'Institution workspace',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF7B8CA4),
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          const SizedBox(width: 12),
+          _HeaderIconButton(
+            icon: Icons.notifications_none_rounded,
+            badgeCount: unreadNotifications,
+            onTap: onNotifications,
+            active: notificationsHighlighted,
           ),
+          const SizedBox(width: 8),
+          _HeaderIconButton(
+            icon: Icons.manage_accounts_rounded,
+            onTap: onProfile,
+            active: profileHighlighted,
+          ),
+          if (desktop) ...[
+            const SizedBox(width: 10),
+            const WindowsDesktopWindowControls(),
+          ],
         ],
       ),
     );
