@@ -234,10 +234,13 @@ app.post('/livekit/token', authenticate, async (req, res) => {
       return res.status(500).json({ error: 'LiveKit server is not configured on backend.' });
     }
 
-    const roomNameRaw = (req.body && req.body.roomName) || '';
-    const room = (typeof roomNameRaw === 'string' && roomNameRaw.trim().length > 0)
-      ? roomNameRaw.trim()
-      : `mindnest_live_${Date.now()}`;
+    const requestRoomName = (req.body && req.body.roomName) || '';
+    const requestSessionId = (req.body && req.body.sessionId) || '';
+    const room = (typeof requestRoomName === 'string' && requestRoomName.trim().length > 0)
+      ? requestRoomName.trim()
+      : (typeof requestSessionId === 'string' && requestSessionId.trim().length > 0)
+        ? requestSessionId.trim()
+        : `mindnest_live_${Date.now()}`;
 
     const now = Math.floor(Date.now() / 1000);
     const name = (req.user && (req.user.name || req.user.email)) || uid;
@@ -261,7 +264,7 @@ app.post('/livekit/token', authenticate, async (req, res) => {
       expiresIn: '2h',
     });
 
-    return res.json({ token, serverUrl: livekitUrl, room });
+    return res.json({ token, serverUrl: livekitUrl, roomName: room, canPublishAudio: true });
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('livekit token error', err);
