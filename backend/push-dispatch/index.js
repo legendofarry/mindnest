@@ -46,8 +46,10 @@ async function authenticate(req, res, next) {
     const decoded = await admin.auth().verifyIdToken(idToken);
     req.user = decoded;
     return next();
-  } catch (_) {
-    return res.status(401).json({ error: 'Invalid auth token.' });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Firebase token verification failed:', err?.message || err);
+    return res.status(401).json({ error: `Invalid auth token. ${err?.message || ''}`.trim() });
   }
 }
 
