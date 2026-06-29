@@ -214,6 +214,11 @@ class _CounselorAvailabilityScreenState
       if (!mounted) {
         return;
       }
+      setState(() {
+        _date = null;
+        _startTime = null;
+        _endTime = null;
+      });
       showModernBannerFromSnackBar(
         context,
         SnackBar(content: Text(successText)),
@@ -1202,8 +1207,9 @@ class _CounselorAvailabilityScreenState
                       required String value,
                       required IconData icon,
                       required Color accent,
+                      VoidCallback? onTap,
                     }) {
-                      return Container(
+                      final child = Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 10,
@@ -1244,6 +1250,19 @@ class _CounselorAvailabilityScreenState
                               ),
                             ),
                           ],
+                        ),
+                      );
+
+                      if (onTap == null) {
+                        return child;
+                      }
+
+                      return Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: onTap,
+                          child: child,
                         ),
                       );
                     }
@@ -1308,6 +1327,7 @@ class _CounselorAvailabilityScreenState
                                     value: dateLabel,
                                     icon: Icons.calendar_today_rounded,
                                     accent: const Color(0xFF0E9B90),
+                                    onTap: _pickDate,
                                   ),
                                 ),
                                 const SizedBox(width: 10),
@@ -1316,6 +1336,7 @@ class _CounselorAvailabilityScreenState
                                     value: startLabel,
                                     icon: Icons.schedule_rounded,
                                     accent: const Color(0xFFF59E0B),
+                                    onTap: _pickStartTime,
                                   ),
                                 ),
                               ],
@@ -1328,6 +1349,7 @@ class _CounselorAvailabilityScreenState
                                     value: endLabel,
                                     icon: Icons.schedule_send_rounded,
                                     accent: const Color(0xFF7C3AED),
+                                    onTap: _pickEndTime,
                                   ),
                                 ),
                                 const SizedBox(width: 10),
@@ -1345,18 +1367,21 @@ class _CounselorAvailabilityScreenState
                             value: dateLabel,
                             icon: Icons.calendar_today_rounded,
                             accent: const Color(0xFF0E9B90),
+                            onTap: _pickDate,
                           ),
                           const SizedBox(width: 12),
                           valuePill(
                             value: startLabel,
                             icon: Icons.schedule_rounded,
                             accent: const Color(0xFFF59E0B),
+                            onTap: _pickStartTime,
                           ),
                           const SizedBox(width: 12),
                           valuePill(
                             value: endLabel,
                             icon: Icons.schedule_send_rounded,
                             accent: const Color(0xFF7C3AED),
+                            onTap: _pickEndTime,
                           ),
                           const SizedBox(width: 18),
                           publishButton(),
