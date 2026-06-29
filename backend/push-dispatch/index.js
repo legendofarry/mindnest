@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import admin from 'firebase-admin';
+import jwt from 'jsonwebtoken';
 import { registerPasskeyRoutes } from './passkeys.js';
 
 const app = express();
@@ -210,6 +211,60 @@ registerPasskeyRoutes({
   db,
   admin,
   authenticate,
+});
+
+// LiveKit token endpoint
+// POST /livekit/token
+// Body: { roomName?: string }
+// Returns: { token, serverUrl, room }
+app.post('/livekit/token', authenticate, async (req, res) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const livekitUrl = process.env.LIVEKIT_URL || '';
+    const livekitKey = process.env.LIVEKIT_API_KEY || '';
+    const livekitSecret = process.env.LIVEKIT_API_SECRET || '';
+
+    if (!livekitUrl || !livekitKey || !livekitSecret) {
+      return res.status(500).json({ error: 'LiveKit server is not configured on backend.' });
+    }
+
+    const roomNameRaw = (req.body && req.body.roomName) || '';
+    const room = (typeof roomNameRaw === 'string' && roomNameRaw.trim().length > 0)
+      ? roomNameRaw.trim()
+      : `mindnest_live_${Date.now()}`;
+
+    const now = Math.floor(Date.now() / 1000);
+    const name = (req.user && (req.user.name || req.user.email)) || uid;
+
+    const payload = {
+      name,
+      nbf: now,
+      video: {
+        roomJoin: true,
+        room,
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+      },
+    };
+
+    const token = jwt.sign(payload, livekitSecret, {
+      issuer: livekitKey,
+      subject: uid,
+      jwtid: `${uid}_${now}`,
+      expiresIn: '2h',
+    });
+
+    return res.json({ token, serverUrl: livekitUrl, room });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('livekit token error', err);
+    return res.status(500).json({ error: 'Failed to create LiveKit token.' });
+  }
 });
 
 const port = Number(process.env.PORT || 8080);
