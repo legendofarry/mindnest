@@ -563,41 +563,7 @@ class _CounselorProfileSettingsScreenState
                   ),
                 ),
               ],
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(28, 24, 28, 16),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        color: const Color(0x1A13D0C7),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.circle,
-                        size: 10,
-                        color: _T.brand,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        showDirectory
-                            ? 'Directory is live · ${unread > 0 ? "$unread unread" : "all read"}'
-                            : 'Directory hidden · ${unread > 0 ? "$unread unread" : "all read"}',
-                        style: const TextStyle(
-                          color: _T.textMuted,
-                          fontSize: 12.5,
-                          height: 1.35,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            // Directory status removed per UX request.
             const SliverToBoxAdapter(child: SizedBox(height: 48)),
           ],
         ),
@@ -628,6 +594,16 @@ class _LandingHero extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Top row: back/collapse button
+            Row(
+              children: [
+                _CircleIconButton(
+                  icon: Icons.arrow_back_rounded,
+                  onTap: () => Navigator.of(context).maybePop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Hero(
