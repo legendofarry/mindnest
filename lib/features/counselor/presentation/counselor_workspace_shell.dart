@@ -65,19 +65,6 @@ class CounselorWorkspaceRouteShell extends ConsumerWidget {
           state.uri.queryParameters[AppRoute.returnToQuery],
         ) ??
         AppRoute.counselorDashboard;
-    final profileReturnTo =
-        _normalizedCounselorWorkspaceRoute(
-          state.uri.queryParameters[AppRoute.returnToQuery],
-        ) ??
-        (state.matchedLocation == AppRoute.counselorPrivacyControls
-            ? AppRoute.counselorSettings
-            : AppRoute.counselorDashboard);
-    final overlayAnchorRoute = switch (state.matchedLocation) {
-      AppRoute.counselorNotifications => notificationsReturnTo,
-      AppRoute.counselorSettings => profileReturnTo,
-      _ => state.matchedLocation,
-    };
-
     if (state.matchedLocation == AppRoute.counselorNotifications ||
         state.matchedLocation == AppRoute.counselorSettings ||
         state.matchedLocation == AppRoute.counselorPrivacyControls) {
@@ -123,10 +110,7 @@ class CounselorWorkspaceRouteShell extends ConsumerWidget {
           _openCounselorNotificationsOverlay(context);
         },
         onProfile: () {
-          _openCounselorProfileOverlay(
-            context,
-            returnToRoute: overlayAnchorRoute,
-          );
+          _openCounselorProfileOverlay(context);
         },
         onLogout: () => confirmAndLogout(context: context, ref: ref),
         notificationsHighlighted: shell.notificationsHighlighted,
@@ -169,20 +153,14 @@ Future<void> _openCounselorNotificationsOverlay(BuildContext context) async {
   );
 }
 
-Future<void> _openCounselorProfileOverlay(
-  BuildContext context, {
-  String? returnToRoute,
-}) async {
+Future<void> _openCounselorProfileOverlay(BuildContext context) async {
   await Navigator.of(context, rootNavigator: true).push(
     PageRouteBuilder<void>(
       settings: const RouteSettings(name: AppRoute.counselorSettings),
       transitionDuration: const Duration(milliseconds: 280),
       reverseTransitionDuration: const Duration(milliseconds: 240),
       pageBuilder: (context, animation, secondaryAnimation) {
-        return CounselorProfileSettingsScreen(
-          embeddedInCounselorShell: true,
-          returnToRoute: returnToRoute,
-        );
+        return CounselorProfileSettingsScreen(embeddedInCounselorShell: true);
       },
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         final slide = Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)

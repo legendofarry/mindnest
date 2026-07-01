@@ -1,12 +1,14 @@
 // ignore_for_file: unnecessary_string_interpolations, deprecated_member_use
 
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
 import 'package:mindnest/core/ui/no_scrollbar_scroll_behavior.dart';
+import 'package:mindnest/core/ui/modern_banner.dart';
 import 'package:mindnest/features/auth/data/auth_providers.dart';
 import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/account_export_sheet.dart';
@@ -19,7 +21,10 @@ import 'package:mindnest/features/counselor/data/counselor_providers.dart';
 import 'package:mindnest/features/counselor/models/counselor_language_catalog.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
-import 'package:mindnest/core/ui/modern_banner.dart';
+
+// =============================================================================
+// Public API — unchanged: router uses this section enum + constructor.
+// =============================================================================
 
 enum CounselorProfileSettingsSection {
   identity,
@@ -32,33 +37,43 @@ enum CounselorProfileSettingsSection {
   privacyData,
 }
 
-class _ProfileSettingsNavItem {
-  const _ProfileSettingsNavItem({
-    required this.section,
-    required this.group,
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.accent,
-  });
+// =============================================================================
+// Design tokens — one place, one language.
+// =============================================================================
 
-  final CounselorProfileSettingsSection section;
-  final String group;
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color accent;
+class _T {
+  // Surfaces
+  static const bg = Color(0xFF080E19);
+  static const surface = Color(0xFF10192A);
+  static const surfaceInput = Color(0xFF0F1A2C);
+  static const hairline = Color(0x14FFFFFF);
+
+  // Text
+  static const text = Color(0xFFF3F6FB);
+  static const textMuted = Color(0xFF9AAAC1);
+  static const textFaint = Color(0xFF6D7F97);
+
+  // Primary brand
+  static const brand = Color(0xFF13D0C7);
+
+  // Motion
+  static const dEnter = Duration(milliseconds: 480);
+  static const dQuick = Duration(milliseconds: 220);
+  static const dPage = Duration(milliseconds: 420);
+  static const easeOut = Cubic(0.16, 1.0, 0.3, 1.0); // out-expo-ish
 }
+
+// =============================================================================
+// Screen
+// =============================================================================
 
 class CounselorProfileSettingsScreen extends ConsumerStatefulWidget {
   const CounselorProfileSettingsScreen({
     super.key,
-    this.returnToRoute,
     this.initialSection = CounselorProfileSettingsSection.identity,
     this.embeddedInCounselorShell = false,
   });
 
-  final String? returnToRoute;
   final CounselorProfileSettingsSection initialSection;
   final bool embeddedInCounselorShell;
 
@@ -69,6 +84,7 @@ class CounselorProfileSettingsScreen extends ConsumerStatefulWidget {
 
 class _CounselorProfileSettingsScreenState
     extends ConsumerState<CounselorProfileSettingsScreen> {
+  // ---- form controllers ------------------------------------------------------
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _title = TextEditingController();
@@ -77,7 +93,7 @@ class _CounselorProfileSettingsScreenState
 
   bool _seeded = false;
 
-  String _specialization = _specs.first;
+  // ---- editable model --------------------------------------------------------
   Set<String> _specializations = {_specs.first};
   String _mode = 'Hybrid';
   String _timezone = 'Africa/Nairobi';
@@ -89,10 +105,12 @@ class _CounselorProfileSettingsScreenState
 
   bool _savingProfile = false;
   bool _sendingReset = false;
-  String _settingsSearchQuery = '';
-  CounselorProfileSettingsSection _selectedSection =
-      CounselorProfileSettingsSection.identity;
-  bool _settingsDetailOpen = false;
+  String _query = '';
+
+  Set<String>? _languages;
+
+  // Ensures we push the deep-linked detail only once.
+  bool _deepLinkHandled = false;
 
   static const _specs = <String>[
     'Academic Stress',
@@ -118,8 +136,6 @@ class _CounselorProfileSettingsScreenState
   ];
   static const _durations = <int>[30, 45, 50, 60, 75, 90];
 
-  Set<String>? _languages;
-
   @override
   void dispose() {
     _name.dispose();
@@ -129,66 +145,59 @@ class _CounselorProfileSettingsScreenState
     super.dispose();
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _selectedSection = widget.initialSection;
-    _settingsDetailOpen =
-        widget.initialSection != CounselorProfileSettingsSection.identity;
-  }
-
+  // ---- data seeding ---------------------------------------------------------
   void _seed(UserProfile profile, CounselorProfile? cp) {
-    if (!_seeded) {
-      final setup = profile.counselorSetupData;
-      final prefs = profile.counselorPreferences;
-      _name.text = cp?.displayName ?? profile.name;
-      _title.text = cp?.title ?? (setup['title'] as String? ?? '');
-      _years.text =
-          ((cp?.yearsExperience ??
-                  (setup['yearsExperience'] as num?)?.toInt() ??
-                  0))
-              .toString();
-      final langs = cp?.languages.isNotEmpty == true
-          ? normalizeCounselorLanguages(cp!.languages)
-          : normalizeCounselorLanguages(switch (setup['languages']) {
-              final List<dynamic> values => values,
-              final String value => value.split(','),
-              _ => const <dynamic>[],
-            });
-      _languages = langs.isNotEmpty
-          ? langs.toSet()
-          : {counselorLanguageOptions.first};
-      _bio.text = cp?.bio ?? (setup['bio'] as String? ?? '');
+    if (_seeded) return;
+    final setup = profile.counselorSetupData;
+    final prefs = profile.counselorPreferences;
 
-      final specializationRaw =
-          cp?.specialization ?? (setup['specialization'] as String? ?? '');
-      final parsedSpecs = specializationRaw
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty && _specs.contains(e))
-          .toSet();
-      _specializations = parsedSpecs.isNotEmpty ? parsedSpecs : {_specs.first};
-      _specialization = _specializations.isNotEmpty
-          ? _specializations.first
-          : _specs.first;
+    _name.text = cp?.displayName ?? profile.name;
+    _title.text = cp?.title ?? (setup['title'] as String? ?? '');
+    _years.text =
+        ((cp?.yearsExperience ??
+                (setup['yearsExperience'] as num?)?.toInt() ??
+                0))
+            .toString();
 
-      _mode = cp?.sessionMode ?? (setup['sessionMode'] as String? ?? _mode);
-      if (!_modes.contains(_mode)) _mode = _modes.first;
+    final langs = cp?.languages.isNotEmpty == true
+        ? normalizeCounselorLanguages(cp!.languages)
+        : normalizeCounselorLanguages(switch (setup['languages']) {
+            final List<dynamic> values => values,
+            final String value => value.split(','),
+            _ => const <dynamic>[],
+          });
+    _languages = langs.isNotEmpty
+        ? langs.toSet()
+        : {counselorLanguageOptions.first};
 
-      _timezone = cp?.timezone ?? (setup['timezone'] as String? ?? _timezone);
-      if (!_zones.contains(_timezone)) _timezone = _zones.first;
+    _bio.text = cp?.bio ?? (setup['bio'] as String? ?? '');
 
-      _active = cp?.isActive ?? (setup['isActive'] as bool? ?? true);
-      final d = (prefs['defaultSessionMinutes'] as num?)?.toInt();
-      if (d != null && _durations.contains(d)) _duration = d;
-      final b = (prefs['breakBetweenSessionsMins'] as num?)?.toInt();
-      if (b != null && b >= 0 && b <= 60) _breakMins = b;
-      _direct = (prefs['allowDirectBooking'] as bool?) ?? true;
-      _followUps = (prefs['autoApproveFollowUps'] as bool?) ?? false;
-      _seeded = true;
-    }
+    final specializationRaw =
+        cp?.specialization ?? (setup['specialization'] as String? ?? '');
+    final parsedSpecs = specializationRaw
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty && _specs.contains(e))
+        .toSet();
+    _specializations = parsedSpecs.isNotEmpty ? parsedSpecs : {_specs.first};
+
+    _mode = cp?.sessionMode ?? (setup['sessionMode'] as String? ?? _mode);
+    if (!_modes.contains(_mode)) _mode = _modes.first;
+
+    _timezone = cp?.timezone ?? (setup['timezone'] as String? ?? _timezone);
+    if (!_zones.contains(_timezone)) _timezone = _zones.first;
+
+    _active = cp?.isActive ?? (setup['isActive'] as bool? ?? true);
+    final d = (prefs['defaultSessionMinutes'] as num?)?.toInt();
+    if (d != null && _durations.contains(d)) _duration = d;
+    final b = (prefs['breakBetweenSessionsMins'] as num?)?.toInt();
+    if (b != null && b >= 0 && b <= 60) _breakMins = b;
+    _direct = (prefs['allowDirectBooking'] as bool?) ?? true;
+    _followUps = (prefs['autoApproveFollowUps'] as bool?) ?? false;
+    _seeded = true;
   }
 
+  // ---- data mutations -------------------------------------------------------
   Future<void> _save(UserProfile profile) async {
     if (!_formKey.currentState!.validate()) return;
     _languages ??= {counselorLanguageOptions.first};
@@ -254,6 +263,7 @@ class _CounselorProfileSettingsScreenState
     }
   }
 
+  // ---- workspace navigation (non-embedded fallback) -------------------------
   void _navigateSection(
     BuildContext context,
     CounselorWorkspaceNavSection section,
@@ -272,46 +282,6 @@ class _CounselorProfileSettingsScreenState
     }
   }
 
-  @override
-  void didUpdateWidget(covariant CounselorProfileSettingsScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialSection != widget.initialSection) {
-      _selectedSection = widget.initialSection;
-      _settingsDetailOpen =
-          widget.initialSection != CounselorProfileSettingsSection.identity;
-    }
-  }
-
-  void _selectSection(CounselorProfileSettingsSection section) {
-    setState(() {
-      _selectedSection = section;
-      _settingsDetailOpen = true;
-    });
-  }
-
-  void _collapseSectionDetails() {
-    if (!_settingsDetailOpen) {
-      return;
-    }
-    setState(() => _settingsDetailOpen = false);
-  }
-
-  String _defaultCloseRoute() {
-    if (widget.returnToRoute != null &&
-        widget.returnToRoute!.trim().isNotEmpty) {
-      return widget.returnToRoute!.trim();
-    }
-    return AppRoute.counselorDashboard;
-  }
-
-  void _closeOverlay(BuildContext context) {
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-      return;
-    }
-    context.go(_defaultCloseRoute());
-  }
-
   Future<void> _openCounselorNotificationsOverlay(BuildContext context) async {
     await Navigator.of(context, rootNavigator: true).push(
       PageRouteBuilder<void>(
@@ -327,16 +297,11 @@ class _CounselorProfileSettingsScreenState
                 begin: const Offset(1, 0),
                 end: Offset.zero,
               ).animate(
-                CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                  reverseCurve: Curves.easeInCubic,
-                ),
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
               );
           final fade = CurvedAnimation(
             parent: animation,
             curve: Curves.easeOut,
-            reverseCurve: Curves.easeIn,
           );
           return SlideTransition(
             position: slide,
@@ -347,21 +312,16 @@ class _CounselorProfileSettingsScreenState
     );
   }
 
-  List<_ProfileSettingsNavItem> _navItems(UserProfile profile) {
-    final institution = profile.institutionName?.trim().isNotEmpty == true
-        ? profile.institutionName!.trim()
-        : 'Counselor workspace';
+  // ---- section metadata -----------------------------------------------------
+  List<_NavItem> _navItems(UserProfile profile) {
     final displayName = profile.name.trim().isNotEmpty
         ? profile.name.trim()
         : 'Counselor';
-    final visibleSummary = _active ? 'Visible to students' : 'Hidden';
-    final specialized = _specializations.isEmpty
-        ? 'No specialties set'
-        : _specializations.join(' · ');
-    final languageSummary = (_languages ?? {counselorLanguageOptions.first})
-        .join(' · ');
-    return <_ProfileSettingsNavItem>[
-      _ProfileSettingsNavItem(
+    final institution = profile.institutionName?.trim().isNotEmpty == true
+        ? profile.institutionName!.trim()
+        : 'Counselor workspace';
+    return <_NavItem>[
+      _NavItem(
         section: CounselorProfileSettingsSection.identity,
         group: 'PROFILE',
         title: 'Identity',
@@ -369,829 +329,336 @@ class _CounselorProfileSettingsScreenState
         icon: Icons.person_rounded,
         accent: const Color(0xFF14B8A6),
       ),
-      _ProfileSettingsNavItem(
+      _NavItem(
         section: CounselorProfileSettingsSection.professionalDetails,
         group: 'PROFILE',
-        title: 'Professional details',
+        title: 'Professional profile',
         subtitle:
-            '${_title.text.trim().isEmpty ? 'Licensed Counselor' : _title.text.trim()} · ${_years.text.trim().isEmpty ? '${_years.text.trim()}' : '${_years.text.trim()} yrs'} · $_mode',
+            '${_title.text.trim().isEmpty ? 'Licensed counselor' : _title.text.trim()} · ${_years.text.trim().isEmpty ? '—' : '${_years.text.trim()} yrs'} · $_mode',
         icon: Icons.work_history_rounded,
-        accent: const Color(0xFF10B981),
+        accent: const Color(0xFF34D399),
       ),
-      _ProfileSettingsNavItem(
-        section: CounselorProfileSettingsSection.specializations,
-        group: 'PROFILE',
-        title: 'Specializations',
-        subtitle: specialized,
-        icon: Icons.shield_rounded,
-        accent: const Color(0xFF8B5CF6),
-      ),
-      _ProfileSettingsNavItem(
-        section: CounselorProfileSettingsSection.languages,
-        group: 'PROFILE',
-        title: 'Languages',
-        subtitle: languageSummary,
-        icon: Icons.translate_rounded,
-        accent: const Color(0xFFEC4899),
-      ),
-      _ProfileSettingsNavItem(
-        section: CounselorProfileSettingsSection.bio,
-        group: 'PROFILE',
-        title: 'Bio',
-        subtitle: _bio.text.trim().isEmpty ? 'Not set yet' : _bio.text.trim(),
-        icon: Icons.description_rounded,
-        accent: const Color(0xFFF59E0B),
-      ),
-      _ProfileSettingsNavItem(
+      _NavItem(
         section: CounselorProfileSettingsSection.sessionRhythm,
         group: 'PRACTICE',
         title: 'Session rhythm',
         subtitle: '$_duration min · $_breakMins min break',
-        icon: Icons.schedule_rounded,
-        accent: const Color(0xFF06B6D4),
+        icon: Icons.graphic_eq_rounded,
+        accent: const Color(0xFF22D3EE),
       ),
-      _ProfileSettingsNavItem(
+      _NavItem(
         section: CounselorProfileSettingsSection.passwordSignIn,
         group: 'ACCOUNT',
         title: 'Password & sign-in',
         subtitle: profile.email,
-        icon: Icons.vpn_key_rounded,
-        accent: const Color(0xFF0E9B90),
+        icon: Icons.key_rounded,
+        accent: const Color(0xFF60A5FA),
       ),
-      _ProfileSettingsNavItem(
+      _NavItem(
         section: CounselorProfileSettingsSection.privacyData,
         group: 'ACCOUNT',
         title: 'Privacy & data',
-        subtitle: visibleSummary,
-        icon: Icons.public_rounded,
-        accent: const Color(0xFF7C3AED),
+        subtitle: _active ? 'Visible to students' : 'Hidden',
+        icon: Icons.privacy_tip_rounded,
+        accent: const Color(0xFFC084FC),
       ),
     ];
   }
 
-  bool _matchesNavSearch(_ProfileSettingsNavItem item) {
-    final query = _settingsSearchQuery.trim().toLowerCase();
-    if (query.isEmpty) {
-      return true;
-    }
+  bool _matches(_NavItem item) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return true;
     return [
       item.group,
       item.title,
       item.subtitle,
       item.section.name,
-    ].join(' ').toLowerCase().contains(query);
+    ].join(' ').toLowerCase().contains(q);
   }
 
-  String _sectionTitle(CounselorProfileSettingsSection section) {
-    return switch (section) {
-      CounselorProfileSettingsSection.identity => 'Identity',
-      CounselorProfileSettingsSection.professionalDetails =>
-        'Professional details',
-      CounselorProfileSettingsSection.specializations => 'Specializations',
-      CounselorProfileSettingsSection.languages => 'Languages',
-      CounselorProfileSettingsSection.bio => 'Bio',
-      CounselorProfileSettingsSection.sessionRhythm => 'Session rhythm',
-      CounselorProfileSettingsSection.passwordSignIn => 'Password & sign-in',
-      CounselorProfileSettingsSection.privacyData => 'Privacy & data',
-    };
-  }
+  // =========================================================================
+  // Detail navigation — each section as its own full-screen route.
+  // =========================================================================
 
-  String _sectionDescription(CounselorProfileSettingsSection section) {
-    return switch (section) {
-      CounselorProfileSettingsSection.identity =>
-        'Display name, avatar, and how students see your counselor identity.',
-      CounselorProfileSettingsSection.professionalDetails =>
-        'Title, years of practice, mode, and timezone.',
-      CounselorProfileSettingsSection.specializations =>
-        'The areas students can book you for.',
-      CounselorProfileSettingsSection.languages =>
-        'Languages you provide sessions in.',
-      CounselorProfileSettingsSection.bio =>
-        'A calm, human summary that helps students know what to expect.',
-      CounselorProfileSettingsSection.sessionRhythm =>
-        'Set your default rhythm, breaks, and booking preferences.',
-      CounselorProfileSettingsSection.passwordSignIn =>
-        'Send yourself a password reset link.',
-      CounselorProfileSettingsSection.privacyData =>
-        'Visibility, exports, and account data controls.',
-    };
-  }
-
-  IconData _sectionIcon(CounselorProfileSettingsSection section) {
-    return switch (section) {
-      CounselorProfileSettingsSection.identity => Icons.person_rounded,
-      CounselorProfileSettingsSection.professionalDetails =>
-        Icons.work_history_rounded,
-      CounselorProfileSettingsSection.specializations => Icons.shield_rounded,
-      CounselorProfileSettingsSection.languages => Icons.translate_rounded,
-      CounselorProfileSettingsSection.bio => Icons.description_rounded,
-      CounselorProfileSettingsSection.sessionRhythm => Icons.schedule_rounded,
-      CounselorProfileSettingsSection.passwordSignIn => Icons.vpn_key_rounded,
-      CounselorProfileSettingsSection.privacyData => Icons.public_rounded,
-    };
-  }
-
-  Color _sectionAccent(CounselorProfileSettingsSection section) {
-    return switch (section) {
-      CounselorProfileSettingsSection.identity => const Color(0xFF14B8A6),
-      CounselorProfileSettingsSection.professionalDetails => const Color(
-        0xFF10B981,
+  Future<void> _openDetail(_NavItem item) async {
+    await Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: true,
+        transitionDuration: _T.dPage,
+        reverseTransitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (ctx, anim, sec) => _DetailHost(item: item, state: this),
+        transitionsBuilder: (ctx, anim, sec, child) {
+          final curved = CurvedAnimation(parent: anim, curve: _T.easeOut);
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(curved);
+          final scale = Tween<double>(begin: 0.985, end: 1.0).animate(curved);
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: slide,
+              child: ScaleTransition(scale: scale, child: child),
+            ),
+          );
+        },
       ),
-      CounselorProfileSettingsSection.specializations => const Color(
-        0xFF8B5CF6,
-      ),
-      CounselorProfileSettingsSection.languages => const Color(0xFFEC4899),
-      CounselorProfileSettingsSection.bio => const Color(0xFFF59E0B),
-      CounselorProfileSettingsSection.sessionRhythm => const Color(0xFF06B6D4),
-      CounselorProfileSettingsSection.passwordSignIn => const Color(0xFF0E9B90),
-      CounselorProfileSettingsSection.privacyData => const Color(0xFF7C3AED),
-    };
+    );
+    if (mounted) setState(() {}); // refresh subtitles after edits
   }
 
+  // ---- build ---------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(currentUserProfileProvider);
     return profileAsync.when(
-      data: (profile) {
-        if (profile == null || profile.role != UserRole.counselor) {
-          return const Scaffold(
-            body: Center(child: Text('Only counselors can access this page.')),
-          );
-        }
-        final unreadCount =
-            ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
-        final showCounselorDirectory =
-            ref
-                .watch(
-                  counselorWorkflowSettingsProvider(
-                    profile.institutionId ?? '',
-                  ),
-                )
-                .valueOrNull
-                ?.directoryEnabled ??
-            false;
-        final settingsBody = StreamBuilder<CounselorProfile?>(
-          stream: ref
-              .read(careRepositoryProvider)
-              .watchCounselorProfile(profile.id),
-          builder: (context, cpSnap) {
-            _seed(profile, cpSnap.data);
-            return _buildOverlayWorkspace(
-              context,
-              profile,
-              unreadCount,
-              showCounselorDirectory,
-            );
-          },
-        );
-        final noScrollbarSettingsBody = ScrollConfiguration(
-          behavior: const NoScrollbarScrollBehavior(),
-          child: settingsBody,
-        );
-        if (widget.embeddedInCounselorShell) {
-          return noScrollbarSettingsBody;
-        }
-        return CounselorWorkspaceScaffold(
-          profile: profile,
-          activeSection: CounselorWorkspaceNavSection.dashboard,
-          showCounselorDirectory: showCounselorDirectory,
-          unreadNotifications: unreadCount,
-          profileHighlighted: true,
-          title: 'Profile Settings',
-          subtitle:
-              'Manage the professional profile students see, tune booking rules, and update counselor account controls from one workspace.',
-          onSelectSection: (section) => _navigateSection(context, section),
-          onNotifications: () => _openCounselorNotificationsOverlay(context),
-          onProfile: () {},
-          onLogout: () => confirmAndLogout(context: context, ref: ref),
-          child: noScrollbarSettingsBody,
-        );
-      },
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (error, _) =>
-          Scaffold(body: Center(child: Text(error.toString()))),
-    );
-  }
-
-  // ignore: unused_element
-  Widget _buildLegacyBuild(BuildContext context) {
-    final profileAsync = ref.watch(currentUserProfileProvider);
-    return profileAsync.when(
-      data: (profile) {
-        if (profile == null || profile.role != UserRole.counselor) {
-          return const Scaffold(
-            body: Center(child: Text('Only counselors can access this page.')),
-          );
-        }
-        final unreadCount =
-            ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
-        final showCounselorDirectory =
-            ref
-                .watch(
-                  counselorWorkflowSettingsProvider(
-                    profile.institutionId ?? '',
-                  ),
-                )
-                .valueOrNull
-                ?.directoryEnabled ??
-            false;
-        final settingsBody = StreamBuilder<CounselorProfile?>(
-          stream: ref
-              .read(careRepositoryProvider)
-              .watchCounselorProfile(profile.id),
-          builder: (context, cpSnap) {
-            _seed(profile, cpSnap.data);
-            final settingsContent = Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _SettingsHero(
-                  profile: profile,
-                  specialization: _specialization,
-                  isActive: _active,
-                  duration: _duration,
-                ),
-                const SizedBox(height: 20),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final useTwoColumns = constraints.maxWidth >= 980;
-                    final halfWidth = useTwoColumns
-                        ? (constraints.maxWidth - 18) / 2
-                        : constraints.maxWidth;
-                    return Wrap(
-                      spacing: 18,
-                      runSpacing: 18,
-                      children: [
-                        SizedBox(
-                          width: halfWidth,
-                          child: _SettingsSectionCard(
-                            title: 'Practice Settings',
-                            description:
-                                'Define the default session rhythm and spacing that shape your counselor workflow.',
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                DropdownButtonFormField<int>(
-                                  initialValue: _duration,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Default Session Duration',
-                                    prefixIcon: Icon(Icons.timer_outlined),
-                                  ),
-                                  items: _durations
-                                      .map(
-                                        (e) => DropdownMenuItem(
-                                          value: e,
-                                          child: Text('$e min'),
-                                        ),
-                                      )
-                                      .toList(growable: false),
-                                  onChanged: (value) => setState(
-                                    () => _duration = value ?? _duration,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    const Expanded(
-                                      child: Text('Break Between Sessions'),
-                                    ),
-                                    Text('$_breakMins min'),
-                                  ],
-                                ),
-                                Slider(
-                                  value: _breakMins.toDouble(),
-                                  min: 0,
-                                  max: 30,
-                                  divisions: 6,
-                                  onChanged: (value) => setState(
-                                    () => _breakMins = value.round(),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: halfWidth,
-                          child: _SettingsSectionCard(
-                            title: 'Account',
-                            description:
-                                'Security, privacy, and export actions for your counselor account.',
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _ActionTile(
-                                  icon: Icons.lock_reset,
-                                  title: 'Send Password Reset Link',
-                                  subtitle: profile.email,
-                                  onTap: _sendingReset
-                                      ? null
-                                      : () => _sendReset(profile),
-                                ),
-                                const SizedBox(height: 10),
-                                _ActionTile(
-                                  icon: Icons.privacy_tip_outlined,
-                                  title: 'Privacy & Data Controls',
-                                  subtitle:
-                                      'Open privacy controls and account data settings.',
-                                  onTap: () => context.go(
-                                    AppRoute.counselorPrivacyControlsRoute(),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: useTwoColumns
-                              ? constraints.maxWidth
-                              : halfWidth,
-                          child: _SettingsSectionCard(
-                            title: 'Professional Details',
-                            description:
-                                'Edit the professional identity and public profile content students see in your counselor listing.',
-                            trailing: Align(
-                              alignment: Alignment.centerRight,
-                              child: ElevatedButton.icon(
-                                onPressed: _savingProfile
-                                    ? null
-                                    : () => _save(profile),
-                                icon: const Icon(Icons.save_rounded),
-                                label: Text(
-                                  _savingProfile
-                                      ? 'Saving...'
-                                      : 'Save All Changes',
-                                ),
-                              ),
-                            ),
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  TextFormField(
-                                    controller: _name,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Display Name',
-                                      prefixIcon: Icon(Icons.person),
-                                    ),
-                                    validator: (value) =>
-                                        (value ?? '').trim().length < 2
-                                        ? 'Enter at least 2 characters.'
-                                        : null,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  TextFormField(
-                                    controller: _title,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Professional Title',
-                                      prefixIcon: Icon(Icons.badge),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _SpecializationChips(
-                                    options: _specs,
-                                    selected: _specializations,
-                                    onChanged: (set) => setState(() {
-                                      _specializations = set.isNotEmpty
-                                          ? set
-                                          : {_specs.first};
-                                      _specialization = _specializations.first;
-                                    }),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: TextFormField(
-                                          controller: _years,
-                                          keyboardType: TextInputType.number,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Years',
-                                            prefixIcon: Icon(Icons.timeline),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: DropdownButtonFormField<String>(
-                                          initialValue: _mode,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Mode',
-                                            prefixIcon: Icon(Icons.video_call),
-                                          ),
-                                          items: _modes
-                                              .map(
-                                                (e) => DropdownMenuItem(
-                                                  value: e,
-                                                  child: Text(e),
-                                                ),
-                                              )
-                                              .toList(growable: false),
-                                          onChanged: (value) => setState(
-                                            () => _mode = value ?? _mode,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  DropdownButtonFormField<String>(
-                                    initialValue: _timezone,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Timezone',
-                                      prefixIcon: Icon(Icons.public),
-                                    ),
-                                    items: _zones
-                                        .map(
-                                          (e) => DropdownMenuItem(
-                                            value: e,
-                                            child: Text(e),
-                                          ),
-                                        )
-                                        .toList(growable: false),
-                                    onChanged: (value) => setState(
-                                      () => _timezone = value ?? _timezone,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _LanguageSelector(
-                                    options: counselorLanguageOptions,
-                                    selected:
-                                        _languages ??
-                                        {counselorLanguageOptions.first},
-                                    onToggle: (lang) {
-                                      setState(() {
-                                        _languages ??= {
-                                          counselorLanguageOptions.first,
-                                        };
-                                        if (_languages!.contains(lang)) {
-                                          _languages!.remove(lang);
-                                        } else {
-                                          _languages!.add(lang);
-                                        }
-                                      });
-                                    },
-                                  ),
-                                  const SizedBox(height: 16),
-                                  TextFormField(
-                                    controller: _bio,
-                                    minLines: 3,
-                                    maxLines: 5,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Bio',
-                                      alignLabelWithHint: true,
-                                      prefixIcon: Icon(Icons.notes),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            );
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                if (!constraints.hasBoundedHeight) {
-                  return settingsContent;
-                }
-                return SingleChildScrollView(
-                  primary: false,
-                  physics: const BouncingScrollPhysics(),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
-                    ),
-                    child: settingsContent,
-                  ),
-                );
-              },
-            );
-          },
-        );
-        if (widget.embeddedInCounselorShell) {
-          return settingsBody;
-        }
-        return CounselorWorkspaceScaffold(
-          profile: profile,
-          activeSection: CounselorWorkspaceNavSection.dashboard,
-          showCounselorDirectory: showCounselorDirectory,
-          unreadNotifications: unreadCount,
-          profileHighlighted: true,
-          title: 'Profile Settings',
-          subtitle:
-              'Manage the professional profile students see, tune booking rules, and update counselor account controls from one workspace.',
-          onSelectSection: (section) => _navigateSection(context, section),
-          onNotifications: () => _openCounselorNotificationsOverlay(context),
-          onProfile: () {},
-          onLogout: () => confirmAndLogout(context: context, ref: ref),
-          child: settingsBody,
-        );
-      },
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (error, _) =>
-          Scaffold(body: Center(child: Text(error.toString()))),
-    );
-  }
-
-  Widget _buildOverlayWorkspace(
-    BuildContext context,
-    UserProfile profile,
-    int unreadCount,
-    bool showCounselorDirectory,
-  ) {
-    final navItems = _navItems(profile);
-    final visibleItems = navItems
-        .where(_matchesNavSearch)
-        .toList(growable: false);
-    final selectedItem = navItems.firstWhere(
-      (item) => item.section == _selectedSection,
-      orElse: () => navItems.first,
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 760) {
-          return _buildMobileOverlayWorkspace(
-            context,
-            profile,
-            unreadCount,
-            showCounselorDirectory,
-            navItems,
-            visibleItems,
-            selectedItem,
-          );
-        }
-        final isWide = constraints.maxWidth >= 1080;
-        final panelWidth = _settingsDetailOpen
-            ? math.min(constraints.maxWidth, 1360.0)
-            : math.min(constraints.maxWidth, 460.0);
-        final railWidth = math.min(390.0, panelWidth);
-
-        return Scaffold(
-          backgroundColor: const Color(0xFF07111D),
-          body: SafeArea(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(isWide ? 18 : 12, 12, 12, 12),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 240),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                layoutBuilder: (currentChild, previousChildren) {
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ...previousChildren,
-                      currentChild ?? const SizedBox.shrink(),
-                    ],
-                  );
-                },
-                transitionBuilder: (child, animation) {
-                  final slide = Tween<Offset>(
-                    begin: const Offset(0.06, 0),
-                    end: Offset.zero,
-                  ).animate(animation);
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(position: slide, child: child),
-                  );
-                },
-                child: _settingsDetailOpen
-                    ? Row(
-                        key: const ValueKey('settings-split'),
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          SizedBox(
-                            width: railWidth,
-                            child: _buildSettingsRail(
-                              context,
-                              profile,
-                              navItems,
-                              visibleItems,
-                              unreadCount,
-                              showCounselorDirectory,
-                            ),
-                          ),
-                          VerticalDivider(
-                            width: 1,
-                            color: Colors.white.withValues(alpha: 0.07),
-                          ),
-                          Expanded(
-                            child: _buildSettingsPane(
-                              context,
-                              profile,
-                              showCounselorDirectory,
-                              selectedItem,
-                            ),
-                          ),
-                        ],
-                      )
-                    : SizedBox.expand(
-                        key: const ValueKey('settings-rail'),
-                        child: _buildSettingsRail(
-                          context,
-                          profile,
-                          navItems,
-                          visibleItems,
-                          unreadCount,
-                          showCounselorDirectory,
-                        ),
-                      ),
-              ),
-            ),
+      loading: () => const ColoredBox(
+        color: _T.bg,
+        child: Center(child: CircularProgressIndicator(color: _T.brand)),
+      ),
+      error: (error, _) => ColoredBox(
+        color: _T.bg,
+        child: Center(
+          child: Text(
+            error.toString(),
+            style: const TextStyle(color: _T.textMuted),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildMobileOverlayWorkspace(
-    BuildContext context,
-    UserProfile profile,
-    int unreadCount,
-    bool showCounselorDirectory,
-    List<_ProfileSettingsNavItem> allItems,
-    List<_ProfileSettingsNavItem> visibleItems,
-    _ProfileSettingsNavItem selectedItem,
-  ) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF07111D),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: IgnorePointer(
-                ignoring: _settingsDetailOpen,
-                child: AnimatedSlide(
-                  duration: const Duration(milliseconds: 280),
-                  curve: Curves.easeInOutCubic,
-                  offset: _settingsDetailOpen
-                      ? const Offset(-1, 0)
-                      : Offset.zero,
-                  child: _buildSettingsRail(
-                    context,
-                    profile,
-                    allItems,
-                    visibleItems,
-                    unreadCount,
-                    showCounselorDirectory,
-                  ),
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: IgnorePointer(
-                ignoring: !_settingsDetailOpen,
-                child: AnimatedSlide(
-                  duration: const Duration(milliseconds: 280),
-                  curve: Curves.easeInOutCubic,
-                  offset: _settingsDetailOpen
-                      ? Offset.zero
-                      : const Offset(1, 0),
-                  child: _buildSettingsPane(
-                    context,
-                    profile,
-                    showCounselorDirectory,
-                    selectedItem,
-                  ),
-                ),
-              ),
-            ),
-          ],
         ),
       ),
+      data: (profile) {
+        if (profile == null || profile.role != UserRole.counselor) {
+          return const ColoredBox(
+            color: _T.bg,
+            child: Center(
+              child: Text(
+                'Only counselors can access this page.',
+                style: TextStyle(color: _T.textMuted),
+              ),
+            ),
+          );
+        }
+
+        final unread =
+            ref.watch(unreadNotificationCountProvider(profile.id)).value ?? 0;
+        final showDirectory =
+            ref
+                .watch(
+                  counselorWorkflowSettingsProvider(
+                    profile.institutionId ?? '',
+                  ),
+                )
+                .valueOrNull
+                ?.directoryEnabled ??
+            false;
+
+        final body = StreamBuilder<CounselorProfile?>(
+          stream: ref
+              .read(careRepositoryProvider)
+              .watchCounselorProfile(profile.id),
+          builder: (context, snap) {
+            _seed(profile, snap.data);
+            _maybeHandleDeepLink(profile);
+            return _buildLanding(profile, unread, showDirectory);
+          },
+        );
+
+        final wrapped = ScrollConfiguration(
+          behavior: const NoScrollbarScrollBehavior(),
+          child: body,
+        );
+
+        if (widget.embeddedInCounselorShell) return wrapped;
+
+        return CounselorWorkspaceScaffold(
+          profile: profile,
+          activeSection: CounselorWorkspaceNavSection.dashboard,
+          showCounselorDirectory: showDirectory,
+          unreadNotifications: unread,
+          profileHighlighted: true,
+          title: 'Profile settings',
+          subtitle:
+              'Manage the profile students see, tune booking rules, and update account controls.',
+          onSelectSection: (section) => _navigateSection(context, section),
+          onNotifications: () => _openCounselorNotificationsOverlay(context),
+          onProfile: () {},
+          onLogout: () => confirmAndLogout(context: context, ref: ref),
+          child: wrapped,
+        );
+      },
     );
   }
 
-  Widget _buildSettingsRail(
-    BuildContext context,
-    UserProfile profile,
-    List<_ProfileSettingsNavItem> allItems,
-    List<_ProfileSettingsNavItem> visibleItems,
-    int unreadCount,
-    bool showCounselorDirectory,
-  ) {
-    final visibleSet = visibleItems.toSet();
-    final grouped = <String, List<_ProfileSettingsNavItem>>{};
-    for (final item in allItems) {
-      if (!visibleSet.contains(item)) {
-        continue;
-      }
-      grouped
-          .putIfAbsent(item.group, () => <_ProfileSettingsNavItem>[])
-          .add(item);
+  void _maybeHandleDeepLink(UserProfile profile) {
+    if (_deepLinkHandled) return;
+    if (widget.initialSection == CounselorProfileSettingsSection.identity) {
+      _deepLinkHandled = true;
+      return;
+    }
+    _deepLinkHandled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final items = _navItems(profile);
+      final match = items.firstWhere(
+        (i) => i.section == widget.initialSection,
+        orElse: () => items.first,
+      );
+      _openDetail(match);
+    });
+  }
+
+  // =========================================================================
+  // Landing — modern, calm, iOS-like large title over a soft accent glow.
+  // =========================================================================
+
+  Widget _buildLanding(UserProfile profile, int unread, bool showDirectory) {
+    final items = _navItems(profile).where(_matches).toList(growable: false);
+    final grouped = <String, List<_NavItem>>{};
+    for (final item in items) {
+      grouped.putIfAbsent(item.group, () => []).add(item);
     }
 
-    final displayName = profile.name.trim().isNotEmpty
-        ? profile.name.trim()
-        : 'Counselor';
-    final institution = profile.institutionName?.trim().isNotEmpty == true
-        ? profile.institutionName!.trim()
-        : 'Institution workspace';
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 18, 16, 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF13D0C7), Color(0xFF0E9B90)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  displayName.trim().isNotEmpty
-                      ? displayName.trim()[0].toUpperCase()
-                      : 'C',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
+    return DecoratedBox(
+      decoration: const BoxDecoration(color: _T.bg),
+      child: SafeArea(
+        bottom: false,
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          slivers: [
+            SliverToBoxAdapter(
+              child: _LandingHero(profile: profile, active: _active),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+                child: _SearchField(
+                  onChanged: (v) => setState(() => _query = v),
                 ),
               ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Profile settings',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
+            ),
+            for (final group in const ['PROFILE', 'PRACTICE', 'ACCOUNT'])
+              if ((grouped[group] ?? const []).isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(28, 18, 20, 10),
+                    child: Text(
+                      group,
+                      style: const TextStyle(
+                        color: _T.textFaint,
+                        fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
+                        letterSpacing: 1.6,
                       ),
                     ),
-                    SizedBox(height: 3),
-                    Text(
-                      'Tune what students see and how you work.',
-                      style: TextStyle(
-                        color: Color(0xFF8EA0B8),
-                        fontSize: 13.5,
-                        height: 1.25,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _RowGroup(
+                      items: grouped[group]!,
+                      onTap: _openDetail,
+                    ),
+                  ),
+                ),
+              ],
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(28, 24, 28, 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: const Color(0x1A13D0C7),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.circle,
+                        size: 10,
+                        color: _T.brand,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        showDirectory
+                            ? 'Directory is live · ${unread > 0 ? "$unread unread" : "all read"}'
+                            : 'Directory hidden · ${unread > 0 ? "$unread unread" : "all read"}',
+                        style: const TextStyle(
+                          color: _T.textMuted,
+                          fontSize: 12.5,
+                          height: 1.35,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: () => _closeOverlay(context),
-                icon: const Icon(Icons.close_rounded),
-                color: Colors.white,
-                tooltip: 'Close',
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF111B2B),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0x1FFFFFFF)),
             ),
-            child: Row(
+            const SliverToBoxAdapter(child: SizedBox(height: 48)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Landing hero — big soft radial glow + name + status pill.
+// =============================================================================
+
+class _LandingHero extends StatelessWidget {
+  const _LandingHero({required this.profile, required this.active});
+  final UserProfile profile;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = profile.name.trim().isNotEmpty
+        ? profile.name.trim()
+        : 'Counselor';
+    final initials = _initials(name);
+    return _AccentGlow(
+      color: _T.brand,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0E9B90).withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0x220E9B90)),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    displayName.isNotEmpty
-                        ? displayName
-                              .trim()
-                              .split(RegExp(r'\s+'))
-                              .take(2)
-                              .map((part) => part.isNotEmpty ? part[0] : '')
-                              .join()
-                              .toUpperCase()
-                        : 'LW',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
+                Hero(
+                  tag: 'counselor-avatar',
+                  child: Container(
+                    width: 62,
+                    height: 62,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF13D0C7), Color(0xFF0E9B90)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x5513D0C7),
+                          blurRadius: 24,
+                          offset: Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
                 ),
@@ -1200,1125 +667,78 @@ class _CounselorProfileSettingsScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              displayName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _active
-                                  ? const Color(0x1A10B981)
-                                  : const Color(0x1AF97316),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: _active
-                                    ? const Color(0x3310B981)
-                                    : const Color(0x33F97316),
-                              ),
-                            ),
-                            child: Text(
-                              _active ? 'Visible' : 'Hidden',
-                              style: TextStyle(
-                                color: _active
-                                    ? const Color(0xFF10E3B0)
-                                    : const Color(0xFFF59E0B),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.9,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
                       Text(
-                        institution,
+                        'Settings',
+                        style: TextStyle(
+                          color: _T.text,
+                          fontSize: 34,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1.2,
+                          height: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF93A5BC),
-                          fontSize: 13.5,
+                          color: _T.textMuted,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            onChanged: (value) => setState(() => _settingsSearchQuery = value),
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'Search settings',
-              hintStyle: const TextStyle(color: Color(0xFF6D7F97)),
-              prefixIcon: const Icon(Icons.search_rounded, size: 20),
-              filled: true,
-              fillColor: const Color(0xFF121D2F),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: Color(0xFF0E9B90)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                ...['PROFILE', 'PRACTICE', 'ACCOUNT'].expand((group) {
-                  final groupItems = grouped[group];
-                  if (groupItems == null || groupItems.isEmpty) {
-                    return const <Widget>[];
-                  }
-                  return <Widget>[
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8, top: 4),
-                      child: Text(
-                        group,
-                        style: const TextStyle(
-                          color: Color(0xFF6C7E95),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ),
-                    ...groupItems.map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _buildNavTile(
-                          context,
-                          item,
-                          item.section == _selectedSection,
-                        ),
-                      ),
-                    ),
-                  ];
-                }),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF111B2B),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0x1FFFFFFF)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.notifications_active_outlined,
-                      color: Color(0xFF57D6C8),
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Workspace status',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      unreadCount > 0 ? '$unreadCount unread' : 'All read',
-                      style: const TextStyle(
-                        color: Color(0xFF8EA0B8),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  showCounselorDirectory
-                      ? 'Counselor directory is live for this institution.'
-                      : 'Counselor directory visibility is currently off.',
-                  style: const TextStyle(
-                    color: Color(0xFF8EA0B8),
-                    fontSize: 13,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavTile(
-    BuildContext context,
-    _ProfileSettingsNavItem item,
-    bool selected,
-  ) {
-    return InkWell(
-      onTap: () => _selectSection(item.section),
-      borderRadius: BorderRadius.circular(18),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFF1A2434)
-              : const Color(0xFF121D2F).withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: selected ? const Color(0xFF24344B) : const Color(0x1FFFFFFF),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: item.accent.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: item.accent.withValues(alpha: 0.26)),
-              ),
-              child: Icon(item.icon, color: item.accent, size: 21),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    item.subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF8EA0B8),
-                      fontSize: 12.5,
-                      height: 1.25,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: selected
-                  ? const Color(0xFFBBD0DC)
-                  : const Color(0xFF586C82),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsPane(
-    BuildContext context,
-    UserProfile profile,
-    bool showCounselorDirectory,
-    _ProfileSettingsNavItem selectedItem,
-  ) {
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 18, 18, 0),
-            child: Row(
-              children: [
-                TextButton.icon(
-                  onPressed: _collapseSectionDetails,
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  label: const Text('All settings'),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => _closeOverlay(context),
-                  icon: const Icon(Icons.close_rounded),
-                  tooltip: 'Close',
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              child: SingleChildScrollView(
-                key: ValueKey(selectedItem.section),
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                physics: const BouncingScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: _sectionAccent(
-                              selectedItem.section,
-                            ).withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(15),
-                            border: Border.all(
-                              color: _sectionAccent(
-                                selectedItem.section,
-                              ).withValues(alpha: 0.24),
-                            ),
-                          ),
-                          child: Icon(
-                            _sectionIcon(selectedItem.section),
-                            color: _sectionAccent(selectedItem.section),
-                            size: 21,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _sectionTitle(selectedItem.section).toUpperCase(),
-                              style: const TextStyle(
-                                color: Color(0xFF57D6C8),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _sectionTitle(selectedItem.section),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 28,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.8,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      _sectionDescription(selectedItem.section),
-                      style: const TextStyle(
-                        color: Color(0xFF9FB0C5),
-                        fontSize: 15,
-                        height: 1.45,
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-                    _buildSectionContent(
-                      context,
-                      profile,
-                      showCounselorDirectory,
-                      selectedItem.section,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionContent(
-    BuildContext context,
-    UserProfile profile,
-    bool showCounselorDirectory,
-    CounselorProfileSettingsSection section,
-  ) {
-    final darkFieldBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(16),
-      borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
-    );
-    final darkFieldDecoration = InputDecoration(
-      filled: true,
-      fillColor: const Color(0xFF111B2B),
-      border: darkFieldBorder,
-      enabledBorder: darkFieldBorder,
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Color(0xFF0E9B90), width: 1.4),
-      ),
-      labelStyle: const TextStyle(color: Color(0xFF8EA0B8)),
-      floatingLabelStyle: const TextStyle(color: Color(0xFF57D6C8)),
-      hintStyle: const TextStyle(color: Color(0xFF63748A)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-    );
-
-    Widget sectionCard({
-      required String title,
-      required String description,
-      required Widget child,
-      Widget? trailing,
-    }) {
-      return Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: const Color(0xFF101A2A),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0x1FFFFFFF)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        description,
-                        style: const TextStyle(
-                          color: Color(0xFF8EA0B8),
-                          fontSize: 13.5,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (trailing != null) ...[const SizedBox(width: 12), trailing],
               ],
             ),
             const SizedBox(height: 16),
-            child,
+            _StatusPill(active: active),
           ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    Widget actionBar({
-      required String label,
-      required VoidCallback? onPressed,
-      bool primary = true,
-      IconData icon = Icons.save_rounded,
-    }) {
-      return Align(
-        alignment: Alignment.centerRight,
-        child: FilledButton.icon(
-          onPressed: onPressed,
-          style: primary
-              ? null
-              : FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF111B2B),
-                  foregroundColor: Colors.white,
-                ),
-          icon: Icon(icon),
-          label: Text(label),
-        ),
-      );
-    }
-
-    switch (section) {
-      case CounselorProfileSettingsSection.identity:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            sectionCard(
-              title: 'Profile snapshot',
-              description:
-                  'A calm identity card that mirrors the screenshot style and keeps your public presence easy to scan.',
-              child: Row(
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF0E9B90), Color(0xFF1D4ED8)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(color: const Color(0x3310E3B0)),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      profile.name.trim().isNotEmpty
-                          ? profile.name
-                                .trim()
-                                .split(RegExp(r'\s+'))
-                                .take(2)
-                                .map((part) => part.isNotEmpty ? part[0] : '')
-                                .join()
-                                .toUpperCase()
-                          : 'LW',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          profile.name.trim().isNotEmpty
-                              ? profile.name.trim()
-                              : 'Counselor',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          profile.institutionName ?? 'Institution workspace',
-                          style: const TextStyle(
-                            color: Color(0xFF9FB0C5),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _active
-                          ? const Color(0x1A10B981)
-                          : const Color(0x1AF97316),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: _active
-                            ? const Color(0x3310B981)
-                            : const Color(0x33F97316),
-                      ),
-                    ),
-                    child: Text(
-                      _active ? 'Visible' : 'Hidden',
-                      style: TextStyle(
-                        color: _active
-                            ? const Color(0xFF10E3B0)
-                            : const Color(0xFFF59E0B),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            sectionCard(
-              title: 'Identity details',
-              description: 'Display name and institution name.',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextFormField(
-                    controller: _name,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: darkFieldDecoration.copyWith(
-                      labelText: 'Display name',
-                      prefixIcon: const Icon(Icons.person_rounded),
-                    ),
-                    validator: (value) => (value ?? '').trim().length < 2
-                        ? 'Enter at least 2 characters.'
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    initialValue: profile.institutionName ?? '',
-                    readOnly: true,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: darkFieldDecoration.copyWith(
-                      labelText: 'Institution',
-                      prefixIcon: const Icon(Icons.apartment_rounded),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actionBar(
-              label: _savingProfile ? 'Saving...' : 'Save changes',
-              onPressed: _savingProfile ? null : () => _save(profile),
-            ),
-          ],
-        );
-      case CounselorProfileSettingsSection.professionalDetails:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            sectionCard(
-              title: 'Professional details',
-              description: 'Title, years of practice, mode, and timezone.',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextFormField(
-                    controller: _title,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: darkFieldDecoration.copyWith(
-                      labelText: 'Professional title',
-                      prefixIcon: const Icon(Icons.badge_rounded),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _years,
-                          keyboardType: TextInputType.number,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: darkFieldDecoration.copyWith(
-                            labelText: 'Years of practice',
-                            prefixIcon: const Icon(Icons.timeline_rounded),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _mode,
-                          dropdownColor: const Color(0xFF111B2B),
-                          style: const TextStyle(color: Colors.white),
-                          decoration: darkFieldDecoration.copyWith(
-                            labelText: 'Mode',
-                            prefixIcon: const Icon(Icons.video_call_rounded),
-                          ),
-                          items: _modes
-                              .map(
-                                (e) =>
-                                    DropdownMenuItem(value: e, child: Text(e)),
-                              )
-                              .toList(growable: false),
-                          onChanged: (value) =>
-                              setState(() => _mode = value ?? _mode),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _timezone,
-                    dropdownColor: const Color(0xFF111B2B),
-                    style: const TextStyle(color: Colors.white),
-                    decoration: darkFieldDecoration.copyWith(
-                      labelText: 'Timezone',
-                      prefixIcon: const Icon(Icons.public_rounded),
-                    ),
-                    items: _zones
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(growable: false),
-                    onChanged: (value) =>
-                        setState(() => _timezone = value ?? _timezone),
-                  ),
-                ],
-              ),
-            ),
-            actionBar(
-              label: _savingProfile ? 'Saving...' : 'Save changes',
-              onPressed: _savingProfile ? null : () => _save(profile),
-            ),
-          ],
-        );
-      case CounselorProfileSettingsSection.specializations:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            sectionCard(
-              title: 'Specializations',
-              description: 'The areas students can book you for.',
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: _specs
-                    .map((item) {
-                      final selected = _specializations.contains(item);
-                      return FilterChip(
-                        label: Text(item),
-                        selected: selected,
-                        onSelected: (value) => setState(() {
-                          final next = Set<String>.from(_specializations);
-                          if (value) {
-                            next.add(item);
-                          } else {
-                            next.remove(item);
-                          }
-                          _specializations = next.isEmpty
-                              ? {_specs.first}
-                              : next;
-                          _specialization = _specializations.first;
-                        }),
-                        selectedColor: const Color(0xFF17385B),
-                        backgroundColor: const Color(0xFF111B2B),
-                        labelStyle: TextStyle(
-                          color: selected
-                              ? Colors.white
-                              : const Color(0xFF9FB0C5),
-                          fontWeight: FontWeight.w700,
-                        ),
-                        side: BorderSide(
-                          color: selected
-                              ? const Color(0xFF0E9B90)
-                              : const Color(0x1FFFFFFF),
-                        ),
-                        checkmarkColor: Colors.white,
-                      );
-                    })
-                    .toList(growable: false),
-              ),
-            ),
-            actionBar(
-              label: _savingProfile ? 'Saving...' : 'Save changes',
-              onPressed: _savingProfile ? null : () => _save(profile),
-            ),
-          ],
-        );
-      case CounselorProfileSettingsSection.languages:
-        final selectedLanguages =
-            _languages ?? {counselorLanguageOptions.first};
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            sectionCard(
-              title: 'Languages',
-              description: 'Languages you provide sessions in.',
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: counselorLanguageOptions
-                    .map((lang) {
-                      final selected = selectedLanguages.contains(lang);
-                      return FilterChip(
-                        label: Text(lang),
-                        selected: selected,
-                        onSelected: (value) {
-                          setState(() {
-                            _languages ??= {counselorLanguageOptions.first};
-                            if (value) {
-                              _languages!.add(lang);
-                            } else {
-                              _languages!.remove(lang);
-                            }
-                          });
-                        },
-                        selectedColor: const Color(0xFF17385B),
-                        backgroundColor: const Color(0xFF111B2B),
-                        labelStyle: TextStyle(
-                          color: selected
-                              ? Colors.white
-                              : const Color(0xFF9FB0C5),
-                          fontWeight: FontWeight.w700,
-                        ),
-                        side: BorderSide(
-                          color: selected
-                              ? const Color(0xFF0E9B90)
-                              : const Color(0x1FFFFFFF),
-                        ),
-                        checkmarkColor: Colors.white,
-                      );
-                    })
-                    .toList(growable: false),
-              ),
-            ),
-            actionBar(
-              label: _savingProfile ? 'Saving...' : 'Save changes',
-              onPressed: _savingProfile ? null : () => _save(profile),
-            ),
-          ],
-        );
-      case CounselorProfileSettingsSection.bio:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            sectionCard(
-              title: 'Bio',
-              description:
-                  'A calm, human summary that helps students know what to expect.',
-              child: TextFormField(
-                controller: _bio,
-                minLines: 5,
-                maxLines: 8,
-                style: const TextStyle(color: Colors.white),
-                decoration: darkFieldDecoration.copyWith(
-                  labelText: 'Bio',
-                  alignLabelWithHint: true,
-                  prefixIcon: const Icon(Icons.notes_rounded),
-                ),
-              ),
-            ),
-            actionBar(
-              label: _savingProfile ? 'Saving...' : 'Save changes',
-              onPressed: _savingProfile ? null : () => _save(profile),
-            ),
-          ],
-        );
-      case CounselorProfileSettingsSection.sessionRhythm:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            sectionCard(
-              title: 'Session rhythm',
-              description:
-                  'Set your default rhythm, breaks, and booking preferences.',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  DropdownButtonFormField<int>(
-                    initialValue: _duration,
-                    dropdownColor: const Color(0xFF111B2B),
-                    style: const TextStyle(color: Colors.white),
-                    decoration: darkFieldDecoration.copyWith(
-                      labelText: 'Default session duration',
-                      prefixIcon: const Icon(Icons.timer_outlined),
-                    ),
-                    items: _durations
-                        .map(
-                          (e) =>
-                              DropdownMenuItem(value: e, child: Text('$e min')),
-                        )
-                        .toList(growable: false),
-                    onChanged: (value) =>
-                        setState(() => _duration = value ?? _duration),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Break between sessions',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '$_breakMins min',
-                        style: const TextStyle(color: Color(0xFF9FB0C5)),
-                      ),
-                    ],
-                  ),
-                  Slider(
-                    value: _breakMins.toDouble(),
-                    min: 0,
-                    max: 30,
-                    divisions: 6,
-                    activeColor: const Color(0xFF0E9B90),
-                    inactiveColor: const Color(0xFF24344B),
-                    onChanged: (value) =>
-                        setState(() => _breakMins = value.round()),
-                  ),
-                  SwitchListTile.adaptive(
-                    value: _direct,
-                    onChanged: (value) => setState(() => _direct = value),
-                    title: const Text(
-                      'Allow direct booking',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    subtitle: const Text(
-                      'Let students book without a manual approval step.',
-                      style: TextStyle(color: Color(0xFF9FB0C5)),
-                    ),
-                    activeColor: const Color(0xFF0E9B90),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  SwitchListTile.adaptive(
-                    value: _followUps,
-                    onChanged: (value) => setState(() => _followUps = value),
-                    title: const Text(
-                      'Auto-approve follow ups',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    subtitle: const Text(
-                      'Keep repeat sessions moving without extra admin.',
-                      style: TextStyle(color: Color(0xFF9FB0C5)),
-                    ),
-                    activeColor: const Color(0xFF0E9B90),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ],
-              ),
-            ),
-            actionBar(
-              label: _savingProfile ? 'Saving...' : 'Save changes',
-              onPressed: _savingProfile ? null : () => _save(profile),
-            ),
-          ],
-        );
-      case CounselorProfileSettingsSection.passwordSignIn:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            sectionCard(
-              title: 'Password & sign-in',
-              description: 'Send yourself a password reset link.',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'We will email a secure reset link to ${profile.email}.',
-                    style: const TextStyle(
-                      color: Color(0xFF9FB0C5),
-                      height: 1.45,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  FilledButton.icon(
-                    onPressed: _sendingReset ? null : () => _sendReset(profile),
-                    icon: const Icon(Icons.lock_reset_rounded),
-                    label: Text(
-                      _sendingReset ? 'Sending...' : 'Send reset link',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () =>
-                        showPasskeyManagementDialog(context: context),
-                    icon: const Icon(Icons.fingerprint_rounded),
-                    label: const Text('Manage passkeys'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      case CounselorProfileSettingsSection.privacyData:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            sectionCard(
-              title: 'Privacy & data',
-              description: 'Visibility, exports, and account data controls.',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF111B2B),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: const Color(0x1FFFFFFF)),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Visible to students',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                showCounselorDirectory
-                                    ? 'Appear in the counselor directory.'
-                                    : 'Keep your counselor listing hidden from students.',
-                                style: const TextStyle(
-                                  color: Color(0xFF9FB0C5),
-                                  height: 1.35,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Switch.adaptive(
-                          value: _active,
-                          onChanged: (value) => setState(() => _active = value),
-                          activeColor: const Color(0xFF0E9B90),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  OutlinedButton.icon(
-                    onPressed: () => showAccountExportSheet(
-                      context: context,
-                      ref: ref,
-                      title: 'Download your counselor data',
-                      subtitle:
-                          'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON.',
-                    ),
-                    icon: const Icon(Icons.download_rounded),
-                    label: const Text('Export my data'),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () =>
-                        showPasskeyManagementDialog(context: context),
-                    icon: const Icon(Icons.security_rounded),
-                    label: const Text('Manage passkeys'),
-                  ),
-                ],
-              ),
-            ),
-            actionBar(
-              label: _savingProfile ? 'Saving...' : 'Save visibility',
-              onPressed: _savingProfile ? null : () => _save(profile),
-            ),
-          ],
-        );
-    }
+  static String _initials(String n) {
+    final parts = n.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    if (parts.isEmpty) return 'C';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
   }
 }
 
-class _SettingsHero extends StatelessWidget {
-  const _SettingsHero({
-    required this.profile,
-    required this.specialization,
-    required this.isActive,
-    required this.duration,
-  });
-
-  final UserProfile profile;
-  final String specialization;
-  final bool isActive;
-  final int duration;
-
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.active});
+  final bool active;
   @override
   Widget build(BuildContext context) {
-    final displayName = profile.name.trim().isNotEmpty
-        ? profile.name.trim()
-        : 'Counselor';
+    final color = active ? const Color(0xFF10E3B0) : const Color(0xFFF59E0B);
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F172A), Color(0xFF1D4ED8), Color(0xFF0E9B90)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(34),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1D1D4ED8),
-            blurRadius: 28,
-            offset: Offset(0, 18),
-          ),
-        ],
+        color: color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.28)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _HeroPill(
-                label: isActive
-                    ? 'VISIBLE TO STUDENTS'
-                    : 'HIDDEN FROM STUDENTS',
-                background: isActive
-                    ? const Color(0x3310B981)
-                    : const Color(0x33F97316),
-              ),
-              _HeroPill(
-                label: specialization.toUpperCase(),
-                background: const Color(0x22FFFFFF),
-              ),
-            ],
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(width: 8),
           Text(
-            displayName,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 38,
+            active ? 'Visible to students' : 'Hidden from students',
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
-              letterSpacing: -1.4,
+              letterSpacing: 0.4,
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            profile.institutionName ?? 'Institution workspace',
-            style: const TextStyle(
-              color: Color(0xFFE3F2FF),
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            children: [
-              _HeroMetricCard(label: 'Session default', value: '$duration min'),
-              _HeroMetricCard(
-                label: 'Profile status',
-                value: isActive ? 'Visible' : 'Hidden',
-              ),
-              _HeroMetricCard(label: 'Email', value: profile.email),
-            ],
           ),
         ],
       ),
@@ -2326,256 +746,37 @@ class _SettingsHero extends StatelessWidget {
   }
 }
 
-class _SpecializationChips extends StatelessWidget {
-  const _SpecializationChips({
-    required this.options,
-    required this.selected,
-    required this.onChanged,
-  });
+// =============================================================================
+// Search field
+// =============================================================================
 
-  final List<String> options;
-  final Set<String> selected;
-  final ValueChanged<Set<String>> onChanged;
-
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.onChanged});
+  final ValueChanged<String> onChanged;
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(bottom: 6),
-            child: Text(
-              'Specializations',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-          ),
-          Wrap(
-            alignment: WrapAlignment.start,
-            runAlignment: WrapAlignment.start,
-            spacing: 10,
-            runSpacing: 10,
-            children: options
-                .map(
-                  (item) => FilterChip(
-                    label: Text(item),
-                    selected: selected.contains(item),
-                    onSelected: (value) {
-                      final next = Set<String>.from(selected);
-                      if (value) {
-                        next.add(item);
-                      } else {
-                        next.remove(item);
-                      }
-                      onChanged(next);
-                    },
-                  ),
-                )
-                .toList(growable: false),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SettingsSectionCard extends StatelessWidget {
-  const _SettingsSectionCard({
-    required this.title,
-    required this.description,
-    required this.child,
-    this.trailing,
-  });
-
-  final String title;
-  final String description;
-  final Widget child;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFDDE6EE)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x120F172A),
-            blurRadius: 18,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: Color(0xFF081A30),
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              description,
-              style: const TextStyle(
-                color: Color(0xFF6A7C93),
-                fontSize: 14.5,
-                height: 1.45,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 18),
-            child,
-            if (trailing != null) ...[const SizedBox(height: 16), trailing!],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LanguageSelector extends StatelessWidget {
-  const _LanguageSelector({
-    required this.options,
-    required this.selected,
-    required this.onToggle,
-  });
-
-  final List<String> options;
-  final Set<String> selected;
-  final ValueChanged<String> onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(bottom: 6),
-            child: Text(
-              'Languages',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF0B2442),
-                letterSpacing: 0.3,
-              ),
-            ),
-          ),
-          Wrap(
-            alignment: WrapAlignment.start,
-            runAlignment: WrapAlignment.start,
-            spacing: 10,
-            runSpacing: 10,
-            children: options
-                .asMap()
-                .entries
-                .map(
-                  (entry) => _OptionPillSmall(
-                    label: entry.value,
-                    index: entry.key,
-                    selected: selected.contains(entry.value),
-                    onTap: () => onToggle(entry.value),
-                  ),
-                )
-                .toList(growable: false),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OptionPillSmall extends StatelessWidget {
-  const _OptionPillSmall({
-    required this.label,
-    required this.index,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final int index;
-  final bool selected;
-  final VoidCallback onTap;
-
-  static const _gradients = [
-    [Color(0xFFE7F8F5), Color(0xFFD5F1EC)],
-    [Color(0xFFEAF2FF), Color(0xFFDCE8FF)],
-    [Color(0xFFFFF2DD), Color(0xFFFFE8B8)],
-    [Color(0xFFF2EAFE), Color(0xFFE7D8FF)],
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = _gradients[index % _gradients.length];
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            gradient: selected
-                ? const LinearGradient(
-                    colors: [Color(0xFF0E9B90), Color(0xFF2563EB)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : LinearGradient(
-                    colors: colors,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: selected
-                  ? const Color(0xFF0E9B90)
-                  : const Color(0xFFD6E2F1),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _T.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _T.hairline),
+        ),
+        child: TextField(
+          onChanged: onChanged,
+          style: const TextStyle(color: _T.text, fontSize: 15),
+          cursorColor: _T.brand,
+          decoration: const InputDecoration(
+            hintText: 'Search settings',
+            hintStyle: TextStyle(color: _T.textFaint),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: _T.textFaint,
+              size: 20,
             ),
-            boxShadow: selected
-                ? const [
-                    BoxShadow(
-                      color: Color(0x330E9B90),
-                      blurRadius: 10,
-                      offset: Offset(0, 6),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                selected
-                    ? Icons.check_rounded
-                    : Icons.add_circle_outline_rounded,
-                size: 16,
-                color: selected ? Colors.white : const Color(0xFF58708C),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: selected ? Colors.white : const Color(0xFF0B2442),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 14),
           ),
         ),
       ),
@@ -2583,43 +784,108 @@ class _OptionPillSmall extends StatelessWidget {
   }
 }
 
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
+// =============================================================================
+// Row group — inset grouped list with staggered fade-in.
+// =============================================================================
+
+class _NavItem {
+  const _NavItem({
+    required this.section,
+    required this.group,
     required this.title,
     required this.subtitle,
-    required this.onTap,
+    required this.icon,
+    required this.accent,
   });
-
-  final IconData icon;
+  final CounselorProfileSettingsSection section;
+  final String group;
   final String title;
   final String subtitle;
-  final VoidCallback? onTap;
+  final IconData icon;
+  final Color accent;
+}
+
+class _RowGroup extends StatelessWidget {
+  const _RowGroup({required this.items, required this.onTap});
+  final List<_NavItem> items;
+  final ValueChanged<_NavItem> onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Ink(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FBFE),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFDDE6EE)),
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        color: _T.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _T.hairline),
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < items.length; i++) ...[
+            _StaggeredIn(
+              delay: Duration(milliseconds: 40 * i),
+              child: _Row(item: items[i], onTap: () => onTap(items[i])),
+            ),
+            if (i != items.length - 1)
+              const Padding(
+                padding: EdgeInsets.only(left: 66),
+                child: Divider(
+                  height: 1,
+                  thickness: 0.6,
+                  color: Color(0x14FFFFFF),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Row extends StatefulWidget {
+  const _Row({required this.item, required this.onTap});
+  final _NavItem item;
+  final VoidCallback onTap;
+  @override
+  State<_Row> createState() => _RowState();
+}
+
+class _RowState extends State<_Row> {
+  double _scale = 1.0;
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => setState(() => _scale = 0.98),
+      onTapCancel: () => setState(() => _scale = 1.0),
+      onTapUp: (_) => setState(() => _scale = 1.0),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _scale,
+        duration: _T.dQuick,
+        curve: Curves.easeOut,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
           child: Row(
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0E9B90).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(16),
+              Hero(
+                tag: 'section-icon-${widget.item.section.name}',
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: widget.item.accent.withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: widget.item.accent.withOpacity(0.28),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    widget.item.icon,
+                    color: widget.item.accent,
+                    size: 20,
+                  ),
                 ),
-                child: Icon(icon, color: const Color(0xFF0E9B90)),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -2627,20 +893,22 @@ class _ActionTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
+                      widget.item.title,
                       style: const TextStyle(
-                        color: Color(0xFF081A30),
-                        fontSize: 16,
+                        color: _T.text,
+                        fontSize: 15.5,
                         fontWeight: FontWeight.w700,
+                        letterSpacing: -0.1,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
-                      subtitle,
+                      widget.item.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF6A7C93),
-                        fontSize: 13.5,
-                        height: 1.4,
+                        color: _T.textMuted,
+                        fontSize: 12.5,
                       ),
                     ),
                   ],
@@ -2648,9 +916,9 @@ class _ActionTile extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               const Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 16,
-                color: Color(0xFF7B8CA4),
+                Icons.chevron_right_rounded,
+                color: _T.textFaint,
+                size: 22,
               ),
             ],
           ),
@@ -2660,75 +928,1339 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
-class _HeroPill extends StatelessWidget {
-  const _HeroPill({required this.label, required this.background});
+// =============================================================================
+// Staggered fade+translate on mount
+// =============================================================================
 
-  final String label;
-  final Color background;
+class _StaggeredIn extends StatefulWidget {
+  const _StaggeredIn({required this.child, this.delay = Duration.zero});
+  final Widget child;
+  final Duration delay;
+  @override
+  State<_StaggeredIn> createState() => _StaggeredInState();
+}
+
+class _StaggeredInState extends State<_StaggeredIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: _T.dEnter,
+  );
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(widget.delay, () {
+      if (mounted) _c.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0x30FFFFFF)),
+    final curve = CurvedAnimation(parent: _c, curve: _T.easeOut);
+    return AnimatedBuilder(
+      animation: curve,
+      builder: (context, child) {
+        final t = curve.value;
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * 12),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+// =============================================================================
+// Detail host — full-screen route per section.
+// =============================================================================
+
+class _DetailHost extends StatefulWidget {
+  const _DetailHost({required this.item, required this.state});
+  final _NavItem item;
+  final _CounselorProfileSettingsScreenState state;
+  @override
+  State<_DetailHost> createState() => _DetailHostState();
+}
+
+class _DetailHostState extends State<_DetailHost> {
+  final _scroll = ScrollController();
+  double _t = 0.0; // 0 = expanded, 1 = collapsed
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final v = (_scroll.offset / 80).clamp(0.0, 1.0);
+    if ((v - _t).abs() > 0.005) setState(() => _t = v);
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    final s = widget.state;
+    final needsSave = _sectionSaves(item.section);
+
+    // Build a stable profile ref from the outer state.
+    final profileAsync = s.ref.watch(currentUserProfileProvider);
+    final profile = profileAsync.valueOrNull;
+    if (profile == null) {
+      return const Scaffold(
+        backgroundColor: _T.bg,
+        body: Center(child: CircularProgressIndicator(color: _T.brand)),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: _T.bg,
+      body: Stack(
+        children: [
+          _AccentGlow(color: item.accent, child: const SizedBox.expand()),
+          SafeArea(
+            child: Form(
+              key: s._formKey,
+              child: CustomScrollView(
+                controller: _scroll,
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: _DetailHeader(
+                      item: item,
+                      progress: _t,
+                      onBack: () => Navigator.of(context).maybePop(),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        8,
+                        20,
+                        needsSave ? 120 : 40,
+                      ),
+                      child: _StaggeredIn(
+                        delay: const Duration(milliseconds: 80),
+                        child: _SectionBody(
+                          section: item.section,
+                          state: s,
+                          profile: profile,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (needsSave)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _StickySaveBar(
+                saving: s._savingProfile,
+                onSave: s._savingProfile ? null : () => s._save(profile),
+                accent: item.accent,
+              ),
+            ),
+        ],
       ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1,
+    );
+  }
+
+  bool _sectionSaves(CounselorProfileSettingsSection s) {
+    return s != CounselorProfileSettingsSection.passwordSignIn;
+  }
+}
+
+// =============================================================================
+// Detail header — animated large-title that collapses on scroll.
+// =============================================================================
+
+class _DetailHeader extends StatelessWidget {
+  const _DetailHeader({
+    required this.item,
+    required this.progress,
+    required this.onBack,
+  });
+  final _NavItem item;
+  final double progress;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconSize = ui.lerpDouble(56, 36, progress)!;
+    final radius = ui.lerpDouble(18, 11, progress)!;
+    final iconGlyph = ui.lerpDouble(26, 18, progress)!;
+    final titleSize = ui.lerpDouble(32, 20, progress)!;
+    final gap = ui.lerpDouble(18, 10, progress)!;
+    final descOpacity = (1 - progress * 1.6).clamp(0.0, 1.0);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _CircleIconButton(icon: Icons.arrow_back_rounded, onTap: onBack),
+              const Spacer(),
+              // Reserved for future actions.
+            ],
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Hero(
+                  tag: 'section-icon-${item.section.name}',
+                  child: Container(
+                    width: iconSize,
+                    height: iconSize,
+                    decoration: BoxDecoration(
+                      color: item.accent.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(radius),
+                      border: Border.all(color: item.accent.withOpacity(0.30)),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(item.icon, color: item.accent, size: iconGlyph),
+                  ),
+                ),
+                SizedBox(width: gap),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        style: TextStyle(
+                          color: _T.text,
+                          fontSize: titleSize,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.8,
+                          height: 1.05,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          AnimatedOpacity(
+            duration: _T.dQuick,
+            opacity: descOpacity,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                _description(item.section),
+                style: const TextStyle(
+                  color: _T.textMuted,
+                  fontSize: 14.5,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+        ],
+      ),
+    );
+  }
+
+  String _description(CounselorProfileSettingsSection s) => switch (s) {
+    CounselorProfileSettingsSection.identity =>
+      'How your counselor identity appears to students.',
+    CounselorProfileSettingsSection.professionalDetails =>
+      'Title, years of practice, session mode, and timezone.',
+    CounselorProfileSettingsSection.specializations =>
+      'The areas students can book you for.',
+    CounselorProfileSettingsSection.languages =>
+      'Languages you provide sessions in.',
+    CounselorProfileSettingsSection.bio =>
+      'A calm, human summary that helps students know what to expect.',
+    CounselorProfileSettingsSection.sessionRhythm =>
+      'Your default cadence, breaks, and booking preferences.',
+    CounselorProfileSettingsSection.passwordSignIn =>
+      'Send yourself a password reset or manage passkeys.',
+    CounselorProfileSettingsSection.privacyData =>
+      'Visibility, exports, and account data controls.',
+  };
+}
+
+class _CircleIconButton extends StatelessWidget {
+  const _CircleIconButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkResponse(
+        onTap: onTap,
+        radius: 26,
+        child: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: _T.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: _T.hairline),
+          ),
+          alignment: Alignment.center,
+          child: Icon(icon, color: _T.text, size: 20),
         ),
       ),
     );
   }
 }
 
-class _HeroMetricCard extends StatelessWidget {
-  const _HeroMetricCard({required this.label, required this.value});
+// =============================================================================
+// Sticky save bar with animated state
+// =============================================================================
 
-  final String label;
-  final String value;
+class _StickySaveBar extends StatelessWidget {
+  const _StickySaveBar({
+    required this.saving,
+    required this.onSave,
+    required this.accent,
+  });
+  final bool saving;
+  final VoidCallback? onSave;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: 180),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: const Color(0x1FFFFFFF),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0x33FFFFFF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: const TextStyle(
-              color: Color(0xFFDDEBFF),
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.1,
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _T.bg.withOpacity(0.72),
+            border: const Border(
+              top: BorderSide(color: _T.hairline, width: 0.6),
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+          padding: EdgeInsets.fromLTRB(
+            16,
+            12,
+            16,
+            12 + MediaQuery.of(context).padding.bottom,
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: AnimatedContainer(
+              duration: _T.dQuick,
+              curve: Curves.easeOut,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  colors: [accent, Color.lerp(accent, Colors.white, 0.15)!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withOpacity(0.45),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onSave,
+                  borderRadius: BorderRadius.circular(18),
+                  child: Center(
+                    child: AnimatedSwitcher(
+                      duration: _T.dQuick,
+                      child: saving
+                          ? const Row(
+                              key: ValueKey('saving'),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Saving…',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : const Row(
+                              key: ValueKey('save'),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.check_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Save changes',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Accent radial glow behind the top of a screen.
+// =============================================================================
+
+class _AccentGlow extends StatelessWidget {
+  const _AccentGlow({required this.color, required this.child});
+  final Color color;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(painter: _GlowPainter(color)),
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
+class _GlowPainter extends CustomPainter {
+  _GlowPainter(this.color);
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final paint = Paint()
+      ..shader = ui.Gradient.radial(
+        Offset(size.width * 0.5, -size.height * 0.05),
+        math.max(size.width, size.height) * 0.75,
+        [color.withOpacity(0.20), color.withOpacity(0.00)],
+        const [0.0, 1.0],
+      );
+    canvas.drawRect(rect, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GlowPainter old) => old.color != color;
+}
+
+// =============================================================================
+// Section bodies — clean, calm, no card-on-card.
+// =============================================================================
+
+class _SectionBody extends StatelessWidget {
+  const _SectionBody({
+    required this.section,
+    required this.state,
+    required this.profile,
+  });
+  final CounselorProfileSettingsSection section;
+  final _CounselorProfileSettingsScreenState state;
+  final UserProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (section) {
+      case CounselorProfileSettingsSection.identity:
+        return _IdentityBody(state: state, profile: profile);
+      case CounselorProfileSettingsSection.professionalDetails:
+        return _ProfessionalProfileBody(state: state);
+      case CounselorProfileSettingsSection.specializations:
+        return _SpecializationsBody(state: state);
+      case CounselorProfileSettingsSection.languages:
+        return _LanguagesBody(state: state);
+      case CounselorProfileSettingsSection.bio:
+        return _BioBody(state: state);
+      case CounselorProfileSettingsSection.sessionRhythm:
+        return _SessionRhythmBody(state: state);
+      case CounselorProfileSettingsSection.passwordSignIn:
+        return _PasswordBody(state: state, profile: profile);
+      case CounselorProfileSettingsSection.privacyData:
+        return _PrivacyBody(state: state, profile: profile);
+    }
+  }
+}
+
+// ---- shared input decoration ------------------------------------------------
+
+InputDecoration _fieldDecoration({
+  required String label,
+  Widget? prefix,
+  bool alignLabelWithHint = false,
+}) {
+  final border = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(16),
+    borderSide: const BorderSide(color: _T.hairline),
+  );
+  return InputDecoration(
+    filled: true,
+    fillColor: _T.surfaceInput,
+    labelText: label,
+    labelStyle: const TextStyle(color: _T.textMuted),
+    floatingLabelStyle: const TextStyle(color: _T.brand),
+    prefixIcon: prefix == null
+        ? null
+        : IconTheme(
+            data: const IconThemeData(color: _T.textFaint),
+            child: prefix,
+          ),
+    alignLabelWithHint: alignLabelWithHint,
+    border: border,
+    enabledBorder: border,
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: _T.brand, width: 1.4),
+    ),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+  );
+}
+
+// ---- Identity ---------------------------------------------------------------
+
+class _IdentityBody extends StatelessWidget {
+  const _IdentityBody({required this.state, required this.profile});
+  final _CounselorProfileSettingsScreenState state;
+  final UserProfile profile;
+  @override
+  Widget build(BuildContext context) {
+    final name = profile.name.trim().isNotEmpty
+        ? profile.name.trim()
+        : 'Counselor';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: _T.surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: _T.hairline),
+          ),
+          child: Row(
+            children: [
+              Hero(
+                tag: 'counselor-avatar',
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF13D0C7), Color(0xFF0E9B90)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    _initials(name),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        color: _T.text,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      profile.institutionName ?? 'Institution workspace',
+                      style: const TextStyle(color: _T.textMuted, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              _StatusPill(active: state._active),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        TextFormField(
+          controller: state._name,
+          style: const TextStyle(color: _T.text),
+          cursorColor: _T.brand,
+          decoration: _fieldDecoration(
+            label: 'Display name',
+            prefix: const Icon(Icons.person_rounded),
+          ),
+          validator: (v) => (v ?? '').trim().length < 2
+              ? 'Enter at least 2 characters.'
+              : null,
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: profile.institutionName ?? '',
+          readOnly: true,
+          style: const TextStyle(color: _T.textMuted),
+          decoration: _fieldDecoration(
+            label: 'Institution',
+            prefix: const Icon(Icons.apartment_rounded),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _initials(String n) {
+    final parts = n.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    if (parts.isEmpty) return 'C';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+}
+
+// ---- Professional -----------------------------------------------------------
+
+class _ProfessionalBody extends StatefulWidget {
+  const _ProfessionalBody({required this.state});
+  final _CounselorProfileSettingsScreenState state;
+  @override
+  State<_ProfessionalBody> createState() => _ProfessionalBodyState();
+}
+
+class _ProfessionalBodyState extends State<_ProfessionalBody> {
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.state;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextFormField(
+          controller: s._title,
+          style: const TextStyle(color: _T.text),
+          cursorColor: _T.brand,
+          decoration: _fieldDecoration(
+            label: 'Professional title',
+            prefix: const Icon(Icons.badge_rounded),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: s._years,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: _T.text),
+                cursorColor: _T.brand,
+                decoration: _fieldDecoration(
+                  label: 'Years',
+                  prefix: const Icon(Icons.timeline_rounded),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _DropdownField<String>(
+                label: 'Mode',
+                icon: Icons.video_call_rounded,
+                value: s._mode,
+                items: _CounselorProfileSettingsScreenState._modes,
+                onChanged: (v) => setState(() => s._mode = v ?? s._mode),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _DropdownField<String>(
+          label: 'Timezone',
+          icon: Icons.public_rounded,
+          value: s._timezone,
+          items: _CounselorProfileSettingsScreenState._zones,
+          onChanged: (v) => setState(() => s._timezone = v ?? s._timezone),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfessionalProfileBody extends StatelessWidget {
+  const _ProfessionalProfileBody({required this.state});
+
+  final _CounselorProfileSettingsScreenState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _DetailSectionLabel('Core profile'),
+        const SizedBox(height: 10),
+        _ProfessionalBody(state: state),
+        const SizedBox(height: 18),
+        _DetailSectionLabel('Specializations'),
+        const SizedBox(height: 10),
+        _SpecializationsBody(state: state),
+        const SizedBox(height: 18),
+        _DetailSectionLabel('Languages'),
+        const SizedBox(height: 10),
+        _LanguagesBody(state: state),
+        const SizedBox(height: 18),
+        _DetailSectionLabel('Bio'),
+        const SizedBox(height: 10),
+        _BioBody(state: state),
+      ],
+    );
+  }
+}
+
+class _DetailSectionLabel extends StatelessWidget {
+  const _DetailSectionLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: const TextStyle(
+        color: _T.textFaint,
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.4,
+      ),
+    );
+  }
+}
+
+class _DropdownField<T> extends StatelessWidget {
+  const _DropdownField({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+  final String label;
+  final IconData icon;
+  final T value;
+  final List<T> items;
+  final ValueChanged<T?> onChanged;
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<T>(
+      initialValue: value,
+      dropdownColor: _T.surface,
+      isExpanded: true,
+      iconEnabledColor: _T.textFaint,
+      style: const TextStyle(color: _T.text, fontSize: 15),
+      decoration: _fieldDecoration(label: label, prefix: Icon(icon)),
+      items: items
+          .map((e) => DropdownMenuItem<T>(value: e, child: Text('$e')))
+          .toList(growable: false),
+      onChanged: onChanged,
+    );
+  }
+}
+
+// ---- Specializations --------------------------------------------------------
+
+class _SpecializationsBody extends StatefulWidget {
+  const _SpecializationsBody({required this.state});
+  final _CounselorProfileSettingsScreenState state;
+  @override
+  State<_SpecializationsBody> createState() => _SpecializationsBodyState();
+}
+
+class _SpecializationsBodyState extends State<_SpecializationsBody> {
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.state;
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: _CounselorProfileSettingsScreenState._specs
+          .map(
+            (item) => _ChoiceChip(
+              label: item,
+              selected: s._specializations.contains(item),
+              onTap: () => setState(() {
+                final next = Set<String>.from(s._specializations);
+                if (next.contains(item)) {
+                  next.remove(item);
+                } else {
+                  next.add(item);
+                }
+                s._specializations = next.isEmpty
+                    ? {_CounselorProfileSettingsScreenState._specs.first}
+                    : next;
+              }),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
+class _ChoiceChip extends StatelessWidget {
+  const _ChoiceChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: _T.dQuick,
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        gradient: selected
+            ? const LinearGradient(
+                colors: [Color(0xFF13D0C7), Color(0xFF0E9B90)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        color: selected ? null : _T.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: selected ? _T.brand : _T.hairline),
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: _T.brand.withOpacity(0.35),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedSwitcher(
+                  duration: _T.dQuick,
+                  transitionBuilder: (c, a) =>
+                      ScaleTransition(scale: a, child: c),
+                  child: Icon(
+                    selected ? Icons.check_rounded : Icons.add_rounded,
+                    key: ValueKey(selected),
+                    size: 16,
+                    color: selected ? Colors.white : _T.textMuted,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: selected ? Colors.white : _T.text,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---- Languages --------------------------------------------------------------
+
+class _LanguagesBody extends StatefulWidget {
+  const _LanguagesBody({required this.state});
+  final _CounselorProfileSettingsScreenState state;
+  @override
+  State<_LanguagesBody> createState() => _LanguagesBodyState();
+}
+
+class _LanguagesBodyState extends State<_LanguagesBody> {
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.state;
+    final selected = s._languages ?? {counselorLanguageOptions.first};
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: counselorLanguageOptions
+          .map(
+            (lang) => _ChoiceChip(
+              label: lang,
+              selected: selected.contains(lang),
+              onTap: () => setState(() {
+                s._languages ??= {counselorLanguageOptions.first};
+                if (s._languages!.contains(lang)) {
+                  s._languages!.remove(lang);
+                } else {
+                  s._languages!.add(lang);
+                }
+                if (s._languages!.isEmpty) {
+                  s._languages = {counselorLanguageOptions.first};
+                }
+              }),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
+// ---- Bio --------------------------------------------------------------------
+
+class _BioBody extends StatelessWidget {
+  const _BioBody({required this.state});
+  final _CounselorProfileSettingsScreenState state;
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: state._bio,
+      minLines: 6,
+      maxLines: 12,
+      style: const TextStyle(color: _T.text, height: 1.5),
+      cursorColor: _T.brand,
+      decoration: _fieldDecoration(
+        label: 'Bio',
+        prefix: const Icon(Icons.short_text_rounded),
+        alignLabelWithHint: true,
+      ),
+    );
+  }
+}
+
+// ---- Session rhythm ---------------------------------------------------------
+
+class _SessionRhythmBody extends StatefulWidget {
+  const _SessionRhythmBody({required this.state});
+  final _CounselorProfileSettingsScreenState state;
+  @override
+  State<_SessionRhythmBody> createState() => _SessionRhythmBodyState();
+}
+
+class _SessionRhythmBodyState extends State<_SessionRhythmBody> {
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.state;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Duration picker as pill row
+        const _MutedLabel('Default session duration'),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _CounselorProfileSettingsScreenState._durations
+              .map((d) {
+                final sel = s._duration == d;
+                return _ChoiceChip(
+                  label: '$d min',
+                  selected: sel,
+                  onTap: () => setState(() => s._duration = d),
+                );
+              })
+              .toList(growable: false),
+        ),
+        const SizedBox(height: 22),
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+          decoration: BoxDecoration(
+            color: _T.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _T.hairline),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Break between sessions',
+                      style: TextStyle(
+                        color: _T.text,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  AnimatedSwitcher(
+                    duration: _T.dQuick,
+                    child: Text(
+                      '${s._breakMins} min',
+                      key: ValueKey(s._breakMins),
+                      style: const TextStyle(
+                        color: _T.brand,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: _T.brand,
+                  inactiveTrackColor: _T.hairline,
+                  thumbColor: Colors.white,
+                  overlayColor: _T.brand.withOpacity(0.15),
+                  trackHeight: 4,
+                ),
+                child: Slider(
+                  value: s._breakMins.toDouble(),
+                  min: 0,
+                  max: 30,
+                  divisions: 6,
+                  onChanged: (v) => setState(() => s._breakMins = v.round()),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _ToggleTile(
+          title: 'Allow direct booking',
+          subtitle: 'Let students book without a manual approval step.',
+          value: s._direct,
+          onChanged: (v) => setState(() => s._direct = v),
+        ),
+        const SizedBox(height: 10),
+        _ToggleTile(
+          title: 'Auto-approve follow-ups',
+          subtitle: 'Keep repeat sessions moving without extra admin.',
+          value: s._followUps,
+          onChanged: (v) => setState(() => s._followUps = v),
+        ),
+      ],
+    );
+  }
+}
+
+class _MutedLabel extends StatelessWidget {
+  const _MutedLabel(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: const TextStyle(
+      color: _T.textFaint,
+      fontSize: 11,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 1.4,
+    ),
+  );
+}
+
+class _ToggleTile extends StatelessWidget {
+  const _ToggleTile({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+      decoration: BoxDecoration(
+        color: _T.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _T.hairline),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: _T.text,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: _T.textMuted,
+                    fontSize: 12.5,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            onChanged: onChanged,
+            activeColor: _T.brand,
           ),
         ],
       ),
+    );
+  }
+}
+
+// ---- Password ---------------------------------------------------------------
+
+class _PasswordBody extends StatelessWidget {
+  const _PasswordBody({required this.state, required this.profile});
+  final _CounselorProfileSettingsScreenState state;
+  final UserProfile profile;
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: _T.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _T.hairline),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Signed in as',
+                style: TextStyle(
+                  color: _T.textFaint,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.4,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                profile.email,
+                style: const TextStyle(
+                  color: _T.text,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'We will email a secure reset link to this address.',
+                style: TextStyle(color: _T.textMuted, height: 1.45),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        _BigActionButton(
+          icon: Icons.lock_reset_rounded,
+          label: state._sendingReset ? 'Sending…' : 'Send reset link',
+          onTap: state._sendingReset ? null : () => state._sendReset(profile),
+          primary: true,
+        ),
+        const SizedBox(height: 12),
+        _BigActionButton(
+          icon: Icons.fingerprint_rounded,
+          label: 'Manage passkeys',
+          onTap: () => showPasskeyManagementDialog(context: context),
+          primary: false,
+        ),
+      ],
+    );
+  }
+}
+
+class _BigActionButton extends StatelessWidget {
+  const _BigActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.primary,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool primary;
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 54,
+      child: Material(
+        color: Colors.transparent,
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: primary
+                ? const LinearGradient(
+                    colors: [Color(0xFF13D0C7), Color(0xFF0E9B90)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: primary ? null : _T.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: primary ? Colors.transparent : _T.hairline,
+            ),
+            boxShadow: primary
+                ? [
+                    BoxShadow(
+                      color: _T.brand.withOpacity(0.35),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : null,
+          ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(18),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: primary ? Colors.white : _T.text, size: 20),
+                const SizedBox(width: 10),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: primary ? Colors.white : _T.text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---- Privacy ----------------------------------------------------------------
+
+class _PrivacyBody extends StatefulWidget {
+  const _PrivacyBody({required this.state, required this.profile});
+  final _CounselorProfileSettingsScreenState state;
+  final UserProfile profile;
+  @override
+  State<_PrivacyBody> createState() => _PrivacyBodyState();
+}
+
+class _PrivacyBodyState extends State<_PrivacyBody> {
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.state;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ToggleTile(
+          title: 'Visible to students',
+          subtitle: s._active
+              ? 'You appear in the counselor directory.'
+              : 'Your listing is hidden from students.',
+          value: s._active,
+          onChanged: (v) => setState(() => s._active = v),
+        ),
+        const SizedBox(height: 14),
+        _BigActionButton(
+          icon: Icons.download_rounded,
+          label: 'Export my data',
+          primary: false,
+          onTap: () => showAccountExportSheet(
+            context: context,
+            ref: s.ref,
+            title: 'Download your counselor data',
+            subtitle:
+                'Choose a polished PDF summary, spreadsheet-ready CSV tables, or advanced raw JSON.',
+          ),
+        ),
+        const SizedBox(height: 12),
+        _BigActionButton(
+          icon: Icons.security_rounded,
+          label: 'Manage passkeys',
+          primary: false,
+          onTap: () => showPasskeyManagementDialog(context: context),
+        ),
+        const SizedBox(height: 12),
+        _BigActionButton(
+          icon: Icons.logout_rounded,
+          label: 'Sign out',
+          primary: false,
+          onTap: () => confirmAndLogout(context: context, ref: s.ref),
+        ),
+      ],
     );
   }
 }

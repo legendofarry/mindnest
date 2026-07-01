@@ -1257,8 +1257,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               key: state.pageKey,
               child: CounselorProfileSettingsScreen(
                 embeddedInCounselorShell: true,
-                returnToRoute:
-                    state.uri.queryParameters[AppRoute.returnToQuery],
               ),
             ),
           ),
@@ -1268,8 +1266,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               key: state.pageKey,
               child: CounselorProfileSettingsScreen(
                 embeddedInCounselorShell: true,
-                returnToRoute:
-                    state.uri.queryParameters[AppRoute.returnToQuery],
                 initialSection: CounselorProfileSettingsSection.privacyData,
               ),
             ),
