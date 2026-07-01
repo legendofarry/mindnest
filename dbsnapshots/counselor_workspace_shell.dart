@@ -935,7 +935,9 @@ class _FloatingBottomNav extends StatelessWidget {
     final sideCount = visibleItems.length;
     final leftCount = sideCount ~/ 2;
     final leftItems = visibleItems.take(leftCount).toList(growable: false);
-    final rightItems = visibleItems.skip(leftCount).toList(growable: false);
+    final rightItems = visibleItems
+        .skip(leftCount)
+        .toList(growable: false);
 
     return Center(
       child: ConstrainedBox(
@@ -978,7 +980,8 @@ class _FloatingBottomNav extends StatelessWidget {
                                       .map(
                                         (item) => _DockNavItem(
                                           item: item,
-                                          active: item.section == activeSection,
+                                          active:
+                                              item.section == activeSection,
                                           onTap: () =>
                                               onSelectSection(item.section),
                                         ),
@@ -997,7 +1000,8 @@ class _FloatingBottomNav extends StatelessWidget {
                                       .map(
                                         (item) => _DockNavItem(
                                           item: item,
-                                          active: item.section == activeSection,
+                                          active:
+                                              item.section == activeSection,
                                           onTap: () =>
                                               onSelectSection(item.section),
                                         ),
@@ -1484,7 +1488,10 @@ class _QuickActionRow extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: Color(0xFF8A9AAE)),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFF8A9AAE),
+              ),
             ],
           ),
         ),
