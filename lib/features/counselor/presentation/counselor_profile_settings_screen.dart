@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mindnest/core/routes/app_router.dart';
@@ -90,6 +91,7 @@ class _CounselorProfileSettingsScreenState
   final _title = TextEditingController();
   final _years = TextEditingController();
   final _bio = TextEditingController();
+  final _search = TextEditingController();
 
   bool _seeded = false;
 
@@ -137,12 +139,37 @@ class _CounselorProfileSettingsScreenState
   static const _durations = <int>[30, 45, 50, 60, 75, 90];
 
   @override
+  void initState() {
+    super.initState();
+    assert(() {
+      debugPaintBaselinesEnabled = false;
+      debugPaintSizeEnabled = false;
+      debugPaintPointersEnabled = false;
+      debugPaintLayerBordersEnabled = false;
+      return true;
+    }());
+    _search.addListener(_handleSearchChanged);
+  }
+
+  @override
   void dispose() {
+    _search.removeListener(_handleSearchChanged);
+    _search.dispose();
     _name.dispose();
     _title.dispose();
     _years.dispose();
     _bio.dispose();
     super.dispose();
+  }
+
+  void _handleSearchChanged() {
+    if (_query == _search.text) return;
+    setState(() => _query = _search.text);
+  }
+
+  void _clearSearch() {
+    if (_search.text.isEmpty) return;
+    _search.clear();
   }
 
   // ---- data seeding ---------------------------------------------------------
@@ -328,6 +355,17 @@ class _CounselorProfileSettingsScreenState
         subtitle: '$displayName · $institution',
         icon: Icons.person_rounded,
         accent: const Color(0xFF14B8A6),
+        searchTerms: [
+          displayName,
+          institution,
+          'name',
+          'display name',
+          'identity',
+          'institution',
+          'school',
+          'university',
+          'profile basics',
+        ],
       ),
       _NavItem(
         section: CounselorProfileSettingsSection.professionalDetails,
@@ -337,6 +375,28 @@ class _CounselorProfileSettingsScreenState
             '${_title.text.trim().isEmpty ? 'Licensed counselor' : _title.text.trim()} · ${_years.text.trim().isEmpty ? '—' : '${_years.text.trim()} yrs'} · $_mode',
         icon: Icons.work_history_rounded,
         accent: const Color(0xFF34D399),
+        searchTerms: [
+          _title.text,
+          _years.text,
+          _mode,
+          _timezone,
+          _bio.text,
+          ..._specializations,
+          ...(_languages ?? {counselorLanguageOptions.first}),
+          'professional title',
+          'years experience',
+          'experience',
+          'mode',
+          'session mode',
+          'timezone',
+          'time zone',
+          'specializations',
+          'specialties',
+          'languages',
+          'bio',
+          'about',
+          'profile',
+        ],
       ),
       _NavItem(
         section: CounselorProfileSettingsSection.sessionRhythm,
@@ -345,6 +405,19 @@ class _CounselorProfileSettingsScreenState
         subtitle: '$_duration min · $_breakMins min break',
         icon: Icons.graphic_eq_rounded,
         accent: const Color(0xFF22D3EE),
+        searchTerms: [
+          'duration',
+          'default session',
+          'session minutes',
+          'break',
+          'break between sessions',
+          'direct booking',
+          'follow ups',
+          'auto approve',
+          'booking preferences',
+          'cadence',
+          'rhythm',
+        ],
       ),
       _NavItem(
         section: CounselorProfileSettingsSection.passwordSignIn,
@@ -353,6 +426,18 @@ class _CounselorProfileSettingsScreenState
         subtitle: profile.email,
         icon: Icons.key_rounded,
         accent: const Color(0xFF60A5FA),
+        searchTerms: [
+          profile.email,
+          'password',
+          'reset password',
+          'sign in',
+          'signin',
+          'login',
+          'security',
+          'passkeys',
+          'fingerprint',
+          'account access',
+        ],
       ),
       _NavItem(
         section: CounselorProfileSettingsSection.privacyData,
@@ -361,19 +446,203 @@ class _CounselorProfileSettingsScreenState
         subtitle: _active ? 'Visible to students' : 'Hidden',
         icon: Icons.privacy_tip_rounded,
         accent: const Color(0xFFC084FC),
+        searchTerms: [
+          'privacy',
+          'data',
+          'visibility',
+          'visible',
+          'hidden',
+          'directory',
+          'students',
+          'export',
+          'download data',
+          'passkeys',
+          'sign out',
+          'logout',
+          'log out',
+        ],
       ),
     ];
   }
 
-  bool _matches(_NavItem item) {
-    final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return true;
-    return [
-      item.group,
-      item.title,
-      item.subtitle,
-      item.section.name,
-    ].join(' ').toLowerCase().contains(q);
+  // ---------------------------------------------------------------------------
+  // Search — powerful multi-token + fuzzy scoring.
+  //
+  // For each item we build a haystack of {title, subtitle, group, section,
+  // searchTerms}. The query is split into tokens; every token must match
+  // (via substring OR fuzzy subsequence within ~1 typo) somewhere. Items are
+  // then ranked by a composite score so the best matches float to the top.
+  // If nothing scores above 0 we return an empty list and the empty-state
+  // shows the *closest* items as tappable suggestions.
+  // ---------------------------------------------------------------------------
+
+  static const List<String> _searchGroupsOrder = [
+    'PROFILE',
+    'PRACTICE',
+    'ACCOUNT',
+  ];
+
+  List<String> _itemHaystack(_NavItem item) => [
+    item.title,
+    item.subtitle,
+    item.group,
+    item.section.name,
+    ...item.searchTerms,
+  ];
+
+  bool _matches(_NavItem item) => _scoreItem(item, _query) > 0;
+
+  /// Composite score. 0 = no match. Higher is better.
+  double _scoreItem(_NavItem item, String rawQuery) {
+    final q = rawQuery.trim().toLowerCase();
+    if (q.isEmpty) return 1; // no query -> everything shows
+    final tokens = q
+        .split(RegExp(r'[\s,;/]+'))
+        .where((t) => t.isNotEmpty)
+        .toList(growable: false);
+    if (tokens.isEmpty) return 1;
+
+    final title = item.title.toLowerCase();
+    final subtitle = item.subtitle.toLowerCase();
+    final terms = item.searchTerms.map((e) => e.toLowerCase()).toList();
+    final allFields = <String>[
+      title,
+      subtitle,
+      item.group.toLowerCase(),
+      item.section.name.toLowerCase(),
+      ...terms,
+    ];
+    final joined = allFields.join(' ');
+
+    double total = 0;
+    for (final tok in tokens) {
+      final tokScore = _bestTokenScore(tok, title, subtitle, terms, joined);
+      if (tokScore <= 0) return 0; // every token must land somewhere
+      total += tokScore;
+    }
+    // Small bonus for exact whole-query match on the title.
+    if (title == q) total += 6;
+    if (title.startsWith(q)) total += 2;
+    return total;
+  }
+
+  double _bestTokenScore(
+    String tok,
+    String title,
+    String subtitle,
+    List<String> terms,
+    String joined,
+  ) {
+    double best = 0;
+
+    void bump(double v) {
+      if (v > best) best = v;
+    }
+
+    // Exact whole-word / prefix hits weigh most.
+    if (title == tok) bump(10);
+    if (title.startsWith(tok)) bump(6);
+    if (title.contains(tok)) bump(4);
+    if (subtitle.contains(tok)) bump(3);
+    for (final t in terms) {
+      if (t == tok) {
+        bump(5);
+      } else if (t.startsWith(tok)) {
+        bump(3.5);
+      } else if (t.contains(tok)) {
+        bump(2);
+      }
+    }
+    if (best > 0) return best;
+
+    // Fuzzy fallbacks — subsequence (typing letters in order) and small typos.
+    if (_isSubsequence(tok, title)) bump(1.6);
+    if (_isSubsequence(tok, joined)) bump(1.0);
+    if (tok.length >= 4) {
+      for (final t in terms) {
+        if (_within1Edit(tok, t)) {
+          bump(1.4);
+          break;
+        }
+      }
+      if (_within1Edit(tok, title)) bump(1.5);
+    }
+    return best;
+  }
+
+  static bool _isSubsequence(String needle, String hay) {
+    if (needle.isEmpty) return true;
+    var i = 0;
+    for (var j = 0; j < hay.length && i < needle.length; j++) {
+      if (hay.codeUnitAt(j) == needle.codeUnitAt(i)) i++;
+    }
+    return i == needle.length;
+  }
+
+  /// Damerau-ish: true if strings are equal, differ by one insert/delete/sub,
+  /// or one adjacent transposition. Cheap and effective for short queries.
+  static bool _within1Edit(String a, String b) {
+    if (a == b) return true;
+    final la = a.length, lb = b.length;
+    if ((la - lb).abs() > 1) return false;
+    var i = 0, j = 0, edits = 0;
+    while (i < la && j < lb) {
+      if (a.codeUnitAt(i) == b.codeUnitAt(j)) {
+        i++;
+        j++;
+        continue;
+      }
+      if (++edits > 1) return false;
+      if (la == lb) {
+        // sub or transposition
+        if (i + 1 < la &&
+            j + 1 < lb &&
+            a.codeUnitAt(i) == b.codeUnitAt(j + 1) &&
+            a.codeUnitAt(i + 1) == b.codeUnitAt(j)) {
+          i += 2;
+          j += 2;
+        } else {
+          i++;
+          j++;
+        }
+      } else if (la > lb) {
+        i++;
+      } else {
+        j++;
+      }
+    }
+    if (i < la || j < lb) edits++;
+    return edits <= 1;
+  }
+
+  /// Suggestions shown in the empty state — the top items by a relaxed score.
+  List<_NavItem> _suggestionsFor(String query, List<_NavItem> all) {
+    final q = query.trim();
+    if (q.isEmpty) return const [];
+    final scored = <MapEntry<_NavItem, double>>[];
+    for (final item in all) {
+      // Relaxed score: subsequence / edit-distance / partial-token match.
+      final s = _relaxedScore(item, q.toLowerCase());
+      if (s > 0) scored.add(MapEntry(item, s));
+    }
+    scored.sort((a, b) => b.value.compareTo(a.value));
+    return scored.take(3).map((e) => e.key).toList(growable: false);
+  }
+
+  double _relaxedScore(_NavItem item, String q) {
+    double best = 0;
+    for (final field in _itemHaystack(item)) {
+      final f = field.toLowerCase();
+      if (f.contains(q)) best = math.max(best, 5);
+      if (_isSubsequence(q, f)) best = math.max(best, 3);
+      if (q.length >= 3 && _within1Edit(q, f)) best = math.max(best, 4);
+      // partial-prefix: any word in f starts with first 3 letters of q
+      final pref = q.length >= 3 ? q.substring(0, 3) : q;
+      for (final word in f.split(RegExp(r'\s+'))) {
+        if (word.startsWith(pref)) best = math.max(best, 2);
+      }
+    }
+    return best;
   }
 
   // =========================================================================
@@ -410,6 +679,15 @@ class _CounselorProfileSettingsScreenState
   // ---- build ---------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
+    // Belt-and-suspenders: some other screens may flip these on. Force them
+    // off every rebuild so the yellow baseline underlines never leak in.
+    assert(() {
+      debugPaintBaselinesEnabled = false;
+      debugPaintSizeEnabled = false;
+      debugPaintPointersEnabled = false;
+      debugPaintLayerBordersEnabled = false;
+      return true;
+    }());
     final profileAsync = ref.watch(currentUserProfileProvider);
     return profileAsync.when(
       loading: () => const ColoredBox(
@@ -462,9 +740,13 @@ class _CounselorProfileSettingsScreenState
           },
         );
 
-        final wrapped = ScrollConfiguration(
-          behavior: const NoScrollbarScrollBehavior(),
-          child: body,
+        final wrapped = Material(
+          type: MaterialType.canvas,
+          color: _T.bg,
+          child: ScrollConfiguration(
+            behavior: const NoScrollbarScrollBehavior(),
+            child: body,
+          ),
         );
 
         if (widget.embeddedInCounselorShell) return wrapped;
@@ -511,7 +793,21 @@ class _CounselorProfileSettingsScreenState
   // =========================================================================
 
   Widget _buildLanding(UserProfile profile, int unread, bool showDirectory) {
-    final items = _navItems(profile).where(_matches).toList(growable: false);
+    final normalizedQuery = _query.trim();
+    final all = _navItems(profile);
+    // Score, filter, and sort — highest score first when a query is active.
+    final scored = <MapEntry<_NavItem, double>>[];
+    for (final it in all) {
+      final s = _scoreItem(it, normalizedQuery);
+      if (s > 0) scored.add(MapEntry(it, s));
+    }
+    if (normalizedQuery.isNotEmpty) {
+      scored.sort((a, b) => b.value.compareTo(a.value));
+    }
+    final items = scored.map((e) => e.key).toList(growable: false);
+    final suggestions = items.isEmpty
+        ? _suggestionsFor(normalizedQuery, all)
+        : const <_NavItem>[];
     final grouped = <String, List<_NavItem>>{};
     for (final item in items) {
       grouped.putIfAbsent(item.group, () => []).add(item);
@@ -533,36 +829,48 @@ class _CounselorProfileSettingsScreenState
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
                 child: _SearchField(
-                  onChanged: (v) => setState(() => _query = v),
+                  controller: _search,
+                  query: normalizedQuery,
+                  onClear: _clearSearch,
                 ),
               ),
             ),
-            for (final group in const ['PROFILE', 'PRACTICE', 'ACCOUNT'])
-              if ((grouped[group] ?? const []).isNotEmpty) ...[
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(28, 18, 20, 10),
-                    child: Text(
-                      group,
-                      style: const TextStyle(
-                        color: _T.textFaint,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.6,
+            if (items.isEmpty)
+              SliverToBoxAdapter(
+                child: _SettingsSearchEmptyState(
+                  query: normalizedQuery,
+                  suggestions: suggestions,
+                  onTapSuggestion: _openDetail,
+                  onClear: _clearSearch,
+                ),
+              )
+            else
+              for (final group in const ['PROFILE', 'PRACTICE', 'ACCOUNT'])
+                if ((grouped[group] ?? const []).isNotEmpty) ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(28, 18, 20, 10),
+                      child: Text(
+                        group,
+                        style: const TextStyle(
+                          color: _T.textFaint,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.6,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _RowGroup(
-                      items: grouped[group]!,
-                      onTap: _openDetail,
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: _RowGroup(
+                        items: grouped[group]!,
+                        onTap: _openDetail,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
             // Directory status removed per UX request.
             const SliverToBoxAdapter(child: SizedBox(height: 48)),
           ],
@@ -727,8 +1035,16 @@ class _StatusPill extends StatelessWidget {
 // =============================================================================
 
 class _SearchField extends StatelessWidget {
-  const _SearchField({required this.onChanged});
-  final ValueChanged<String> onChanged;
+  const _SearchField({
+    required this.controller,
+    required this.query,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final String query;
+  final VoidCallback onClear;
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -740,19 +1056,37 @@ class _SearchField extends StatelessWidget {
           border: Border.all(color: _T.hairline),
         ),
         child: TextField(
-          onChanged: onChanged,
+          controller: controller,
+          autocorrect: false,
+          enableSuggestions: false,
+          spellCheckConfiguration: SpellCheckConfiguration.disabled(),
           style: const TextStyle(color: _T.text, fontSize: 15),
           cursorColor: _T.brand,
-          decoration: const InputDecoration(
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
             hintText: 'Search settings',
-            hintStyle: TextStyle(color: _T.textFaint),
-            prefixIcon: Icon(
+            hintStyle: const TextStyle(color: _T.textFaint),
+            prefixIcon: const Icon(
               Icons.search_rounded,
               color: _T.textFaint,
               size: 20,
             ),
+            suffixIcon: query.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Clear search',
+                    onPressed: onClear,
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: _T.textFaint,
+                      size: 20,
+                    ),
+                  ),
             border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 4,
+              vertical: 14,
+            ),
           ),
         ),
       ),
@@ -772,13 +1106,175 @@ class _NavItem {
     required this.subtitle,
     required this.icon,
     required this.accent,
+    this.searchTerms = const <String>[],
   });
+
   final CounselorProfileSettingsSection section;
   final String group;
   final String title;
   final String subtitle;
   final IconData icon;
   final Color accent;
+  final List<String> searchTerms;
+}
+
+class _SettingsSearchEmptyState extends StatelessWidget {
+  const _SettingsSearchEmptyState({
+    required this.query,
+    this.suggestions = const [],
+    this.onTapSuggestion,
+    this.onClear,
+  });
+
+  final String query;
+  final List<_NavItem> suggestions;
+  final ValueChanged<_NavItem>? onTapSuggestion;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasSuggestions = suggestions.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 26, 20, 0),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: _T.surface,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: _T.hairline),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: _T.brand.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.manage_search_rounded,
+                    color: _T.brand,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'No exact match',
+                        style: TextStyle(
+                          color: _T.text,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        hasSuggestions
+                            ? 'Nothing exactly matched "$query" — did you mean:'
+                            : 'Nothing matched "$query". Try password, language, bio, timezone, export, or sign out.',
+                        style: const TextStyle(
+                          color: _T.textMuted,
+                          fontSize: 12.5,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (hasSuggestions) ...[
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final s in suggestions)
+                    _SuggestionChip(
+                      item: s,
+                      onTap: () => onTapSuggestion?.call(s),
+                    ),
+                ],
+              ),
+            ],
+            if (onClear != null) ...[
+              const SizedBox(height: 14),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: onClear,
+                  style: TextButton.styleFrom(
+                    foregroundColor: _T.brand,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: const Icon(Icons.close_rounded, size: 16),
+                  label: const Text(
+                    'Clear search',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionChip extends StatelessWidget {
+  const _SuggestionChip({required this.item, required this.onTap});
+  final _NavItem item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: item.accent.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: item.accent.withOpacity(0.35)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(item.icon, size: 14, color: item.accent),
+              const SizedBox(width: 6),
+              Text(
+                item.title,
+                style: TextStyle(
+                  color: _T.text,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.arrow_forward_rounded, size: 13, color: _T.textMuted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _RowGroup extends StatelessWidget {
