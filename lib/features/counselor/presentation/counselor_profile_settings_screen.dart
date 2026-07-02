@@ -1047,46 +1047,62 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          color: _T.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _T.hairline),
-        ),
-        child: TextField(
-          controller: controller,
-          autocorrect: false,
-          enableSuggestions: false,
-          spellCheckConfiguration: SpellCheckConfiguration.disabled(),
-          style: const TextStyle(color: _T.text, fontSize: 15),
+    return Theme(
+      data: Theme.of(context).copyWith(
+        textSelectionTheme: const TextSelectionThemeData(
           cursorColor: _T.brand,
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-            hintText: 'Search settings',
-            hintStyle: const TextStyle(color: _T.textFaint),
-            prefixIcon: const Icon(
-              Icons.search_rounded,
-              color: _T.textFaint,
-              size: 20,
-            ),
-            suffixIcon: query.isEmpty
-                ? null
-                : IconButton(
-                    tooltip: 'Clear search',
-                    onPressed: onClear,
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: _T.textFaint,
-                      size: 20,
-                    ),
+          selectionColor: Color(0x3313D0C7),
+          selectionHandleColor: _T.brand,
+        ),
+      ),
+      child: TextField(
+        controller: controller,
+        autocorrect: false,
+        enableSuggestions: false,
+        spellCheckConfiguration: SpellCheckConfiguration.disabled(),
+        style: const TextStyle(
+          color: _T.text,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+        cursorColor: _T.brand,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          filled: true,
+          fillColor: _T.surfaceInput,
+          hintText: 'Search settings',
+          hintStyle: const TextStyle(color: _T.textFaint),
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            color: _T.textFaint,
+            size: 20,
+          ),
+          suffixIcon: query.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  onPressed: onClear,
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: _T.textFaint,
+                    size: 20,
                   ),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 4,
-              vertical: 14,
-            ),
+                ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: _T.hairline),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: _T.hairline),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: _T.brand, width: 1.4),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
           ),
         ),
       ),
@@ -1691,9 +1707,14 @@ class _CircleIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: InkResponse(
+      child: InkWell(
         onTap: onTap,
-        radius: 26,
+        customBorder: const CircleBorder(),
+        splashFactory: NoSplash.splashFactory,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+        focusColor: Colors.transparent,
         child: Container(
           width: 42,
           height: 42,
