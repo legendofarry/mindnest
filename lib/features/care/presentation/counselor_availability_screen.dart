@@ -10,6 +10,7 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
+import 'package:mindnest/features/care/models/counselor_schedule_policy.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:mindnest/core/ui/modern_banner.dart';
@@ -119,6 +120,20 @@ class _CounselorAvailabilityScreenState
     return weekdays[day.weekday - 1];
   }
 
+  CounselorSchedulePolicy _policyFor(UserProfile profile) {
+    final prefs = profile.counselorPreferences;
+    return CounselorSchedulePolicy(
+      sessionMinutes: (prefs['defaultSessionMinutes'] as num?)?.toInt() ?? 50,
+      breakMinutes: (prefs['breakBetweenSessionsMins'] as num?)?.toInt() ?? 10,
+      allowDirectBooking: (prefs['allowDirectBooking'] as bool?) ?? true,
+      autoApproveFollowUps: (prefs['autoApproveFollowUps'] as bool?) ?? false,
+    );
+  }
+
+  TimeOfDay _timeOfDayFromDateTime(DateTime value) {
+    return TimeOfDay(hour: value.hour, minute: value.minute);
+  }
+
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -132,13 +147,27 @@ class _CounselorAvailabilityScreenState
     }
   }
 
-  Future<void> _pickStartTime() async {
+  Future<void> _pickStartTime(UserProfile profile) async {
     final picked = await showTimePicker(
       context: context,
       initialTime: _startTime ?? const TimeOfDay(hour: 9, minute: 0),
     );
     if (picked != null) {
-      setState(() => _startTime = picked);
+      final policy = _policyFor(profile);
+      final date = _date ?? DateTime.now();
+      final start = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        picked.hour,
+        picked.minute,
+      );
+      final end = policy.defaultEndFor(start);
+      setState(() {
+        _date ??= DateTime(date.year, date.month, date.day);
+        _startTime = picked;
+        _endTime = _timeOfDayFromDateTime(end);
+      });
     }
   }
 
@@ -173,6 +202,27 @@ class _CounselorAvailabilityScreenState
       showModernBannerFromSnackBar(
         context,
         const SnackBar(content: Text('End time must be after start time.')),
+      );
+      return;
+    }
+    final policy = _policyFor(profile);
+    if (!policy.containsLocalRange(startLocal, endLocal)) {
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(
+          content: Text('Availability must stay between 7:00 AM and 8:00 PM.'),
+        ),
+      );
+      return;
+    }
+    if (endLocal.difference(startLocal) < policy.sessionDuration) {
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(
+          content: Text(
+            'Availability must fit at least one ${policy.sessionMinutes}-minute session.',
+          ),
+        ),
       );
       return;
     }
@@ -378,8 +428,9 @@ class _CounselorAvailabilityScreenState
     required List<AvailabilitySlot> cellSlots,
   }) async {
     if (cellSlots.isEmpty) {
+      final policy = _policyFor(profile);
       final start = DateTime(day.year, day.month, day.day, hour);
-      final end = start.add(const Duration(hours: 1));
+      final end = policy.defaultEndFor(start);
       await _createSlot(
         profile: profile,
         startLocal: start,
@@ -521,7 +572,7 @@ class _CounselorAvailabilityScreenState
                             ),
                             const SizedBox(height: 6),
                             const Text(
-                              'Tap an empty cell to quick-add a 1-hour slot. Tap occupied cells to manage existing slots.',
+                              'Tap an empty cell to quick-add your default session length. Tap occupied cells to manage existing windows.',
                               style: TextStyle(
                                 color: Color(0xFF6A7C93),
                                 height: 1.4,
@@ -546,7 +597,7 @@ class _CounselorAvailabilityScreenState
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Tap an empty cell to quick-add a 1-hour slot. Tap occupied cells to manage existing slots.',
+                      'Tap an empty cell to quick-add your default session length. Tap occupied cells to manage existing windows.',
                       style: TextStyle(color: Color(0xFF6A7C93), height: 1.4),
                     ),
                     const SizedBox(height: 8),
@@ -1336,7 +1387,7 @@ class _CounselorAvailabilityScreenState
                                     value: startLabel,
                                     icon: Icons.schedule_rounded,
                                     accent: const Color(0xFFF59E0B),
-                                    onTap: _pickStartTime,
+                                    onTap: () => _pickStartTime(profile),
                                   ),
                                 ),
                               ],
@@ -1374,7 +1425,7 @@ class _CounselorAvailabilityScreenState
                             value: startLabel,
                             icon: Icons.schedule_rounded,
                             accent: const Color(0xFFF59E0B),
-                            onTap: _pickStartTime,
+                            onTap: () => _pickStartTime(profile),
                           ),
                           const SizedBox(width: 12),
                           valuePill(
@@ -1407,7 +1458,7 @@ class _CounselorAvailabilityScreenState
                               const SizedBox(width: 8),
                               Expanded(
                                 child: fieldButton(
-                                  onPressed: _pickStartTime,
+                                  onPressed: () => _pickStartTime(profile),
                                   icon: Icons.schedule_rounded,
                                   label: _startTime == null
                                       ? 'Start'
@@ -1451,7 +1502,7 @@ class _CounselorAvailabilityScreenState
                         const SizedBox(width: 8),
                         Expanded(
                           child: fieldButton(
-                            onPressed: _pickStartTime,
+                            onPressed: () => _pickStartTime(profile),
                             icon: Icons.schedule_rounded,
                             label: _startTime == null
                                 ? 'Start'

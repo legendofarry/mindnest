@@ -14,6 +14,7 @@ import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/care_goal.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
 import 'package:mindnest/features/care/models/counselor_public_rating.dart';
+import 'package:mindnest/features/care/models/counselor_schedule_policy.dart';
 import 'package:mindnest/features/care/models/session_reassignment_request.dart';
 import 'package:mindnest/features/institutions/models/counselor_workflow_settings.dart';
 
@@ -1767,6 +1768,33 @@ class CareRepository {
     if (!endAtUtc.isAfter(startAtUtc)) {
       throw Exception('End time must be after start time.');
     }
+    final counselorProfile = await getCounselorProfile(currentUser.uid);
+    final policy = CounselorSchedulePolicy.fromProfile(
+      counselorProfile ??
+          CounselorProfile(
+            id: currentUser.uid,
+            institutionId: institutionId,
+            displayName: 'Counselor',
+            title: 'Counselor',
+            specialization: 'General',
+            sessionMode: '--',
+            timezone: 'UTC',
+            bio: '',
+            yearsExperience: 0,
+            languages: const <String>[],
+            ratingAverage: 0,
+            ratingCount: 0,
+            isActive: true,
+          ),
+    );
+    if (!policy.containsLocalRange(startAtUtc.toLocal(), endAtUtc.toLocal())) {
+      throw Exception('Availability must stay between 7:00 AM and 8:00 PM.');
+    }
+    if (endAtUtc.difference(startAtUtc) < policy.sessionDuration) {
+      throw Exception(
+        'Availability must fit at least one ${policy.sessionMinutes}-minute session.',
+      );
+    }
 
     if (kUseWindowsRestAuth) {
       final overlapping = await getCounselorSlots(
@@ -1866,6 +1894,20 @@ class CareRepository {
         'This counselor is not currently available for new bookings.',
       );
     }
+    final policy = CounselorSchedulePolicy.fromProfile(freshCounselor);
+    final sourceSlotId = slot.sourceSlotId ?? slot.id;
+    final requestedStartAt = slot.startAt.toUtc();
+    final requestedEndAt = slot.endAt.toUtc();
+    final appointmentStatus = await _bookingStatusForPolicy(
+      institutionId: institutionId,
+      counselor: freshCounselor,
+      studentId: currentUser.uid,
+      policy: policy,
+    );
+    final appointmentStatusLabel =
+        appointmentStatus == AppointmentStatus.confirmed
+        ? 'confirmed'
+        : 'requested';
 
     final appointmentId = kUseWindowsRestAuth
         ? _windowsDocId('appt')
@@ -1873,7 +1915,7 @@ class CareRepository {
 
     if (kUseWindowsRestAuth) {
       final slotDocument = await _windowsRest.getDocument(
-        'counselor_availability/${slot.id}',
+        'counselor_availability/$sourceSlotId',
       );
       if (slotDocument == null) {
         throw Exception('Slot no longer exists.');
@@ -1882,48 +1924,62 @@ class CareRepository {
         slotDocument.id,
         slotDocument.data,
       );
-      if (freshSlot.status != AvailabilitySlotStatus.available) {
-        throw Exception('Slot already booked.');
-      }
+      await _validateBookableSession(
+        institutionId: institutionId,
+        counselorId: freshCounselor.id,
+        sourceSlot: freshSlot,
+        requestedStartAt: requestedStartAt,
+        requestedEndAt: requestedEndAt,
+        policy: policy,
+      );
       final nowUtc = DateTime.now().toUtc();
       await _windowsRest.setDocument('appointments/$appointmentId', {
         'institutionId': institutionId,
         'counselorId': counselor.id,
         'studentId': currentUser.uid,
-        'slotId': slot.id,
-        'startAt': freshSlot.startAt.toUtc(),
-        'endAt': freshSlot.endAt.toUtc(),
-        'status': AppointmentStatus.pending.name,
+        'slotId': sourceSlotId,
+        'startAt': requestedStartAt,
+        'endAt': requestedEndAt,
+        'status': appointmentStatus.name,
         'studentName': currentProfile.name,
         'counselorName': counselor.displayName,
         'rated': false,
         'createdAt': nowUtc,
         'updatedAt': nowUtc,
       });
-      await _windowsRest.updateDocument('counselor_availability/${slot.id}', {
-        'status': AvailabilitySlotStatus.booked.name,
-        'bookedBy': currentUser.uid,
-        'appointmentId': appointmentId,
-        'updatedAt': nowUtc,
-      });
+      if (_shouldMarkAvailabilityWindowBooked(freshSlot, slot)) {
+        await _windowsRest
+            .updateDocument('counselor_availability/$sourceSlotId', {
+              'status': AvailabilitySlotStatus.booked.name,
+              'bookedBy': currentUser.uid,
+              'appointmentId': appointmentId,
+              'updatedAt': nowUtc,
+            });
+      }
 
       await _createNotifications([
         _notificationPayload(
           userId: currentUser.uid,
           institutionId: institutionId,
-          type: 'booking_confirmed',
-          title: 'Session booked',
+          type: appointmentStatus == AppointmentStatus.confirmed
+              ? 'booking_confirmed'
+              : 'booking_requested',
+          title: appointmentStatus == AppointmentStatus.confirmed
+              ? 'Session booked'
+              : 'Session requested',
           body:
-              'You booked ${counselor.displayName} on ${_formatDateTime(slot.startAt)}.',
+              'You $appointmentStatusLabel ${counselor.displayName} on ${_formatDateTime(requestedStartAt)}.',
           relatedAppointmentId: appointmentId,
         ),
         _notificationPayload(
           userId: counselor.id,
           institutionId: institutionId,
           type: 'booking_request',
-          title: 'New session request',
+          title: appointmentStatus == AppointmentStatus.confirmed
+              ? 'New confirmed session'
+              : 'New session request',
           body:
-              '${currentProfile.name} booked ${_formatDateTime(slot.startAt)}.',
+              '${currentProfile.name} $appointmentStatusLabel ${_formatDateTime(requestedStartAt)}.',
           relatedAppointmentId: appointmentId,
         ),
         _notificationPayload(
@@ -1940,7 +1996,7 @@ class CareRepository {
 
     final slotRef = _firestore
         .collection('counselor_availability')
-        .doc(slot.id);
+        .doc(sourceSlotId);
     final appointmentRef = _firestore
         .collection('appointments')
         .doc(appointmentId);
@@ -1951,18 +2007,23 @@ class CareRepository {
         throw Exception('Slot no longer exists.');
       }
       final freshSlot = AvailabilitySlot.fromMap(slotSnap.id, slotSnap.data()!);
-      if (freshSlot.status != AvailabilitySlotStatus.available) {
-        throw Exception('Slot already booked.');
-      }
+      await _validateBookableSession(
+        institutionId: institutionId,
+        counselorId: freshCounselor.id,
+        sourceSlot: freshSlot,
+        requestedStartAt: requestedStartAt,
+        requestedEndAt: requestedEndAt,
+        policy: policy,
+      );
 
       transaction.set(appointmentRef, {
         'institutionId': institutionId,
         'counselorId': counselor.id,
         'studentId': currentUser.uid,
-        'slotId': slot.id,
-        'startAt': Timestamp.fromDate(freshSlot.startAt.toUtc()),
-        'endAt': Timestamp.fromDate(freshSlot.endAt.toUtc()),
-        'status': AppointmentStatus.pending.name,
+        'slotId': sourceSlotId,
+        'startAt': Timestamp.fromDate(requestedStartAt),
+        'endAt': Timestamp.fromDate(requestedEndAt),
+        'status': appointmentStatus.name,
         'studentName': currentProfile.name,
         'counselorName': counselor.displayName,
         'rated': false,
@@ -1970,30 +2031,39 @@ class CareRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      transaction.update(slotRef, {
-        'status': AvailabilitySlotStatus.booked.name,
-        'bookedBy': currentUser.uid,
-        'appointmentId': appointmentRef.id,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      if (_shouldMarkAvailabilityWindowBooked(freshSlot, slot)) {
+        transaction.update(slotRef, {
+          'status': AvailabilitySlotStatus.booked.name,
+          'bookedBy': currentUser.uid,
+          'appointmentId': appointmentRef.id,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
     });
 
     await _createNotifications([
       _notificationPayload(
         userId: currentUser.uid,
         institutionId: institutionId,
-        type: 'booking_confirmed',
-        title: 'Session booked',
+        type: appointmentStatus == AppointmentStatus.confirmed
+            ? 'booking_confirmed'
+            : 'booking_requested',
+        title: appointmentStatus == AppointmentStatus.confirmed
+            ? 'Session booked'
+            : 'Session requested',
         body:
-            'You booked ${counselor.displayName} on ${_formatDateTime(slot.startAt)}.',
+            'You $appointmentStatusLabel ${counselor.displayName} on ${_formatDateTime(requestedStartAt)}.',
         relatedAppointmentId: appointmentId,
       ),
       _notificationPayload(
         userId: counselor.id,
         institutionId: institutionId,
         type: 'booking_request',
-        title: 'New session request',
-        body: '${currentProfile.name} booked ${_formatDateTime(slot.startAt)}.',
+        title: appointmentStatus == AppointmentStatus.confirmed
+            ? 'New confirmed session'
+            : 'New session request',
+        body:
+            '${currentProfile.name} $appointmentStatusLabel ${_formatDateTime(requestedStartAt)}.',
         relatedAppointmentId: appointmentId,
       ),
       _notificationPayload(
@@ -2005,6 +2075,100 @@ class CareRepository {
         relatedAppointmentId: appointmentId,
       ),
     ]);
+  }
+
+  Future<AppointmentStatus> _bookingStatusForPolicy({
+    required String institutionId,
+    required CounselorProfile counselor,
+    required String studentId,
+    required CounselorSchedulePolicy policy,
+  }) async {
+    if (policy.allowDirectBooking) {
+      return AppointmentStatus.confirmed;
+    }
+    if (!policy.autoApproveFollowUps) {
+      return AppointmentStatus.pending;
+    }
+    final studentAppointments = await getStudentAppointments(
+      institutionId: institutionId,
+      studentId: studentId,
+    );
+    final hasCompletedSession = studentAppointments.any(
+      (appointment) =>
+          appointment.counselorId == counselor.id &&
+          appointment.status == AppointmentStatus.completed,
+    );
+    return hasCompletedSession
+        ? AppointmentStatus.confirmed
+        : AppointmentStatus.pending;
+  }
+
+  Future<void> _validateBookableSession({
+    required String institutionId,
+    required String counselorId,
+    required AvailabilitySlot sourceSlot,
+    required DateTime requestedStartAt,
+    required DateTime requestedEndAt,
+    required CounselorSchedulePolicy policy,
+    String? ignoredAppointmentId,
+  }) async {
+    if (sourceSlot.status != AvailabilitySlotStatus.available) {
+      throw Exception('Selected time is no longer available.');
+    }
+    if (requestedEndAt.difference(requestedStartAt) != policy.sessionDuration) {
+      throw Exception(
+        'This counselor uses ${policy.sessionMinutes}-minute sessions.',
+      );
+    }
+    final requestedStartLocal = requestedStartAt.toLocal();
+    final requestedEndLocal = requestedEndAt.toLocal();
+    if (!policy.containsLocalRange(requestedStartLocal, requestedEndLocal)) {
+      throw Exception('Sessions must stay between 7:00 AM and 8:00 PM.');
+    }
+    if (requestedStartAt.isBefore(sourceSlot.startAt.toUtc()) ||
+        requestedEndAt.isAfter(sourceSlot.endAt.toUtc())) {
+      throw Exception('Selected time is outside the availability window.');
+    }
+    if (requestedStartAt.isBefore(DateTime.now().toUtc())) {
+      throw Exception('Selected time has already passed.');
+    }
+
+    final appointments = await getCounselorAppointments(
+      institutionId: institutionId,
+      counselorId: counselorId,
+    );
+    final blocked = appointments.any((appointment) {
+      if (appointment.id == ignoredAppointmentId) {
+        return false;
+      }
+      if (appointment.status != AppointmentStatus.pending &&
+          appointment.status != AppointmentStatus.confirmed) {
+        return false;
+      }
+      final blockStart = appointment.startAt.toUtc().subtract(
+        policy.breakDuration,
+      );
+      final blockEnd = appointment.endAt.toUtc().add(policy.breakDuration);
+      return blockStart.isBefore(requestedEndAt) &&
+          blockEnd.isAfter(requestedStartAt);
+    });
+    if (blocked) {
+      throw Exception(
+        'Selected time conflicts with another session or required break.',
+      );
+    }
+  }
+
+  bool _shouldMarkAvailabilityWindowBooked(
+    AvailabilitySlot sourceSlot,
+    AvailabilitySlot selectedSlot,
+  ) {
+    return !selectedSlot.generated &&
+        selectedSlot.sourceSlotId == null &&
+        sourceSlot.startAt.toUtc().isAtSameMomentAs(
+          selectedSlot.startAt.toUtc(),
+        ) &&
+        sourceSlot.endAt.toUtc().isAtSameMomentAs(selectedSlot.endAt.toUtc());
   }
 
   Stream<List<AppointmentRecord>> watchStudentAppointments({
@@ -2349,6 +2513,22 @@ class CareRepository {
     if (newSlot.status != AvailabilitySlotStatus.available) {
       throw Exception('Selected new slot is no longer available.');
     }
+    final freshCounselor = await getCounselorProfile(appointment.counselorId);
+    if (freshCounselor == null || !freshCounselor.isActive) {
+      throw Exception(
+        'This counselor is not currently available for new bookings.',
+      );
+    }
+    final policy = CounselorSchedulePolicy.fromProfile(freshCounselor);
+    final sourceSlotId = newSlot.sourceSlotId ?? newSlot.id;
+    final requestedStartAt = newSlot.startAt.toUtc();
+    final requestedEndAt = newSlot.endAt.toUtc();
+    final appointmentStatus = await _bookingStatusForPolicy(
+      institutionId: appointment.institutionId,
+      counselor: freshCounselor,
+      studentId: currentUser.uid,
+      policy: policy,
+    );
 
     final newAppointmentId = kUseWindowsRestAuth
         ? _windowsDocId('appt')
@@ -2356,7 +2536,7 @@ class CareRepository {
 
     if (kUseWindowsRestAuth) {
       final freshNewSlotDocument = await _windowsRest.getDocument(
-        'counselor_availability/${newSlot.id}',
+        'counselor_availability/$sourceSlotId',
       );
       if (freshNewSlotDocument == null) {
         throw Exception('Selected new slot does not exist.');
@@ -2365,9 +2545,15 @@ class CareRepository {
         freshNewSlotDocument.id,
         freshNewSlotDocument.data,
       );
-      if (freshNewSlot.status != AvailabilitySlotStatus.available) {
-        throw Exception('Selected new slot is already booked.');
-      }
+      await _validateBookableSession(
+        institutionId: appointment.institutionId,
+        counselorId: appointment.counselorId,
+        sourceSlot: freshNewSlot,
+        requestedStartAt: requestedStartAt,
+        requestedEndAt: requestedEndAt,
+        policy: policy,
+        ignoredAppointmentId: appointment.id,
+      );
 
       final oldAppointmentDocument = await _windowsRest.getDocument(
         'appointments/${appointment.id}',
@@ -2389,10 +2575,10 @@ class CareRepository {
         'institutionId': appointment.institutionId,
         'counselorId': appointment.counselorId,
         'studentId': appointment.studentId,
-        'slotId': freshNewSlot.id,
-        'startAt': freshNewSlot.startAt.toUtc(),
-        'endAt': freshNewSlot.endAt.toUtc(),
-        'status': AppointmentStatus.pending.name,
+        'slotId': sourceSlotId,
+        'startAt': requestedStartAt,
+        'endAt': requestedEndAt,
+        'status': appointmentStatus.name,
         'studentName': appointment.studentName ?? currentProfile.name,
         'counselorName': appointment.counselorName,
         'rated': false,
@@ -2401,13 +2587,15 @@ class CareRepository {
         'updatedAt': nowUtc,
       });
 
-      await _windowsRest
-          .updateDocument('counselor_availability/${newSlot.id}', {
-            'status': AvailabilitySlotStatus.booked.name,
-            'bookedBy': appointment.studentId,
-            'appointmentId': newAppointmentId,
-            'updatedAt': nowUtc,
-          });
+      if (_shouldMarkAvailabilityWindowBooked(freshNewSlot, newSlot)) {
+        await _windowsRest
+            .updateDocument('counselor_availability/$sourceSlotId', {
+              'status': AvailabilitySlotStatus.booked.name,
+              'bookedBy': appointment.studentId,
+              'appointmentId': newAppointmentId,
+              'updatedAt': nowUtc,
+            });
+      }
 
       final oldSlotDocument = await _windowsRest.getDocument(
         'counselor_availability/${appointment.slotId}',
@@ -2459,7 +2647,7 @@ class CareRepository {
         .doc(appointment.slotId);
     final newSlotRef = _firestore
         .collection('counselor_availability')
-        .doc(newSlot.id);
+        .doc(sourceSlotId);
     final oldAppointmentRef = _firestore
         .collection('appointments')
         .doc(appointment.id);
@@ -2476,9 +2664,15 @@ class CareRepository {
         freshNewSlotSnap.id,
         freshNewSlotSnap.data()!,
       );
-      if (freshNewSlot.status != AvailabilitySlotStatus.available) {
-        throw Exception('Selected new slot is already booked.');
-      }
+      await _validateBookableSession(
+        institutionId: appointment.institutionId,
+        counselorId: appointment.counselorId,
+        sourceSlot: freshNewSlot,
+        requestedStartAt: requestedStartAt,
+        requestedEndAt: requestedEndAt,
+        policy: policy,
+        ignoredAppointmentId: appointment.id,
+      );
 
       final oldAppointmentSnap = await transaction.get(oldAppointmentRef);
       if (!oldAppointmentSnap.exists || oldAppointmentSnap.data() == null) {
@@ -2497,10 +2691,10 @@ class CareRepository {
         'institutionId': appointment.institutionId,
         'counselorId': appointment.counselorId,
         'studentId': appointment.studentId,
-        'slotId': freshNewSlot.id,
-        'startAt': Timestamp.fromDate(freshNewSlot.startAt.toUtc()),
-        'endAt': Timestamp.fromDate(freshNewSlot.endAt.toUtc()),
-        'status': AppointmentStatus.pending.name,
+        'slotId': sourceSlotId,
+        'startAt': Timestamp.fromDate(requestedStartAt),
+        'endAt': Timestamp.fromDate(requestedEndAt),
+        'status': appointmentStatus.name,
         'studentName': appointment.studentName ?? currentProfile.name,
         'counselorName': appointment.counselorName,
         'rated': false,
@@ -2509,12 +2703,14 @@ class CareRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      transaction.update(newSlotRef, {
-        'status': AvailabilitySlotStatus.booked.name,
-        'bookedBy': appointment.studentId,
-        'appointmentId': newAppointmentRef.id,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      if (_shouldMarkAvailabilityWindowBooked(freshNewSlot, newSlot)) {
+        transaction.update(newSlotRef, {
+          'status': AvailabilitySlotStatus.booked.name,
+          'bookedBy': appointment.studentId,
+          'appointmentId': newAppointmentRef.id,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       final oldSlotSnap = await transaction.get(oldSlotRef);
       if (oldSlotSnap.exists) {
@@ -3890,7 +4086,7 @@ class CareRepository {
     if (profile == null) {
       return 'null';
     }
-    return '${profile.id}|${profile.institutionId}|${profile.displayName}|${profile.title}|${profile.specialization}|${profile.sessionMode}|${profile.timezone}|${profile.yearsExperience}|${profile.ratingAverage}|${profile.ratingCount}|${profile.isActive}|${profile.languages.join(',')}';
+    return '${profile.id}|${profile.institutionId}|${profile.displayName}|${profile.title}|${profile.specialization}|${profile.sessionMode}|${profile.timezone}|${profile.yearsExperience}|${profile.ratingAverage}|${profile.ratingCount}|${profile.isActive}|${profile.defaultSessionMinutes}|${profile.breakBetweenSessionsMins}|${profile.allowDirectBooking}|${profile.autoApproveFollowUps}|${profile.languages.join(',')}';
   }
 
   String _counselorProfilesSignature(List<CounselorProfile> profiles) =>
@@ -3899,7 +4095,7 @@ class CareRepository {
   String _availabilitySlotsSignature(List<AvailabilitySlot> slots) => slots
       .map(
         (slot) =>
-            '${slot.id}|${slot.counselorId}|${slot.status.name}|${slot.startAt.toIso8601String()}|${slot.endAt.toIso8601String()}|${slot.bookedBy ?? ''}|${slot.appointmentId ?? ''}',
+            '${slot.id}|${slot.counselorId}|${slot.status.name}|${slot.startAt.toIso8601String()}|${slot.endAt.toIso8601String()}|${slot.bookedBy ?? ''}|${slot.appointmentId ?? ''}|${slot.sourceSlotId ?? ''}|${slot.generated}',
       )
       .join(';');
 

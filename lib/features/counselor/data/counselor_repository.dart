@@ -203,6 +203,10 @@ class CounselorRepository {
       'ratingAverage': existingRatingAverage,
       'ratingCount': existingRatingCount,
       'isActive': true,
+      'defaultSessionMinutes': 50,
+      'breakBetweenSessionsMins': 10,
+      'allowDirectBooking': true,
+      'autoApproveFollowUps': false,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
@@ -359,6 +363,10 @@ class CounselorRepository {
       'ratingAverage': existingRatingAverage,
       'ratingCount': existingRatingCount,
       'isActive': isActive,
+      'defaultSessionMinutes': defaultSessionMinutes,
+      'breakBetweenSessionsMins': breakBetweenSessionsMins,
+      'allowDirectBooking': allowDirectBooking,
+      'autoApproveFollowUps': autoApproveFollowUps,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 

@@ -17,6 +17,8 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
+import 'package:mindnest/features/care/models/counselor_profile.dart';
+import 'package:mindnest/features/care/models/counselor_schedule_policy.dart';
 import 'package:mindnest/core/ui/modern_banner.dart';
 
 enum _AppointmentSort { newest, oldest, counselorAz, status }
@@ -587,133 +589,209 @@ class _StudentAppointmentsScreenState
                         ),
                       ],
                     ),
-                    child: StreamBuilder<List<AvailabilitySlot>>(
+                    child: StreamBuilder<CounselorProfile?>(
                       stream: ref
                           .read(careRepositoryProvider)
-                          .watchCounselorPublicAvailability(
-                            institutionId: institutionId,
-                            counselorId: appointment.counselorId,
-                          ),
-                      builder: (context, snapshot) {
-                        final slots = (snapshot.data ?? const [])
-                            .where((slot) => slot.id != appointment.slotId)
-                            .toList(growable: false);
-                        if (snapshot.connectionState ==
+                          .watchCounselorProfile(appointment.counselorId),
+                      builder: (context, counselorSnapshot) {
+                        final counselor = counselorSnapshot.data;
+                        if (counselorSnapshot.connectionState ==
                                 ConnectionState.waiting &&
-                            slots.isEmpty) {
+                            counselor == null) {
                           return const SizedBox(
                             height: 180,
                             child: Center(child: CircularProgressIndicator()),
                           );
                         }
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              children: [
-                                const Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Reschedule Session',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      SizedBox(height: 8),
-                                      Text(
-                                        'Pick a new available slot from this counselor.',
-                                        style: TextStyle(
-                                          color: Color(0xFF64748B),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () =>
-                                      Navigator.of(dialogContext).pop(),
-                                  icon: const Icon(Icons.close_rounded),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            if (slots.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 20),
-                                child: Text(
-                                  'No alternate slots available right now.',
-                                ),
-                              )
-                            else
-                              Flexible(
-                                child: ListView.separated(
-                                  shrinkWrap: true,
-                                  itemCount: slots.length.clamp(0, 18),
-                                  separatorBuilder: (context, index) =>
-                                      const SizedBox(height: 8),
-                                  itemBuilder: (context, index) {
-                                    final slot = slots[index];
-                                    return ListTile(
-                                      tileColor: const Color(0xFFF8FAFC),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      title: Text(_formatDate(slot.startAt)),
-                                      subtitle: Text(
-                                        'Ends: ${_formatDate(slot.endAt)}',
-                                      ),
-                                      trailing: ElevatedButton(
-                                        onPressed: () async {
-                                          try {
-                                            await ref
-                                                .read(careRepositoryProvider)
-                                                .rescheduleAppointmentAsStudent(
-                                                  appointment: appointment,
-                                                  newSlot: slot,
-                                                  currentProfile: profile,
-                                                );
-                                            if (!mounted ||
-                                                !dialogContext.mounted) {
-                                              return;
-                                            }
-                                            Navigator.of(dialogContext).pop();
-                                            showModernBannerFromSnackBar(
-                                              this.context,
-                                              const SnackBar(
-                                                content: Text(
-                                                  'Appointment rescheduled.',
-                                                ),
-                                              ),
-                                            );
-                                          } catch (error) {
-                                            if (!mounted) {
-                                              return;
-                                            }
-                                            showModernBannerFromSnackBar(
-                                              this.context,
-                                              SnackBar(
-                                                content: Text(
-                                                  error.toString().replaceFirst(
-                                                    'Exception: ',
-                                                    '',
-                                                  ),
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        },
-                                        child: const Text('Choose'),
-                                      ),
-                                    );
-                                  },
-                                ),
+                        if (counselor == null) {
+                          return const Padding(
+                            padding: EdgeInsets.all(18),
+                            child: Text('Counselor profile unavailable.'),
+                          );
+                        }
+                        return StreamBuilder<List<AvailabilitySlot>>(
+                          stream: ref
+                              .read(careRepositoryProvider)
+                              .watchCounselorPublicAvailability(
+                                institutionId: institutionId,
+                                counselorId: appointment.counselorId,
                               ),
-                          ],
+                          builder: (context, availabilitySnapshot) {
+                            final availabilityWindows =
+                                availabilitySnapshot.data ?? const [];
+                            return StreamBuilder<List<AppointmentRecord>>(
+                              stream: ref
+                                  .read(careRepositoryProvider)
+                                  .watchCounselorAppointments(
+                                    institutionId: institutionId,
+                                    counselorId: appointment.counselorId,
+                                  ),
+                              builder: (context, appointmentSnapshot) {
+                                final busyAppointments =
+                                    (appointmentSnapshot.data ?? const [])
+                                        .where(
+                                          (entry) => entry.id != appointment.id,
+                                        )
+                                        .toList(growable: false);
+                                final slots =
+                                    buildBookableSessionOptions(
+                                          availabilityWindows:
+                                              availabilityWindows,
+                                          counselorAppointments:
+                                              busyAppointments,
+                                          policy:
+                                              CounselorSchedulePolicy.fromProfile(
+                                                counselor,
+                                              ),
+                                        )
+                                        .where(
+                                          (slot) =>
+                                              !slot.startAt.isAtSameMomentAs(
+                                                appointment.startAt,
+                                              ),
+                                        )
+                                        .toList(growable: false);
+                                if ((availabilitySnapshot.connectionState ==
+                                            ConnectionState.waiting ||
+                                        appointmentSnapshot.connectionState ==
+                                            ConnectionState.waiting) &&
+                                    slots.isEmpty) {
+                                  return const SizedBox(
+                                    height: 180,
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Reschedule Session',
+                                                style: TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                              SizedBox(height: 8),
+                                              Text(
+                                                'Pick a new session time that respects this counselor rhythm.',
+                                                style: TextStyle(
+                                                  color: Color(0xFF64748B),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        IconButton(
+                                          onPressed: () =>
+                                              Navigator.of(dialogContext).pop(),
+                                          icon: const Icon(Icons.close_rounded),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    if (slots.isEmpty)
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 20,
+                                        ),
+                                        child: Text(
+                                          'No alternate session times available right now.',
+                                        ),
+                                      )
+                                    else
+                                      Flexible(
+                                        child: ListView.separated(
+                                          shrinkWrap: true,
+                                          itemCount: slots.length.clamp(0, 18),
+                                          separatorBuilder: (context, index) =>
+                                              const SizedBox(height: 8),
+                                          itemBuilder: (context, index) {
+                                            final slot = slots[index];
+                                            return ListTile(
+                                              tileColor: const Color(
+                                                0xFFF8FAFC,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              title: Text(
+                                                _formatDate(slot.startAt),
+                                              ),
+                                              subtitle: Text(
+                                                'Ends: ${_formatDate(slot.endAt)}',
+                                              ),
+                                              trailing: ElevatedButton(
+                                                onPressed: () async {
+                                                  try {
+                                                    await ref
+                                                        .read(
+                                                          careRepositoryProvider,
+                                                        )
+                                                        .rescheduleAppointmentAsStudent(
+                                                          appointment:
+                                                              appointment,
+                                                          newSlot: slot,
+                                                          currentProfile:
+                                                              profile,
+                                                        );
+                                                    if (!mounted ||
+                                                        !dialogContext
+                                                            .mounted) {
+                                                      return;
+                                                    }
+                                                    Navigator.of(
+                                                      dialogContext,
+                                                    ).pop();
+                                                    showModernBannerFromSnackBar(
+                                                      this.context,
+                                                      const SnackBar(
+                                                        content: Text(
+                                                          'Appointment rescheduled.',
+                                                        ),
+                                                      ),
+                                                    );
+                                                  } catch (error) {
+                                                    if (!mounted) {
+                                                      return;
+                                                    }
+                                                    showModernBannerFromSnackBar(
+                                                      this.context,
+                                                      SnackBar(
+                                                        content: Text(
+                                                          error
+                                                              .toString()
+                                                              .replaceFirst(
+                                                                'Exception: ',
+                                                                '',
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    );
+                                                  }
+                                                },
+                                                child: const Text('Choose'),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
                         );
                       },
                     ),

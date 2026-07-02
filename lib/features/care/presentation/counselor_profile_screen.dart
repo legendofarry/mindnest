@@ -15,6 +15,7 @@ import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/appointment_record.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
+import 'package:mindnest/features/care/models/counselor_schedule_policy.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1566,14 +1567,12 @@ class _CounselorProfileScreenState
                       );
                     }
 
-                    final slots = availabilitySnapshot.data ?? const [];
-                    final weeklyFiltered = _filterAndSortSlots(
-                      _weekSlots(slots),
-                    );
+                    final availabilityWindows =
+                        availabilitySnapshot.data ?? const [];
 
                     if (availabilitySnapshot.connectionState ==
                             ConnectionState.waiting &&
-                        slots.isEmpty) {
+                        availabilityWindows.isEmpty) {
                       return const _ProfileStateCard(
                         icon: Icons.schedule_outlined,
                         title: 'Loading availability',
@@ -1583,51 +1582,76 @@ class _CounselorProfileScreenState
                       );
                     }
 
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildFindSpotSection(
-                          counselor: effectiveCounselor,
-                          filteredWeekSlots: weeklyFiltered,
-                          profile: profile,
-                          canBook: canBook,
-                        ),
-                        const SizedBox(height: 14),
-                        if (profile != null &&
-                            institutionId.isNotEmpty &&
-                            _canCurrentUserBook(profile))
-                          StreamBuilder<List<AppointmentRecord>>(
-                            stream: ref
-                                .read(careRepositoryProvider)
-                                .watchStudentAppointments(
-                                  institutionId: institutionId,
-                                  studentId: profile.id,
-                                ),
-                            builder: (context, appointmentSnapshot) {
-                              final counselorAppointments =
-                                  (appointmentSnapshot.data ?? const [])
-                                      .where(
-                                        (entry) =>
-                                            entry.counselorId ==
-                                            effectiveCounselor.id,
-                                      )
-                                      .toList(growable: false);
-                              return _buildWeeklyGrid(
-                                counselor: effectiveCounselor,
-                                slots: slots,
-                                appointments: counselorAppointments,
-                                profile: profile,
-                              );
-                            },
-                          )
-                        else
-                          _buildWeeklyGrid(
-                            counselor: effectiveCounselor,
-                            slots: slots,
-                            appointments: const [],
-                            profile: profile,
+                    return StreamBuilder<List<AppointmentRecord>>(
+                      stream: ref
+                          .read(careRepositoryProvider)
+                          .watchCounselorAppointments(
+                            institutionId: institutionId,
+                            counselorId: effectiveCounselor.id,
                           ),
-                      ],
+                      builder: (context, counselorAppointmentSnapshot) {
+                        final busyAppointments =
+                            counselorAppointmentSnapshot.data ??
+                            const <AppointmentRecord>[];
+                        final policy = CounselorSchedulePolicy.fromProfile(
+                          effectiveCounselor,
+                        );
+                        final bookableSlots = buildBookableSessionOptions(
+                          availabilityWindows: availabilityWindows,
+                          counselorAppointments: busyAppointments,
+                          policy: policy,
+                        );
+                        final weeklyFiltered = _filterAndSortSlots(
+                          _weekSlots(bookableSlots),
+                        );
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildFindSpotSection(
+                              counselor: effectiveCounselor,
+                              filteredWeekSlots: weeklyFiltered,
+                              profile: profile,
+                              canBook: canBook,
+                            ),
+                            const SizedBox(height: 14),
+                            if (profile != null &&
+                                institutionId.isNotEmpty &&
+                                _canCurrentUserBook(profile))
+                              StreamBuilder<List<AppointmentRecord>>(
+                                stream: ref
+                                    .read(careRepositoryProvider)
+                                    .watchStudentAppointments(
+                                      institutionId: institutionId,
+                                      studentId: profile.id,
+                                    ),
+                                builder: (context, appointmentSnapshot) {
+                                  final counselorAppointments =
+                                      (appointmentSnapshot.data ?? const [])
+                                          .where(
+                                            (entry) =>
+                                                entry.counselorId ==
+                                                effectiveCounselor.id,
+                                          )
+                                          .toList(growable: false);
+                                  return _buildWeeklyGrid(
+                                    counselor: effectiveCounselor,
+                                    slots: bookableSlots,
+                                    appointments: counselorAppointments,
+                                    profile: profile,
+                                  );
+                                },
+                              )
+                            else
+                              _buildWeeklyGrid(
+                                counselor: effectiveCounselor,
+                                slots: bookableSlots,
+                                appointments: const [],
+                                profile: profile,
+                              ),
+                          ],
+                        );
+                      },
                     );
                   },
                 ),
@@ -1670,10 +1694,7 @@ class _CounselorProfileScreenState
 }
 
 class _ProfileBreadcrumbTrail extends StatelessWidget {
-  const _ProfileBreadcrumbTrail({
-    required this.items,
-    this.onTapLeading,
-  });
+  const _ProfileBreadcrumbTrail({required this.items, this.onTapLeading});
 
   final List<String> items;
   final VoidCallback? onTapLeading;

@@ -18,6 +18,7 @@ import 'package:mindnest/features/auth/models/user_profile.dart';
 import 'package:mindnest/features/care/data/care_providers.dart';
 import 'package:mindnest/features/care/models/availability_slot.dart';
 import 'package:mindnest/features/care/models/counselor_profile.dart';
+import 'package:mindnest/features/care/models/counselor_schedule_policy.dart';
 import 'package:mindnest/features/counselor/presentation/counselor_workspace_shell.dart';
 import 'package:mindnest/features/auth/presentation/logout/logout_flow.dart';
 import 'package:mindnest/features/institutions/data/institution_providers.dart';
@@ -805,13 +806,20 @@ class _CounselorDirectoryScreenState
                       final availability =
                           availabilitySnapshot.data ?? const [];
                       final earliestSlotByCounselor = <String, DateTime>{};
-                      for (final slot in availability) {
-                        final existing =
-                            earliestSlotByCounselor[slot.counselorId];
-                        if (existing == null ||
-                            slot.startAt.isBefore(existing)) {
-                          earliestSlotByCounselor[slot.counselorId] =
-                              slot.startAt;
+                      for (final counselor in counselors) {
+                        final windows = availability
+                            .where((slot) => slot.counselorId == counselor.id)
+                            .toList(growable: false);
+                        final generated = buildBookableSessionOptions(
+                          availabilityWindows: windows,
+                          counselorAppointments: const [],
+                          policy: CounselorSchedulePolicy.fromProfile(
+                            counselor,
+                          ),
+                        );
+                        if (generated.isNotEmpty) {
+                          earliestSlotByCounselor[counselor.id] =
+                              generated.first.startAt;
                         }
                       }
 

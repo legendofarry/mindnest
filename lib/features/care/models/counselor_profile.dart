@@ -16,6 +16,10 @@ class CounselorProfile {
     required this.ratingAverage,
     required this.ratingCount,
     required this.isActive,
+    this.defaultSessionMinutes = 50,
+    this.breakBetweenSessionsMins = 10,
+    this.allowDirectBooking = true,
+    this.autoApproveFollowUps = false,
   });
 
   final String id;
@@ -32,6 +36,10 @@ class CounselorProfile {
   final double ratingAverage;
   final int ratingCount;
   final bool isActive;
+  final int defaultSessionMinutes;
+  final int breakBetweenSessionsMins;
+  final bool allowDirectBooking;
+  final bool autoApproveFollowUps;
 
   factory CounselorProfile.fromMap(String id, Map<String, dynamic> data) {
     final languagesRaw = data['languages'];
@@ -64,6 +72,12 @@ class CounselorProfile {
       ratingAverage: ratingAverage,
       ratingCount: ratingCount,
       isActive: (data['isActive'] as bool?) ?? true,
+      defaultSessionMinutes:
+          (data['defaultSessionMinutes'] as num?)?.toInt() ?? 50,
+      breakBetweenSessionsMins:
+          (data['breakBetweenSessionsMins'] as num?)?.toInt() ?? 10,
+      allowDirectBooking: (data['allowDirectBooking'] as bool?) ?? true,
+      autoApproveFollowUps: (data['autoApproveFollowUps'] as bool?) ?? false,
     );
   }
 }

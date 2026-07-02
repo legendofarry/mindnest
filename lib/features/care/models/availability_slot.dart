@@ -12,7 +12,26 @@ class AvailabilitySlot {
     required this.status,
     this.bookedBy,
     this.appointmentId,
+    this.sourceSlotId,
+    this.generated = false,
   });
+
+  factory AvailabilitySlot.generated({
+    required AvailabilitySlot source,
+    required DateTime startAt,
+    required DateTime endAt,
+  }) {
+    return AvailabilitySlot(
+      id: '${source.id}_${startAt.toUtc().millisecondsSinceEpoch}_${endAt.toUtc().millisecondsSinceEpoch}',
+      institutionId: source.institutionId,
+      counselorId: source.counselorId,
+      startAt: startAt.toUtc(),
+      endAt: endAt.toUtc(),
+      status: AvailabilitySlotStatus.available,
+      sourceSlotId: source.sourceSlotId ?? source.id,
+      generated: true,
+    );
+  }
 
   final String id;
   final String institutionId;
@@ -22,6 +41,8 @@ class AvailabilitySlot {
   final AvailabilitySlotStatus status;
   final String? bookedBy;
   final String? appointmentId;
+  final String? sourceSlotId;
+  final bool generated;
 
   factory AvailabilitySlot.fromMap(String id, Map<String, dynamic> data) {
     final startRaw = data['startAt'];
@@ -52,6 +73,8 @@ class AvailabilitySlot {
       status: status,
       bookedBy: data['bookedBy'] as String?,
       appointmentId: data['appointmentId'] as String?,
+      sourceSlotId: data['sourceSlotId'] as String?,
+      generated: (data['generated'] as bool?) ?? false,
     );
   }
 }
