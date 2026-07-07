@@ -612,13 +612,27 @@ class _StudentAppointmentsScreenState
                         return StreamBuilder<List<AvailabilitySlot>>(
                           stream: ref
                               .read(careRepositoryProvider)
-                              .watchCounselorPublicAvailability(
+                              .watchCounselorSlots(
                                 institutionId: institutionId,
                                 counselorId: appointment.counselorId,
                               ),
                           builder: (context, availabilitySnapshot) {
-                            final availabilityWindows =
+                            final allWindows =
                                 availabilitySnapshot.data ?? const [];
+                            final availabilityWindows = allWindows
+                                .where(
+                                  (slot) =>
+                                      slot.status ==
+                                      AvailabilitySlotStatus.available,
+                                )
+                                .toList(growable: false);
+                            final blockedWindows = allWindows
+                                .where(
+                                  (slot) =>
+                                      slot.status ==
+                                      AvailabilitySlotStatus.blocked,
+                                )
+                                .toList(growable: false);
                             return StreamBuilder<List<AppointmentRecord>>(
                               stream: ref
                                   .read(careRepositoryProvider)
@@ -637,6 +651,7 @@ class _StudentAppointmentsScreenState
                                     buildBookableSessionOptions(
                                           availabilityWindows:
                                               availabilityWindows,
+                                          blockedWindows: blockedWindows,
                                           counselorAppointments:
                                               busyAppointments,
                                           policy:

@@ -1552,7 +1552,7 @@ class _CounselorProfileScreenState
                 StreamBuilder<List<AvailabilitySlot>>(
                   stream: ref
                       .read(careRepositoryProvider)
-                      .watchCounselorPublicAvailability(
+                      .watchCounselorSlots(
                         institutionId: institutionId,
                         counselorId: effectiveCounselor.id,
                       ),
@@ -1567,12 +1567,23 @@ class _CounselorProfileScreenState
                       );
                     }
 
-                    final availabilityWindows =
-                        availabilitySnapshot.data ?? const [];
+                    final allWindows = availabilitySnapshot.data ?? const [];
+                    final availabilityWindows = allWindows
+                        .where(
+                          (slot) =>
+                              slot.status == AvailabilitySlotStatus.available,
+                        )
+                        .toList(growable: false);
+                    final blockedWindows = allWindows
+                        .where(
+                          (slot) =>
+                              slot.status == AvailabilitySlotStatus.blocked,
+                        )
+                        .toList(growable: false);
 
                     if (availabilitySnapshot.connectionState ==
                             ConnectionState.waiting &&
-                        availabilityWindows.isEmpty) {
+                        allWindows.isEmpty) {
                       return const _ProfileStateCard(
                         icon: Icons.schedule_outlined,
                         title: 'Loading availability',
@@ -1598,6 +1609,7 @@ class _CounselorProfileScreenState
                         );
                         final bookableSlots = buildBookableSessionOptions(
                           availabilityWindows: availabilityWindows,
+                          blockedWindows: blockedWindows,
                           counselorAppointments: busyAppointments,
                           policy: policy,
                         );

@@ -401,9 +401,7 @@ class _OnboardingQuestionnaireScreenState
                           child: Text(
                             _isSubmitting
                                 ? 'Saving...'
-                                : (isLastStep
-                                      ? 'Enter Teraji ->'
-                                      : 'Continue  ->'),
+                                : (isLastStep ? 'Enter Teraji' : 'Continue'),
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w700,

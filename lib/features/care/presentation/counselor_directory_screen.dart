@@ -211,7 +211,7 @@ class _CounselorDirectoryScreenState
       _availabilityStreamRefreshTick = _refreshTick;
       _availabilityStream = ref
           .read(careRepositoryProvider)
-          .watchInstitutionPublicAvailability(institutionId: normalized);
+          .watchInstitutionSlots(institutionId: normalized);
     }
     return _availabilityStream!;
   }
@@ -807,11 +807,25 @@ class _CounselorDirectoryScreenState
                           availabilitySnapshot.data ?? const [];
                       final earliestSlotByCounselor = <String, DateTime>{};
                       for (final counselor in counselors) {
-                        final windows = availability
+                        final counselorWindows = availability
                             .where((slot) => slot.counselorId == counselor.id)
+                            .toList(growable: false);
+                        final windows = counselorWindows
+                            .where(
+                              (slot) =>
+                                  slot.status ==
+                                  AvailabilitySlotStatus.available,
+                            )
+                            .toList(growable: false);
+                        final blockedWindows = counselorWindows
+                            .where(
+                              (slot) =>
+                                  slot.status == AvailabilitySlotStatus.blocked,
+                            )
                             .toList(growable: false);
                         final generated = buildBookableSessionOptions(
                           availabilityWindows: windows,
+                          blockedWindows: blockedWindows,
                           counselorAppointments: const [],
                           policy: CounselorSchedulePolicy.fromProfile(
                             counselor,
@@ -926,13 +940,13 @@ class _CounselorDirectoryScreenState
                           )
                           .length;
                       DateTime? nextOpenSlot;
-                      for (final slot in availability) {
-                        if (!filteredCounselorIds.contains(slot.counselorId)) {
+                      for (final entry in earliestSlotByCounselor.entries) {
+                        if (!filteredCounselorIds.contains(entry.key)) {
                           continue;
                         }
                         if (nextOpenSlot == null ||
-                            slot.startAt.isBefore(nextOpenSlot)) {
-                          nextOpenSlot = slot.startAt;
+                            entry.value.isBefore(nextOpenSlot)) {
+                          nextOpenSlot = entry.value;
                         }
                       }
 

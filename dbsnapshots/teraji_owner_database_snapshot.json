@@ -1,0 +1,745 @@
+{
+  "exportType": "owner_database_snapshot",
+  "appName": "Teraji",
+  "appVersion": "1.0.1",
+  "generatedAt": "2026-07-07T07:02:45.105Z",
+  "generatedBy": {
+    "uid": "EU2iR9XcMDcBL28ScbMgetq43qY2",
+    "email": "karimiarrison@gmail.com"
+  },
+  "summary": {
+    "collectionCounts": {
+      "admin_counselor_messages": 1,
+      "appointments": 0,
+      "care_goals": 0,
+      "counselor_availability": 5,
+      "counselor_profiles": 1,
+      "counselor_public_ratings": 0,
+      "counselor_ratings": 0,
+      "institution_catalog_registry": 1,
+      "institution_membership_audit": 5,
+      "institution_members": 2,
+      "institution_name_registry": 1,
+      "institution_request_history": 2,
+      "institutions": 1,
+      "mood_entries": 0,
+      "mood_events": 0,
+      "notifications": 10,
+      "onboarding_responses": 1,
+      "owner_support_messages": 2,
+      "phone_number_registry": 0,
+      "school_requests": 0,
+      "session_reassignment_requests": 0,
+      "user_invites": 2,
+      "user_notification_settings": 0,
+      "user_privacy_settings": 0,
+      "user_push_tokens": 0,
+      "users": 3,
+      "live_sessions": 1
+    },
+    "totalCollections": 27,
+    "totalRecords": 38,
+    "liveSessionNestedRecords": 0
+  },
+  "collections": {
+    "admin_counselor_messages": [
+      {
+        "id": "w5o75wiNXfE7rSferNbz",
+        "threadKey": "QNFngKR3VYMy8afLiZj5vDPUoZO2|RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "adminId": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "counselorId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "createdAt": "2026-07-07T06:36:23.439Z",
+        "body": "i have activated you",
+        "isRead": false,
+        "senderRole": "admin",
+        "senderId": "QNFngKR3VYMy8afLiZj5vDPUoZO2"
+      }
+    ],
+    "appointments": [],
+    "care_goals": [],
+    "counselor_availability": [
+      {
+        "id": "FdzD3MjtffJB23Dka0qJ",
+        "createdAt": "2026-07-07T06:52:48.481Z",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "updatedAt": "2026-07-07T06:52:48.481Z",
+        "counselorId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "status": "available",
+        "endAt": "2026-08-16T04:50:00.000Z",
+        "startAt": "2026-08-16T04:00:00.000Z"
+      },
+      {
+        "id": "5goA4IPMjydt2hMsGXLU",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "updatedAt": "2026-07-07T06:42:01.881Z",
+        "createdAt": "2026-07-07T06:42:01.881Z",
+        "status": "available",
+        "startAt": "2026-07-09T06:00:00.000Z",
+        "endAt": "2026-07-09T06:50:00.000Z",
+        "counselorId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73"
+      },
+      {
+        "id": "lnIRGSqdQOgCiP0X4A0w",
+        "counselorId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "status": "available",
+        "startAt": "2026-07-07T16:00:00.000Z",
+        "endAt": "2026-07-07T16:50:00.000Z",
+        "createdAt": "2026-07-07T06:41:10.516Z",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "updatedAt": "2026-07-07T06:41:10.516Z"
+      },
+      {
+        "id": "OgY0z3TcfOx7Us3dHSCY",
+        "counselorId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "status": "available",
+        "startAt": "2026-07-08T16:00:00.000Z",
+        "endAt": "2026-07-08T16:50:00.000Z",
+        "createdAt": "2026-07-07T06:41:08.471Z",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "updatedAt": "2026-07-07T06:41:08.471Z"
+      },
+      {
+        "id": "QzqXsOTtDx5iuc2saGXr",
+        "createdAt": "2026-07-07T06:40:24.569Z",
+        "updatedAt": "2026-07-07T06:40:24.569Z",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "counselorId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "endAt": "2026-07-07T08:50:00.000Z",
+        "startAt": "2026-07-07T08:00:00.000Z",
+        "status": "available"
+      }
+    ],
+    "counselor_profiles": [
+      {
+        "id": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "breakBetweenSessionsMins": 10,
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "createdAt": "2026-07-07T06:38:23.507Z",
+        "title": "Licensed Counsellor",
+        "sessionMode": "Hybrid",
+        "yearsExperience": 10,
+        "specialization": "Academic Stress, Career Guidance, Anxiety, Depression, Relationship Issues, Self-Esteem, Substance Abuse, Bullying, Grief & Loss",
+        "updatedAt": "2026-07-07T06:38:23.507Z",
+        "autoApproveFollowUps": false,
+        "ratingCount": 0,
+        "allowDirectBooking": true,
+        "isActive": true,
+        "gender": "Woman",
+        "bio": "",
+        "displayName": "Lucy Wangari",
+        "languages": [
+          "English",
+          "Swahili"
+        ],
+        "defaultSessionMinutes": 50,
+        "timezone": "Africa/Nairobi",
+        "ratingAverage": 0
+      }
+    ],
+    "counselor_public_ratings": [],
+    "counselor_ratings": [],
+    "institution_catalog_registry": [
+      {
+        "id": "aga_khan_university",
+        "status": "approved",
+        "institutionName": "Aga Khan University",
+        "institutionCatalogId": "aga_khan_university",
+        "updatedAt": "2026-07-07T06:27:24.607Z",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "createdAt": "2026-07-07T06:24:19.657Z"
+      }
+    ],
+    "institution_membership_audit": [
+      {
+        "id": "z8OzrC0H3BbG9ff3PJgl",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "details": {
+          "previousStatus": "pending",
+          "reason": "",
+          "nextStatus": "active",
+          "cancelledAppointments": 0
+        },
+        "createdAt": "2026-07-07T06:36:14.128Z",
+        "action": "member_status_changed",
+        "targetUserId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "actorUid": "QNFngKR3VYMy8afLiZj5vDPUoZO2"
+      },
+      {
+        "id": "LGB6DnmheKbtpCQsW2YU",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "createdAt": "2026-07-07T06:35:38.171Z",
+        "details": {
+          "codeVerified": true,
+          "memberStatus": "pending",
+          "intendedRole": "counselor",
+          "inviteId": "I4H5qICBXwHMvzZ0Valb"
+        },
+        "actorUid": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "targetUserId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "action": "invite_accepted"
+      },
+      {
+        "id": "A7Lv9B8eyefC0tCMw2TV",
+        "createdAt": "2026-07-07T06:35:25.468Z",
+        "details": {
+          "expiresAt": "2026-07-14T06:35:24.468Z",
+          "inviteId": "I4H5qICBXwHMvzZ0Valb",
+          "intendedRole": "counselor",
+          "invitedEmail": "mamalucykari@gmail.com"
+        },
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "actorUid": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "targetUserId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "action": "invite_created"
+      },
+      {
+        "id": "AJR3GQAxvFEOPteAUCsT",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "details": {
+          "inviteId": "2S3FSQnGtxRI1w1FdjpP"
+        },
+        "createdAt": "2026-07-07T06:34:52.146Z",
+        "action": "invite_declined",
+        "targetUserId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "actorUid": "RtI5TdHPc8XVyJKMRtYf4pLeoa73"
+      },
+      {
+        "id": "OT0SalBt71W9jiUHhjkl",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "details": {
+          "invitedEmail": "mamalucykari@gmail.com",
+          "expiresAt": "2026-07-14T06:34:18.126Z",
+          "inviteId": "2S3FSQnGtxRI1w1FdjpP",
+          "intendedRole": "counselor"
+        },
+        "createdAt": "2026-07-07T06:34:19.263Z",
+        "targetUserId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "action": "invite_created",
+        "actorUid": "QNFngKR3VYMy8afLiZj5vDPUoZO2"
+      }
+    ],
+    "institution_members": [
+      {
+        "id": "uKNdpaupHgKKyfP6y7eu_RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "lifecycleReason": "",
+        "updatedAt": "2026-07-07T06:36:08.183Z",
+        "phoneNumber": "",
+        "status": "active",
+        "email": "mamalucykari@gmail.com",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "inviteId": "I4H5qICBXwHMvzZ0Valb",
+        "role": "counselor",
+        "joinedAt": "2026-07-07T06:35:38.171Z",
+        "lifecycleUpdatedBy": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "joinedVia": "invite",
+        "userName": "Lucy Wangari",
+        "lifecycleUpdatedAt": "2026-07-07T06:36:08.183Z",
+        "userId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73"
+      },
+      {
+        "id": "uKNdpaupHgKKyfP6y7eu_QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "userName": "Arrison Karimi",
+        "phoneNumber": "",
+        "additionalPhoneNumber": null,
+        "joinedAt": "2026-07-07T06:24:19.657Z",
+        "role": "institutionAdmin",
+        "userId": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "email": "legendofarrie@gmail.com",
+        "status": "active"
+      }
+    ],
+    "institution_name_registry": [
+      {
+        "id": "YWdhIGtoYW4gdW5pdmVyc2l0eQ==",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "updatedAt": "2026-07-07T06:27:24.607Z",
+        "normalizedName": "aga khan university",
+        "createdAt": "2026-07-07T06:24:19.657Z",
+        "status": "approved",
+        "institutionName": "Aga Khan University"
+      }
+    ],
+    "institution_request_history": [
+      {
+        "id": "xbABB8Ar4Q7mPt6PVT7T",
+        "actorRole": "owner",
+        "source": "owner_review",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "institutionCatalogId": "aga_khan_university",
+        "createdBy": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "institutionName": "Aga Khan University",
+        "reviewedBy": "EU2iR9XcMDcBL28ScbMgetq43qY2",
+        "action": "approved",
+        "status": "approved",
+        "updatedAt": "2026-07-07T06:27:25.932Z",
+        "createdAt": "2026-07-07T06:27:25.932Z",
+        "actorUid": "EU2iR9XcMDcBL28ScbMgetq43qY2"
+      },
+      {
+        "id": "sbCKX8C94Y7oiUIvhxeE",
+        "actorRole": "institutionAdmin",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "source": "admin_registration",
+        "institutionCatalogId": "aga_khan_university",
+        "createdBy": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "institutionName": "Aga Khan University",
+        "action": "submitted",
+        "updatedAt": "2026-07-07T06:24:22.442Z",
+        "status": "pending",
+        "actorUid": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "createdAt": "2026-07-07T06:24:22.442Z"
+      }
+    ],
+    "institutions": [
+      {
+        "id": "uKNdpaupHgKKyfP6y7eu",
+        "adminPhoneNumber": "",
+        "status": "approved",
+        "joinCodeUsageCount": 1,
+        "adminEmail": "legendofarrie@gmail.com",
+        "approvedAt": "2026-07-07T06:27:24.607Z",
+        "createdAt": "2026-07-07T06:24:19.657Z",
+        "joinCode": "QMJW4B9Y",
+        "createdBy": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "counselorReassignmentEnabled": true,
+        "updatedAt": "2026-07-07T06:51:54.414Z",
+        "contactEmail": "legendofarrie@gmail.com",
+        "contactPhone": "",
+        "joinCodeExpiresAt": "2026-07-08T06:27:25.255Z",
+        "institutionCatalogId": "aga_khan_university",
+        "nameNormalized": "aga khan university",
+        "counselorDirectoryEnabled": true,
+        "additionalAdminPhoneNumber": null,
+        "review": {
+          "declineReason": null,
+          "reviewedBy": "EU2iR9XcMDcBL28ScbMgetq43qY2",
+          "reviewedAt": "2026-07-07T06:27:24.607Z",
+          "decision": "approved"
+        },
+        "name": "Aga Khan University",
+        "joinCodeCreatedAt": "2026-07-07T06:27:25.255Z"
+      }
+    ],
+    "mood_entries": [],
+    "mood_events": [],
+    "notifications": [
+      {
+        "id": "zPAkzJfx6V723seauEpx",
+        "updatedAt": "2026-07-07T06:36:23.439Z",
+        "relatedId": "w5o75wiNXfE7rSferNbz",
+        "title": "Message from Arrison Karimi",
+        "createdAt": "2026-07-07T06:36:23.439Z",
+        "actionRequired": false,
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "isArchived": false,
+        "priority": "normal",
+        "userId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "type": "admin_message",
+        "isRead": false,
+        "body": "i have activated you",
+        "isPinned": false
+      },
+      {
+        "id": "KFKCHexbbNf8oOrJwct1",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "actionRequired": false,
+        "route": "/counselor-dashboard",
+        "createdAt": "2026-07-07T06:36:13.695Z",
+        "title": "Counselor access restored",
+        "priority": "high",
+        "isArchived": false,
+        "updatedAt": "2026-07-07T06:36:13.695Z",
+        "relatedId": null,
+        "type": "counselor_access_active",
+        "userId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "body": "Your institution admin restored your counselor access. You can return to the counselor dashboard.",
+        "isPinned": false,
+        "isRead": false
+      },
+      {
+        "id": "LybwSPE2gzZXV5AWboJG",
+        "isRead": false,
+        "body": "You accepted the Counselor invite for Aga Khan University.",
+        "isPinned": false,
+        "userId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "type": "institution_invite_accepted",
+        "updatedAt": "2026-07-07T06:35:38.742Z",
+        "relatedId": "I4H5qICBXwHMvzZ0Valb",
+        "isArchived": false,
+        "priority": "high",
+        "createdAt": "2026-07-07T06:35:38.742Z",
+        "title": "Invite accepted",
+        "actionRequired": false,
+        "institutionId": "uKNdpaupHgKKyfP6y7eu"
+      },
+      {
+        "id": "yaQVlH56MPqx4Gvob9EK",
+        "userId": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "type": "institution_invite_accepted",
+        "isRead": false,
+        "isPinned": false,
+        "body": "Lucy Wangari accepted the Counselor invite for Aga Khan University.",
+        "createdAt": "2026-07-07T06:35:38.742Z",
+        "title": "Counselor invite accepted",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "actionRequired": false,
+        "isArchived": false,
+        "priority": "high",
+        "relatedId": "I4H5qICBXwHMvzZ0Valb",
+        "updatedAt": "2026-07-07T06:35:38.742Z"
+      },
+      {
+        "id": "FVxNWba2IYubtkRBO0JL",
+        "readAt": "2026-07-07T06:35:38.171Z",
+        "userId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "type": "institution_invite",
+        "isPinned": false,
+        "body": "You were invited as Counselor. Open this alert and enter your institution code to accept.",
+        "isRead": true,
+        "relatedId": "I4H5qICBXwHMvzZ0Valb",
+        "updatedAt": "2026-07-07T06:35:38.171Z",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "actionRequired": true,
+        "route": "/invite-accept?inviteId=I4H5qICBXwHMvzZ0Valb",
+        "title": "Invitation to join Aga Khan University",
+        "createdAt": "2026-07-07T06:35:24.922Z",
+        "resolvedAt": "2026-07-07T06:35:38.171Z",
+        "priority": "high",
+        "isArchived": true,
+        "archivedAt": "2026-07-07T06:35:38.171Z"
+      },
+      {
+        "id": "03J9jRAETQqNuSjEgRz3",
+        "relatedId": "2S3FSQnGtxRI1w1FdjpP",
+        "updatedAt": "2026-07-07T06:34:52.565Z",
+        "title": "Invite declined",
+        "createdAt": "2026-07-07T06:34:52.565Z",
+        "actionRequired": false,
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "isArchived": false,
+        "priority": "high",
+        "userId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "type": "institution_invite_declined",
+        "isRead": false,
+        "body": "You declined the Counselor invite for Aga Khan University.",
+        "isPinned": false
+      },
+      {
+        "id": "O6qr5Zc13qmKTv2U668o",
+        "userId": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "type": "institution_invite_declined",
+        "body": "Lucy Wangari declined the Counselor invite for Aga Khan University.",
+        "isPinned": false,
+        "isRead": false,
+        "actionRequired": false,
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "createdAt": "2026-07-07T06:34:52.565Z",
+        "title": "Counselor invite declined",
+        "priority": "high",
+        "isArchived": false,
+        "updatedAt": "2026-07-07T06:34:52.565Z",
+        "relatedId": "2S3FSQnGtxRI1w1FdjpP"
+      },
+      {
+        "id": "RIoV9JBLk5htUIbQ2rRV",
+        "archivedAt": "2026-07-07T06:34:51.741Z",
+        "isArchived": true,
+        "priority": "high",
+        "resolvedAt": "2026-07-07T06:34:51.741Z",
+        "createdAt": "2026-07-07T06:34:18.677Z",
+        "title": "Invitation to join Aga Khan University",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "route": "/invite-accept?inviteId=2S3FSQnGtxRI1w1FdjpP",
+        "actionRequired": true,
+        "updatedAt": "2026-07-07T06:34:51.741Z",
+        "relatedId": "2S3FSQnGtxRI1w1FdjpP",
+        "isRead": true,
+        "body": "You were invited as Counselor. Open this alert and enter your institution code to accept.",
+        "isPinned": false,
+        "type": "institution_invite",
+        "userId": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "readAt": "2026-07-07T06:34:51.741Z"
+      },
+      {
+        "id": "zhI7AuHKEa12gTdAMIfM",
+        "userId": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "type": "institution_request_approved",
+        "title": "Institution approved",
+        "body": "Your institution request was approved. You can now use the admin dashboard.",
+        "isRead": false,
+        "isPinned": false,
+        "isArchived": false,
+        "priority": "normal",
+        "actionRequired": false,
+        "relatedId": null,
+        "createdAt": "2026-07-07T06:27:27.094Z",
+        "updatedAt": "2026-07-07T06:27:27.094Z"
+      },
+      {
+        "id": "NFayTjYLuJzbJe9RlYbA",
+        "isArchived": false,
+        "priority": "normal",
+        "title": "Institution submitted",
+        "createdAt": "2026-07-07T06:24:22.823Z",
+        "actionRequired": false,
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "updatedAt": "2026-07-07T06:24:22.823Z",
+        "relatedId": null,
+        "isRead": false,
+        "body": "Your institution request is pending review. Approval usually takes about 30 minutes.",
+        "isPinned": false,
+        "type": "institution_request_pending",
+        "userId": "QNFngKR3VYMy8afLiZj5vDPUoZO2"
+      }
+    ],
+    "onboarding_responses": [
+      {
+        "id": "ctFTFSxIXjS98owU8EoS3KiCVrG2_individual_v4",
+        "version": 4,
+        "answers": {
+          "reminder_frequency": "daily",
+          "today_mood": "neutral",
+          "adaptive_question_count": 5,
+          "ai_assist_enabled": true,
+          "support_preference": [
+            "talk_to_counselor",
+            "ai_guidance"
+          ],
+          "focus_areas": [
+            "stress",
+            "anxiety",
+            "burnout",
+            "depression_low_mood",
+            "academic_pressure",
+            "relationship_issues"
+          ],
+          "wellbeing_drivers": [
+            "routine",
+            "sleep",
+            "support_network",
+            "exercise"
+          ]
+        },
+        "userId": "ctFTFSxIXjS98owU8EoS3KiCVrG2",
+        "role": "individual",
+        "submittedAt": "2026-07-07T06:46:45.435Z"
+      }
+    ],
+    "owner_support_messages": [
+      {
+        "id": "MtKXwbSVqoYdFEJ0IUjt",
+        "requesterId": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "requesterName": "Arrison Karimi",
+        "threadKey": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "senderId": "EU2iR9XcMDcBL28ScbMgetq43qY2",
+        "contextStatus": "",
+        "createdAt": "2026-07-07T06:28:00.155Z",
+        "senderRole": "owner",
+        "body": "done",
+        "requesterEmail": "legendofarrie@gmail.com",
+        "institutionName": "Aga Khan University"
+      },
+      {
+        "id": "ndXAwnUtWyNd1YVhDDM2",
+        "requesterId": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "requesterName": "Arrison Karimi",
+        "threadKey": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "senderId": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "contextStatus": "pending",
+        "createdAt": "2026-07-07T06:26:39.748Z",
+        "senderRole": "requester",
+        "requesterEmail": "legendofarrie@gmail.com",
+        "body": "hello",
+        "institutionName": "Aga Khan University"
+      }
+    ],
+    "phone_number_registry": [],
+    "school_requests": [],
+    "session_reassignment_requests": [],
+    "user_invites": [
+      {
+        "id": "I4H5qICBXwHMvzZ0Valb",
+        "invitedName": "Lucy Wangari",
+        "institutionName": "Aga Khan University",
+        "inviteeUid": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "inviteePhoneE164": "",
+        "oneTimeUse": true,
+        "intendedRole": "counselor",
+        "acceptedWithCode": "QMJW4B9Y",
+        "acceptedAt": "2026-07-07T06:35:38.171Z",
+        "acceptedByUid": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "expiresAt": "2026-07-14T06:35:24.468Z",
+        "updatedAt": "2026-07-07T06:35:38.171Z",
+        "invitedBy": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "deliveryChannel": "in_app",
+        "status": "accepted",
+        "invitedEmail": "mamalucykari@gmail.com",
+        "createdAt": "2026-07-07T06:35:24.528Z",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu"
+      },
+      {
+        "id": "2S3FSQnGtxRI1w1FdjpP",
+        "updatedAt": "2026-07-07T06:34:51.741Z",
+        "expiresAt": "2026-07-14T06:34:18.126Z",
+        "intendedRole": "counselor",
+        "declinedByUid": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "inviteePhoneE164": "",
+        "oneTimeUse": true,
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "invitedEmail": "mamalucykari@gmail.com",
+        "createdAt": "2026-07-07T06:34:18.256Z",
+        "declinedAt": "2026-07-07T06:34:51.741Z",
+        "invitedBy": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "status": "declined",
+        "deliveryChannel": "in_app",
+        "invitedName": "Lucy Wangari",
+        "inviteeUid": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "institutionName": "Aga Khan University"
+      }
+    ],
+    "user_notification_settings": [],
+    "user_privacy_settings": [],
+    "user_push_tokens": [],
+    "users": [
+      {
+        "id": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "aiAssistantPreferences": {},
+        "counselorSetupData": {
+          "bio": "",
+          "gender": "Woman",
+          "displayName": "Lucy Wangari",
+          "ratingCount": 0,
+          "allowDirectBooking": true,
+          "autoApproveFollowUps": false,
+          "updatedAt": "2026-07-07T06:38:23.507Z",
+          "isActive": true,
+          "sessionMode": "Hybrid",
+          "specialization": "Academic Stress, Career Guidance, Anxiety, Depression, Relationship Issues, Self-Esteem, Substance Abuse, Bullying, Grief & Loss",
+          "yearsExperience": 10,
+          "institutionId": "uKNdpaupHgKKyfP6y7eu",
+          "breakBetweenSessionsMins": 10,
+          "title": "Licensed Counsellor",
+          "completedAt": "2026-07-07T06:38:23.507Z",
+          "ratingAverage": 0,
+          "timezone": "Africa/Nairobi",
+          "defaultSessionMinutes": 50,
+          "languages": [
+            "English",
+            "Swahili"
+          ]
+        },
+        "institutionName": "Aga Khan University",
+        "phoneNumbers": [],
+        "institutionWelcomePending": false,
+        "role": "counselor",
+        "additionalPhoneNumber": null,
+        "name": "Lucy Wangari",
+        "emailLower": "mamalucykari@gmail.com",
+        "emailVerified": true,
+        "email": "mamalucykari@gmail.com",
+        "counselorApprovalStatus": "active",
+        "counselorSetupCompleted": true,
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "createdAt": "2026-07-07T06:32:49.789Z",
+        "onboardingCompletedRoles": {},
+        "registrationIntent": null,
+        "updatedAt": "2026-07-07T06:50:52.025Z",
+        "counselorPreferences": {
+          "defaultSessionMinutes": 50,
+          "breakBetweenSessionsMins": 10,
+          "updatedAt": "2026-07-07T06:38:23.507Z",
+          "allowDirectBooking": true,
+          "autoApproveFollowUps": false
+        },
+        "phoneNumber": null
+      },
+      {
+        "id": "ctFTFSxIXjS98owU8EoS3KiCVrG2",
+        "onboardingUpdatedAt": "2026-07-07T06:46:45.435Z",
+        "role": "individual",
+        "institutionWelcomePending": false,
+        "phoneNumbers": [],
+        "name": "Samuel Mwangi",
+        "emailLower": "moderation.mails.go@gmail.com",
+        "additionalPhoneNumber": null,
+        "institutionName": null,
+        "counselorSetupData": {},
+        "aiAssistantPreferences": {
+          "updatedAt": "2026-07-07T06:46:45.435Z",
+          "enabled": true,
+          "checkInCadence": null,
+          "style": null
+        },
+        "onboardingCompletedRoles": {
+          "individual": 4,
+          "staff": 4,
+          "student": 4
+        },
+        "onboardingLastCompletedRole": "individual",
+        "phoneNumber": null,
+        "updatedAt": "2026-07-07T06:48:57.719Z",
+        "registrationIntent": null,
+        "counselorPreferences": {},
+        "email": "moderation.mails.go@gmail.com",
+        "emailVerified": true,
+        "createdAt": "2026-07-07T06:43:38.966Z",
+        "institutionId": null,
+        "counselorSetupCompleted": false
+      },
+      {
+        "id": "QNFngKR3VYMy8afLiZj5vDPUoZO2",
+        "phoneNumber": "",
+        "onboardingCompletedRoles": {},
+        "updatedAt": "2026-07-07T06:26:24.912Z",
+        "additionalPhoneNumber": null,
+        "institutionName": "Aga Khan University",
+        "email": "legendofarrie@gmail.com",
+        "institutionCatalogId": "aga_khan_university",
+        "institutionWelcomePending": false,
+        "emailVerified": true,
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "emailLower": "legendofarrie@gmail.com",
+        "name": "Arrison Karimi",
+        "createdAt": "2026-07-07T06:24:19.657Z",
+        "role": "institutionAdmin",
+        "phoneNumbers": []
+      }
+    ],
+    "live_sessions": [
+      {
+        "id": "gPKOiDrmXaGp2ACgtT67",
+        "hostName": "Lucy Wangari",
+        "maxGuests": 20,
+        "hostRole": "counselor",
+        "endedAt": "2026-07-07T06:57:22.513Z",
+        "likeCount": 4,
+        "startedAt": "2026-07-07T06:55:55.676Z",
+        "institutionId": "uKNdpaupHgKKyfP6y7eu",
+        "allowedRoles": [
+          "student",
+          "staff",
+          "counselor"
+        ],
+        "createdAt": "2026-07-07T06:55:55.676Z",
+        "title": "Nothing Really",
+        "description": "",
+        "status": "ended",
+        "updatedAt": "2026-07-07T06:57:26.191Z",
+        "roomName": "mindnest_live_gPKOiDrmXaGp2ACgtT67",
+        "createdBy": "RtI5TdHPc8XVyJKMRtYf4pLeoa73",
+        "subcollections": {
+          "participants": [],
+          "mic_requests": [],
+          "comments": [],
+          "reactions": [],
+          "comment_reports": []
+        }
+      }
+    ]
+  }
+}

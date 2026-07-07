@@ -1756,10 +1756,37 @@ class CareRepository {
         });
   }
 
-  Future<void> createAvailabilitySlot({
+  Stream<List<AvailabilitySlot>> watchInstitutionSlots({
+    required String institutionId,
+  }) {
+    final normalized = institutionId.trim();
+    if (normalized.isEmpty) {
+      return Stream.value(const <AvailabilitySlot>[]);
+    }
+    if (_useWindowsPollingWorkaround) {
+      return _buildWindowsPollingStream<List<AvailabilitySlot>>(
+        load: () => getInstitutionSlots(institutionId: normalized),
+        signature: _availabilitySlotsSignature,
+      );
+    }
+    return _firestore
+        .collection('counselor_availability')
+        .where('institutionId', isEqualTo: normalized)
+        .snapshots()
+        .map((snapshot) {
+          final slots = snapshot.docs
+              .map((doc) => AvailabilitySlot.fromMap(doc.id, doc.data()))
+              .toList(growable: false);
+          slots.sort((a, b) => a.startAt.compareTo(b.startAt));
+          return slots;
+        });
+  }
+
+  Future<void> _createScheduleSlot({
     required String institutionId,
     required DateTime startAtUtc,
     required DateTime endAtUtc,
+    required AvailabilitySlotStatus status,
   }) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) {
@@ -1788,9 +1815,10 @@ class CareRepository {
           ),
     );
     if (!policy.containsLocalRange(startAtUtc.toLocal(), endAtUtc.toLocal())) {
-      throw Exception('Availability must stay between 7:00 AM and 8:00 PM.');
+      throw Exception('Availability must stay within counselor working hours.');
     }
-    if (endAtUtc.difference(startAtUtc) < policy.sessionDuration) {
+    if (status == AvailabilitySlotStatus.available &&
+        endAtUtc.difference(startAtUtc) < policy.sessionDuration) {
       throw Exception(
         'Availability must fit at least one ${policy.sessionMinutes}-minute session.',
       );
@@ -1802,10 +1830,17 @@ class CareRepository {
         counselorId: currentUser.uid,
       );
       for (final existing in overlapping) {
-        if (existing.endAt.isAfter(startAtUtc) &&
-            existing.startAt.isBefore(endAtUtc) &&
-            existing.status != AvailabilitySlotStatus.blocked) {
+        final overlaps =
+            existing.endAt.isAfter(startAtUtc) &&
+            existing.startAt.isBefore(endAtUtc);
+        if (!overlaps) {
+          continue;
+        }
+        if (status == AvailabilitySlotStatus.available) {
           throw Exception('This slot overlaps with an existing schedule.');
+        }
+        if (existing.status == AvailabilitySlotStatus.blocked) {
+          return;
         }
       }
       final nowUtc = DateTime.now().toUtc();
@@ -1815,7 +1850,7 @@ class CareRepository {
         'counselorId': currentUser.uid,
         'startAt': startAtUtc.toUtc(),
         'endAt': endAtUtc.toUtc(),
-        'status': AvailabilitySlotStatus.available.name,
+        'status': status.name,
         'createdAt': nowUtc,
         'updatedAt': nowUtc,
       });
@@ -1832,9 +1867,17 @@ class CareRepository {
     for (final doc in overlapping.docs) {
       final data = doc.data();
       final existing = AvailabilitySlot.fromMap(doc.id, data);
-      if (existing.endAt.isAfter(startAtUtc) &&
-          existing.status != AvailabilitySlotStatus.blocked) {
+      final overlaps =
+          existing.endAt.isAfter(startAtUtc) &&
+          existing.startAt.isBefore(endAtUtc);
+      if (!overlaps) {
+        continue;
+      }
+      if (status == AvailabilitySlotStatus.available) {
         throw Exception('This slot overlaps with an existing schedule.');
+      }
+      if (existing.status == AvailabilitySlotStatus.blocked) {
+        return;
       }
     }
 
@@ -1843,10 +1886,36 @@ class CareRepository {
       'counselorId': currentUser.uid,
       'startAt': Timestamp.fromDate(startAtUtc),
       'endAt': Timestamp.fromDate(endAtUtc),
-      'status': AvailabilitySlotStatus.available.name,
+      'status': status.name,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> createAvailabilitySlot({
+    required String institutionId,
+    required DateTime startAtUtc,
+    required DateTime endAtUtc,
+  }) async {
+    await _createScheduleSlot(
+      institutionId: institutionId,
+      startAtUtc: startAtUtc,
+      endAtUtc: endAtUtc,
+      status: AvailabilitySlotStatus.available,
+    );
+  }
+
+  Future<void> createBlockedSlot({
+    required String institutionId,
+    required DateTime startAtUtc,
+    required DateTime endAtUtc,
+  }) async {
+    await _createScheduleSlot(
+      institutionId: institutionId,
+      startAtUtc: startAtUtc,
+      endAtUtc: endAtUtc,
+      status: AvailabilitySlotStatus.blocked,
+    );
   }
 
   Future<void> deleteAvailabilitySlot(AvailabilitySlot slot) async {
@@ -1857,8 +1926,8 @@ class CareRepository {
     if (slot.counselorId != currentUser.uid) {
       throw Exception('You cannot modify this slot.');
     }
-    if (slot.status != AvailabilitySlotStatus.available) {
-      throw Exception('Only available slots can be removed.');
+    if (slot.status == AvailabilitySlotStatus.booked) {
+      throw Exception('Booked slots cannot be removed.');
     }
 
     if (kUseWindowsRestAuth) {
@@ -1895,6 +1964,13 @@ class CareRepository {
       );
     }
     final policy = CounselorSchedulePolicy.fromProfile(freshCounselor);
+    final counselorSlots = await getCounselorSlots(
+      institutionId: institutionId,
+      counselorId: freshCounselor.id,
+    );
+    final blockedWindows = counselorSlots
+        .where((slot) => slot.status == AvailabilitySlotStatus.blocked)
+        .toList(growable: false);
     final sourceSlotId = slot.sourceSlotId ?? slot.id;
     final requestedStartAt = slot.startAt.toUtc();
     final requestedEndAt = slot.endAt.toUtc();
@@ -1931,6 +2007,7 @@ class CareRepository {
         requestedStartAt: requestedStartAt,
         requestedEndAt: requestedEndAt,
         policy: policy,
+        blockedWindows: blockedWindows,
       );
       final nowUtc = DateTime.now().toUtc();
       await _windowsRest.setDocument('appointments/$appointmentId', {
@@ -2014,6 +2091,7 @@ class CareRepository {
         requestedStartAt: requestedStartAt,
         requestedEndAt: requestedEndAt,
         policy: policy,
+        blockedWindows: blockedWindows,
       );
 
       transaction.set(appointmentRef, {
@@ -2110,6 +2188,7 @@ class CareRepository {
     required DateTime requestedStartAt,
     required DateTime requestedEndAt,
     required CounselorSchedulePolicy policy,
+    List<AvailabilitySlot> blockedWindows = const <AvailabilitySlot>[],
     String? ignoredAppointmentId,
   }) async {
     if (sourceSlot.status != AvailabilitySlotStatus.available) {
@@ -2123,7 +2202,7 @@ class CareRepository {
     final requestedStartLocal = requestedStartAt.toLocal();
     final requestedEndLocal = requestedEndAt.toLocal();
     if (!policy.containsLocalRange(requestedStartLocal, requestedEndLocal)) {
-      throw Exception('Sessions must stay between 7:00 AM and 8:00 PM.');
+      throw Exception('Sessions must stay within counselor working hours.');
     }
     if (requestedStartAt.isBefore(sourceSlot.startAt.toUtc()) ||
         requestedEndAt.isAfter(sourceSlot.endAt.toUtc())) {
@@ -2133,11 +2212,24 @@ class CareRepository {
       throw Exception('Selected time has already passed.');
     }
 
+    final blockedByOverride = blockedWindows.any((window) {
+      if (window.status != AvailabilitySlotStatus.blocked) {
+        return false;
+      }
+      final blockStart = window.startAt.toUtc();
+      final blockEnd = window.endAt.toUtc();
+      return blockStart.isBefore(requestedEndAt) &&
+          blockEnd.isAfter(requestedStartAt);
+    });
+    if (blockedByOverride) {
+      throw Exception('Selected time falls within a blocked period.');
+    }
+
     final appointments = await getCounselorAppointments(
       institutionId: institutionId,
       counselorId: counselorId,
     );
-    final blocked = appointments.any((appointment) {
+    final blockedByAppointment = appointments.any((appointment) {
       if (appointment.id == ignoredAppointmentId) {
         return false;
       }
@@ -2152,7 +2244,7 @@ class CareRepository {
       return blockStart.isBefore(requestedEndAt) &&
           blockEnd.isAfter(requestedStartAt);
     });
-    if (blocked) {
+    if (blockedByAppointment) {
       throw Exception(
         'Selected time conflicts with another session or required break.',
       );
@@ -2520,6 +2612,13 @@ class CareRepository {
       );
     }
     final policy = CounselorSchedulePolicy.fromProfile(freshCounselor);
+    final counselorSlots = await getCounselorSlots(
+      institutionId: appointment.institutionId,
+      counselorId: appointment.counselorId,
+    );
+    final blockedWindows = counselorSlots
+        .where((slot) => slot.status == AvailabilitySlotStatus.blocked)
+        .toList(growable: false);
     final sourceSlotId = newSlot.sourceSlotId ?? newSlot.id;
     final requestedStartAt = newSlot.startAt.toUtc();
     final requestedEndAt = newSlot.endAt.toUtc();
@@ -2552,6 +2651,7 @@ class CareRepository {
         requestedStartAt: requestedStartAt,
         requestedEndAt: requestedEndAt,
         policy: policy,
+        blockedWindows: blockedWindows,
         ignoredAppointmentId: appointment.id,
       );
 
@@ -2671,6 +2771,7 @@ class CareRepository {
         requestedStartAt: requestedStartAt,
         requestedEndAt: requestedEndAt,
         policy: policy,
+        blockedWindows: blockedWindows,
         ignoredAppointmentId: appointment.id,
       );
 
@@ -3454,6 +3555,37 @@ class CareRepository {
     final slots = snapshot.docs
         .map((doc) => AvailabilitySlot.fromMap(doc.id, doc.data()))
         .where((slot) => slot.endAt.isAfter(DateTime.now().toUtc()))
+        .toList(growable: false);
+    slots.sort((a, b) => a.startAt.compareTo(b.startAt));
+    return slots;
+  }
+
+  Future<List<AvailabilitySlot>> getInstitutionSlots({
+    required String institutionId,
+  }) async {
+    final normalized = institutionId.trim();
+    if (normalized.isEmpty) {
+      return const <AvailabilitySlot>[];
+    }
+    if (kUseWindowsRestAuth) {
+      final documents = await _windowsRest.queryCollection(
+        collectionId: 'counselor_availability',
+        filters: <WindowsFirestoreFieldFilter>[
+          WindowsFirestoreFieldFilter.equal('institutionId', normalized),
+        ],
+      );
+      final slots = documents
+          .map((doc) => AvailabilitySlot.fromMap(doc.id, doc.data))
+          .toList(growable: false);
+      slots.sort((a, b) => a.startAt.compareTo(b.startAt));
+      return slots;
+    }
+    final snapshot = await _firestore
+        .collection('counselor_availability')
+        .where('institutionId', isEqualTo: normalized)
+        .get();
+    final slots = snapshot.docs
+        .map((doc) => AvailabilitySlot.fromMap(doc.id, doc.data()))
         .toList(growable: false);
     slots.sort((a, b) => a.startAt.compareTo(b.startAt));
     return slots;

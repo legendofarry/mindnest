@@ -20,6 +20,12 @@ class CounselorProfile {
     this.breakBetweenSessionsMins = 10,
     this.allowDirectBooking = true,
     this.autoApproveFollowUps = false,
+    this.workingWeekdays = const <int>[1, 2, 3, 4, 5],
+    this.workingDayStartMinutes = 7 * 60,
+    this.workingDayEndMinutes = 20 * 60,
+    this.lunchBreakEnabled = false,
+    this.lunchBreakStartMinutes = 12 * 60 + 30,
+    this.lunchBreakEndMinutes = 13 * 60,
   });
 
   final String id;
@@ -40,6 +46,12 @@ class CounselorProfile {
   final int breakBetweenSessionsMins;
   final bool allowDirectBooking;
   final bool autoApproveFollowUps;
+  final List<int> workingWeekdays;
+  final int workingDayStartMinutes;
+  final int workingDayEndMinutes;
+  final bool lunchBreakEnabled;
+  final int lunchBreakStartMinutes;
+  final int lunchBreakEndMinutes;
 
   factory CounselorProfile.fromMap(String id, Map<String, dynamic> data) {
     final languagesRaw = data['languages'];
@@ -54,6 +66,34 @@ class CounselorProfile {
 
     final ratingCountRaw = data['ratingCount'];
     final ratingCount = ratingCountRaw is num ? ratingCountRaw.toInt() : 0;
+
+    final rawWorkingWeekdays = data['workingWeekdays'];
+    final workingWeekdays = <int>[];
+    if (rawWorkingWeekdays is List) {
+      for (final value in rawWorkingWeekdays) {
+        final parsed = value is num
+            ? value.toInt()
+            : int.tryParse(value.toString().trim());
+        if (parsed != null &&
+            parsed >= DateTime.monday &&
+            parsed <= DateTime.sunday) {
+          workingWeekdays.add(parsed);
+        }
+      }
+    }
+    if (workingWeekdays.isEmpty) {
+      workingWeekdays.addAll(<int>[1, 2, 3, 4, 5]);
+    }
+
+    final workingDayStartMinutes =
+        (data['workingDayStartMinutes'] as num?)?.toInt() ?? 7 * 60;
+    final workingDayEndMinutes =
+        (data['workingDayEndMinutes'] as num?)?.toInt() ?? 20 * 60;
+    final lunchBreakEnabled = (data['lunchBreakEnabled'] as bool?) ?? false;
+    final lunchBreakStartMinutes =
+        (data['lunchBreakStartMinutes'] as num?)?.toInt() ?? (12 * 60 + 30);
+    final lunchBreakEndMinutes =
+        (data['lunchBreakEndMinutes'] as num?)?.toInt() ?? 13 * 60;
 
     return CounselorProfile(
       id: id,
@@ -78,6 +118,12 @@ class CounselorProfile {
           (data['breakBetweenSessionsMins'] as num?)?.toInt() ?? 10,
       allowDirectBooking: (data['allowDirectBooking'] as bool?) ?? true,
       autoApproveFollowUps: (data['autoApproveFollowUps'] as bool?) ?? false,
+      workingWeekdays: workingWeekdays,
+      workingDayStartMinutes: workingDayStartMinutes,
+      workingDayEndMinutes: workingDayEndMinutes,
+      lunchBreakEnabled: lunchBreakEnabled,
+      lunchBreakStartMinutes: lunchBreakStartMinutes,
+      lunchBreakEndMinutes: lunchBreakEndMinutes,
     );
   }
 }

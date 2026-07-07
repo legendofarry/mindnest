@@ -131,6 +131,12 @@ class CounselorRepository {
     required String timezone,
     required String bio,
     required List<String> languages,
+    List<int> workingWeekdays = const <int>[1, 2, 3, 4, 5],
+    int workingDayStartMinutes = 7 * 60,
+    int workingDayEndMinutes = 20 * 60,
+    bool lunchBreakEnabled = false,
+    int lunchBreakStartMinutes = 12 * 60 + 30,
+    int lunchBreakEndMinutes = 13 * 60,
   }) async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -173,6 +179,19 @@ class CounselorRepository {
       throw Exception('Timezone is required.');
     }
 
+    final normalizedWeekdays = workingWeekdays
+        .where((day) => day >= DateTime.monday && day <= DateTime.sunday)
+        .toSet()
+        .toList(growable: false)
+      ..sort();
+    final finalWeekdays = normalizedWeekdays.isEmpty
+        ? const <int>[1, 2, 3, 4, 5]
+        : normalizedWeekdays;
+    final startMinutes = workingDayStartMinutes.clamp(0, 23 * 60 + 59);
+    final endMinutes = workingDayEndMinutes.clamp(1, 24 * 60);
+    final safeLunchStart = lunchBreakStartMinutes.clamp(0, 24 * 60 - 1);
+    final safeLunchEnd = lunchBreakEndMinutes.clamp(0, 24 * 60);
+
     final existingCounselorProfile = kUseWindowsRestAuth
         ? (await _windowsRest.getDocument(
                 'counselor_profiles/${user.uid}',
@@ -207,6 +226,12 @@ class CounselorRepository {
       'breakBetweenSessionsMins': 10,
       'allowDirectBooking': true,
       'autoApproveFollowUps': false,
+      'workingWeekdays': finalWeekdays,
+      'workingDayStartMinutes': startMinutes,
+      'workingDayEndMinutes': endMinutes,
+      'lunchBreakEnabled': lunchBreakEnabled,
+      'lunchBreakStartMinutes': safeLunchStart,
+      'lunchBreakEndMinutes': safeLunchEnd,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
@@ -221,6 +246,12 @@ class CounselorRepository {
           'breakBetweenSessionsMins': 10,
           'allowDirectBooking': true,
           'autoApproveFollowUps': false,
+          'workingWeekdays': finalWeekdays,
+          'workingDayStartMinutes': startMinutes,
+          'workingDayEndMinutes': endMinutes,
+          'lunchBreakEnabled': lunchBreakEnabled,
+          'lunchBreakStartMinutes': safeLunchStart,
+          'lunchBreakEndMinutes': safeLunchEnd,
           'updatedAt': now,
         },
         'updatedAt': now,
@@ -248,6 +279,12 @@ class CounselorRepository {
         'breakBetweenSessionsMins': 10,
         'allowDirectBooking': true,
         'autoApproveFollowUps': false,
+        'workingWeekdays': finalWeekdays,
+        'workingDayStartMinutes': startMinutes,
+        'workingDayEndMinutes': endMinutes,
+        'lunchBreakEnabled': lunchBreakEnabled,
+        'lunchBreakStartMinutes': safeLunchStart,
+        'lunchBreakEndMinutes': safeLunchEnd,
         'updatedAt': FieldValue.serverTimestamp(),
       },
       'updatedAt': FieldValue.serverTimestamp(),
@@ -274,6 +311,12 @@ class CounselorRepository {
     required int breakBetweenSessionsMins,
     required bool allowDirectBooking,
     required bool autoApproveFollowUps,
+    List<int> workingWeekdays = const <int>[1, 2, 3, 4, 5],
+    int workingDayStartMinutes = 7 * 60,
+    int workingDayEndMinutes = 20 * 60,
+    bool lunchBreakEnabled = false,
+    int lunchBreakStartMinutes = 12 * 60 + 30,
+    int lunchBreakEndMinutes = 13 * 60,
   }) async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -329,6 +372,19 @@ class CounselorRepository {
       throw Exception('Break between sessions must be between 0 and 60.');
     }
 
+    final normalizedWeekdays = workingWeekdays
+        .where((day) => day >= DateTime.monday && day <= DateTime.sunday)
+        .toSet()
+        .toList(growable: false)
+      ..sort();
+    final finalWeekdays = normalizedWeekdays.isEmpty
+        ? const <int>[1, 2, 3, 4, 5]
+        : normalizedWeekdays;
+    final startMinutes = workingDayStartMinutes.clamp(0, 23 * 60 + 59);
+    final endMinutes = workingDayEndMinutes.clamp(1, 24 * 60);
+    final safeLunchStart = lunchBreakStartMinutes.clamp(0, 24 * 60 - 1);
+    final safeLunchEnd = lunchBreakEndMinutes.clamp(0, 24 * 60);
+
     final existingCounselorProfile = kUseWindowsRestAuth
         ? (await _windowsRest.getDocument(
                 'counselor_profiles/${user.uid}',
@@ -367,6 +423,12 @@ class CounselorRepository {
       'breakBetweenSessionsMins': breakBetweenSessionsMins,
       'allowDirectBooking': allowDirectBooking,
       'autoApproveFollowUps': autoApproveFollowUps,
+      'workingWeekdays': finalWeekdays,
+      'workingDayStartMinutes': startMinutes,
+      'workingDayEndMinutes': endMinutes,
+      'lunchBreakEnabled': lunchBreakEnabled,
+      'lunchBreakStartMinutes': safeLunchStart,
+      'lunchBreakEndMinutes': safeLunchEnd,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
@@ -375,6 +437,12 @@ class CounselorRepository {
       'breakBetweenSessionsMins': breakBetweenSessionsMins,
       'allowDirectBooking': allowDirectBooking,
       'autoApproveFollowUps': autoApproveFollowUps,
+      'workingWeekdays': finalWeekdays,
+      'workingDayStartMinutes': startMinutes,
+      'workingDayEndMinutes': endMinutes,
+      'lunchBreakEnabled': lunchBreakEnabled,
+      'lunchBreakStartMinutes': safeLunchStart,
+      'lunchBreakEndMinutes': safeLunchEnd,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 

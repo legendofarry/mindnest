@@ -120,14 +120,127 @@ class _CounselorAvailabilityScreenState
     return weekdays[day.weekday - 1];
   }
 
+  int _intPref(Map<String, dynamic> prefs, String key, int fallback) {
+    return (prefs[key] as num?)?.toInt() ?? fallback;
+  }
+
+  bool _boolPref(Map<String, dynamic> prefs, String key, bool fallback) {
+    return (prefs[key] as bool?) ?? fallback;
+  }
+
+  List<int> _weekdayPrefs(Map<String, dynamic> prefs) {
+    final raw = prefs['workingWeekdays'];
+    if (raw is! List) {
+      return const <int>[1, 2, 3, 4, 5];
+    }
+    final days = <int>{};
+    for (final entry in raw) {
+      final parsed = entry is num
+          ? entry.toInt()
+          : int.tryParse(entry.toString().trim());
+      if (parsed != null &&
+          parsed >= DateTime.monday &&
+          parsed <= DateTime.sunday) {
+        days.add(parsed);
+      }
+    }
+    final sorted = days.toList(growable: false)..sort();
+    return sorted.isEmpty ? const <int>[1, 2, 3, 4, 5] : sorted;
+  }
+
   CounselorSchedulePolicy _policyFor(UserProfile profile) {
     final prefs = profile.counselorPreferences;
     return CounselorSchedulePolicy(
-      sessionMinutes: (prefs['defaultSessionMinutes'] as num?)?.toInt() ?? 50,
-      breakMinutes: (prefs['breakBetweenSessionsMins'] as num?)?.toInt() ?? 10,
-      allowDirectBooking: (prefs['allowDirectBooking'] as bool?) ?? true,
-      autoApproveFollowUps: (prefs['autoApproveFollowUps'] as bool?) ?? false,
+      sessionMinutes: _intPref(prefs, 'defaultSessionMinutes', 50),
+      breakMinutes: _intPref(prefs, 'breakBetweenSessionsMins', 10),
+      allowDirectBooking: _boolPref(prefs, 'allowDirectBooking', true),
+      autoApproveFollowUps: _boolPref(prefs, 'autoApproveFollowUps', false),
+      workingWeekdays: _weekdayPrefs(prefs),
+      dayStartMinutes: _intPref(prefs, 'workingDayStartMinutes', 7 * 60),
+      dayEndMinutes: _intPref(prefs, 'workingDayEndMinutes', 20 * 60),
+      lunchBreakEnabled: _boolPref(prefs, 'lunchBreakEnabled', false),
+      lunchBreakStartMinutes: _intPref(
+        prefs,
+        'lunchBreakStartMinutes',
+        12 * 60 + 30,
+      ),
+      lunchBreakEndMinutes: _intPref(prefs, 'lunchBreakEndMinutes', 13 * 60),
     );
+  }
+
+  bool _rangesOverlap(
+    DateTime aStart,
+    DateTime aEnd,
+    DateTime bStart,
+    DateTime bEnd,
+  ) {
+    return aStart.isBefore(bEnd) && aEnd.isAfter(bStart);
+  }
+
+  bool _overlapsAnySlot({
+    required DateTime startLocal,
+    required DateTime endLocal,
+    required List<AvailabilitySlot> slots,
+    AvailabilitySlotStatus? onlyStatus,
+  }) {
+    return slots.any((slot) {
+      if (onlyStatus != null && slot.status != onlyStatus) {
+        return false;
+      }
+      return _rangesOverlap(
+        startLocal,
+        endLocal,
+        slot.startAt.toLocal(),
+        slot.endAt.toLocal(),
+      );
+    });
+  }
+
+  bool _overlapsLunch(
+    CounselorSchedulePolicy policy,
+    DateTime startLocal,
+    DateTime endLocal,
+  ) {
+    if (!policy.lunchBreakEnabled ||
+        policy.lunchBreakEndMinutes <= policy.lunchBreakStartMinutes) {
+      return false;
+    }
+    final lunchStart = DateTime(
+      startLocal.year,
+      startLocal.month,
+      startLocal.day,
+      policy.lunchBreakStartMinutes ~/ 60,
+      policy.lunchBreakStartMinutes % 60,
+    );
+    final lunchEnd = DateTime(
+      startLocal.year,
+      startLocal.month,
+      startLocal.day,
+      policy.lunchBreakEndMinutes ~/ 60,
+      policy.lunchBreakEndMinutes % 60,
+    );
+    return _rangesOverlap(startLocal, endLocal, lunchStart, lunchEnd);
+  }
+
+  List<({DateTime start, DateTime end})> _defaultSessionRangesForDay({
+    required CounselorSchedulePolicy policy,
+    required DateTime day,
+  }) {
+    if (!policy.worksOn(day)) {
+      return const <({DateTime start, DateTime end})>[];
+    }
+    final now = DateTime.now();
+    final ranges = <({DateTime start, DateTime end})>[];
+    var cursor = policy.dayStartFor(day);
+    final dayEnd = policy.dayEndFor(day);
+    while (!cursor.add(policy.sessionDuration).isAfter(dayEnd)) {
+      final end = cursor.add(policy.sessionDuration);
+      if (end.isAfter(now) && !_overlapsLunch(policy, cursor, end)) {
+        ranges.add((start: cursor, end: end));
+      }
+      cursor = cursor.add(policy.cadence);
+    }
+    return ranges;
   }
 
   TimeOfDay _timeOfDayFromDateTime(DateTime value) {
@@ -210,7 +323,7 @@ class _CounselorAvailabilityScreenState
       showModernBannerFromSnackBar(
         context,
         const SnackBar(
-          content: Text('Availability must stay between 7:00 AM and 8:00 PM.'),
+          content: Text('Availability must stay within your working hours.'),
         ),
       );
       return;
@@ -240,6 +353,7 @@ class _CounselorAvailabilityScreenState
     required DateTime startLocal,
     required DateTime endLocal,
     required String successText,
+    AvailabilitySlotStatus status = AvailabilitySlotStatus.available,
   }) async {
     final institutionId = profile.institutionId ?? '';
     if (institutionId.isEmpty) {
@@ -254,13 +368,20 @@ class _CounselorAvailabilityScreenState
 
     setState(() => _isSaving = true);
     try {
-      await ref
-          .read(careRepositoryProvider)
-          .createAvailabilitySlot(
-            institutionId: institutionId,
-            startAtUtc: startLocal.toUtc(),
-            endAtUtc: endLocal.toUtc(),
-          );
+      final repository = ref.read(careRepositoryProvider);
+      if (status == AvailabilitySlotStatus.blocked) {
+        await repository.createBlockedSlot(
+          institutionId: institutionId,
+          startAtUtc: startLocal.toUtc(),
+          endAtUtc: endLocal.toUtc(),
+        );
+      } else {
+        await repository.createAvailabilitySlot(
+          institutionId: institutionId,
+          startAtUtc: startLocal.toUtc(),
+          endAtUtc: endLocal.toUtc(),
+        );
+      }
       if (!mounted) {
         return;
       }
@@ -281,6 +402,172 @@ class _CounselorAvailabilityScreenState
       if (handled == true) {
         return;
       }
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _bulkCreateDefaultSessions({
+    required UserProfile profile,
+    required List<DateTime> days,
+    required List<AvailabilitySlot> activeSlots,
+    required String successLabel,
+  }) async {
+    final institutionId = profile.institutionId ?? '';
+    if (institutionId.isEmpty) {
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(
+          content: Text('Counselor must be linked to institution.'),
+        ),
+      );
+      return;
+    }
+
+    final policy = _policyFor(profile);
+    final planned = <({DateTime start, DateTime end})>[];
+    for (final day in days) {
+      for (final range in _defaultSessionRangesForDay(
+        policy: policy,
+        day: day,
+      )) {
+        final overlapsExisting = _overlapsAnySlot(
+          startLocal: range.start,
+          endLocal: range.end,
+          slots: activeSlots,
+        );
+        final overlapsPlanned = planned.any(
+          (entry) =>
+              _rangesOverlap(range.start, range.end, entry.start, entry.end),
+        );
+        if (!overlapsExisting && !overlapsPlanned) {
+          planned.add(range);
+        }
+      }
+    }
+
+    if (planned.isEmpty) {
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(
+          content: Text('No open default sessions to add for that range.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    var created = 0;
+    try {
+      final repository = ref.read(careRepositoryProvider);
+      for (final range in planned) {
+        await repository.createAvailabilitySlot(
+          institutionId: institutionId,
+          startAtUtc: range.start.toUtc(),
+          endAtUtc: range.end.toUtc(),
+        );
+        created++;
+      }
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(content: Text('$successLabel: $created sessions added.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _blockDefaultDays({
+    required UserProfile profile,
+    required List<DateTime> days,
+    required List<AvailabilitySlot> activeSlots,
+    required String successLabel,
+  }) async {
+    final institutionId = profile.institutionId ?? '';
+    if (institutionId.isEmpty) {
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(
+          content: Text('Counselor must be linked to institution.'),
+        ),
+      );
+      return;
+    }
+
+    final policy = _policyFor(profile);
+    final planned = <({DateTime start, DateTime end})>[];
+    for (final day in days) {
+      if (!policy.worksOn(day)) {
+        continue;
+      }
+      final start = policy.dayStartFor(day);
+      final end = policy.dayEndFor(day);
+      if (!end.isAfter(DateTime.now()) ||
+          _overlapsAnySlot(
+            startLocal: start,
+            endLocal: end,
+            slots: activeSlots,
+            onlyStatus: AvailabilitySlotStatus.blocked,
+          )) {
+        continue;
+      }
+      planned.add((start: start, end: end));
+    }
+
+    if (planned.isEmpty) {
+      showModernBannerFromSnackBar(
+        context,
+        const SnackBar(content: Text('No default workdays to block here.')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    var created = 0;
+    try {
+      final repository = ref.read(careRepositoryProvider);
+      for (final range in planned) {
+        await repository.createBlockedSlot(
+          institutionId: institutionId,
+          startAtUtc: range.start.toUtc(),
+          endAtUtc: range.end.toUtc(),
+        );
+        created++;
+      }
+      if (!mounted) {
+        return;
+      }
+      showModernBannerFromSnackBar(
+        context,
+        SnackBar(content: Text('$successLabel: $created block added.')),
+      );
+    } catch (error) {
       if (!mounted) {
         return;
       }
@@ -431,6 +718,16 @@ class _CounselorAvailabilityScreenState
       final policy = _policyFor(profile);
       final start = DateTime(day.year, day.month, day.day, hour);
       final end = policy.defaultEndFor(start);
+      if (!policy.containsLocalRange(start, end) ||
+          end.difference(start) < policy.sessionDuration) {
+        showModernBannerFromSnackBar(
+          context,
+          const SnackBar(
+            content: Text('That time is outside your default working rhythm.'),
+          ),
+        );
+        return;
+      }
       await _createSlot(
         profile: profile,
         startLocal: start,
@@ -468,7 +765,7 @@ class _CounselorAvailabilityScreenState
                             '${_formatDateTime(slot.startAt)} - ${_formatDateTime(slot.endAt)} (${slot.status.name})',
                           ),
                         ),
-                        if (slot.status == AvailabilitySlotStatus.available)
+                        if (slot.status != AvailabilitySlotStatus.booked)
                           IconButton(
                             onPressed: () async {
                               Navigator.of(context).pop();
@@ -506,8 +803,160 @@ class _CounselorAvailabilityScreenState
     return const Color(0xFFEFFFFC);
   }
 
+  Widget _buildQuickScheduleActions({
+    required UserProfile profile,
+    required List<AvailabilitySlot> activeSlots,
+  }) {
+    final policy = _policyFor(profile);
+    final selectedDay = _date ?? DateTime.now();
+    final normalizedSelectedDay = DateTime(
+      selectedDay.year,
+      selectedDay.month,
+      selectedDay.day,
+    );
+    final weekDays = _currentWeekDays();
+    final rhythmLabel =
+        '${policy.sessionMinutes} min sessions · ${policy.breakMinutes} min breaks';
+    final hoursLabel =
+        '${_formatTime(policy.dayStartFor(normalizedSelectedDay))} - ${_formatTime(policy.dayEndFor(normalizedSelectedDay))}';
+
+    Widget actionButton({
+      required IconData icon,
+      required String label,
+      required VoidCallback? onPressed,
+      bool filled = false,
+    }) {
+      if (filled) {
+        return FilledButton.icon(
+          onPressed: _isSaving ? null : onPressed,
+          icon: Icon(icon, size: 18),
+          label: Text(label),
+        );
+      }
+      return OutlinedButton.icon(
+        onPressed: _isSaving ? null : onPressed,
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDDE6EE)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 720;
+          final copy = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _AvailabilityEyebrow(
+                label: 'DEFAULT RHYTHM',
+                color: Color(0xFF7C3AED),
+                background: Color(0xFFF3E8FF),
+                border: Color(0xFFD8B4FE),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Quick schedule tools',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF081A30),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '$hoursLabel · $rhythmLabel. These actions use your saved session rhythm and skip lunch breaks automatically.',
+                style: const TextStyle(
+                  color: Color(0xFF6A7C93),
+                  height: 1.45,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          );
+
+          final actions = Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              actionButton(
+                icon: Icons.today_rounded,
+                label: 'Fill selected day',
+                filled: true,
+                onPressed: () => _bulkCreateDefaultSessions(
+                  profile: profile,
+                  days: [normalizedSelectedDay],
+                  activeSlots: activeSlots,
+                  successLabel: 'Selected day filled',
+                ),
+              ),
+              actionButton(
+                icon: Icons.view_week_rounded,
+                label: 'Fill week',
+                onPressed: () => _bulkCreateDefaultSessions(
+                  profile: profile,
+                  days: weekDays,
+                  activeSlots: activeSlots,
+                  successLabel: 'Week filled',
+                ),
+              ),
+              actionButton(
+                icon: Icons.event_busy_rounded,
+                label: 'Block selected day',
+                onPressed: () => _blockDefaultDays(
+                  profile: profile,
+                  days: [normalizedSelectedDay],
+                  activeSlots: activeSlots,
+                  successLabel: 'Selected day blocked',
+                ),
+              ),
+              actionButton(
+                icon: Icons.block_rounded,
+                label: 'Block week',
+                onPressed: () => _blockDefaultDays(
+                  profile: profile,
+                  days: weekDays,
+                  activeSlots: activeSlots,
+                  successLabel: 'Week blocked',
+                ),
+              ),
+            ],
+          );
+
+          if (isCompact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [copy, const SizedBox(height: 14), actions],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: copy),
+              const SizedBox(width: 18),
+              SizedBox(width: 360, child: actions),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildWeeklyGrid(UserProfile profile, List<AvailabilitySlot> slots) {
     final days = _currentWeekDays();
+    final policy = _policyFor(profile);
     final weekControls = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -629,24 +1078,44 @@ class _CounselorAvailabilityScreenState
                         children: [
                           _TimeCell(hour: hour),
                           ...days.map((day) {
+                            final cellStart = DateTime(
+                              day.year,
+                              day.month,
+                              day.day,
+                              hour,
+                            );
+                            final cellEnd = cellStart.add(
+                              const Duration(hours: 1),
+                            );
                             final cellSlots = _slotsForCell(
                               slots: slots,
                               day: day,
                               hour: hour,
                             );
+                            final isOutsideDefault =
+                                cellSlots.isEmpty &&
+                                (!policy.worksOn(day) ||
+                                    !cellStart.isBefore(
+                                      policy.dayEndFor(day),
+                                    ) ||
+                                    !cellEnd.isAfter(policy.dayStartFor(day)) ||
+                                    _overlapsLunch(policy, cellStart, cellEnd));
                             final isPastEmpty =
                                 cellSlots.isEmpty &&
                                 _isPastEmptyCell(day, hour);
                             return _CalendarCell(
                               width: 132,
-                              color: _cellColor(
-                                cellSlots,
-                                isPastEmpty: isPastEmpty,
-                              ),
+                              color: isOutsideDefault
+                                  ? const Color(0xFFF8FAFC)
+                                  : _cellColor(
+                                      cellSlots,
+                                      isPastEmpty: isPastEmpty,
+                                    ),
                               slotCount: cellSlots.length,
                               isBusy: cellSlots.isNotEmpty,
-                              isDisabled: isPastEmpty,
-                              onTap: _isSaving || isPastEmpty
+                              isDisabled: isPastEmpty || isOutsideDefault,
+                              onTap:
+                                  _isSaving || isPastEmpty || isOutsideDefault
                                   ? null
                                   : () => _onCellTap(
                                       profile: profile,
@@ -912,8 +1381,8 @@ class _CounselorAvailabilityScreenState
                                         color: tone,
                                       ),
                                       const Spacer(),
-                                      if (slot.status ==
-                                          AvailabilitySlotStatus.available)
+                                      if (slot.status !=
+                                          AvailabilitySlotStatus.booked)
                                         TextButton.icon(
                                           onPressed: () async {
                                             try {
@@ -941,7 +1410,13 @@ class _CounselorAvailabilityScreenState
                                             Icons.delete_outline_rounded,
                                             size: 16,
                                           ),
-                                          label: const Text('Delete'),
+                                          label: Text(
+                                            slot.status ==
+                                                    AvailabilitySlotStatus
+                                                        .blocked
+                                                ? 'Remove block'
+                                                : 'Delete',
+                                          ),
                                         ),
                                     ],
                                   ),
@@ -1127,8 +1602,7 @@ class _CounselorAvailabilityScreenState
                                   color: tone,
                                 ),
                               ),
-                              if (slot.status ==
-                                  AvailabilitySlotStatus.available)
+                              if (slot.status != AvailabilitySlotStatus.booked)
                                 TextButton.icon(
                                   onPressed: () async {
                                     try {
@@ -1153,7 +1627,12 @@ class _CounselorAvailabilityScreenState
                                   icon: const Icon(
                                     Icons.delete_outline_rounded,
                                   ),
-                                  label: const Text('Delete'),
+                                  label: Text(
+                                    slot.status ==
+                                            AvailabilitySlotStatus.blocked
+                                        ? 'Remove block'
+                                        : 'Delete',
+                                  ),
                                 )
                               else
                                 const SizedBox(width: 64),
@@ -1529,6 +2008,8 @@ class _CounselorAvailabilityScreenState
             ),
           ),
         ),
+        const SizedBox(height: 20),
+        _buildQuickScheduleActions(profile: profile, activeSlots: activeSlots),
         const SizedBox(height: 20),
         _buildWeeklyGrid(profile, activeSlots),
         const SizedBox(height: 20),
