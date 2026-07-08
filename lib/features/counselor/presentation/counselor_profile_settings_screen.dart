@@ -217,8 +217,8 @@ class _CounselorProfileSettingsScreenState
     _active = cp?.isActive ?? (setup['isActive'] as bool? ?? true);
     final d = (prefs['defaultSessionMinutes'] as num?)?.toInt();
     if (d != null && _durations.contains(d)) _duration = d;
-    final b = (prefs['breakBetweenS    return '${_weekdayRangeLabel()} · ${_formatMinutesOfDay(_workingDayStartMinutes)}-${_formatMinutesOfDay(_workingDayEndMinutes)} · $_duration min sessions · $_breakMins min breaks · $lunch';
-'] as bool?) ?? false;
+    final b = (prefs['breakBetweenSessionsMins'] as num?)?.toInt();
+    if (b != null && b >= 0 && b <= 60) _breakMins = b;
     _seeded = true;
   }
 
@@ -464,21 +464,12 @@ class _CounselorProfileSettingsScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // Search — powerful multi-token + fuzzy scoring.
+  // Search — powerful multi-token scoring.
   //
   // For each item we build a haystack of {title, subtitle, group, section,
   // searchTerms}. The query is split into tokens; every token must match
-  // (via substring OR fuzzy subsequence within ~1 typo) somewhere. Items are
-  // then ranked by a composite score so the best matches float to the top.
-  // If nothing scores above 0 we return an empty list and the empty-state
-  // shows the *closest* items as tappable suggestions.
+  // (via exact, substring, subsequence, or small typo) somewhere.
   // ---------------------------------------------------------------------------
-
-  static const List<String> _searchGroupsOrder = [
-    'PROFILE',
-    'PRACTICE',
-    'ACCOUNT',
-  ];
 
   List<String> _itemHaystack(_NavItem item) => [
     item.title,
@@ -487,8 +478,6 @@ class _CounselorProfileSettingsScreenState
     item.section.name,
     ...item.searchTerms,
   ];
-
-  bool _matches(_NavItem item) => _scoreItem(item, _query) > 0;
 
   /// Composite score. 0 = no match. Higher is better.
   double _scoreItem(_NavItem item, String rawQuery) {
@@ -621,19 +610,31 @@ class _CounselorProfileSettingsScreenState
     for (final item in all) {
       // Relaxed score: subsequence / edit-distance / partial-token match.
       final s = _relaxedScore(item, q.toLowerCase());
-      if (s > 0) scored.add(  List<String> _itemHaystack(_NavItem item) => [
-    item.title,
-    item.subtitle,
-    item.group,
-    item.section.name,
-    ...item.searchTerms,
-  ];
-.contains(q)) best = math.max(best, 5);
-      if (_isSubsequence(q, f)) best = math.max(best, 3);
-      if (q.length >= 3 && _within1Edit(q, f)) best = math.max(best, 4);
-      // partial-prefix: any word in f starts with first 3 letters of q
+      if (s > 0) scored.add(MapEntry(item, s));
+    }
+    if (scored.isEmpty) return const [];
+    scored.sort((a, b) => b.value.compareTo(a.value));
+    return scored.map((entry) => entry.key).take(6).toList();
+  }
+
+  double _relaxedScore(_NavItem item, String q) {
+    if (q.isEmpty) return 0;
+    final fields = _itemHaystack(item).map((e) => e.toLowerCase()).toList();
+    double best = 0;
+    for (final field in fields) {
+      if (field == q) {
+        best = math.max(best, 6);
+      } else if (field.startsWith(q)) {
+        best = math.max(best, 5);
+      } else if (field.contains(q)) {
+        best = math.max(best, 4);
+      }
+      if (_isSubsequence(q, field)) best = math.max(best, 3);
+      if (q.length >= 3 && _within1Edit(q, field)) {
+        best = math.max(best, 2.5);
+      }
       final pref = q.length >= 3 ? q.substring(0, 3) : q;
-      for (final word in f.split(RegExp(r'\s+'))) {
+      for (final word in field.split(RegExp(r'\s+'))) {
         if (word.startsWith(pref)) best = math.max(best, 2);
       }
     }
