@@ -21,10 +21,7 @@ class MindNestTheme {
     return ThemeData(
       useMaterial3: true,
       fontFamily: GoogleFonts.outfit().fontFamily,
-      textTheme: _combinedTextTheme(
-        ThemeData.light().textTheme,
-        bodyColor: _text,
-      ),
+      textTheme: GoogleFonts.outfitTextTheme().apply(bodyColor: _text),
       colorScheme: colorScheme,
       scaffoldBackgroundColor: _surface,
       appBarTheme: const AppBarTheme(
@@ -99,11 +96,6 @@ class MindNestTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       fontFamily: GoogleFonts.outfit().fontFamily,
-      textTheme: _combinedTextTheme(
-        ThemeData.dark().textTheme,
-        bodyColor: _darkText,
-        displayColor: _darkText,
-      ),
       colorScheme: colorScheme,
       scaffoldBackgroundColor: _darkSurface,
       appBarTheme: const AppBarTheme(
@@ -113,6 +105,9 @@ class MindNestTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
+      textTheme: GoogleFonts.outfitTextTheme(
+        ThemeData.dark().textTheme,
+      ).apply(bodyColor: _darkText, displayColor: _darkText),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0xFF111A2C),
@@ -164,37 +159,5 @@ class MindNestTheme {
       ),
       dividerColor: const Color(0xFF273449),
     );
-  }
-
-  static TextTheme _combinedTextTheme(
-    TextTheme base, {
-    required Color bodyColor,
-    Color? displayColor,
-  }) {
-    final headingTheme = GoogleFonts.outfitTextTheme(base).copyWith(
-      displayLarge: GoogleFonts.outfit(textStyle: base.displayLarge),
-      displayMedium: GoogleFonts.outfit(textStyle: base.displayMedium),
-      displaySmall: GoogleFonts.outfit(textStyle: base.displaySmall),
-      headlineLarge: GoogleFonts.outfit(textStyle: base.headlineLarge),
-      headlineMedium: GoogleFonts.outfit(textStyle: base.headlineMedium),
-      headlineSmall: GoogleFonts.outfit(textStyle: base.headlineSmall),
-      titleLarge: GoogleFonts.outfit(textStyle: base.titleLarge),
-      titleMedium: GoogleFonts.outfit(textStyle: base.titleMedium),
-      titleSmall: GoogleFonts.outfit(textStyle: base.titleSmall),
-    );
-
-    final bodyTheme = GoogleFonts.figtreeTextTheme(base).copyWith(
-      bodyLarge: GoogleFonts.figtree(textStyle: base.bodyLarge),
-      bodyMedium: GoogleFonts.figtree(textStyle: base.bodyMedium),
-      bodySmall: GoogleFonts.figtree(textStyle: base.bodySmall),
-      labelLarge: GoogleFonts.figtree(textStyle: base.labelLarge),
-      labelMedium: GoogleFonts.figtree(textStyle: base.labelMedium),
-      labelSmall: GoogleFonts.figtree(textStyle: base.labelSmall),
-    );
-
-    return base
-        .merge(headingTheme)
-        .merge(bodyTheme)
-        .apply(bodyColor: bodyColor, displayColor: displayColor ?? bodyColor);
   }
 }

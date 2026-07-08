@@ -104,12 +104,6 @@ class _CounselorProfileSettingsScreenState
   int _breakMins = 10;
   bool _direct = true;
   bool _followUps = false;
-  Set<int> _workingWeekdays = {1, 2, 3, 4, 5};
-  int _workingDayStartMinutes = 7 * 60;
-  int _workingDayEndMinutes = 20 * 60;
-  bool _lunchBreakEnabled = false;
-  int _lunchBreakStartMinutes = 12 * 60 + 30;
-  int _lunchBreakEndMinutes = 13 * 60;
 
   bool _savingProfile = false;
   bool _sendingReset = false;
@@ -178,61 +172,6 @@ class _CounselorProfileSettingsScreenState
     _search.clear();
   }
 
-  List<int> _parseIntList(dynamic raw) {
-    if (raw is! List) {
-      return const <int>[];
-    }
-    final values = <int>[];
-    for (final entry in raw) {
-      final parsed = entry is num
-          ? entry.toInt()
-          : int.tryParse(entry.toString().trim());
-      if (parsed != null &&
-          parsed >= DateTime.monday &&
-          parsed <= DateTime.sunday) {
-        values.add(parsed);
-      }
-    }
-    values.sort();
-    return values;
-  }
-
-  String _formatMinutesOfDay(int minutes) {
-    final normalized = minutes.clamp(0, 24 * 60).toInt();
-    final hour24 = normalized ~/ 60;
-    final minute = normalized % 60;
-    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
-    final suffix = hour24 >= 12 ? 'PM' : 'AM';
-    return '$hour12:${minute.toString().padLeft(2, '0')} $suffix';
-  }
-
-  String _weekdayShort(int weekday) {
-    const labels = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return labels[weekday - 1];
-  }
-
-  String _weekdayRangeLabel() {
-    final sorted = [..._workingWeekdays]..sort();
-    if (sorted.isEmpty) {
-      return 'No working days selected';
-    }
-    final labels = sorted.map(_weekdayShort).toList(growable: false);
-    if (labels.length == 1) {
-      return labels.first;
-    }
-    if (labels.length == 2) {
-      return '${labels.first} and ${labels.last}';
-    }
-    return '${labels.take(labels.length - 1).join(', ')} and ${labels.last}';
-  }
-
-  String _scheduleSummary() {
-    final lunch = _lunchBreakEnabled
-        ? 'Lunch ${_formatMinutesOfDay(_lunchBreakStartMinutes)}-${_formatMinutesOfDay(_lunchBreakEndMinutes)}'
-        : 'No lunch break';
-    return '${_weekdayRangeLabel()} · ${_formatMinutesOfDay(_workingDayStartMinutes)}-${_formatMinutesOfDay(_workingDayEndMinutes)} · $_duration min sessions · $_breakMins min breaks · $lunch';
-  }
-
   // ---- data seeding ---------------------------------------------------------
   void _seed(UserProfile profile, CounselorProfile? cp) {
     if (_seeded) return;
@@ -278,43 +217,8 @@ class _CounselorProfileSettingsScreenState
     _active = cp?.isActive ?? (setup['isActive'] as bool? ?? true);
     final d = (prefs['defaultSessionMinutes'] as num?)?.toInt();
     if (d != null && _durations.contains(d)) _duration = d;
-    final b = (prefs['breakBetweenSessionsMins'] as num?)?.toInt();
-    if (b != null && b >= 0 && b <= 60) _breakMins = b;
-    _direct = (prefs['allowDirectBooking'] as bool?) ?? true;
-    _followUps = (prefs['autoApproveFollowUps'] as bool?) ?? false;
-    final weekdays = cp?.workingWeekdays.isNotEmpty == true
-        ? cp!.workingWeekdays
-        : _parseIntList(prefs['workingWeekdays']).isNotEmpty
-        ? _parseIntList(prefs['workingWeekdays'])
-        : _parseIntList(setup['workingWeekdays']);
-    if (weekdays.isNotEmpty) {
-      _workingWeekdays = weekdays.toSet();
-    }
-    _workingDayStartMinutes =
-        cp?.workingDayStartMinutes ??
-        (prefs['workingDayStartMinutes'] as num?)?.toInt() ??
-        (setup['workingDayStartMinutes'] as num?)?.toInt() ??
-        _workingDayStartMinutes;
-    _workingDayEndMinutes =
-        cp?.workingDayEndMinutes ??
-        (prefs['workingDayEndMinutes'] as num?)?.toInt() ??
-        (setup['workingDayEndMinutes'] as num?)?.toInt() ??
-        _workingDayEndMinutes;
-    _lunchBreakEnabled =
-        cp?.lunchBreakEnabled ??
-        (prefs['lunchBreakEnabled'] as bool?) ??
-        (setup['lunchBreakEnabled'] as bool?) ??
-        _lunchBreakEnabled;
-    _lunchBreakStartMinutes =
-        cp?.lunchBreakStartMinutes ??
-        (prefs['lunchBreakStartMinutes'] as num?)?.toInt() ??
-        (setup['lunchBreakStartMinutes'] as num?)?.toInt() ??
-        _lunchBreakStartMinutes;
-    _lunchBreakEndMinutes =
-        cp?.lunchBreakEndMinutes ??
-        (prefs['lunchBreakEndMinutes'] as num?)?.toInt() ??
-        (setup['lunchBreakEndMinutes'] as num?)?.toInt() ??
-        _lunchBreakEndMinutes;
+    final b = (prefs['breakBetweenS    return '${_weekdayRangeLabel()} · ${_formatMinutesOfDay(_workingDayStartMinutes)}-${_formatMinutesOfDay(_workingDayEndMinutes)} · $_duration min sessions · $_breakMins min breaks · $lunch';
+'] as bool?) ?? false;
     _seeded = true;
   }
 
@@ -326,7 +230,6 @@ class _CounselorProfileSettingsScreenState
     try {
       final years = int.tryParse(_years.text.trim()) ?? 0;
       final languages = normalizeCounselorLanguages(_languages!);
-      final workingWeekdays = [..._workingWeekdays]..sort();
       await ref
           .read(counselorRepositoryProvider)
           .updateProfileAndSettings(
@@ -343,12 +246,6 @@ class _CounselorProfileSettingsScreenState
             breakBetweenSessionsMins: _breakMins,
             allowDirectBooking: _direct,
             autoApproveFollowUps: _followUps,
-            workingWeekdays: workingWeekdays,
-            workingDayStartMinutes: _workingDayStartMinutes,
-            workingDayEndMinutes: _workingDayEndMinutes,
-            lunchBreakEnabled: _lunchBreakEnabled,
-            lunchBreakStartMinutes: _lunchBreakStartMinutes,
-            lunchBreakEndMinutes: _lunchBreakEndMinutes,
           );
       if (!mounted) return;
       showModernBannerFromSnackBar(
@@ -503,8 +400,7 @@ class _CounselorProfileSettingsScreenState
         section: CounselorProfileSettingsSection.sessionRhythm,
         group: 'PRACTICE',
         title: 'Session rhythm',
-        subtitle:
-            '${_weekdayRangeLabel()} · ${_formatMinutesOfDay(_workingDayStartMinutes)}-${_formatMinutesOfDay(_workingDayEndMinutes)} · $_duration min',
+        subtitle: '$_duration min · $_breakMins min break',
         icon: Icons.graphic_eq_rounded,
         accent: const Color(0xFF22D3EE),
         searchTerms: [
@@ -517,15 +413,6 @@ class _CounselorProfileSettingsScreenState
           'follow ups',
           'auto approve',
           'booking preferences',
-          'weekdays',
-          'weekend',
-          'weekends',
-          'working hours',
-          'daily schedule',
-          'lunch',
-          'lunch break',
-          'work start',
-          'work end',
           'cadence',
           'rhythm',
         ],
@@ -587,6 +474,12 @@ class _CounselorProfileSettingsScreenState
   // shows the *closest* items as tappable suggestions.
   // ---------------------------------------------------------------------------
 
+  static const List<String> _searchGroupsOrder = [
+    'PROFILE',
+    'PRACTICE',
+    'ACCOUNT',
+  ];
+
   List<String> _itemHaystack(_NavItem item) => [
     item.title,
     item.subtitle,
@@ -594,6 +487,8 @@ class _CounselorProfileSettingsScreenState
     item.section.name,
     ...item.searchTerms,
   ];
+
+  bool _matches(_NavItem item) => _scoreItem(item, _query) > 0;
 
   /// Composite score. 0 = no match. Higher is better.
   double _scoreItem(_NavItem item, String rawQuery) {
@@ -726,17 +621,14 @@ class _CounselorProfileSettingsScreenState
     for (final item in all) {
       // Relaxed score: subsequence / edit-distance / partial-token match.
       final s = _relaxedScore(item, q.toLowerCase());
-      if (s > 0) scored.add(MapEntry(item, s));
-    }
-    scored.sort((a, b) => b.value.compareTo(a.value));
-    return scored.take(3).map((e) => e.key).toList(growable: false);
-  }
-
-  double _relaxedScore(_NavItem item, String q) {
-    double best = 0;
-    for (final field in _itemHaystack(item)) {
-      final f = field.toLowerCase();
-      if (f.contains(q)) best = math.max(best, 5);
+      if (s > 0) scored.add(  List<String> _itemHaystack(_NavItem item) => [
+    item.title,
+    item.subtitle,
+    item.group,
+    item.section.name,
+    ...item.searchTerms,
+  ];
+.contains(q)) best = math.max(best, 5);
       if (_isSubsequence(q, f)) best = math.max(best, 3);
       if (q.length >= 3 && _within1Edit(q, f)) best = math.max(best, 4);
       // partial-prefix: any word in f starts with first 3 letters of q
@@ -2502,310 +2394,13 @@ class _SessionRhythmBody extends StatefulWidget {
 }
 
 class _SessionRhythmBodyState extends State<_SessionRhythmBody> {
-  static const _weekdayLabels = <String>[
-    'Mon',
-    'Tue',
-    'Wed',
-    'Thu',
-    'Fri',
-    'Sat',
-    'Sun',
-  ];
-
-  Future<void> _pickTime({
-    required int initialMinutes,
-    required ValueChanged<int> onPicked,
-  }) async {
-    final initial = TimeOfDay(
-      hour: initialMinutes ~/ 60,
-      minute: initialMinutes % 60,
-    );
-    final picked = await showTimePicker(context: context, initialTime: initial);
-    if (picked == null) {
-      return;
-    }
-    onPicked(picked.hour * 60 + picked.minute);
-  }
-
-  void _ensureWorkingRange(_CounselorProfileSettingsScreenState s) {
-    if (s._workingDayEndMinutes > s._workingDayStartMinutes) {
-      return;
-    }
-    s._workingDayEndMinutes = (s._workingDayStartMinutes + 60)
-        .clamp(1, 24 * 60)
-        .toInt();
-  }
-
-  void _ensureLunchRange(_CounselorProfileSettingsScreenState s) {
-    if (!s._lunchBreakEnabled) {
-      return;
-    }
-    if (s._lunchBreakEndMinutes > s._lunchBreakStartMinutes) {
-      return;
-    }
-    s._lunchBreakEndMinutes = (s._lunchBreakStartMinutes + 30)
-        .clamp(1, 24 * 60)
-        .toInt();
-  }
-
-  Widget _timeChip({
-    required String label,
-    required String value,
-    required VoidCallback onTap,
-    required Color accent,
-    required IconData icon,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: _T.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _T.hairline),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: accent.withOpacity(0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: accent, size: 18),
-            ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: _T.textMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: _T.text,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = widget.state;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _T.surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _T.hairline),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _MutedLabel('Default weekly rhythm'),
-              const SizedBox(height: 8),
-              Text(
-                s._scheduleSummary(),
-                style: const TextStyle(
-                  color: _T.text,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  height: 1.45,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'These defaults shape the weekly grid, quick-add slots, and the student-facing booking options.',
-                style: TextStyle(color: _T.textMuted, height: 1.45),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        const _MutedLabel('Working days'),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: List<Widget>.generate(_weekdayLabels.length, (index) {
-            final day = index + 1;
-            final selected = s._workingWeekdays.contains(day);
-            return _ChoiceChip(
-              label: _weekdayLabels[index],
-              selected: selected,
-              onTap: () => setState(() {
-                if (selected && s._workingWeekdays.length == 1) {
-                  return;
-                }
-                if (selected) {
-                  s._workingWeekdays.remove(day);
-                } else {
-                  s._workingWeekdays.add(day);
-                }
-              }),
-            );
-          }),
-        ),
-        const SizedBox(height: 18),
-        const _MutedLabel('Working hours'),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _timeChip(
-              label: 'Start',
-              value: s._formatMinutesOfDay(s._workingDayStartMinutes),
-              icon: Icons.wb_sunny_outlined,
-              accent: const Color(0xFFF59E0B),
-              onTap: () async {
-                await _pickTime(
-                  initialMinutes: s._workingDayStartMinutes,
-                  onPicked: (minutes) {
-                    setState(() {
-                      s._workingDayStartMinutes = minutes;
-                      _ensureWorkingRange(s);
-                    });
-                  },
-                );
-              },
-            ),
-            _timeChip(
-              label: 'End',
-              value: s._formatMinutesOfDay(s._workingDayEndMinutes),
-              icon: Icons.nightlight_round,
-              accent: const Color(0xFF7C3AED),
-              onTap: () async {
-                await _pickTime(
-                  initialMinutes: s._workingDayEndMinutes,
-                  onPicked: (minutes) {
-                    setState(() {
-                      s._workingDayEndMinutes = minutes;
-                      _ensureWorkingRange(s);
-                    });
-                  },
-                );
-              },
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
-        Container(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-          decoration: BoxDecoration(
-            color: _T.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: _T.hairline),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Lunch break',
-                      style: TextStyle(
-                        color: _T.text,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  AnimatedSwitcher(
-                    duration: _T.dQuick,
-                    child: Text(
-                      s._lunchBreakEnabled ? 'On' : 'Off',
-                      key: ValueKey(s._lunchBreakEnabled),
-                      style: TextStyle(
-                        color: s._lunchBreakEnabled ? _T.brand : _T.textMuted,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              _ToggleTile(
-                title: 'Reserve a midday break',
-                subtitle:
-                    'This break is subtracted from all generated booking options.',
-                value: s._lunchBreakEnabled,
-                onChanged: (v) => setState(() {
-                  s._lunchBreakEnabled = v;
-                  _ensureLunchRange(s);
-                }),
-              ),
-              if (s._lunchBreakEnabled) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    _timeChip(
-                      label: 'Break start',
-                      value: s._formatMinutesOfDay(s._lunchBreakStartMinutes),
-                      icon: Icons.free_breakfast_outlined,
-                      accent: const Color(0xFF0E9B90),
-                      onTap: () async {
-                        await _pickTime(
-                          initialMinutes: s._lunchBreakStartMinutes,
-                          onPicked: (minutes) {
-                            setState(() {
-                              s._lunchBreakStartMinutes = minutes;
-                              _ensureLunchRange(s);
-                            });
-                          },
-                        );
-                      },
-                    ),
-                    _timeChip(
-                      label: 'Break end',
-                      value: s._formatMinutesOfDay(s._lunchBreakEndMinutes),
-                      icon: Icons.lunch_dining_outlined,
-                      accent: const Color(0xFFEF4444),
-                      onTap: () async {
-                        await _pickTime(
-                          initialMinutes: s._lunchBreakEndMinutes,
-                          onPicked: (minutes) {
-                            setState(() {
-                              s._lunchBreakEndMinutes = minutes;
-                              _ensureLunchRange(s);
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 22),
+        // Duration picker as pill row
         const _MutedLabel('Default session duration'),
         const SizedBox(height: 10),
         Wrap(
