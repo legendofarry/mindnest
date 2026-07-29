@@ -836,7 +836,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 },
                 decoration: const InputDecoration(
                   border: InputBorder.none,
-                  hintText: 'alex@example.com',
+                  hintText: '...',
                   prefixIcon: Icon(Icons.mail_outline_rounded),
                   hintStyle: TextStyle(color: Color(0xFF94A3B8)),
                 ),
@@ -858,7 +858,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 },
                 decoration: InputDecoration(
                   border: InputBorder.none,
-                  hintText: 'Password',
+                  hintText: '****',
                   prefixIcon: const Icon(Icons.lock_outline_rounded),
                   suffixIcon: IconButton(
                     onPressed: () {
@@ -1335,7 +1335,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 },
                 decoration: InputDecoration(
                   border: InputBorder.none,
-                  hintText: 'alex@example.com',
+                  hintText: '...',
                   prefixIcon: const Icon(Icons.mail_outline_rounded),
                   hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
                 ),

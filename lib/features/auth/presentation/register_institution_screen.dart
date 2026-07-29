@@ -609,7 +609,7 @@ class _RegisterInstitutionScreenState
             }),
             decoration: const InputDecoration(
               border: InputBorder.none,
-              hintText: 'Alex Rivera',
+              hintText: '...',
               prefixIcon: Icon(Icons.person_outline_rounded),
             ),
           ),
@@ -648,7 +648,7 @@ class _RegisterInstitutionScreenState
                   }),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
-                    hintText: 'alex@example.com',
+                    hintText: '...',
                     prefixIcon: Icon(Icons.mail_outline_rounded),
                   ),
                 ),

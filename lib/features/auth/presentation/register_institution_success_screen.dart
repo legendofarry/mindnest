@@ -359,7 +359,7 @@ class _HeroPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const _SoftChip(
-                  label: 'CONTROL CENTER READY',
+                  label: 'CONTROL CENTER',
                   color: Color(0xFFFFFFFF),
                   background: Color(0x1FFFFFFF),
                 ),
@@ -374,8 +374,7 @@ class _HeroPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  'Track approval, manage join access, and prepare counselor , students '
-                  'or staff invitations without leaving the workspace.',
+                  'Track approvals, manage invitations, and prepare invitations for members—all in one place.',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: const Color(0xFFC7D8F6),
                     height: 1.5,

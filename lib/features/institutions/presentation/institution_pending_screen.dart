@@ -321,7 +321,7 @@ class _InstitutionPendingScreenState
           title: 'What happens next',
           description: isCancelled
               ? 'This request is no longer in the review queue. Contact support if something feels off.'
-              : 'Your request is under review by our team. Once the review completes, access updates automatically.',
+              : 'Your request is under review. Once the review completes, access updates automatically.',
           accent: const Color(0xFF2563EB),
         );
         final cardB = _RequestManagementCard(
@@ -822,7 +822,7 @@ class _RequestManagementCard extends StatelessWidget {
                       ),
                       SizedBox(height: 6),
                       Text(
-                        'If the request needs a human review, contact support from here.',
+                        'Contact support from here.',
                         style: TextStyle(
                           color: Color(0xFF516784),
                           height: 1.4,
@@ -1202,7 +1202,7 @@ class _OwnerSupportChatSheetState
                                                       children: [
                                                         Text(
                                                           isOwner
-                                                              ? 'Teraji team'
+                                                              ? 'Teraji'
                                                               : 'You',
                                                           style: TextStyle(
                                                             fontWeight:
@@ -1281,8 +1281,7 @@ class _OwnerSupportChatSheetState
                                           minLines: 1,
                                           maxLines: 5,
                                           decoration: const InputDecoration(
-                                            hintText:
-                                                'Describe the problem and the support team will pick it up here...',
+                                            hintText: 'type here...',
                                             border: InputBorder.none,
                                           ),
                                         ),

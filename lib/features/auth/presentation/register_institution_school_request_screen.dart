@@ -132,9 +132,7 @@ class _RegisterInstitutionSchoolRequestScreenState
       showModernBannerFromSnackBar(
         context,
         const SnackBar(
-          content: Text(
-            'Institution request sent. We will review the name and add it if approved.',
-          ),
+          content: Text("Institution request sent. We'll review your request"),
         ),
       );
       await Future<void>.delayed(const Duration(milliseconds: 700));

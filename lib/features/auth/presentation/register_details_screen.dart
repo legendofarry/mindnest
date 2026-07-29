@@ -446,7 +446,7 @@ class _RegisterDetailsScreenState extends ConsumerState<RegisterDetailsScreen> {
             }),
             decoration: const InputDecoration(
               border: InputBorder.none,
-              hintText: 'alex@example.com',
+              hintText: '...',
               prefixIcon: Icon(Icons.mail_outline_rounded),
             ),
           ),
